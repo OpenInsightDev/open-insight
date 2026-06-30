@@ -1,6 +1,10 @@
-import { Benchmark, Sandbox, Task } from "@open-insight/eval";
+import { Agent, Benchmark, Harness, Sandbox, Task, Effect, Exec } from "@open-insight/eval";
 import path from "pathe";
 import * as fs from "fs";
+import { Chat } from "effect/unstable/ai";
+import { OpenAiClient, OpenAiLanguageModel } from "@effect/ai-openai";
+import { Config } from "effect";
+import { NodeServices } from "@effect/platform-node";
 
 type VerilogEvalTask = Task.Task<Task.Grader<"simPass", boolean>>;
 
@@ -60,3 +64,37 @@ const benchmark = Benchmark.init<VerilogEvalTask>({
   name: "Verilog Eval Benchmark",
   description: "A benchmark for testing the Verilog Eval Task",
 }).pipe(Benchmark.withTasks(tasks), Benchmark.build);
+
+const OpenAi = OpenAiClient.layerConfig({
+  apiKey: Config.redacted("OPENAI_API_KEY"),
+});
+const GPT = OpenAiLanguageModel.model("gpt-5.4");
+const agent = Agent.Effect.make({ chat: Chat.empty }).pipe(
+  Effect.provide(GPT),
+  Effect.provide(OpenAi),
+);
+
+const sandbox = Sandbox.Docker.make({
+  portMappings: [{ sandboxPort: 80, hostPort: 8080 }],
+});
+
+const harness = Harness.init<VerilogEvalTask>().pipe(
+  Harness.withSandboxProvider(sandbox),
+  Harness.withAgentProvider(agent),
+  Harness.build,
+);
+
+const executor = Exec.init<VerilogEvalTask>().pipe(
+  Exec.withBenchmark(benchmark),
+  Exec.withHarness(harness),
+  Exec.build,
+  Effect.provide(NodeServices.layer),
+);
+
+const result = await Effect.runPromise(
+  Exec.run(executor, {
+    sandboxConfig: { cacheSnapshot: false },
+  }),
+);
+
+console.log(result);

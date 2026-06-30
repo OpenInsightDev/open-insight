@@ -17,46 +17,47 @@ interface Options {
 }
 
 export const withGitRepo = (repoURL: string, options?: Options) =>
-  Effect.fn(function* <T extends Task.Task>(
-    exec: (repoPath: string) => Loader<T> | Promise<Loader<T>>,
-  ) {
-    const fs = yield* FileSystem.FileSystem;
-    const spawner = yield* Spawn.SpawnService;
+  Effect.fn(
+    function* <T extends Task.Task>(exec: (repoPath: string) => Loader<T> | Promise<Loader<T>>) {
+      const fs = yield* FileSystem.FileSystem;
+      const spawner = yield* Spawn.SpawnService;
 
-    const repoPath = yield* fs.makeTempDirectoryScoped({
-      prefix: "open-insight-task-",
-    });
+      const repoPath = yield* fs.makeTempDirectoryScoped({
+        prefix: "open-insight-task-",
+      });
 
-    const cloneArgs: Array<string> = ["clone"];
+      const cloneArgs: Array<string> = ["clone"];
 
-    const depth = options?.depth ?? 1;
-    if (depth !== undefined && Number.isFinite(depth)) {
-      cloneArgs.push("--depth", String(depth));
-    }
+      const depth = options?.depth ?? 1;
+      if (depth !== undefined && Number.isFinite(depth)) {
+        cloneArgs.push("--depth", String(depth));
+      }
 
-    if (options?.branch) {
-      cloneArgs.push("--branch", options.branch);
-    }
+      if (options?.branch) {
+        cloneArgs.push("--branch", options.branch);
+      }
 
-    const singleBranch = options?.singleBranch ?? options?.branch !== undefined;
-    if (singleBranch) {
-      cloneArgs.push("--single-branch");
-    }
+      const singleBranch = options?.singleBranch ?? options?.branch !== undefined;
+      if (singleBranch) {
+        cloneArgs.push("--single-branch");
+      }
 
-    cloneArgs.push(repoURL, repoPath);
+      cloneArgs.push(repoURL, repoPath);
 
-    const clone = ChildProcess.make("git", cloneArgs);
-    yield* spawner.exitCode(clone);
+      const clone = ChildProcess.make("git", cloneArgs);
+      yield* spawner.exitCode(clone);
 
-    // Checkout a specific commit after clone if requested
-    if (options?.commit) {
-      const checkout = ChildProcess.make("git", ["-C", repoPath, "checkout", options.commit]);
-      yield* spawner.exitCode(checkout);
-    }
+      // Checkout a specific commit after clone if requested
+      if (options?.commit) {
+        const checkout = ChildProcess.make("git", ["-C", repoPath, "checkout", options.commit]);
+        yield* spawner.exitCode(checkout);
+      }
 
-    const loader = yield* Effect.tryPromise({
-      try: () => Promise.resolve(exec(repoPath)),
-      catch: TaskError.load,
-    });
-    return yield* loader;
-  });
+      const loader = yield* Effect.tryPromise({
+        try: () => Promise.resolve(exec(repoPath)),
+        catch: TaskError.load,
+      });
+      return yield* loader;
+    },
+    (effect) => effect.pipe(Effect.provide(Spawn.SpawnService.layer)),
+  );
