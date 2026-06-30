@@ -40,13 +40,13 @@
     "@effect/platform-node": "4.0.0-beta.91",
     "@effect/vitest": "catalog:",
     "@open-insight/core": "workspace:*",
-    "@open-insight/utils": "workspace:*",
     "ai": "^7.0.0",
     "effect": "catalog:",
     "immer": "^10.1.1",
     "picomatch": "^4.0.4"
   },
   "devDependencies": {
+    "@open-insight/utils": "workspace:*",
     "@types/node": "^25.6.2",
     "@types/picomatch": "^4.0.3",
     "@typescript/native-preview": "catalog:",

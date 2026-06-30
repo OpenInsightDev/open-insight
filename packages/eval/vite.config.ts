@@ -8,6 +8,7 @@ export default defineConfig({
     dts: {
       tsgo: true,
     },
+    clean: true,
     entry: {
       internal: "src/index.ts",
       index: "src/export.ts",

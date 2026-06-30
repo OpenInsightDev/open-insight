@@ -38,13 +38,13 @@
   },
   "dependencies": {
     "@agentclientprotocol/sdk": "^1.0.0",
-    "@open-insight/utils": "workspace:*",
     "ai": "catalog:",
     "dockerfile-ast": "^0.7.1",
     "effect": "catalog:",
     "picomatch": "^4.0.4"
   },
   "devDependencies": {
+    "@open-insight/utils": "workspace:*",
     "@effect/platform-node": "4.0.0-beta.91",
     "@effect/vitest": "4.0.0-beta.91",
     "@types/node": "^25.6.2",
