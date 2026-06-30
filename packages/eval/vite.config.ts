@@ -9,6 +9,7 @@ export default defineConfig({
       tsgo: true,
     },
     clean: true,
+    sourcemap: true,
     entry: {
       internal: "src/index.ts",
       index: "src/export.ts",

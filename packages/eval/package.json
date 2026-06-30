@@ -1,19 +1,20 @@
 {
   "name": "@open-insight/eval",
   "version": "0.0.0",
-  "description": "Evaluator framework for Open Insight — benchmarks, task grading, harnesses.",
-  "homepage": "https://github.com/open-insight/open-insight#readme",
+  "description": "Evaluator framework for Open Insight — benchmarks, tasks, evaluation harnesses.",
+  "homepage": "https://github.com/OpenInsightDev/open-insight#readme",
   "bugs": {
-    "url": "https://github.com/open-insight/open-insight/issues"
+    "url": "https://github.com/OpenInsightDev/open-insight/issues"
   },
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/open-insight/open-insight.git",
+    "url": "git+https://github.com/OpenInsightDev/open-insight.git",
     "directory": "packages/eval"
   },
   "files": [
-    "dist"
+    "dist",
+    "src"
   ],
   "type": "module",
   "exports": {
