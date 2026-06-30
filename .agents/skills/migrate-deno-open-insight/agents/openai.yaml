@@ -1,0 +1,4 @@
+interface:
+  display_name: "Migrate Deno Open Insight"
+  short_description: "Migrate the old Deno monorepo into this Vite+ repo"
+  default_prompt: "Use $migrate-deno-open-insight to migrate code from references/open-insight.deno into the Vite+ workspace."

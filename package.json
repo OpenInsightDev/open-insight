@@ -1,0 +1,30 @@
+{
+  "name": "open-insight",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "ready": "vp check && vp run -r test && vp run -r build",
+    "dev": "vp run website#dev",
+    "prepare": "vp config && effect-tsgo patch",
+    "changeset-version": "changeset version",
+    "changeset-publish": "vp run -r build && changeset publish"
+  },
+  "devDependencies": {
+    "@effect/language-service": "^0.86.2",
+    "@effect/tsgo": "catalog:",
+    "@typescript/native-preview": "catalog:",
+    "vite-plus": "catalog:",
+    "@changesets/cli": "catalog:"
+  },
+  "devEngines": {
+    "packageManager": {
+      "name": "pnpm",
+      "version": "11.9.0",
+      "onFail": "download"
+    }
+  },
+  "engines": {
+    "node": ">=22.18.0"
+  }
+}

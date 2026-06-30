@@ -1,0 +1,56 @@
+import { Chat, LanguageModel, Toolkit } from "effect/unstable/ai";
+import { Effect, Ref, Stream } from "effect";
+import * as Agent from "@/agent/index.ts";
+import { AgentError } from "@/agent/error.ts";
+import * as Sandbox from "@/sandbox/index.ts";
+
+export const makeAgent = Effect.fn(function* ({
+  sandbox: _sandbox,
+  chat = Chat.empty,
+  toolkit = Toolkit.empty,
+}: {
+  sandbox: Sandbox.Sandbox;
+  chat?: Effect.Effect<Chat.Service>;
+  toolkit?: Toolkit.Toolkit<any>;
+}): Effect.fn.Return<Agent.Agent, Agent.AgentError, LanguageModel.LanguageModel> {
+  const llm = yield* LanguageModel.LanguageModel;
+  const service = yield* chat;
+  return {
+    trajectory: () => Ref.get(service.history),
+    prompt: ({ prompt }) =>
+      Effect.succeed(
+        service
+          .streamText<any>({ prompt, toolkit })
+          .pipe(
+            Stream.mapError(AgentError.stream),
+            Stream.provideService(LanguageModel.LanguageModel, llm),
+          ),
+      ),
+  } satisfies Agent.Agent;
+});
+
+export const make = Effect.fn(function* ({
+  chat = Chat.empty,
+  toolkit = Toolkit.empty,
+}: {
+  chat?: Effect.Effect<Chat.Service>;
+  toolkit?: Toolkit.Toolkit<any>;
+}): Effect.fn.Return<Agent.Provider, Agent.AgentError, LanguageModel.LanguageModel> {
+  const llm = yield* LanguageModel.LanguageModel;
+
+  const runSession = Effect.fn(
+    function* ({ sandbox }) {
+      return yield* makeAgent({ sandbox, chat, toolkit });
+    },
+    (effect) => effect.pipe(Effect.provideService(LanguageModel.LanguageModel, llm)),
+  ) satisfies Agent.Provider["runSession"];
+
+  const deriveSnapshot = Effect.fn(function* ({ snapshot }) {
+    return yield* Effect.succeed(snapshot);
+  }) satisfies Agent.Provider["deriveSnapshot"];
+
+  return {
+    runSession,
+    deriveSnapshot,
+  } satisfies Agent.Provider;
+});

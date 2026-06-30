@@ -1,0 +1,58 @@
+{
+  "name": "@open-insight/core",
+  "version": "0.0.0",
+  "description": "Core sandbox provider abstraction layer for Open Insight.",
+  "homepage": "https://github.com/open-insight/open-insight#readme",
+  "bugs": {
+    "url": "https://github.com/open-insight/open-insight/issues"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/open-insight/open-insight.git",
+    "directory": "packages/core"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "exports": {
+    ".": "./src/export.ts",
+    "./internal": "./src/index.ts",
+    "./package.json": "./package.json"
+  },
+  "publishConfig": {
+    "exports": {
+      ".": "./dist/index.mjs",
+      "./internal": "./dist/internal.mjs",
+      "./package.json": "./package.json"
+    },
+    "access": "public"
+  },
+  "scripts": {
+    "build": "vp pack",
+    "dev": "vp pack --watch",
+    "test": "vp test",
+    "check": "vp check",
+    "prepublishOnly": "vp run build"
+  },
+  "dependencies": {
+    "@agentclientprotocol/sdk": "^1.0.0",
+    "@open-insight/utils": "workspace:*",
+    "ai": "catalog:",
+    "dockerfile-ast": "^0.7.1",
+    "effect": "catalog:",
+    "picomatch": "^4.0.4"
+  },
+  "devDependencies": {
+    "@effect/platform-node": "4.0.0-beta.91",
+    "@effect/vitest": "4.0.0-beta.91",
+    "@types/node": "^25.6.2",
+    "@types/picomatch": "^4.0.3",
+    "@typescript/native-preview": "catalog:",
+    "bumpp": "^11.1.0",
+    "typescript": "^5",
+    "vite-plus": "catalog:",
+    "vitest": "catalog:"
+  }
+}

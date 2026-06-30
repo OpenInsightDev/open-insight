@@ -1,0 +1,58 @@
+{
+  "name": "@open-insight/eval",
+  "version": "0.0.0",
+  "description": "Evaluator framework for Open Insight — benchmarks, task grading, harnesses.",
+  "homepage": "https://github.com/open-insight/open-insight#readme",
+  "bugs": {
+    "url": "https://github.com/open-insight/open-insight/issues"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/open-insight/open-insight.git",
+    "directory": "packages/eval"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "exports": {
+    ".": "./src/export.ts",
+    "./internal": "./src/index.ts",
+    "./package.json": "./package.json"
+  },
+  "publishConfig": {
+    "exports": {
+      ".": "./dist/index.mjs",
+      "./internal": "./dist/internal.mjs",
+      "./package.json": "./package.json"
+    },
+    "access": "public"
+  },
+  "scripts": {
+    "build": "vp pack",
+    "dev": "vp pack --watch",
+    "test": "vp test",
+    "check": "vp check",
+    "prepublishOnly": "vp run build"
+  },
+  "dependencies": {
+    "@effect/platform-node": "4.0.0-beta.91",
+    "@effect/vitest": "catalog:",
+    "@open-insight/core": "workspace:*",
+    "@open-insight/utils": "workspace:*",
+    "ai": "^7.0.0",
+    "effect": "catalog:",
+    "immer": "^10.1.1",
+    "picomatch": "^4.0.4"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.2",
+    "@types/picomatch": "^4.0.3",
+    "@typescript/native-preview": "catalog:",
+    "bumpp": "^11.1.0",
+    "typescript": "^5",
+    "vite-plus": "catalog:",
+    "vitest": "catalog:"
+  }
+}
