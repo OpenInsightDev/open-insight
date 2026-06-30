@@ -1,4 +1,5 @@
 export * as Benchmark from "./bench/index.ts";
+export * as Chart from "./chart/index.ts";
 export * as Task from "./task/index.ts";
 export * as Traj from "./traj/index.ts";
 
