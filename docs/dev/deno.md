@@ -2,6 +2,7 @@
 
 ## Why don't we use Deno anymore
 
+I personally like Deno, but it has some limitations that make it hard to work with effect-ts.
 This project is heavily based on Effect, which includes a lot of complex TypeScript types.
 Deno 2.8 introduced [`deno pack`](https://docs.deno.com/runtime/reference/cli/pack/), which can package deno project into a npm-compatible package.
 However, `deno pack` requires:

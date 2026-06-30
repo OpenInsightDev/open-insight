@@ -4,7 +4,6 @@ import * as fs from "fs";
 import { Chat } from "effect/unstable/ai";
 import { OpenAiClient, OpenAiLanguageModel } from "@effect/ai-openai";
 import { Config } from "effect";
-import { NodeServices } from "@effect/platform-node";
 
 type VerilogEvalTask = Task.Task<Task.Grader<"simPass", boolean>>;
 
@@ -20,11 +19,10 @@ const tasks = Task.withGitRepo("https://github.com/NVlabs/verilog-eval.git")((re
         const name = match[1];
         const promptContent = fs.readFileSync(path.join(datasetPath, file), "utf-8");
 
-        return Task.init<VerilogEvalTask>({
-          name,
-          description: promptContent,
-        }).pipe(
-          Task.withTextPrompt(`${promptContent}.\n\n Write your answer into a file named top.sv.`),
+        return Task.init<VerilogEvalTask>({ name }).pipe(
+          Task.withTextPrompt(
+            `${promptContent}\n\n Write your answer into a new file named top.sv.`,
+          ),
           Task.withGrader("simPass", async ({ $, upload }) => {
             await upload({
               hostPath: path.join(datasetPath, `${name}_ref.sv`),
@@ -34,13 +32,10 @@ const tasks = Task.withGitRepo("https://github.com/NVlabs/verilog-eval.git")((re
               hostPath: path.join(datasetPath, `${name}_test.sv`),
               sandboxPath: `/workspace/test.sv`,
             });
-            await $({
-              command: "iverilog",
-              args: [`test.sv`, "top.sv", "ref.sv"],
-            });
+            await $`iverilog test.sv top.sv ref.sv -o a.out`;
 
             try {
-              await $({ command: "vvp", args: [`a.out`] });
+              await $`vvp a.out`;
               return true;
             } catch {
               return false;
@@ -88,7 +83,6 @@ const executor = Exec.init<VerilogEvalTask>().pipe(
   Exec.withBenchmark(benchmark),
   Exec.withHarness(harness),
   Exec.build,
-  Effect.provide(NodeServices.layer),
 );
 
 const result = await Effect.runPromise(
