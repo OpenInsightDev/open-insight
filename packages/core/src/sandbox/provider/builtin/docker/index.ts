@@ -5,9 +5,7 @@ import { SandboxError } from "@/sandbox/error.ts";
 import * as Provider from "@/sandbox/provider/index.ts";
 import * as Snapshot from "@/sandbox/snapshot/index.ts";
 import { Context, Crypto, Effect, FileSystem, Path, Stream } from "effect";
-import { HttpClient } from "effect/unstable/http";
 import { ChildProcess as CP } from "effect/unstable/process";
-import { ChildProcessSpawner } from "effect/unstable/process/ChildProcessSpawner";
 import { makeRuntime } from "./utils.ts";
 
 export type PortMapping = Readonly<{
@@ -50,12 +48,7 @@ export const make = Effect.fn(
   }: MakeOptions): Effect.fn.Return<
     Provider.Provider,
     SandboxError,
-    | Crypto.Crypto
-    | FileSystem.FileSystem
-    | Path.Path
-    | HttpClient.HttpClient
-    | ChildProcessSpawner
-    | Spawn.SpawnService
+    Crypto.Crypto | FileSystem.FileSystem | Path.Path | Spawn.SpawnService
   > {
     const runtime = yield* makeRuntime().pipe(Effect.mapError(SandboxError.provider("docker")));
 
@@ -63,15 +56,10 @@ export const make = Effect.fn(
     const spawner = yield* Spawn.SpawnService;
     const fs = yield* FileSystem.FileSystem;
     const path = yield* Path.Path;
-    const httpClient = yield* HttpClient.HttpClient;
-    const childProcessSpawner = yield* ChildProcessSpawner;
 
     const serviceContext = Context.mergeAll(
-      Context.make(Crypto.Crypto, crypto),
       Context.make(FileSystem.FileSystem, fs),
       Context.make(Path.Path, path),
-      Context.make(HttpClient.HttpClient, httpClient),
-      Context.make(ChildProcessSpawner, childProcessSpawner),
     );
 
     const ensureSnapshot = Effect.fn(function* ({ snapshot, context }) {

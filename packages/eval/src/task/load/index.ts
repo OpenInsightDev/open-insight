@@ -12,4 +12,5 @@ export type Loader<T extends Task.Task = Task.Task, R = never, E = TaskError> = 
 
 export * as File from "./file.ts";
 export * as Git from "./git.ts";
+export * as Dist from "./dist.ts";
 export * from "./iter.ts";

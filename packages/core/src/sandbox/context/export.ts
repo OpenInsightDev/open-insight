@@ -4,7 +4,6 @@ export {
   Cwd,
   make,
   makeDir,
-  makeDist,
   type Mode,
   ModeSchema,
   Script,

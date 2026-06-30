@@ -44,9 +44,9 @@
     "picomatch": "^4.0.4"
   },
   "devDependencies": {
-    "@open-insight/utils": "workspace:*",
     "@effect/platform-node": "4.0.0-beta.91",
     "@effect/vitest": "4.0.0-beta.91",
+    "@open-insight/utils": "workspace:*",
     "@types/node": "^25.6.2",
     "@types/picomatch": "^4.0.3",
     "@typescript/native-preview": "catalog:",

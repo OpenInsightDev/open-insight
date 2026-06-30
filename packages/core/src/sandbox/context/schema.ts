@@ -1,15 +1,8 @@
 import { Schema } from "effect";
 
-export const DistFileType = Schema.Literal(".tar.gz");
-export type DistFileType = Schema.Schema.Type<typeof DistFileType>;
-
 export const ModeSchema = Schema.TaggedUnion({
   Dir: {
     path: Schema.String,
-  },
-  Dist: {
-    url: Schema.String,
-    fileType: DistFileType,
   },
   Script: {},
   Cwd: {},
