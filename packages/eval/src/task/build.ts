@@ -2,7 +2,7 @@ import type * as Grade from "./grade/index.ts";
 import type { Contravariant } from "../utils/variant.ts";
 import { Sandbox } from "@open-insight/core/internal";
 import { type Brand, Effect, Schema } from "effect";
-import type { Prompt } from "effect/unstable/ai";
+import { Prompt } from "effect/unstable/ai";
 import type { TaskError } from "./error.ts";
 
 export type ID = string;
@@ -26,7 +26,9 @@ export type Task<G extends Grade.Grader = Grade.Grader> = Readonly<{
 
   readonly _grader?: () => G;
 }>;
-export type Tasks<T extends Task = Task> = ReadonlyArray<Effect.Effect<T, TaskError>>;
+
+export type BuiltTask<T extends Task = Task> = Effect.Effect<T, TaskError>;
+export type Tasks<T extends Task = Task> = ReadonlyArray<BuiltTask<T>>;
 
 export type GraderOf<T> = T extends Task<infer G> ? G : never;
 
@@ -46,6 +48,19 @@ export const withPrompt =
   (prompt: Readonly<[Prompt.UserMessage, ...Prompt.UserMessage[]]>) =>
   <G extends Grade.Grader, H, R>(build: Builder<G, H, R>): Builder<G, H | HasPrompt, R> =>
     Effect.map(build, (t) => ({ ...t, prompt }));
+
+export const withTextPrompt =
+  (text: string) =>
+  <G extends Grade.Grader, H, R>(build: Builder<G, H, R>): Builder<G, H | HasPrompt, R> =>
+    Effect.map(build, (t) => ({
+      ...t,
+      prompt: [
+        ...(t.prompt ?? []),
+        Prompt.userMessage({
+          content: [Prompt.textPart({ text })],
+        }),
+      ],
+    }));
 
 type HasContext = Brand.Brand<"context">;
 export const withContext =

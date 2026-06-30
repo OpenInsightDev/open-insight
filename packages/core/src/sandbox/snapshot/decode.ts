@@ -220,5 +220,8 @@ export const Containerfile = Schema.String.pipe(
 );
 
 export const encode = (snapshot: Snapshot) => Schema.encodeEffect(Containerfile)(snapshot);
+export const encodeSync = (snapshot: Snapshot) => Schema.encodeSync(Containerfile)(snapshot);
 
 export const decode = (containerfile: string) => Schema.decodeEffect(Containerfile)(containerfile);
+export const decodeSync = (containerfile: string) =>
+  Schema.decodeSync(Containerfile)(containerfile);

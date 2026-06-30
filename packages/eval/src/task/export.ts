@@ -8,6 +8,7 @@ export {
   withContext,
   withGrader,
   withPrompt,
+  withTextPrompt,
   withResources,
   withSnapshot,
 } from "./build.ts";

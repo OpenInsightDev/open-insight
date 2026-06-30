@@ -20,6 +20,7 @@ catalog:
   "@effect/ai-openai": 4.0.0-beta.91
   ai: ^7.0.4
   '@changesets/cli': ^2.31.0
+  pathe: ^2.0.3
 overrides:
   vite: "catalog:"
   vitest: "catalog:"

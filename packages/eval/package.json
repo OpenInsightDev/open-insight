@@ -47,11 +47,13 @@
     "picomatch": "^4.0.4"
   },
   "devDependencies": {
+    "@effect/ai-openai": "4.0.0-beta.92",
     "@open-insight/utils": "workspace:*",
     "@types/node": "^25.6.2",
     "@types/picomatch": "^4.0.3",
     "@typescript/native-preview": "catalog:",
     "bumpp": "^11.1.0",
+    "pathe": "catalog:",
     "typescript": "^5",
     "vite-plus": "catalog:",
     "vitest": "catalog:"

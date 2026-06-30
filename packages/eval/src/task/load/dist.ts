@@ -12,7 +12,7 @@ const archiveHash = Effect.fn(function* (url: string) {
   return Encoding.encodeHex(digest);
 });
 
-export const withDistArchive = (url: string) =>
+export const withDist = (url: string) =>
   Effect.fn(function* <T extends Task.Task>(exec: (distPath: string) => Loader<T>) {
     const fs = yield* FileSystem.FileSystem;
     const spawner = yield* Spawn.SpawnService;
