@@ -19,6 +19,72 @@ import * as Benchmark from "@/benchmark/index.ts";
 import { ExecResult, TaskResult, TrailResult } from "./result/index.ts";
 import { produce } from "immer";
 
+const recordTrailProgress =
+  ({ task, trailIndex, trajectory, delta }: Metric.Input) =>
+  (current: ExecResult): ExecResult =>
+    produce(current, () => {
+      const taskName = task.metadata.name;
+      const taskResult = current.tasks[taskName] ?? {
+        metrics: {},
+        trails: [],
+      };
+
+      const trailResult = taskResult.trails[trailIndex] ?? {
+        grades: {},
+        metrics: {},
+        trajectory,
+      };
+
+      const trails = Array.from(taskResult.trails);
+      trails[trailIndex] = new TrailResult({
+        grades: delta._tag === "Grade" ? delta.result : trailResult.grades,
+        metrics: trailResult.metrics,
+        trajectory,
+      });
+
+      return new ExecResult({
+        metrics: current.metrics,
+        tasks: Object.fromEntries([
+          ...Object.entries(current.tasks),
+          [
+            taskName,
+            new TaskResult({
+              metrics: taskResult.metrics,
+              trails,
+            }),
+          ],
+        ]),
+      });
+    });
+
+const recordMetricOutput =
+  (output: Metric.Output) =>
+  (current: ExecResult): ExecResult =>
+    produce(current, (draft) => {
+      Match.value(output).pipe(
+        Match.tag("BenchmarkOutput", ({ name, result }) => {
+          draft.metrics[name] = result;
+        }),
+        Match.tag("TaskOutput", ({ name, task, result }) => {
+          const taskResult = (draft.tasks[task.name] ??= {
+            metrics: {},
+            trails: [],
+          });
+
+          taskResult.metrics[name] = result;
+        }),
+        Match.tag("TrajOutput", ({ name, task, trailIndex, result }) => {
+          const taskResult = draft.tasks[task.name];
+          const trailResult = taskResult?.trails[trailIndex];
+
+          if (trailResult) {
+            trailResult.metrics[name] = result;
+          }
+        }),
+        Match.exhaustive,
+      );
+    });
+
 export const run = Effect.fn("exec/schedule")(
   function* (
     {
@@ -124,87 +190,22 @@ export const run = Effect.fn("exec/schedule")(
           .pipe(Effect.mapError(ExecError.taskInit({ task: task.metadata }))),
     );
 
+    const recordInput = Effect.fn(function* (input: Metric.Input) {
+      yield* Ref.update(result, recordTrailProgress(input));
+    });
+
+    const recordOutput = Effect.fn(function* (output: Metric.Output) {
+      yield* Ref.update(result, recordMetricOutput(output));
+      yield* Queue.offer(eventQueue, MetricsStreamEvent.make({ bench: metadata.name, output }));
+    });
+
     if (metrics) {
       yield* Effect.logDebug("Starting metrics stream");
       yield* Stream.fromQueue(metricQueue)
         .pipe(
-          Stream.tap(
-            Effect.fn(function* ({ task, trailIndex, trajectory, delta }) {
-              const taskName = task.metadata.name;
-
-              yield* Ref.update(result, (current) =>
-                produce(current, () => {
-                  const taskResult = current.tasks[taskName] ?? {
-                    metrics: {},
-                    trails: [],
-                  };
-
-                  const trailResult = taskResult.trails[trailIndex] ?? {
-                    grades: {},
-                    metrics: {},
-                    trajectory,
-                  };
-
-                  const trails = Array.from(taskResult.trails);
-                  trails[trailIndex] = new TrailResult({
-                    grades: delta._tag === "Grade" ? delta.result : trailResult.grades,
-                    metrics: trailResult.metrics,
-                    trajectory,
-                  });
-
-                  return new ExecResult({
-                    metrics: current.metrics,
-                    tasks: Object.fromEntries([
-                      ...Object.entries(current.tasks),
-                      [
-                        taskName,
-                        new TaskResult({
-                          metrics: taskResult.metrics,
-                          trails,
-                        }),
-                      ],
-                    ]),
-                  });
-                }),
-              );
-            }),
-          ),
+          Stream.tap(recordInput),
           Metric.transform({ metrics, trailCount, taskCount: tasks.length }),
-          Stream.tap(
-            Effect.fn(function* (output) {
-              yield* Ref.update(result, (current) =>
-                produce(current, (draft) => {
-                  Match.value(output).pipe(
-                    Match.tag("BenchmarkOutput", ({ name, result }) => {
-                      draft.metrics[name] = result;
-                    }),
-                    Match.tag("TaskOutput", ({ name, task, result }) => {
-                      const taskResult = (draft.tasks[task.name] ??= {
-                        metrics: {},
-                        trails: [],
-                      });
-
-                      taskResult.metrics[name] = result;
-                    }),
-                    Match.tag("TrajOutput", ({ name, task, trailIndex, result }) => {
-                      const taskResult = draft.tasks[task.name];
-                      const trailResult = taskResult?.trails[trailIndex];
-
-                      if (trailResult) {
-                        trailResult.metrics[name] = result;
-                      }
-                    }),
-                    Match.exhaustive,
-                  );
-                }),
-              );
-
-              yield* Queue.offer(
-                eventQueue,
-                MetricsStreamEvent.make({ bench: metadata.name, output }),
-              );
-            }),
-          ),
+          Stream.tap(recordOutput),
           Stream.runDrain,
         )
         .pipe(Effect.mapError(ExecError.metric));
@@ -245,7 +246,13 @@ export const run = Effect.fn("exec/schedule")(
       .pipe(Effect.ensuring(Queue.end(metricQueue)));
 
     yield* Effect.logDebug("Scheduled all tasks");
-    yield* Queue.offer(eventQueue, BenchScheduleEvent.make({ bench: metadata.name, op: "stop" }));
+    yield* Queue.offer(
+      eventQueue,
+      BenchScheduleEvent.make({
+        bench: metadata.name,
+        op: "stop",
+      }),
+    );
 
     return yield* Ref.get(result);
   },
