@@ -1,4 +1,4 @@
-import { Cause, Effect, Fiber, Option, Queue, Scope, Semaphore, Stream } from "effect";
+import { Cause, Effect, Fiber, Option, Queue, Ref, Scope, Semaphore, Stream } from "effect";
 import type { Config } from "./config.ts";
 import * as Task from "../task/index.ts";
 import * as Metric from "@/metric/index.ts";
@@ -16,6 +16,7 @@ import {
 } from "./event/index.ts";
 import { range } from "effect/Array";
 import * as Benchmark from "@/benchmark/index.ts";
+import type { ExecResult } from "./result/index.ts";
 
 export const run = Effect.fn("exec/schedule")(
   function* (
@@ -32,35 +33,36 @@ export const run = Effect.fn("exec/schedule")(
     }>,
     { harnessConfig, sandboxConfig }: Config,
   ): Effect.fn.Return<
-    void,
+    ExecResult,
     ExecError,
     Agent.ProviderService | Sandbox.ProviderService | Scope.Scope
   > {
     const { snapshotConcurrency = 1, trailConcurrency = 1 } = harnessConfig ?? {};
+    const metricQueue = yield* Queue.bounded<Metric.Input, Cause.Done>(128);
+    const eventQueue = yield* Queue.bounded<Event, Cause.Done>(128);
+    const transport = yield* Effect.serviceOption(EventTransportService);
+
+    const snapshotSem = yield* Semaphore.make(snapshotConcurrency);
+    const snapshotCountdown = yield* Countdown.make(tasks.length);
+    const trailSem = yield* Semaphore.make(trailConcurrency);
+
+    const result = yield* Ref.make<ExecResult>({
+      metrics: {},
+      tasks: {},
+    });
 
     yield* Effect.annotateCurrentSpan({
       benchmark: metadata.name,
     });
     yield* Effect.logDebug("Starting evaluation schedule");
 
-    const metricQueue = yield* Queue.bounded<Metric.Input, Cause.Done>(128);
-
-    const eventQueue = yield* Queue.bounded<Event, Cause.Done>(128);
-    yield* Queue.offer(eventQueue, BenchScheduleEvent.make({ bench: metadata.name, op: "start" }));
-
-    const transport = yield* Effect.serviceOption(EventTransportService);
-    yield* Option.match(transport, {
-      onSome: (transport) =>
-        Effect.gen(function* () {
-          const stream = Stream.fromQueue(eventQueue);
-          yield* transport.send({ stream });
-        }).pipe(Effect.forkChild),
-      onNone: () => Effect.void,
-    });
-
-    const snapshotSem = yield* Semaphore.make(snapshotConcurrency);
-    const snapshotCountdown = yield* Countdown.make(tasks.length);
-    const trailSem = yield* Semaphore.make(trailConcurrency);
+    yield* Queue.offer(
+      eventQueue,
+      BenchScheduleEvent.make({
+        bench: metadata.name,
+        op: "start",
+      }),
+    );
 
     const scheduleTrail = Effect.fn("exec/scheduleTrail")(
       function* ({ task }: { task: Task.Task }) {
@@ -136,6 +138,15 @@ export const run = Effect.fn("exec/schedule")(
       );
     }
 
+    yield* Option.match(transport, {
+      onSome: (transport) =>
+        Effect.gen(function* () {
+          const stream = Stream.fromQueue(eventQueue);
+          yield* transport.send({ stream });
+        }).pipe(Effect.forkChild),
+      onNone: () => Effect.void,
+    });
+
     yield* Effect.logDebug("Loading tasks");
     const loadedTasks = yield* Effect.all(
       tasks.map((task) => task.pipe(Effect.mapError(ExecError.taskLoad))),
@@ -163,6 +174,8 @@ export const run = Effect.fn("exec/schedule")(
 
     yield* Effect.logDebug("Scheduled all tasks");
     yield* Queue.offer(eventQueue, BenchScheduleEvent.make({ bench: metadata.name, op: "stop" }));
+
+    return yield* Ref.get(result);
   },
   (effect, { metadata }) =>
     effect.pipe(

@@ -5,12 +5,14 @@ import { ExecError } from "./error.ts";
 import { type Config } from "./config.ts";
 import type * as _Core from "@open-insight/core";
 import { run as runSchedule } from "./schedule.ts";
+import type { ExecResult } from "./result/index.ts";
+import { Agent, Sandbox } from "@open-insight/core/internal";
 
 export const run = Effect.fn(
   function* <E, R>(
     executor: Effect.Effect<Executor, E, R>,
     config: Config = {},
-  ): Effect.fn.Return<void, E | ExecError, R> {
+  ): Effect.fn.Return<ExecResult, E | ExecError, R> {
     const {
       benchmark: { metadata, tasks },
       harness: { agent, sandbox },
@@ -19,15 +21,17 @@ export const run = Effect.fn(
       transport,
     } = yield* executor;
 
-    const layers: [Layer.Any, ...Layer.Any[]] = [agent, sandbox];
-    if (transport) {
-      layers.push(transport);
-    }
-
-    runSchedule({ trailCount, tasks, metrics, metadata }, config).pipe(
-      Effect.provide(layers),
+    let eff = runSchedule({ trailCount, tasks, metrics, metadata }, config).pipe(
+      Effect.provide([agent, sandbox]),
       Effect.mapError(ExecError.init),
     );
+
+    // TODO how to provide optional layer
+    if (transport) {
+      eff = eff.pipe(Effect.provide(transport));
+    }
+
+    return yield* eff;
   },
   (effect) =>
     effect.pipe(

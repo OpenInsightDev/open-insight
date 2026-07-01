@@ -1,5 +1,4 @@
 import type { Agent } from "@open-insight/core/internal";
-import * as Chart from "./chart.ts";
 import * as Task from "../task/index.ts";
 import { Data, Schema } from "effect";
 

@@ -1,7 +1,5 @@
 export { SandboxError } from "./error.ts";
 
-export * from "./checkpoint/export.ts";
-
 export * from "./provider/export.ts";
 export * from "./sandbox/export.ts";
 

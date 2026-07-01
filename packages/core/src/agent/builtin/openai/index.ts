@@ -186,9 +186,9 @@ type ReasoningPart = {
  * const parts = transform(events)
  * ```
  */
-export const transform = Effect.fn(function* <E, R>(
+export const transform = <E, R>(
   stream: Stream.Stream<ResponseStreamEvent, E, R>,
-): Effect.fn.Return<Stream.Stream<Response.StreamPartEncoded, E, R>> {
+): Stream.Stream<Response.StreamPartEncoded, E, R> => {
   let activeTextId: string | undefined;
   let hasToolCalls = false;
   const activeAnnotations: Array<OpenAiSchema.Annotation> = [];
@@ -942,4 +942,4 @@ export const transform = Effect.fn(function* <E, R>(
     ),
     Stream.flattenIterable,
   );
-}, Stream.unwrap);
+};

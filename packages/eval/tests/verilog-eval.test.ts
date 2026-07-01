@@ -1,7 +1,6 @@
 import { Agent, Benchmark, Harness, Sandbox, Task, Effect, Exec } from "@open-insight/eval";
 import path from "pathe";
 import * as fs from "fs";
-import { Chat } from "effect/unstable/ai";
 import { OpenAiClient, OpenAiLanguageModel } from "@effect/ai-openai";
 import { Config } from "effect";
 
@@ -64,10 +63,7 @@ const OpenAi = OpenAiClient.layerConfig({
   apiKey: Config.redacted("OPENAI_API_KEY"),
 });
 const GPT = OpenAiLanguageModel.model("gpt-5.4");
-const agent = Agent.Effect.make({ chat: Chat.empty }).pipe(
-  Effect.provide(GPT),
-  Effect.provide(OpenAi),
-);
+const agent = Agent.Effect.make({}).pipe(Effect.provide(GPT), Effect.provide(OpenAi));
 
 const sandbox = Sandbox.Docker.make({
   portMappings: [{ sandboxPort: 80, hostPort: 8080 }],
