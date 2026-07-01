@@ -50,7 +50,7 @@ const task = Task.init<RandomEvenTask>({
       WORKDIR /workspace
     `),
   ),
-  Task.withContext(Sandbox.Context.Cwd),
+  Task.withContext(Effect.succeed(Sandbox.Context.Cwd)),
   Task.withResources({}),
   Task.build,
 );

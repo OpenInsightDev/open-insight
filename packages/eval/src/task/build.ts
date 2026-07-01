@@ -22,6 +22,7 @@ export type Task<G extends Grade.Grader = Grade.Grader> = Readonly<{
 
   snapshot: Sandbox.Snapshot.Snapshot;
   context: Sandbox.Context.Context;
+  gradeContext: Sandbox.Context.Context | null;
 
   resources: Sandbox.ResourceLimits | null;
 
@@ -64,9 +65,22 @@ export const withTextPrompt =
     }));
 
 export const withContext =
-  (context: Sandbox.Context.Context) =>
-  <G extends Grade.Grader, H, R>(build: Builder<G, H, R>): Builder<G, H, R> =>
-    Effect.map(build, (t) => ({ ...t, context }));
+  <CE, CR>(context: Effect.Effect<Sandbox.Context.Context, CE, CR>) =>
+  <G extends Grade.Grader, H, R>(build: Builder<G, H, R>): Builder<G, H, R | CR> =>
+    Effect.fn("task/withContext")(function* () {
+      const t = yield* build;
+      const resolvedContext = yield* context.pipe(Effect.mapError(TaskError.load));
+      return { ...t, context: resolvedContext };
+    })();
+
+export const withGradeContext =
+  <CE, CR>(gradeContext: Effect.Effect<Sandbox.Context.Context, CE, CR>) =>
+  <G extends Grade.Grader, H, R>(build: Builder<G, H, R>): Builder<G, H, R | CR> =>
+    Effect.fn("task/withGradeContext")(function* () {
+      const t = yield* build;
+      const resolvedGradeContext = yield* gradeContext.pipe(Effect.mapError(TaskError.load));
+      return { ...t, gradeContext: resolvedGradeContext };
+    })();
 
 type HasSnapshot = Brand.Brand<"snapshot">;
 export const withSnapshot =
@@ -92,7 +106,7 @@ export const withResources =
 export const build = Effect.fn(function* <G extends Grade.Grader, R>(
   build: Builder<G, HasPrompt | HasSnapshot | G, R>,
 ): Effect.fn.Return<Task<G>, TaskError, R | Path.Path | FileSystem.FileSystem> {
-  let { metadata, prompt, snapshot, context, graders, resources } = yield* build;
+  let { metadata, prompt, snapshot, context, gradeContext, graders, resources } = yield* build;
 
   assertNonNull(metadata);
   assertNonNull(prompt);
@@ -104,6 +118,7 @@ export const build = Effect.fn(function* <G extends Grade.Grader, R>(
     prompt,
     snapshot,
     context: context ?? Sandbox.Context.Cwd,
+    gradeContext: gradeContext ?? null,
     graders,
     resources: resources ?? null,
   };

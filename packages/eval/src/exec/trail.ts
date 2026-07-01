@@ -26,7 +26,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
     | Path.Path
     | Scope.Scope
   > {
-    const { snapshot, context, resources, metadata, prompt, graders } = task;
+    const { snapshot, context, gradeContext, resources, metadata, prompt, graders } = task;
 
     yield* Effect.annotateCurrentSpan({
       taskName: metadata.name,
@@ -123,7 +123,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
 
         const ctx = {
           trajectory,
-          context,
+          context: gradeContext ?? context,
           ...Sandbox.asPromise(sandbox),
         } satisfies Task.Grade.Context;
 

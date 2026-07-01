@@ -33,6 +33,7 @@ const makeTask = (name: string): Task.Task => ({
     instructions: [],
   }),
   context: Sandbox.Context.make(import.meta.dirname),
+  gradeContext: null,
   resources: null,
 });
 
@@ -59,6 +60,7 @@ const makeContextTask = (
     instructions: [],
   }),
   context: yield * Sandbox.Context.make(expectedContext),
+  gradeContext: null,
   resources: null,
 });
 

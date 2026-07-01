@@ -6,6 +6,7 @@ export {
   build,
   init,
   withContext,
+  withGradeContext,
   withGrader,
   withPrompt,
   withTextPrompt,

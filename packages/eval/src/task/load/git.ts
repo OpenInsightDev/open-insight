@@ -61,3 +61,9 @@ export const withGitRepo = (repoURL: string, options?: Options) =>
     },
     (effect) => effect.pipe(Effect.provide(Spawn.SpawnService.layer)),
   );
+
+export const withGithub = (id: string, options?: Options) =>
+  withGitRepo(`https://github.com/${id}.git`, options);
+
+export const withHuggingface = (id: string, options?: Options) =>
+  withGitRepo(`https://huggingface.co/datasets/${id}.git`, options);

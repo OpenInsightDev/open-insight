@@ -49,7 +49,7 @@ const tasks = Task.withGitRepo("https://github.com/NVlabs/verilog-eval.git", { b
               WORKDIR /workspace
             `),
           ),
-          Task.withContext(Sandbox.Context.makeDir(datasetPath)),
+          Task.withContext(Sandbox.Context.make(datasetPath)),
           Task.build,
         );
       }),
