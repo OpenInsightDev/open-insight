@@ -22,7 +22,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
     ExecError,
     Sandbox.ProviderService | Agent.ProviderService | Scope.Scope
   > {
-    const { snapshot, context, resources, metadata } = task;
+    const { snapshot, context, resources, metadata, prompt, graders } = task;
 
     yield* Effect.annotateCurrentSpan({
       taskName: metadata.name,
@@ -68,7 +68,6 @@ export const createTrail = Effect.fn("exec/createTrail")(
 
         yield* Effect.logDebug("Sandbox is ready, Starting trail execution");
 
-        const { prompt, graders } = task;
         const provider = yield* Agent.ProviderService;
         const agent = yield* provider.runSession({ sandbox });
         yield* Effect.logDebug("Started agent session");

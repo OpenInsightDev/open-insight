@@ -194,18 +194,16 @@ export const run = Effect.fn("exec/schedule")(
       yield* Effect.logDebug("Started metrics stream");
     }
 
-    const transportFiber = yield* Option.match(transport, {
-      onSome: (transport) =>
-        transport.send({ stream: Stream.fromQueue(eventQueue) }).pipe(Effect.forkChild),
-      onNone: () => Stream.fromQueue(eventQueue).pipe(Stream.runDrain, Effect.forkChild),
-    });
-
     const runSchedule = Effect.fn("exec/runSchedule")(function* () {
       yield* Effect.logDebug("Loading tasks");
       const loadedTasks = yield* Effect.all(
         tasks.map((task) => task.pipe(Effect.mapError(ExecError.taskLoad))),
         { concurrency: "unbounded" },
       );
+      if (loadedTasks.length === 0) {
+        yield* Effect.logWarning("No tasks to schedule");
+        return;
+      }
       yield* Effect.logDebug(`Loaded ${loadedTasks.length} task(s)`);
 
       const taskMetadata = loadedTasks.map((task) => task.metadata);
@@ -236,6 +234,12 @@ export const run = Effect.fn("exec/schedule")(
           op: "stop",
         }),
       );
+    });
+
+    const transportFiber = yield* Option.match(transport, {
+      onSome: (transport) =>
+        transport.send({ stream: Stream.fromQueue(eventQueue) }).pipe(Effect.forkChild),
+      onNone: () => Stream.fromQueue(eventQueue).pipe(Stream.runDrain, Effect.forkChild),
     });
 
     yield* runSchedule()
