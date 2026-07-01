@@ -3,16 +3,7 @@ import type { EventTransport } from "@/exec/event/index.ts";
 import { ExecError } from "@/exec/error.ts";
 import { HttpBody, HttpClient, HttpClientResponse } from "effect/unstable/http";
 import { Sse } from "effect/unstable/encoding";
-import {
-  BenchScheduleEvent,
-  EventSchema,
-  InitEvent,
-  MetricsStreamEvent,
-  TaskScheduleEvent,
-  TaskStreamPartEvent,
-  type Event,
-  type EventStream,
-} from "@/exec/event/schema.ts";
+import { type EventStream } from "@/exec/event/schema.ts";
 
 const transport = "sse";
 
@@ -23,16 +14,12 @@ const eventStream = (
   stream: EventStream,
 ): Stream.Stream<Uint8Array, ExecError | Schema.SchemaError> =>
   stream.pipe(
-    Stream.mapEffect((value) =>
-      encodeEvent(value).pipe(
-        Effect.map((encoded) => ({
-          _tag: "Event" as const,
-          event: value._tag,
-          id: undefined,
-          data: JSON.stringify(encoded),
-        })),
-      ),
-    ),
+    Stream.map((value) => ({
+      _tag: "Event" as const,
+      event: value._tag,
+      id: undefined,
+      data: JSON.stringify(value),
+    })),
     Stream.map((event) => Sse.encoder.write(event)),
     Stream.encodeText,
   );

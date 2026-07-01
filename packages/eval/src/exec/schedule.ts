@@ -143,6 +143,16 @@ export const run = Effect.fn("exec/schedule")(
     );
     yield* Effect.logDebug(`Loaded ${loadedTasks.length} task(s)`);
 
+    const taskMetadata = loadedTasks.map((task) => task.metadata);
+    yield* Queue.offer(
+      eventQueue,
+      InitEvent.make({
+        bench: metadata,
+        tasks: taskMetadata,
+        metrics: metrics?.metadata ?? [],
+      }),
+    );
+
     yield* Effect.all(
       loadedTasks.map((task) => scheduleTrail({ task })),
       { concurrency: "unbounded" },
