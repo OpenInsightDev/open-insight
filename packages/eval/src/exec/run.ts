@@ -1,4 +1,4 @@
-import { Effect, Scope } from "effect";
+import { Effect, Layer, Scope } from "effect";
 import { type Executor } from "./build.ts";
 import { NodeHttpClient, NodeServices } from "@effect/platform-node";
 import { ExecError } from "./error.ts";
@@ -17,10 +17,16 @@ export const run = Effect.fn(
       harness: { agent, sandbox },
       trailCount,
       metrics,
+      transport,
     } = yield* executor;
-    yield* runSchedule({ trailCount, tasks, metrics, metadata }, config).pipe(
-      Effect.provide(agent),
-      Effect.provide(sandbox),
+
+    const layers: [Layer.Any, ...Layer.Any[]] = [agent, sandbox];
+    if (transport) {
+      layers.push(transport);
+    }
+
+    runSchedule({ trailCount, tasks, metrics, metadata }, config).pipe(
+      Effect.provide(layers),
       Effect.mapError(ExecError.init),
     );
   },

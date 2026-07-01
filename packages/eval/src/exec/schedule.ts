@@ -1,4 +1,15 @@
-import { Cause, Effect, Fiber, Pull, Queue, Semaphore, Stream } from "effect";
+import {
+  Cause,
+  Context,
+  Effect,
+  Fiber,
+  Option,
+  Pull,
+  Queue,
+  Scope,
+  Semaphore,
+  Stream,
+} from "effect";
 import type { Config } from "./config.ts";
 import type { Executor } from "./build.ts";
 import * as Task from "../task/index.ts";
@@ -15,6 +26,7 @@ import {
   BenchScheduleEvent,
   MetricsStreamEvent,
   TaskStreamPartEvent,
+  EventTransportService,
 } from "./event/index.ts";
 import { range } from "effect/Array";
 import * as Benchmark from "@/benchmark/index.ts";
@@ -33,7 +45,11 @@ export const run = Effect.fn("exec/schedule")(
       metadata: Benchmark.Metadata;
     }>,
     { harnessConfig, sandboxConfig }: Config,
-  ): Effect.fn.Return<void, ExecError, Agent.ProviderService | Sandbox.ProviderService> {
+  ): Effect.fn.Return<
+    void,
+    ExecError,
+    Agent.ProviderService | Sandbox.ProviderService | Scope.Scope
+  > {
     const { snapshotConcurrency = 1, trailConcurrency = 1 } = harnessConfig ?? {};
 
     yield* Effect.annotateCurrentSpan({
@@ -46,6 +62,16 @@ export const run = Effect.fn("exec/schedule")(
 
     const eventQueue = yield* Queue.bounded<Event, Cause.Done>(128);
     yield* Queue.offer(eventQueue, BenchScheduleEvent.make({ bench: metadata.name, op: "start" }));
+
+    const transport = yield* Effect.serviceOption(EventTransportService);
+    yield* Option.match(transport, {
+      onSome: (transport) =>
+        Effect.gen(function* () {
+          const stream = Stream.fromQueue(eventQueue);
+          yield* transport.send({ stream });
+        }).pipe(Effect.forkChild),
+      onNone: () => Effect.void,
+    });
 
     const snapshotSem = yield* Semaphore.make(snapshotConcurrency);
     const snapshotCountdown = yield* Countdown.make(tasks.length);
@@ -144,8 +170,10 @@ export const run = Effect.fn("exec/schedule")(
   },
   (effect, { metadata }) =>
     effect.pipe(
+      Effect.scoped,
       Effect.annotateLogs({
         benchmark: metadata.name,
       }),
+      Effect.awaitAllChildren,
     ),
 );

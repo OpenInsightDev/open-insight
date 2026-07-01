@@ -5,8 +5,9 @@ import type * as Task from "../task/index.ts";
 import type { Contravariant } from "../utils/variant.ts";
 import { type Brand, Effect } from "effect";
 import { ExecError } from "./error.ts";
-import type { EventTransport } from "./event/index.ts";
+import { EventTransportService, type EventTransport } from "./event/index.ts";
 import { assertNonNull } from "@/utils/type.ts";
+import { Layer } from "effect";
 
 export type Executor<T extends Task.Task = Task.Task> = Readonly<{
   benchmark: Benchmark.Benchmark;
@@ -14,7 +15,8 @@ export type Executor<T extends Task.Task = Task.Task> = Readonly<{
 
   trailCount: number;
   metrics: Metric.Metrics<Task.GraderOf<T>> | null;
-  transport: EventTransport | null;
+  // transport: EventTransport | null;
+  transport: Layer.Layer<EventTransportService, ExecError> | null;
 }> & { _T?: T };
 
 type Builder<T extends Task.Task = Task.Task, H = never, R = never> = Effect.Effect<
@@ -71,7 +73,7 @@ export const withTransport =
     Effect.gen(function* () {
       const exec = yield* builder;
       const t = yield* transport.pipe(Effect.mapError(ExecError.init));
-      return { ...exec, transport: t };
+      return { ...exec, transport: Layer.succeed(EventTransportService, t) };
     });
 
 export const build = <T extends Task.Task, R>(
