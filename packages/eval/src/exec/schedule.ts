@@ -19,7 +19,7 @@ import * as Benchmark from "@/benchmark/index.ts";
 import { ExecResult, TaskResult, TrailResult } from "./result/index.ts";
 import { produce } from "immer";
 
-const recordTrailProgress =
+const updateTrailResult =
   ({ task, trailIndex, trajectory, delta }: Metric.Input) =>
   (current: ExecResult): ExecResult =>
     produce(current, () => {
@@ -57,7 +57,7 @@ const recordTrailProgress =
       });
     });
 
-const recordMetricOutput =
+const updateMetricResult =
   (output: Metric.Output) =>
   (current: ExecResult): ExecResult =>
     produce(current, (draft) => {
@@ -190,22 +190,16 @@ export const run = Effect.fn("exec/schedule")(
           .pipe(Effect.mapError(ExecError.taskInit({ task: task.metadata }))),
     );
 
-    const recordInput = Effect.fn(function* (input: Metric.Input) {
-      yield* Ref.update(result, recordTrailProgress(input));
-    });
-
-    const recordOutput = Effect.fn(function* (output: Metric.Output) {
-      yield* Ref.update(result, recordMetricOutput(output));
-      yield* Queue.offer(eventQueue, MetricsStreamEvent.make({ bench: metadata.name, output }));
-    });
-
     if (metrics) {
       yield* Effect.logDebug("Starting metrics stream");
       yield* Stream.fromQueue(metricQueue)
         .pipe(
-          Stream.tap(recordInput),
+          Stream.tap((input) => Ref.update(result, updateTrailResult(input))),
           Metric.transform({ metrics, trailCount, taskCount: tasks.length }),
-          Stream.tap(recordOutput),
+          Stream.tap((output) => Ref.update(result, updateMetricResult(output))),
+          Stream.tap((output) =>
+            Queue.offer(eventQueue, MetricsStreamEvent.make({ bench: metadata.name, output })),
+          ),
           Stream.runDrain,
         )
         .pipe(Effect.mapError(ExecError.metric));
