@@ -169,19 +169,24 @@ export const run = Effect.fn("exec/schedule")(
           .pipe(Effect.mapError(ExecError.taskInit({ task: task.metadata }))),
     );
 
-    if (metrics) {
-      yield* Effect.logDebug("Starting metrics stream");
-      yield* Stream.fromQueue(metricQueue)
-        .pipe(
-          Stream.tap((input) => Ref.update(result, updateTrailResult(input))),
-          Metric.transform({ metrics, trailCount, taskCount: tasks.length }),
-          Stream.tap((output) => Ref.update(result, updateMetricResult(output))),
-          Stream.tap((output) =>
-            offerEvent(MetricsStreamEvent.make({ bench: metadata.name, output })),
-          ),
-          Stream.runDrain,
-        )
-        .pipe(Effect.mapError(ExecError.metric));
+    const metricsFiber = metrics
+      ? yield* Stream.fromQueue(metricQueue)
+          .pipe(
+            Stream.tap((input) => Ref.update(result, updateTrailResult(input))),
+            Metric.transform({ metrics, trailCount, taskCount: tasks.length }),
+            Stream.tap((output) => Ref.update(result, updateMetricResult(output))),
+            Stream.tap((output) =>
+              offerEvent(MetricsStreamEvent.make({ bench: metadata.name, output })),
+            ),
+            Stream.runDrain,
+          )
+          .pipe(Effect.mapError(ExecError.metric))
+          .pipe(Effect.tap(() => Effect.logDebug("Completed metrics stream")))
+          .pipe(Effect.forkScoped)
+      : null;
+
+    if (metricsFiber) {
+      yield* Effect.logDebug("Started metrics stream");
     }
 
     yield* Option.match(transport, {
@@ -203,35 +208,39 @@ export const run = Effect.fn("exec/schedule")(
     const taskMetadata = loadedTasks.map((task) => task.metadata);
 
     yield* Effect.gen(function* () {
-      yield* offerEvent(
-        InitEvent.make({
-          bench: metadata,
-          tasks: taskMetadata,
-          metrics: metrics?.metadata ?? [],
-        }),
-      );
+      yield* Effect.gen(function* () {
+        yield* offerEvent(
+          InitEvent.make({
+            bench: metadata,
+            tasks: taskMetadata,
+            metrics: metrics?.metadata ?? [],
+          }),
+        );
 
-      yield* offerEvent(
-        BenchScheduleEvent.make({
-          bench: metadata.name,
-          op: "start",
-        }),
-      );
+        yield* offerEvent(
+          BenchScheduleEvent.make({
+            bench: metadata.name,
+            op: "start",
+          }),
+        );
 
-      yield* Effect.all(
-        loadedTasks.map((task) => scheduleTrail({ task })),
-        { concurrency: "unbounded" },
-      );
+        yield* Effect.all(
+          loadedTasks.map((task) => scheduleTrail({ task })),
+          { concurrency: "unbounded" },
+        );
 
-      yield* offerEvent(
-        BenchScheduleEvent.make({
-          bench: metadata.name,
-          op: "stop",
-        }),
-      );
-    })
-      .pipe(Effect.ensuring(Queue.end(eventQueue)))
-      .pipe(Effect.ensuring(Queue.end(metricQueue)));
+        yield* offerEvent(
+          BenchScheduleEvent.make({
+            bench: metadata.name,
+            op: "stop",
+          }),
+        );
+      }).pipe(Effect.ensuring(Queue.end(metricQueue)));
+
+      if (metricsFiber) {
+        yield* Fiber.join(metricsFiber);
+      }
+    }).pipe(Effect.ensuring(Queue.end(eventQueue)));
 
     yield* Effect.logDebug("Scheduled all tasks");
 

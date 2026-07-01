@@ -25,7 +25,7 @@ export const buildTrajMetricConsumer = ({
   ): Effect.fn.Return<Array<TrajOutput> | null, MetricError> {
     const exec = Effect.fn(function* (output: TrajOutput | null) {
       if (output === null) {
-        return;
+        return null;
       }
       yield* Queue.offer(queue, output);
       return output;
@@ -59,7 +59,7 @@ export const buildTaskMetricConsumer = ({
   return Effect.fn(function* (input: Input) {
     const exec = Effect.fn(function* (output: TaskOutput | null) {
       if (output === null) {
-        return;
+        return null;
       }
       yield* Queue.offer(queue, output);
       return output;
@@ -93,7 +93,7 @@ export const buildBenchMetricConsumer = ({
   return Effect.fn(function* (input: BenchMetric.Input) {
     const exec = Effect.fn(function* (output: BenchOutput | null) {
       if (output === null) {
-        return;
+        return null;
       }
       yield* Queue.offer(queue, output);
       return output;

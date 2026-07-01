@@ -1,6 +1,5 @@
 import { assert, describe, it } from "@effect/vitest";
-import { Effect, Fiber, Layer, Option, Ref, Stream } from "effect";
-import { TestClock } from "effect/testing";
+import { Effect, Layer, Ref, Stream } from "effect";
 import { Prompt, Response } from "effect/unstable/ai";
 import { Agent, Sandbox } from "@open-insight/core/internal";
 import * as Schedule from "@/exec/schedule.ts";
@@ -175,7 +174,7 @@ describe("exec schedule", () => {
     }),
   );
 
-  it.effect("records that a non-null metrics stream currently blocks scheduling", () =>
+  it.effect("runs to completion and publishes metric events when metrics are configured", () =>
     Effect.gen(function* () {
       const events: Array<Event> = [];
       const testProviders = yield* makeTestProviders(events);
@@ -183,7 +182,7 @@ describe("exec schedule", () => {
         Metric.withTask("grade-count", (grades) => grades.length),
       );
 
-      const runWithMetrics = testProviders.provide(
+      const result = yield* testProviders.provide(
         Schedule.run(
           {
             trailCount: 1,
@@ -197,15 +196,19 @@ describe("exec schedule", () => {
         ),
       );
 
-      const fiber = yield* runWithMetrics.pipe(Effect.timeoutOption("1 second"), Effect.forkChild);
-      yield* TestClock.adjust("1 second");
-      const result = yield* Fiber.join(fiber);
+      assert.strictEqual(yield* Ref.get(testProviders.derivedSnapshots), 1);
+      assert.strictEqual(yield* Ref.get(testProviders.sessions), 1);
+      assert.strictEqual(yield* Ref.get(testProviders.removedSnapshots), 1);
 
-      assert.deepStrictEqual(result, Option.none());
-      assert.deepStrictEqual(events, []);
-      assert.strictEqual(yield* Ref.get(testProviders.derivedSnapshots), 0);
-      assert.strictEqual(yield* Ref.get(testProviders.sessions), 0);
-      assert.strictEqual(yield* Ref.get(testProviders.removedSnapshots), 0);
+      assert.deepStrictEqual(result.tasks["alpha"]?.trails[0]?.grades, { score: 1 });
+      assert.deepStrictEqual(result.tasks["alpha"]?.metrics, { "grade-count": [1] });
+
+      const summaries = events.map(eventSummary);
+      assert.deepStrictEqual(
+        summaries.filter((summary) => summary.startsWith("metric:")),
+        ["metric:TaskOutput:grade-count"],
+      );
+      assert.include(summaries, "bench:stop:metrics-blocking-bench");
     }),
   );
 });

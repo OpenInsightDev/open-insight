@@ -6,7 +6,9 @@ import { Config } from "effect";
 
 type VerilogEvalTask = Task.Task<Task.Grader<"simPass", boolean>>;
 
-const tasks = Task.withGitRepo("https://github.com/NVlabs/verilog-eval.git")((repoPath) => {
+const tasks = Task.withGitRepo("https://github.com/NVlabs/verilog-eval.git", { branch: "main" })((
+  repoPath,
+) => {
   const datasetPath = path.join(repoPath, "dataset_spec-to-rtl");
   return Task.fromIterable<VerilogEvalTask>(
     fs
