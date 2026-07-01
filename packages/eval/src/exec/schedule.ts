@@ -84,6 +84,12 @@ export const run = Effect.fn("exec/schedule")(
     ExecError,
     Agent.ProviderService | Sandbox.ProviderService | Scope.Scope
   > {
+    if (!Number.isInteger(trailCount) || trailCount <= 0) {
+      return yield* Effect.fail(
+        ExecError.init(new Error(`trailCount must be a positive integer, got ${trailCount}`)),
+      );
+    }
+
     const { snapshotConcurrency = 1, trailConcurrency = 1 } = harnessConfig ?? {};
     const metricQueue = yield* Queue.bounded<Metric.Input, Cause.Done>(128);
     const eventQueue = yield* Queue.bounded<Event, Cause.Done>(128);
@@ -159,14 +165,12 @@ export const run = Effect.fn("exec/schedule")(
         );
       },
       (effect, { task }) =>
-        effect
-          .pipe(
-            Effect.annotateLogs({
-              benchmark: metadata.name,
-              taskName: task.metadata.name,
-            }),
-          )
-          .pipe(Effect.mapError(ExecError.taskInit({ task: task.metadata }))),
+        effect.pipe(
+          Effect.annotateLogs({
+            benchmark: metadata.name,
+            taskName: task.metadata.name,
+          }),
+        ),
     );
 
     const metricsFiber = metrics
@@ -195,16 +199,16 @@ export const run = Effect.fn("exec/schedule")(
       onNone: () => Effect.void,
     });
 
-    yield* Effect.logDebug("Loading tasks");
-    const loadedTasks = yield* Effect.all(
-      tasks.map((task) => task.pipe(Effect.mapError(ExecError.taskLoad))),
-      { concurrency: "unbounded" },
-    );
-    yield* Effect.logDebug(`Loaded ${loadedTasks.length} task(s)`);
+    const runSchedule = Effect.fn("exec/runSchedule")(function* () {
+      yield* Effect.logDebug("Loading tasks");
+      const loadedTasks = yield* Effect.all(
+        tasks.map((task) => task.pipe(Effect.mapError(ExecError.taskLoad))),
+        { concurrency: "unbounded" },
+      );
+      yield* Effect.logDebug(`Loaded ${loadedTasks.length} task(s)`);
 
-    const taskMetadata = loadedTasks.map((task) => task.metadata);
+      const taskMetadata = loadedTasks.map((task) => task.metadata);
 
-    const runTaskSchedule = Effect.fn("exec/scheduleTasks")(function* () {
       yield* offerEvent(
         InitEvent.make({
           bench: metadata,
@@ -233,7 +237,7 @@ export const run = Effect.fn("exec/schedule")(
       );
     });
 
-    yield* runTaskSchedule()
+    yield* runSchedule()
       .pipe(Effect.ensuring(Queue.end(metricQueue)))
       .pipe(Effect.andThen(metricsFiber ? Fiber.join(metricsFiber) : Effect.void))
       .pipe(Effect.ensuring(Queue.end(eventQueue)));

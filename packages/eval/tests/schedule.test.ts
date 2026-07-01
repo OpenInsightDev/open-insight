@@ -1,8 +1,9 @@
 import { assert, describe, it } from "@effect/vitest";
 import { Effect, Layer, Ref, Stream } from "effect";
-import { Prompt, Response } from "effect/unstable/ai";
+import { AiError, Prompt, Response } from "effect/unstable/ai";
 import { Agent, Sandbox } from "@open-insight/core/internal";
 import * as Schedule from "@/exec/schedule.ts";
+import { ExecError } from "@/exec/error.ts";
 import { EventTransportService, type Event, type EventTransport } from "@/exec/event/index.ts";
 import * as Metric from "@/metric/index.ts";
 import * as Task from "@/task/index.ts";
@@ -34,6 +35,18 @@ const makeTask = (name: string): Task.Task => ({
   resources: null,
 });
 
+const makeAgentError = (method: string): Agent.AgentError =>
+  Agent.AgentError.stream(
+    new AiError.AiError({
+      module: "schedule.test",
+      method,
+      reason: new AiError.UnknownError({ description: `${method} failed` }),
+    }),
+  );
+
+const makeSandboxError = (operation: string): Sandbox.SandboxError =>
+  Sandbox.SandboxError.provider("schedule.test")(new Error(`${operation} failed`));
+
 const eventSummary = (event: Event): string => {
   switch (event._tag) {
     case "InitEvent":
@@ -49,21 +62,47 @@ const eventSummary = (event: Event): string => {
   }
 };
 
-const makeTestProviders = Effect.fn(function* (events: Array<Event>) {
+type TestProviderOptions = Readonly<{
+  failAgentDeriveSnapshot?: boolean;
+  failRunSandbox?: boolean;
+}>;
+
+const makeTestProviders = Effect.fn(function* (
+  events: Array<Event>,
+  options: TestProviderOptions = {},
+) {
   const derivedSnapshots = yield* Ref.make(0);
   const removedSnapshots = yield* Ref.make(0);
+  const sandboxes = yield* Ref.make(0);
   const sessions = yield* Ref.make(0);
 
   const sandboxProvider = {
     ensureSnapshot: () => Effect.void,
     deriveSnapshot: () => Effect.void,
     removeSnapshot: () => Ref.update(removedSnapshots, (count) => count + 1),
-    runSandbox: () => Effect.succeed(makeSandbox()),
+    runSandbox: () =>
+      Effect.gen(function* () {
+        yield* Ref.update(sandboxes, (count) => count + 1);
+
+        if (options.failRunSandbox) {
+          return yield* Effect.fail(makeSandboxError("runSandbox"));
+        }
+
+        return makeSandbox();
+      }),
   } satisfies Sandbox.Provider;
 
   const agentProvider = {
     deriveSnapshot: ({ snapshot }) =>
-      Ref.update(derivedSnapshots, (count) => count + 1).pipe(Effect.as(snapshot)),
+      Effect.gen(function* () {
+        yield* Ref.update(derivedSnapshots, (count) => count + 1);
+
+        if (options.failAgentDeriveSnapshot) {
+          return yield* Effect.fail(makeAgentError("deriveSnapshot"));
+        }
+
+        return snapshot;
+      }),
     runSession: () =>
       Ref.update(sessions, (count) => count + 1).pipe(
         Effect.as({
@@ -105,6 +144,7 @@ const makeTestProviders = Effect.fn(function* (events: Array<Event>) {
   return {
     derivedSnapshots,
     removedSnapshots,
+    sandboxes,
     sessions,
     provide,
   };
@@ -174,42 +214,210 @@ describe("exec schedule", () => {
     }),
   );
 
-  it.effect("runs to completion and publishes metric events when metrics are configured", () =>
+  it.effect(
+    "runs to completion and publishes metric events when metrics are configured",
+    () =>
+      Effect.gen(function* () {
+        const events: Array<Event> = [];
+        const testProviders = yield* makeTestProviders(events);
+        const metrics = yield* Metric.init<Task.Task>().pipe(
+          Metric.withTaskEach("score-each", (grade) => grade.score),
+        );
+
+        const result = yield* testProviders.provide(
+          Schedule.run(
+            {
+              trailCount: 130,
+              tasks: [Effect.succeed(makeTask("alpha"))],
+              metrics,
+              metadata: { name: "metrics-blocking-bench", description: "metrics blocking probe" },
+            },
+            {
+              harnessConfig: { snapshotConcurrency: 1, trailConcurrency: 1 },
+            },
+          ),
+        );
+
+        assert.strictEqual(yield* Ref.get(testProviders.derivedSnapshots), 1);
+        assert.strictEqual(yield* Ref.get(testProviders.sessions), 130);
+        assert.strictEqual(yield* Ref.get(testProviders.removedSnapshots), 1);
+
+        assert.deepStrictEqual(result.tasks["alpha"]?.trails[0]?.grades, { score: 1 });
+        assert.deepStrictEqual(result.tasks["alpha"]?.trails[129]?.grades, { score: 1 });
+        assert.deepStrictEqual(result.tasks["alpha"]?.metrics, { "score-each": [1] });
+
+        const summaries = events.map(eventSummary);
+        assert.strictEqual(
+          summaries.filter((summary) => summary === "metric:TaskOutput:score-each").length,
+          130,
+        );
+        assert.include(summaries, "bench:stop:metrics-blocking-bench");
+      }),
+    10_000,
+  );
+
+  it.effect("fails with InitError when trailCount is zero", () =>
     Effect.gen(function* () {
       const events: Array<Event> = [];
       const testProviders = yield* makeTestProviders(events);
-      const metrics = yield* Metric.init<Task.Task>().pipe(
-        Metric.withTaskEach("score-each", (grade) => grade.score),
-      );
+
+      const error = yield* testProviders
+        .provide(
+          Schedule.run(
+            {
+              trailCount: 0,
+              tasks: [Effect.succeed(makeTask("alpha"))],
+              metrics: null,
+              metadata: { name: "zero-trails-bench", description: "invalid trail count" },
+            },
+            {
+              harnessConfig: { snapshotConcurrency: 1, trailConcurrency: 1 },
+            },
+          ),
+        )
+        .pipe(Effect.flip);
+
+      assert.instanceOf(error, ExecError);
+      assert.strictEqual(error.reason._tag, "InitError");
+      assert.deepStrictEqual(events, []);
+      assert.strictEqual(yield* Ref.get(testProviders.derivedSnapshots), 0);
+      assert.strictEqual(yield* Ref.get(testProviders.sandboxes), 0);
+      assert.strictEqual(yield* Ref.get(testProviders.sessions), 0);
+      assert.strictEqual(yield* Ref.get(testProviders.removedSnapshots), 0);
+    }),
+  );
+
+  it.effect("fails before publishing schedule events when a task cannot load", () =>
+    Effect.gen(function* () {
+      const events: Array<Event> = [];
+      const testProviders = yield* makeTestProviders(events);
+
+      const error = yield* testProviders
+        .provide(
+          Schedule.run(
+            {
+              trailCount: 1,
+              tasks: [Effect.fail(Task.TaskError.load(new Error("load failed")))],
+              metrics: null,
+              metadata: { name: "task-load-failure-bench", description: "load failure" },
+            },
+            {
+              harnessConfig: { snapshotConcurrency: 1, trailConcurrency: 1 },
+            },
+          ),
+        )
+        .pipe(Effect.flip);
+
+      assert.instanceOf(error, ExecError);
+      assert.strictEqual(error.reason._tag, "TaskLoadError");
+      assert.deepStrictEqual(events, []);
+      assert.strictEqual(yield* Ref.get(testProviders.derivedSnapshots), 0);
+      assert.strictEqual(yield* Ref.get(testProviders.sandboxes), 0);
+      assert.strictEqual(yield* Ref.get(testProviders.sessions), 0);
+      assert.strictEqual(yield* Ref.get(testProviders.removedSnapshots), 0);
+    }),
+  );
+
+  it.effect(
+    "reports snapshot preparation failures as task init errors without starting the task",
+    () =>
+      Effect.gen(function* () {
+        const events: Array<Event> = [];
+        const testProviders = yield* makeTestProviders(events, { failAgentDeriveSnapshot: true });
+
+        const error = yield* testProviders
+          .provide(
+            Schedule.run(
+              {
+                trailCount: 1,
+                tasks: [Effect.succeed(makeTask("alpha"))],
+                metrics: null,
+                metadata: { name: "snapshot-failure-bench", description: "snapshot failure" },
+              },
+              {
+                harnessConfig: { snapshotConcurrency: 1, trailConcurrency: 1 },
+              },
+            ),
+          )
+          .pipe(Effect.flip);
+
+        assert.instanceOf(error, ExecError);
+        assert.strictEqual(error.reason._tag, "TaskInitError");
+        assert.deepStrictEqual(events.map(eventSummary), [
+          "init:snapshot-failure-bench:alpha",
+          "bench:start:snapshot-failure-bench",
+        ]);
+        assert.strictEqual(yield* Ref.get(testProviders.derivedSnapshots), 1);
+        assert.strictEqual(yield* Ref.get(testProviders.sandboxes), 0);
+        assert.strictEqual(yield* Ref.get(testProviders.sessions), 0);
+        assert.strictEqual(yield* Ref.get(testProviders.removedSnapshots), 0);
+      }),
+  );
+
+  it.effect(
+    "reports trail execution failures as task exec errors and removes derived snapshots",
+    () =>
+      Effect.gen(function* () {
+        const events: Array<Event> = [];
+        const testProviders = yield* makeTestProviders(events, { failRunSandbox: true });
+
+        const error = yield* testProviders
+          .provide(
+            Schedule.run(
+              {
+                trailCount: 1,
+                tasks: [Effect.succeed(makeTask("alpha"))],
+                metrics: null,
+                metadata: { name: "sandbox-failure-bench", description: "sandbox failure" },
+              },
+              {
+                harnessConfig: { snapshotConcurrency: 1, trailConcurrency: 1 },
+              },
+            ),
+          )
+          .pipe(Effect.flip);
+
+        assert.instanceOf(error, ExecError);
+        assert.strictEqual(error.reason._tag, "TaskExecError");
+        assert.strictEqual(error.reason.trailIndex, 0);
+        assert.deepStrictEqual(events.map(eventSummary), [
+          "init:sandbox-failure-bench:alpha",
+          "bench:start:sandbox-failure-bench",
+          "task:start:alpha",
+        ]);
+        assert.strictEqual(yield* Ref.get(testProviders.derivedSnapshots), 1);
+        assert.strictEqual(yield* Ref.get(testProviders.sandboxes), 1);
+        assert.strictEqual(yield* Ref.get(testProviders.sessions), 0);
+        assert.strictEqual(yield* Ref.get(testProviders.removedSnapshots), 1);
+      }),
+  );
+
+  it.effect("keeps derived snapshots when snapshot caching is enabled", () =>
+    Effect.gen(function* () {
+      const events: Array<Event> = [];
+      const testProviders = yield* makeTestProviders(events);
 
       const result = yield* testProviders.provide(
         Schedule.run(
           {
-            trailCount: 130,
+            trailCount: 1,
             tasks: [Effect.succeed(makeTask("alpha"))],
-            metrics,
-            metadata: { name: "metrics-blocking-bench", description: "metrics blocking probe" },
+            metrics: null,
+            metadata: { name: "cached-snapshot-bench", description: "cached snapshot" },
           },
           {
             harnessConfig: { snapshotConcurrency: 1, trailConcurrency: 1 },
+            sandboxConfig: { cacheSnapshot: true },
           },
         ),
       );
 
+      assert.deepStrictEqual(result, { metrics: {}, tasks: {} });
       assert.strictEqual(yield* Ref.get(testProviders.derivedSnapshots), 1);
-      assert.strictEqual(yield* Ref.get(testProviders.sessions), 130);
-      assert.strictEqual(yield* Ref.get(testProviders.removedSnapshots), 1);
-
-      assert.deepStrictEqual(result.tasks["alpha"]?.trails[0]?.grades, { score: 1 });
-      assert.deepStrictEqual(result.tasks["alpha"]?.trails[129]?.grades, { score: 1 });
-      assert.deepStrictEqual(result.tasks["alpha"]?.metrics, { "score-each": [1] });
-
-      const summaries = events.map(eventSummary);
-      assert.strictEqual(
-        summaries.filter((summary) => summary === "metric:TaskOutput:score-each").length,
-        130,
-      );
-      assert.include(summaries, "bench:stop:metrics-blocking-bench");
+      assert.strictEqual(yield* Ref.get(testProviders.sandboxes), 1);
+      assert.strictEqual(yield* Ref.get(testProviders.sessions), 1);
+      assert.strictEqual(yield* Ref.get(testProviders.removedSnapshots), 0);
+      assert.include(events.map(eventSummary), "bench:stop:cached-snapshot-bench");
     }),
   );
 });

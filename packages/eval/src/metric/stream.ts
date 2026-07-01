@@ -181,5 +181,5 @@ export const transform = ({
 
       return Stream.fromQueue(outputQueue);
     },
-    (effect) => effect.pipe(Effect.awaitAllChildren, Stream.unwrap),
+    (effect) => effect.pipe(Stream.unwrap),
   );
