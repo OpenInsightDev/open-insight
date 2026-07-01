@@ -11,7 +11,6 @@ export const run = Effect.fn(
     executor: Effect.Effect<Executor, E, R>,
     config: Config = {},
   ): Effect.fn.Return<void, E | ExecError, R> {
-    // yield* Effect.map(executor, (exec) => runSchedule({ executor: exec, config }));
     const {
       benchmark: { metadata, tasks },
       harness: { agent, sandbox },

@@ -4,18 +4,19 @@ import * as Metric from "../metric/index.ts";
 import { Agent, Sandbox } from "@open-insight/core/internal";
 import { ExecError } from "./error.ts";
 import { Response } from "effect/unstable/ai";
+import { type Event, TaskStreamPartEvent } from "./event/index.ts";
 
 export const createTrail = Effect.fn("exec/createTrail")(
   function* ({
     task,
     config,
     metricQueue,
-    partQueue,
+    eventQueue,
   }: {
     task: Task.Task;
     config?: Sandbox.Config;
     metricQueue: Queue.Enqueue<Metric.Input>;
-    partQueue: Queue.Enqueue<Response.StreamPart<any>>;
+    eventQueue: Queue.Enqueue<Event>;
   }): Effect.fn.Return<
     Effect.Effect<void, ExecError>,
     ExecError,
@@ -77,7 +78,15 @@ export const createTrail = Effect.fn("exec/createTrail")(
         const tapDelta = Effect.fn("exec/runTrail/tapDelta")(function* (
           part: Response.StreamPart<any>,
         ) {
-          yield* Queue.offer(partQueue, part);
+          yield* Queue.offer(
+            eventQueue,
+            TaskStreamPartEvent.make({
+              bench: metadata.name,
+              task: task.metadata.name,
+              parts: [part],
+              trailIndex,
+            }),
+          );
 
           const trajectory = yield* agent.trajectory();
           const prevTrajLength = yield* Ref.get(trajLength);

@@ -1,23 +1,10 @@
-import {
-  Cause,
-  Context,
-  Effect,
-  Fiber,
-  Option,
-  Pull,
-  Queue,
-  Scope,
-  Semaphore,
-  Stream,
-} from "effect";
+import { Cause, Effect, Fiber, Option, Pull, Queue, Scope, Semaphore, Stream } from "effect";
 import type { Config } from "./config.ts";
-import type { Executor } from "./build.ts";
 import * as Task from "../task/index.ts";
 import * as Metric from "@/metric/index.ts";
 import { createTrail } from "./trail.ts";
 import { ExecError } from "./error.ts";
 import { Countdown } from "@open-insight/utils";
-import { Response } from "effect/unstable/ai";
 import { Agent, Sandbox } from "@open-insight/core/internal";
 import {
   type Event,
@@ -25,7 +12,6 @@ import {
   TaskScheduleEvent,
   BenchScheduleEvent,
   MetricsStreamEvent,
-  TaskStreamPartEvent,
   EventTransportService,
 } from "./event/index.ts";
 import { range } from "effect/Array";
@@ -58,7 +44,6 @@ export const run = Effect.fn("exec/schedule")(
     yield* Effect.logDebug("Starting evaluation schedule");
 
     const metricQueue = yield* Queue.bounded<Metric.Input, Cause.Done>(128);
-    const partQueue = yield* Queue.bounded<Response.StreamPart<any>, Cause.Done>(128);
 
     const eventQueue = yield* Queue.bounded<Event, Cause.Done>(128);
     yield* Queue.offer(eventQueue, BenchScheduleEvent.make({ bench: metadata.name, op: "start" }));
@@ -86,7 +71,7 @@ export const run = Effect.fn("exec/schedule")(
         });
         yield* Effect.logDebug("Preparing task schedule");
 
-        const trail = yield* createTrail({ task, metricQueue, partQueue, config: sandboxConfig })
+        const trail = yield* createTrail({ task, metricQueue, eventQueue, config: sandboxConfig })
           // snapshot building should also be limited to avoid overwhelming the sandbox provider
           .pipe((create) => snapshotSem.withPermit(create));
         yield* Effect.logDebug("Task snapshot is ready");
@@ -164,7 +149,11 @@ export const run = Effect.fn("exec/schedule")(
     yield* Effect.all(
       loadedTasks.map((task) => scheduleTrail({ task })),
       { concurrency: "unbounded" },
-    ).pipe(Effect.scoped);
+    )
+      .pipe(Effect.scoped)
+      .pipe(Effect.ensuring(Queue.end(eventQueue)))
+      .pipe(Effect.ensuring(Queue.end(metricQueue)));
+
     yield* Effect.logDebug("Scheduled all tasks");
     yield* Queue.offer(eventQueue, BenchScheduleEvent.make({ bench: metadata.name, op: "stop" }));
   },

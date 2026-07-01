@@ -49,7 +49,7 @@ export class TaskStreamPartEvent extends Schema.TaggedClass<TaskStreamPartEvent>
     bench: Schema.String,
     task: Schema.String,
     trailIndex: Schema.Number,
-    messages: Schema.Array(Response.StreamPart(Toolkit.empty)),
+    parts: Schema.Array(Response.StreamPart(Toolkit.empty)),
   },
 ) {}
 
