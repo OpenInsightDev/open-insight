@@ -5,11 +5,12 @@ import { Agent, Sandbox } from "@open-insight/core/internal";
 import { ExecError } from "./error.ts";
 import { Response } from "effect/unstable/ai";
 import { type Event, TaskStreamPartEvent } from "./event/index.ts";
+import { ChildProcessSpawner } from "effect/unstable/process";
 
 export const createTrail = Effect.fn("exec/createTrail")(
   function* ({
     task,
-    config,
+    config: { cacheSnapshot, allowHost } = {},
     metricQueue,
     eventQueue,
   }: {
@@ -23,6 +24,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
     | Sandbox.ProviderService
     | Agent.ProviderService
     | FileSystem.FileSystem
+    | ChildProcessSpawner.ChildProcessSpawner
     | Path.Path
     | Scope.Scope
   > {
@@ -36,25 +38,28 @@ export const createTrail = Effect.fn("exec/createTrail")(
     const sandboxProvider = yield* Sandbox.ProviderService;
     const agentProvider = yield* Agent.ProviderService;
 
-    // TODO support snapshot is null
-    const derived = yield* agentProvider
-      .deriveSnapshot({ snapshot, context })
-      .pipe(Effect.mapError(ExecError.taskInit({ task: metadata })));
+    let derived: Sandbox.Snapshot.Snapshot | null = null;
+    if (snapshot) {
+      // TODO how to handle snapshot is Scratch?
+      const derived = yield* agentProvider
+        .deriveSnapshot({ snapshot, context })
+        .pipe(Effect.mapError(ExecError.taskInit({ task: metadata })));
 
-    yield* sandboxProvider
-      .ensureSnapshot({ snapshot: derived, context })
-      .pipe(Effect.mapError(ExecError.taskInit({ task: metadata })));
+      yield* sandboxProvider
+        .ensureSnapshot({ snapshot: derived, context })
+        .pipe(Effect.mapError(ExecError.taskInit({ task: metadata })));
 
-    yield* Effect.logDebug("Prepared derived snapshot");
+      yield* Effect.logDebug("Prepared derived snapshot");
 
-    yield* Effect.addFinalizer(
-      Effect.fn("exec/createTrail/finalizeSnapshot")(function* () {
-        if (!config?.cacheSnapshot) {
-          yield* Effect.logDebug("Removing derived snapshot");
-          yield* sandboxProvider.removeSnapshot({ snapshot: derived }).pipe(Effect.ignore);
-        }
-      }),
-    );
+      yield* Effect.addFinalizer(
+        Effect.fn("exec/createTrail/finalizeSnapshot")(function* () {
+          if (!cacheSnapshot) {
+            yield* Effect.logDebug("Removing derived snapshot");
+            yield* sandboxProvider.removeSnapshot({ snapshot: derived }).pipe(Effect.ignore);
+          }
+        }),
+      );
+    }
 
     const nextTrailIndex = yield* Ref.make(0);
 
@@ -67,9 +72,19 @@ export const createTrail = Effect.fn("exec/createTrail")(
 
         yield* Effect.logDebug("Starting sandbox for trail");
 
-        const sandbox = yield* sandboxProvider
-          .runSandbox({ snapshot: derived, assert, resources })
-          .pipe(Effect.mapError(ExecError.taskExec({ task: metadata, trailIndex })));
+        let sandbox: Sandbox.Sandbox;
+        if (derived) {
+          sandbox = yield* sandboxProvider
+            .runSandbox({ snapshot: derived, assert, resources })
+            .pipe(Effect.mapError(ExecError.taskExec({ task: metadata, trailIndex })));
+        } else if (allowHost) {
+          sandbox = yield* Sandbox.makeHost({ assert });
+        } else {
+          yield* Effect.die(
+            new Error("Task requires to run directly on host, but allowHost is not enabled"),
+          );
+          throw new Error("unreachable");
+        }
 
         yield* Effect.logDebug("Sandbox is ready, Starting trail execution");
 
@@ -147,11 +162,15 @@ export const createTrail = Effect.fn("exec/createTrail")(
         ),
     );
 
+    const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
     return Effect.gen(function* () {
       const trailIndex = yield* Ref.getAndUpdate(nextTrailIndex, (n) => n + 1);
       yield* Effect.logDebug(`Starting trail ${trailIndex}`);
       yield* runTrail(trailIndex)
-        .pipe(Effect.provideService(Agent.ProviderService, agentProvider))
+        .pipe(
+          Effect.provideService(Agent.ProviderService, agentProvider),
+          Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner),
+        )
         .pipe(
           Effect.annotateLogs({
             taskName: metadata.name,

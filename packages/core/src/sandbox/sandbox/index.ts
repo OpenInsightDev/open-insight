@@ -42,7 +42,7 @@ export type MakeSandboxOptions = Readonly<{
   readFile: Sandbox["readFile"] | "cat";
   writeFile: Sandbox["writeFile"] | "tee";
 
-  assert?: Assert.Assert;
+  assert: Assert.Assert | null;
 }>;
 
 export const make = Effect.fn(function* ({
@@ -135,5 +135,36 @@ export const make = Effect.fn(function* ({
     expose,
   } satisfies Sandbox;
 });
+
+export const makeHost = Effect.fn(
+  function* ({
+    assert,
+  }: {
+    assert: Assert.Assert | null;
+  }): Effect.fn.Return<Sandbox, SandboxError, Spawn.SpawnService> {
+    const spawner = yield* Spawn.SpawnService;
+
+    const $ = Effect.fn(function* (
+      command: CP.StandardCommand,
+      input?: string,
+    ): Effect.fn.Return<string, SandboxError> {
+      throw new Error("Host sandbox is not implemented yet");
+    });
+
+    const expose: Sandbox["expose"] = ({ hostPort }) =>
+      Effect.succeed({ hostUrl: `http://localhost:${hostPort}` });
+
+    return yield* make({
+      $,
+      expose,
+      download: "rsync",
+      upload: "rsync",
+      readFile: "cat",
+      writeFile: "tee",
+      assert,
+    });
+  },
+  (effect) => effect.pipe(Effect.provide(Spawn.SpawnService.layer)),
+);
 
 export * from "./promise.ts";

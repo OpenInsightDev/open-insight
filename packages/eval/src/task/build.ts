@@ -24,7 +24,7 @@ export type Task<G extends Grade.Grader = Grade.Grader> = Readonly<{
   gradeContext: Sandbox.Context.Context | null;
 
   snapshot: Sandbox.Snapshot.Snapshot | null;
-  assert: Sandbox.Assert.Assertions | null;
+  assert: Sandbox.Assert.Assert | null;
 
   resources: Sandbox.ResourceLimits | null;
 
@@ -91,7 +91,7 @@ export const withSnapshot =
     Effect.map(build, (t) => ({ ...t, snapshot }));
 
 export const withAssert =
-  (assert: Sandbox.Assert.Assertions) =>
+  (assert: Sandbox.Assert.Assert) =>
   <G extends Grade.Grader, H, R>(build: Builder<G, H, R>): Builder<G, H, R> =>
     Effect.map(build, (t) => ({ ...t, assert }));
 

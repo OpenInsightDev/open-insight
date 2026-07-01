@@ -27,6 +27,8 @@ export const makeName = Effect.fn(function* (snapshot: Snapshot) {
  */
 export const fromImage = (image: Image): Snapshot => Snapshot.make({ image, instructions: [] });
 
+export const Scratch = fromImage("scratch");
+
 /**
  * Extend an existing snapshot with a set of new instructions, without changing the base image.
  */

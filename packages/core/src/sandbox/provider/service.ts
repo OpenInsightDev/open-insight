@@ -49,8 +49,8 @@ export type Provider = Readonly<{
    */
   runSandbox(
     options: Readonly<{
-      snapshot: Snapshot | null;
-      assert: Assert.Assertions | null;
+      snapshot: Snapshot;
+      assert: Assert.Assert | null;
       resources: ResourceLimits | null;
     }>,
   ): Effect.Effect<Sandbox, SandboxError, Scope.Scope>;

@@ -4,7 +4,7 @@ import { Spawn } from "@open-insight/utils";
 import { AssertionFailure, SandboxError } from "../error.ts";
 import type { Sandbox } from "../sandbox/index.ts";
 import { bashQuote } from "../utils.ts";
-import { type Assert, Assertion } from "./schema.ts";
+import { type Assert, Assertion, AssertSchema } from "./schema.ts";
 
 export type AssertOptions = Readonly<{
   concurrency?: "unbounded" | number;
@@ -101,7 +101,7 @@ export const exists = (path: string): Assertion =>
     path,
   });
 
-export const make = (...assertions: Array<Assertion>): Assert => Assert.make(assertions);
+export const make = (...assertions: Array<Assertion>): Assert => AssertSchema.make(assertions);
 
 export const check = Effect.fn(function* (
   sandbox: Sandbox,
