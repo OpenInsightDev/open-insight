@@ -15,7 +15,7 @@ export {
 export { withChart } from "./chart/index.ts";
 
 export * as Traj from "./traj/export.ts";
-export * as Task from "./task/export.ts";
-export * as Bench from "./bench/export.ts";
+export * as Task from "./task.ts";
+export * as Bench from "./bench.ts";
 
 export * as Internal from "./index.ts";

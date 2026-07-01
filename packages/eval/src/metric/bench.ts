@@ -1,8 +1,8 @@
 import { type Data, Effect, Match, Schema } from "effect";
-import type { Bivariant, UnionToIntersection } from "../../utils/variant.ts";
-import { MetricError } from "../error.ts";
-import { BenchOutput } from "../schema.ts";
-import type * as TaskMetric from "../task/index.ts";
+import type { Bivariant, UnionToIntersection } from "@/utils/variant.ts";
+import { MetricError } from "./error.ts";
+import { BenchOutput } from "./schema.ts";
+import type * as TaskMetric from "./task.ts";
 
 export type Input<TAM extends TaskMetric.Metric = TaskMetric.Metric> = {
   task: string;
