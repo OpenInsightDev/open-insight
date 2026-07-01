@@ -12,9 +12,7 @@ export {
   withTrajReduce,
 } from "./build.ts";
 
-export { withChart } from "./chart/index.ts";
-
-export * as Traj from "./traj/export.ts";
+export * as Traj from "./traj.ts";
 export * as Task from "./task.ts";
 export * as Bench from "./bench.ts";
 

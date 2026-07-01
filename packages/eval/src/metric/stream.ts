@@ -1,7 +1,7 @@
 import { Cause, Effect, pipe, Queue, Scope, Stream } from "effect";
 import * as TaskMetric from "./task.ts";
 import * as BenchMetric from "./bench.ts";
-import * as TrajMetric from "./traj/index.ts";
+import * as TrajMetric from "./traj.ts";
 import type { BenchOutput, Input, Output, TaskOutput, TrajOutput } from "./schema.ts";
 import type { MetricError } from "./error.ts";
 import type { Metrics } from "./build.ts";
@@ -9,7 +9,7 @@ import type * as _Core from "@open-insight/core";
 
 type InputStream<E, R> = Stream.Stream<Input, E, R>;
 type OutputQueue = Queue.Queue<Output, MetricError | Cause.Done>;
-type OutputStream<E = never> = Stream.Stream<Output, E | MetricError | Cause.Done>;
+type OutputStream<E = never> = Stream.Stream<Output, E | MetricError>;
 
 export const buildTrajMetricConsumer = ({
   metrics: metricVariants,

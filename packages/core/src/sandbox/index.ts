@@ -6,3 +6,4 @@ export * as Context from "./context/index.ts";
 export * as Snapshot from "./snapshot/index.ts";
 export * from "./resource.ts";
 export * from "./config.ts";
+export * from "./utils.ts";

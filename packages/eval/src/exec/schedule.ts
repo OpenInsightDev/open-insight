@@ -1,4 +1,4 @@
-import { Cause, Effect, Fiber, Option, Pull, Queue, Scope, Semaphore, Stream } from "effect";
+import { Cause, Effect, Fiber, Option, Queue, Scope, Semaphore, Stream } from "effect";
 import type { Config } from "./config.ts";
 import * as Task from "../task/index.ts";
 import * as Metric from "@/metric/index.ts";
@@ -109,8 +109,6 @@ export const run = Effect.fn("exec/schedule")(
           eventQueue,
           TaskScheduleEvent.make({ bench: metadata.name, task: task.metadata.name, op: "stop" }),
         );
-        // wait for all trails to finish successfully
-        // before leaving the task scope and cleaning up snapshots and other resources
       },
       (effect, { task }) =>
         effect
@@ -120,23 +118,22 @@ export const run = Effect.fn("exec/schedule")(
               taskName: task.metadata.name,
             }),
           )
-          // .pipe(Effect.provide(agent), Effect.provide(sandbox))
           .pipe(Effect.mapError(ExecError.taskInit({ task: task.metadata }))),
     );
 
     if (metrics) {
       yield* Effect.logDebug("Starting metrics stream");
-      yield* Stream.fromQueue(metricQueue).pipe(
-        Metric.transform({ metrics, trailCount, taskCount: tasks.length }),
-        Stream.tap((output) =>
-          Queue.offer(eventQueue, MetricsStreamEvent.make({ bench: metadata.name, output })),
-        ),
-        Stream.runDrain,
-        Pull.catchDone(() => Effect.void),
-        Effect.mapError(ExecError.metric),
+      yield* Effect.scoped(
+        Stream.fromQueue(metricQueue)
+          .pipe(
+            Metric.transform({ metrics, trailCount, taskCount: tasks.length }),
+            Stream.tap((output) =>
+              Queue.offer(eventQueue, MetricsStreamEvent.make({ bench: metadata.name, output })),
+            ),
+            Stream.runDrain,
+          )
+          .pipe(Effect.mapError(ExecError.metric)),
       );
-    } else {
-      yield* Effect.logDebug("Skipping metrics");
     }
 
     yield* Effect.logDebug("Loading tasks");

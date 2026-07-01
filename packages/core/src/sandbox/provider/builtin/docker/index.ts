@@ -173,7 +173,7 @@ export const make = Effect.fn(
           args.push("-w", command.options.cwd);
         }
 
-        args.push(sandboxName, "sh", "-c", Provider.formatBash(command));
+        args.push(sandboxName, "sh", "-c", Sandbox.formatBash(command));
 
         const options =
           input === undefined
@@ -189,7 +189,7 @@ export const make = Effect.fn(
 
       return yield* Sandbox.make({
         $(cmd: CP.StandardCommand, input?: string) {
-          const bash = Provider.formatBash(cmd);
+          const bash = Sandbox.formatBash(cmd);
           const execCommand = makeExecCommand(cmd, input);
           return spawner
             .string(execCommand)
@@ -217,7 +217,7 @@ export const make = Effect.fn(
             Effect.mapError(
               SandboxError.sandboxExec({
                 name,
-                operation: Provider.formatBash(command),
+                operation: Sandbox.formatBash(command),
               }),
             ),
           );
@@ -229,7 +229,7 @@ export const make = Effect.fn(
             Effect.mapError(
               SandboxError.sandboxExec({
                 name,
-                operation: Provider.formatBash(command),
+                operation: Sandbox.formatBash(command),
               }),
             ),
           );
