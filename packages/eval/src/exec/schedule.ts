@@ -16,7 +16,7 @@ import {
 } from "./event/index.ts";
 import { range } from "effect/Array";
 import * as Benchmark from "@/benchmark/index.ts";
-import { ExecResult } from "./result/index.ts";
+import { ExecResult } from "./result.ts";
 import { castDraft, produce } from "immer";
 
 const updateTrailResult =
