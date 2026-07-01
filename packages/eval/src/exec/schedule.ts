@@ -42,18 +42,15 @@ const updateTrailResult =
         trajectory,
       });
 
-      return new ExecResult({
+      return ExecResult.make({
         metrics: current.metrics,
-        tasks: Object.fromEntries([
-          ...Object.entries(current.tasks),
-          [
-            taskName,
-            new TaskResult({
-              metrics: taskResult.metrics,
-              trails,
-            }),
-          ],
-        ]),
+        tasks: {
+          ...current.tasks,
+          [taskName]: TaskResult.make({
+            metrics: taskResult.metrics,
+            trails,
+          }),
+        },
       });
     });
 
@@ -118,18 +115,12 @@ export const run = Effect.fn("exec/schedule")(
       tasks: {},
     });
 
+    const offerEvent = (event: Event) => Queue.offer(eventQueue, event);
+
     yield* Effect.annotateCurrentSpan({
       benchmark: metadata.name,
     });
     yield* Effect.logDebug("Starting evaluation schedule");
-
-    yield* Queue.offer(
-      eventQueue,
-      BenchScheduleEvent.make({
-        bench: metadata.name,
-        op: "start",
-      }),
-    );
 
     const scheduleTrail = Effect.fn("exec/scheduleTrail")(
       function* ({ task }: { task: Task.Task }) {
@@ -151,9 +142,12 @@ export const run = Effect.fn("exec/schedule")(
         yield* Effect.logDebug("Waiting for all task snapshots");
         yield* snapshotCountdown.await;
         yield* Effect.logDebug("All task snapshots are ready");
-        yield* Queue.offer(
-          eventQueue,
-          TaskScheduleEvent.make({ bench: metadata.name, task: task.metadata.name, op: "start" }),
+        yield* offerEvent(
+          TaskScheduleEvent.make({
+            bench: metadata.name,
+            task: task.metadata.name,
+            op: "start",
+          }),
         );
 
         const fibers: Array<Fiber.Fiber<void, ExecError>> = [];
@@ -174,9 +168,12 @@ export const run = Effect.fn("exec/schedule")(
           { concurrency: "unbounded" },
         );
         yield* Effect.logDebug("Completed task trails");
-        yield* Queue.offer(
-          eventQueue,
-          TaskScheduleEvent.make({ bench: metadata.name, task: task.metadata.name, op: "stop" }),
+        yield* offerEvent(
+          TaskScheduleEvent.make({
+            bench: metadata.name,
+            task: task.metadata.name,
+            op: "stop",
+          }),
         );
       },
       (effect, { task }) =>
@@ -198,7 +195,7 @@ export const run = Effect.fn("exec/schedule")(
           Metric.transform({ metrics, trailCount, taskCount: tasks.length }),
           Stream.tap((output) => Ref.update(result, updateMetricResult(output))),
           Stream.tap((output) =>
-            Queue.offer(eventQueue, MetricsStreamEvent.make({ bench: metadata.name, output })),
+            offerEvent(MetricsStreamEvent.make({ bench: metadata.name, output })),
           ),
           Stream.runDrain,
         )
@@ -222,31 +219,39 @@ export const run = Effect.fn("exec/schedule")(
     yield* Effect.logDebug(`Loaded ${loadedTasks.length} task(s)`);
 
     const taskMetadata = loadedTasks.map((task) => task.metadata);
-    yield* Queue.offer(
-      eventQueue,
-      InitEvent.make({
-        bench: metadata,
-        tasks: taskMetadata,
-        metrics: metrics?.metadata ?? [],
-      }),
-    );
 
-    yield* Effect.all(
-      loadedTasks.map((task) => scheduleTrail({ task })),
-      { concurrency: "unbounded" },
-    )
-      .pipe(Effect.scoped)
+    yield* Effect.gen(function* () {
+      yield* offerEvent(
+        InitEvent.make({
+          bench: metadata,
+          tasks: taskMetadata,
+          metrics: metrics?.metadata ?? [],
+        }),
+      );
+
+      yield* offerEvent(
+        BenchScheduleEvent.make({
+          bench: metadata.name,
+          op: "start",
+        }),
+      );
+
+      yield* Effect.all(
+        loadedTasks.map((task) => scheduleTrail({ task })),
+        { concurrency: "unbounded" },
+      );
+
+      yield* offerEvent(
+        BenchScheduleEvent.make({
+          bench: metadata.name,
+          op: "stop",
+        }),
+      );
+    })
       .pipe(Effect.ensuring(Queue.end(eventQueue)))
       .pipe(Effect.ensuring(Queue.end(metricQueue)));
 
     yield* Effect.logDebug("Scheduled all tasks");
-    yield* Queue.offer(
-      eventQueue,
-      BenchScheduleEvent.make({
-        bench: metadata.name,
-        op: "stop",
-      }),
-    );
 
     return yield* Ref.get(result);
   },
