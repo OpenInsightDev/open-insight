@@ -135,7 +135,7 @@ export const TypeSchema = Schema.Union([
 ]);
 export type Type = Schema.Schema.Type<typeof TypeSchema>;
 
-export type Exec<R> = (result: R) => Chart[];
+export type Exec<R = any> = (result: R) => Chart[];
 
 export type Format<N extends string = string, R = unknown> = Readonly<{
   name: N;

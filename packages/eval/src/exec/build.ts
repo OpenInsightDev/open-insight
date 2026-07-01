@@ -15,7 +15,6 @@ export type Executor<T extends Task.Task = Task.Task> = Readonly<{
 
   trailCount: number;
   metrics: Metric.Metrics<Task.GraderOf<T>> | null;
-  // transport: EventTransport | null;
   transport: Layer.Layer<EventTransportService, ExecError> | null;
 }> & { _T?: T };
 

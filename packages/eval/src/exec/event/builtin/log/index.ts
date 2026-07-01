@@ -15,14 +15,10 @@ const logEvent = Effect.fn(function* (event: Event) {
   yield* Effect.logDebug(JSON.stringify(serialized));
 });
 
-export const make = Effect.sync(
-  (): EventTransport => ({
-    create: Effect.fn(function* ({
-      stream,
-    }: Readonly<{ stream: EventStream }>): Effect.fn.Return<void, ExecError, Scope.Scope> {
-      const scope = yield* Scope.Scope;
-
+export const make = Effect.fn(function* () {
+  return {
+    send: Effect.fn(function* ({ stream }): Effect.fn.Return<void, ExecError, Scope.Scope> {
       throw new Error("Not implemented");
     }),
-  }),
-);
+  } satisfies EventTransport;
+});

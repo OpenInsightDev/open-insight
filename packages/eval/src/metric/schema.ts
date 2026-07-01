@@ -45,12 +45,15 @@ export const TypeSchema = Schema.Union([
 ]);
 export type Type = Schema.Schema.Type<typeof TypeSchema>;
 
-export const VariantSchema = Schema.Union([Schema.Literal("Each"), Schema.Literal("All")]);
+export const VariantSchema = Schema.Union([
+  Schema.Literal("Reduce"),
+  Schema.Literal("Each"),
+  Schema.Literal("All"),
+]);
 export type Variant = Schema.Schema.Type<typeof VariantSchema>;
 
 export class Metadata extends Schema.Class<Metadata>("Metadata")({
   name: Schema.String,
   type: TypeSchema,
   variant: VariantSchema,
-  chart: Chart.TypeSchema,
 }) {}

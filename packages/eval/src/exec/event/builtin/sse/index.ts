@@ -3,20 +3,28 @@ import type { EventTransport } from "@/exec/event/index.ts";
 import { ExecError } from "@/exec/error.ts";
 import { HttpBody, HttpClient, HttpClientResponse } from "effect/unstable/http";
 import { Sse } from "effect/unstable/encoding";
-import { EventSchema, type EventStream } from "@/exec/event/schema.ts";
+import {
+  BenchScheduleEvent,
+  EventSchema,
+  InitEvent,
+  MetricsStreamEvent,
+  TaskScheduleEvent,
+  TaskStreamPartEvent,
+  type Event,
+  type EventStream,
+} from "@/exec/event/schema.ts";
 
 const transport = "sse";
 
 const joinUrl = (baseURL: string, path: string): string =>
   new URL(path, baseURL.endsWith("/") ? baseURL : `${baseURL}/`).toString();
 
-const encodeSseStream = <A extends { readonly _tag: string }, R>(
-  encode: (value: A) => Effect.Effect<unknown, Schema.SchemaError, R>,
-  stream: Stream.Stream<A, ExecError>,
-): Stream.Stream<Uint8Array, ExecError | Schema.SchemaError, R> =>
+const eventStream = (
+  stream: EventStream,
+): Stream.Stream<Uint8Array, ExecError | Schema.SchemaError> =>
   stream.pipe(
     Stream.mapEffect((value) =>
-      encode(value).pipe(
+      encodeEvent(value).pipe(
         Effect.map((encoded) => ({
           _tag: "Event" as const,
           event: value._tag,
@@ -28,11 +36,6 @@ const encodeSseStream = <A extends { readonly _tag: string }, R>(
     Stream.map((event) => Sse.encoder.write(event)),
     Stream.encodeText,
   );
-
-const eventStream = (
-  stream: EventStream,
-): Stream.Stream<Uint8Array, ExecError | Schema.SchemaError> =>
-  encodeSseStream(Schema.encodeEffect(EventSchema), stream);
 
 export const make = Effect.fn(function* ({
   baseURL,

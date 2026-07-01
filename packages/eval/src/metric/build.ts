@@ -5,12 +5,14 @@ import * as TrajMetric from "./traj.ts";
 import * as TaskMetric from "./task.ts";
 import * as BenchMetric from "./bench.ts";
 import type { Format, Exec } from "./chart.ts";
+import type { Metadata } from "./schema.ts";
 
 export type Metrics<G extends Task.Grader = Task.Grader, TAM = TaskMetric.Metric> = Readonly<{
   trajectory: Array<TrajMetric.Metric>;
   task: Array<TaskMetric.Metric>;
   benchmark: Array<BenchMetric.Metric>;
   format: Array<Format>;
+  metadata: Array<Metadata>;
 }> & { _G?: G; _TAM?: TAM };
 
 export type Builder<G extends Task.Grader, TAM = never> = Effect.Effect<Metrics<G, TAM>>;
@@ -21,6 +23,7 @@ export const init = <T extends Task.Task>(): Builder<Task.GraderOf<T>> =>
     task: [],
     benchmark: [],
     format: [],
+    metadata: [],
   });
 
 export const withTrajReduce =
@@ -29,7 +32,10 @@ export const withTrajReduce =
     Effect.map(build, (metrics) =>
       produce(metrics, (draft) => {
         draft.trajectory.push(TrajMetric.reduce(name, init, exec) as TrajMetric.Metric);
-        draft.format.push({ name, format } as Format);
+        if (format) {
+          draft.format.push({ name, format: format as Exec });
+        }
+        draft.metadata.push({ name, type: "Trajectory", variant: "Reduce" });
       }),
     );
 
@@ -39,7 +45,10 @@ export const withTrajEach =
     Effect.map(build, (metrics) =>
       produce(metrics, (draft) => {
         draft.trajectory.push(TrajMetric.each(name, exec) as TrajMetric.Metric);
-        draft.format.push({ name, format } as Format);
+        if (format) {
+          draft.format.push({ name, format: format as Exec });
+        }
+        draft.metadata.push({ name, type: "Trajectory", variant: "Each" });
       }),
     );
 
@@ -49,7 +58,10 @@ export const withTraj =
     Effect.map(build, (metrics) =>
       produce(metrics, (draft) => {
         draft.trajectory.push(TrajMetric.all(name, exec) as TrajMetric.Metric);
-        draft.format.push({ name, format } as Format);
+        if (format) {
+          draft.format.push({ name, format: format as Exec });
+        }
+        draft.metadata.push({ name, type: "Trajectory", variant: "All" });
       }),
     );
 
@@ -64,7 +76,10 @@ export const withTaskReduce =
     Effect.map(builder, (metrics) =>
       produce(metrics, (draft) => {
         draft.task.push(TaskMetric.reduce(name, init, exec) as TaskMetric.Metric);
-        draft.format.push({ name, format } as Format);
+        if (format) {
+          draft.format.push({ name, format: format as Exec });
+        }
+        draft.metadata.push({ name, type: "Task", variant: "Reduce" });
       }),
     );
 
@@ -78,7 +93,10 @@ export const withTaskEach =
     Effect.map(builder, (metrics) =>
       produce(metrics, (draft) => {
         draft.task.push(TaskMetric.each(name, exec) as TaskMetric.Metric);
-        draft.format.push({ name, format } as Format);
+        if (format) {
+          draft.format.push({ name, format: format as Exec });
+        }
+        draft.metadata.push({ name, type: "Task", variant: "Each" });
       }),
     );
 
@@ -92,7 +110,10 @@ export const withTask =
     Effect.map(builder, (metrics) =>
       produce(metrics, (draft) => {
         draft.task.push(TaskMetric.all(name, exec) as TaskMetric.Metric);
-        draft.format.push({ name, format } as Format);
+        if (format) {
+          draft.format.push({ name, format: format as Exec });
+        }
+        draft.metadata.push({ name, type: "Task", variant: "All" });
       }),
     );
 
@@ -107,7 +128,10 @@ export const withBenchReduce =
     Effect.map(build, (metrics) =>
       produce(metrics, (draft) => {
         draft.benchmark.push(BenchMetric.reduce(name, init, exec) as BenchMetric.Metric);
-        draft.format.push({ name, format } as Format);
+        if (format) {
+          draft.format.push({ name, format: format as Exec });
+        }
+        draft.metadata.push({ name, type: "Benchmark", variant: "Reduce" });
       }),
     );
 
@@ -121,7 +145,10 @@ export const withBenchEach =
     Effect.map(build, (metrics) =>
       produce(metrics, (draft) => {
         draft.benchmark.push(BenchMetric.each(name, exec) as BenchMetric.Metric);
-        draft.format.push({ name, format } as Format);
+        if (format) {
+          draft.format.push({ name, format: format as Exec });
+        }
+        draft.metadata.push({ name, type: "Benchmark", variant: "Each" });
       }),
     );
 
@@ -135,7 +162,10 @@ export const withBenchmark =
     Effect.map(build, (metrics) =>
       produce(metrics, (draft) => {
         draft.benchmark.push(BenchMetric.all(name, exec) as BenchMetric.Metric);
-        draft.format.push({ name, format } as Format);
+        if (format) {
+          draft.format.push({ name, format: format as Exec });
+        }
+        draft.metadata.push({ name, type: "Benchmark", variant: "All" });
       }),
     );
 
