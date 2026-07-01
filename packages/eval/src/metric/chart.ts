@@ -108,7 +108,7 @@ export class GaugeDataPoint extends Schema.TaggedClass<GaugeDataPoint>()("GaugeD
   units: Schema.optionalKey(Schema.String),
 }) {}
 
-export const ChartDataPointSchema = Schema.Union([
+export const DataPointSchema = Schema.Union([
   BarDataPoint,
   GroupedBarDataPoint,
   PieDataPoint,
@@ -125,9 +125,9 @@ export const ChartDataPointSchema = Schema.Union([
   CandlestickDataPoint,
   GaugeDataPoint,
 ]);
-export type ChartDataPoint = Schema.Schema.Type<typeof ChartDataPointSchema>;
+export type DataPoint = Schema.Schema.Type<typeof DataPointSchema>;
 
-export type Format<R> = (result: R) => ChartDataPoint[];
+export type Format<R> = (result: R) => DataPoint[];
 
 export type Chart<N extends string = string, R = unknown> = Readonly<{
   name: N;

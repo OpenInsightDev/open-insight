@@ -1,8 +1,8 @@
 import type { Agent } from "@open-insight/core/internal";
 import { type Data, Effect, Match, Schema } from "effect";
-import type { Bivariant, UnionToIntersection } from "../../utils/variant.ts";
-import { MetricError } from "../error.ts";
-import { type Input, TrajOutput } from "../schema.ts";
+import type { Bivariant, UnionToIntersection } from "@/utils/variant.ts";
+import { MetricError } from "./error.ts";
+import { type Input, TrajOutput } from "./schema.ts";
 import type * as _Core from "@open-insight/core";
 
 export type ReduceFn<R> = (
