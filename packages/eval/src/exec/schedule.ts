@@ -16,42 +16,25 @@ import {
 } from "./event/index.ts";
 import { range } from "effect/Array";
 import * as Benchmark from "@/benchmark/index.ts";
-import { ExecResult, TaskResult, TrailResult } from "./result/index.ts";
-import { produce } from "immer";
+import { ExecResult } from "./result/index.ts";
+import { castDraft, produce } from "immer";
 
 const updateTrailResult =
   ({ task, trailIndex, trajectory, delta }: Metric.Input) =>
   (current: ExecResult): ExecResult =>
-    produce(current, () => {
+    produce(current, (draft) => {
       const taskName = task.metadata.name;
-      const taskResult = current.tasks[taskName] ?? {
+      const taskResult = (draft.tasks[taskName] ??= {
         metrics: {},
         trails: [],
-      };
-
-      const trailResult = taskResult.trails[trailIndex] ?? {
-        grades: {},
-        metrics: {},
-        trajectory,
-      };
-
-      const trails = Array.from(taskResult.trails);
-      trails[trailIndex] = new TrailResult({
-        grades: delta._tag === "Grade" ? delta.result : trailResult.grades,
-        metrics: trailResult.metrics,
-        trajectory,
       });
+      const trailResult = taskResult.trails[trailIndex];
 
-      return ExecResult.make({
-        metrics: current.metrics,
-        tasks: {
-          ...current.tasks,
-          [taskName]: TaskResult.make({
-            metrics: taskResult.metrics,
-            trails,
-          }),
-        },
-      });
+      taskResult.trails[trailIndex] = {
+        grades: delta._tag === "Grade" ? delta.result : (trailResult?.grades ?? {}),
+        metrics: trailResult?.metrics ?? {},
+        trajectory: castDraft(trajectory),
+      };
     });
 
 const updateMetricResult =
@@ -142,6 +125,7 @@ export const run = Effect.fn("exec/schedule")(
         yield* Effect.logDebug("Waiting for all task snapshots");
         yield* snapshotCountdown.await;
         yield* Effect.logDebug("All task snapshots are ready");
+
         yield* offerEvent(
           TaskScheduleEvent.make({
             bench: metadata.name,
@@ -158,15 +142,13 @@ export const run = Effect.fn("exec/schedule")(
             .pipe((trail) => trailSem.withPermit(trail))
             .pipe(Effect.forkScoped);
           fibers.push(fiber);
-          yield* Effect.yieldNow; // ensure fair scheduling of trails across tasks
+          // ensure fair scheduling of trails across tasks
+          yield* Effect.yieldNow;
         }
 
         yield* Effect.logDebug("Waiting for task trails");
-        // TODO join manually to propagate errors, maybe there is a better way to do this
-        yield* Effect.all(
-          fibers.map((fiber) => Fiber.join(fiber)),
-          { concurrency: "unbounded" },
-        );
+        // TODO fail tolerance for trails
+        yield* Fiber.joinAll(fibers);
         yield* Effect.logDebug("Completed task trails");
         yield* offerEvent(
           TaskScheduleEvent.make({
@@ -258,9 +240,9 @@ export const run = Effect.fn("exec/schedule")(
   (effect, { metadata }) =>
     effect.pipe(
       Effect.scoped,
+      Effect.awaitAllChildren,
       Effect.annotateLogs({
         benchmark: metadata.name,
       }),
-      Effect.awaitAllChildren,
     ),
 );
