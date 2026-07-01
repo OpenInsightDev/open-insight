@@ -208,6 +208,9 @@ catalogs:
     '@changesets/cli':
       specifier: ^2.31.0
       version: 2.31.0
+    '@effect/ai-openai':
+      specifier: 4.0.0-beta.91
+      version: 4.0.0-beta.91
     '@effect/tsgo':
       specifier: ^0.14.6
       version: 0.14.6
@@ -262,6 +265,9 @@ importers:
       '@agentclientprotocol/sdk':
         specifier: ^1.0.0
         version: 1.0.0(zod@4.4.3)
+      '@effect/ai-openai':
+        specifier: 'catalog:'
+        version: 4.0.0-beta.91(effect@4.0.0-beta.90)
       ai:
         specifier: 'catalog:'
         version: 7.0.4(zod@4.4.3)
@@ -280,7 +286,7 @@ importers:
         version: 4.0.0-beta.91(effect@4.0.0-beta.90)(ioredis@5.11.1)
       '@effect/vitest':
         specifier: 4.0.0-beta.91
-        version: 4.0.0-beta.91(effect@4.0.0-beta.90)(vitest@4.1.9)
+        version: 4.0.0-beta.91(effect@4.0.0-beta.90)(vitest@4.1.9(@types/node@25.9.4)(@vitest/browser-preview@4.1.9)(vite@8.1.0(@types/node@25.9.4)(jiti@2.7.0)(yaml@2.9.0)))
       '@open-insight/utils':
         specifier: workspace:*
         version: link:../utils
@@ -313,7 +319,7 @@ importers:
         version: 4.0.0-beta.91(effect@4.0.0-beta.90)(ioredis@5.11.1)
       '@effect/vitest':
         specifier: 'catalog:'
-        version: 4.0.0-beta.91(effect@4.0.0-beta.90)(vitest@4.1.9)
+        version: 4.0.0-beta.91(effect@4.0.0-beta.90)(vitest@4.1.9(@types/node@25.9.4)(@vitest/browser-preview@4.1.9)(vite@8.1.0(@types/node@25.9.4)(jiti@2.7.0)(yaml@2.9.0)))
       '@open-insight/core':
         specifier: workspace:*
         version: link:../core
@@ -351,6 +357,40 @@ importers:
       pathe:
         specifier: 'catalog:'
         version: 2.0.3
+      typescript:
+        specifier: ^5
+        version: 5.9.3
+      vite-plus:
+        specifier: 'catalog:'
+        version: 0.2.1(@types/node@25.9.4)(jiti@2.7.0)(typescript@5.9.3)(vite@8.1.0(@types/node@25.9.4)(jiti@2.7.0)(yaml@2.9.0))(yaml@2.9.0)
+      vitest:
+        specifier: 4.1.9
+        version: 4.1.9(@types/node@25.9.4)(@vitest/browser-preview@4.1.9)(vite@8.1.0(@types/node@25.9.4)(jiti@2.7.0)(yaml@2.9.0))
+
+  packages/sandbox-apple:
+    dependencies:
+      effect:
+        specifier: 'catalog:'
+        version: 4.0.0-beta.90
+    devDependencies:
+      '@effect/vitest':
+        specifier: 'catalog:'
+        version: 4.0.0-beta.91(effect@4.0.0-beta.90)(vitest@4.1.9(@types/node@25.9.4)(@vitest/browser-preview@4.1.9)(vite@8.1.0(@types/node@25.9.4)(jiti@2.7.0)(yaml@2.9.0)))
+      '@open-insight/core':
+        specifier: workspace:*
+        version: link:../core
+      '@open-insight/utils':
+        specifier: workspace:*
+        version: link:../utils
+      '@types/node':
+        specifier: ^25.6.2
+        version: 25.9.4
+      '@typescript/native-preview':
+        specifier: 'catalog:'
+        version: 7.0.0-dev.20260629.1
+      bumpp:
+        specifier: ^11.1.0
+        version: 11.1.0
       typescript:
         specifier: ^5
         version: 5.9.3
@@ -497,6 +537,11 @@ packages:
 
   '@changesets/write@0.4.0':
     resolution: {integrity: sha512-CdTLvIOPiCNuH71pyDu3rA+Q0n65cmAbXnwWH84rKGiFumFzkmHNT8KHTMEchcxN+Kl8I54xGUhJ7l3E7X396Q==}
+
+  '@effect/ai-openai@4.0.0-beta.91':
+    resolution: {integrity: sha512-a1LrbOEJYC665WWTKSwjnBqAQuWsOGKjyno/uYkTWIqHdc4MHcUAu5gNNowtMXcgmKzVPyJiUk838qCzw/Vb/Q==}
+    peerDependencies:
+      effect: ^4.0.0-beta.91
 
   '@effect/ai-openai@4.0.0-beta.92':
     resolution: {integrity: sha512-DgpYejd6YPoV0OQ8jGuOEX3iNdhnak9RgwC0XgIjuCaxMe750ct3koy4lIlu6T2SXRHCz6MJVzfFtIKjyN7mOA==}
@@ -2322,6 +2367,10 @@ snapshots:
       human-id: 4.2.0
       prettier: 2.8.8
 
+  '@effect/ai-openai@4.0.0-beta.91(effect@4.0.0-beta.90)':
+    dependencies:
+      effect: 4.0.0-beta.90
+
   '@effect/ai-openai@4.0.0-beta.92(effect@4.0.0-beta.90)':
     dependencies:
       effect: 4.0.0-beta.90
@@ -2379,7 +2428,7 @@ snapshots:
       '@effect/tsgo-win32-arm64': 0.14.6
       '@effect/tsgo-win32-x64': 0.14.6
 
-  '@effect/vitest@4.0.0-beta.91(effect@4.0.0-beta.90)(vitest@4.1.9)':
+  '@effect/vitest@4.0.0-beta.91(effect@4.0.0-beta.90)(vitest@4.1.9(@types/node@25.9.4)(@vitest/browser-preview@4.1.9)(vite@8.1.0(@types/node@25.9.4)(jiti@2.7.0)(yaml@2.9.0)))':
     dependencies:
       effect: 4.0.0-beta.90
       vitest: 4.1.9(@types/node@25.9.4)(@vitest/browser-preview@4.1.9)(vite@8.1.0(@types/node@25.9.4)(jiti@2.7.0)(yaml@2.9.0))
