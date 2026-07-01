@@ -1,0 +1,198 @@
+import { Effect } from "effect";
+import { ChildProcess as CP } from "effect/unstable/process";
+import { Spawn } from "@open-insight/utils";
+import { AssertionFailure, SandboxError } from "../error.ts";
+import type { Sandbox } from "../sandbox/index.ts";
+import { bashQuote } from "../utils.ts";
+import { type Assert, Assertion } from "./schema.ts";
+
+export type AssertOptions = Readonly<{
+  concurrency?: "unbounded" | number;
+}>;
+
+type ExitFailure = Readonly<{
+  exitCode: number | undefined;
+  stderr: string | undefined;
+}>;
+
+const defaultOptions = {
+  concurrency: "unbounded",
+} satisfies Required<AssertOptions>;
+
+const shell = (command: string) => CP.make("sh", ["-c", command]);
+
+const commandValue = (command: CP.StandardCommand) =>
+  [command.command, ...command.args].map(bashQuote).join(" ");
+
+const findExitFailure = (cause: unknown): ExitFailure | undefined => {
+  if (cause instanceof Spawn.SpawnError && cause.reason._tag === "SpawnExitCodeError") {
+    return {
+      exitCode: cause.reason.exitCode,
+      stderr: cause.reason.stderr,
+    };
+  }
+
+  return undefined;
+};
+
+const fromCommandFailure = ({
+  assertion,
+  cause,
+  message,
+}: {
+  assertion: Assertion;
+  cause: SandboxError;
+  message: string;
+}) => {
+  const failure =
+    cause.reason._tag === "SandboxExecError" ? findExitFailure(cause.reason.cause) : undefined;
+
+  return AssertionFailure.make({
+    assertion,
+    message,
+    expected: "exit code 0",
+    actual:
+      failure?.exitCode === undefined
+        ? "command failed"
+        : `exit code ${failure.exitCode}, stderr: ${failure.stderr ?? "<no stderr>"}`,
+  });
+};
+
+const runString = (sandbox: Sandbox, command: string, assertion: Assertion) =>
+  sandbox.$(shell(command)).pipe(
+    Effect.mapError((cause) =>
+      fromCommandFailure({
+        assertion,
+        cause,
+        message: `Expected command to exit with code 0: ${command}`,
+      }),
+    ),
+  );
+
+export const success = (command: string): Assertion =>
+  Assertion.make({
+    _tag: "Success",
+    command,
+  });
+
+export const equal = (command: string, expected: string): Assertion =>
+  Assertion.make({
+    _tag: "Equal",
+    command,
+    expected,
+  });
+
+export const program = (programName: string): Assertion =>
+  Assertion.make({
+    _tag: "Program",
+    program: programName,
+  });
+
+export const env = (name: string, value?: string): Assertion =>
+  Assertion.make({
+    _tag: "Env",
+    name,
+    value,
+  });
+
+export const exists = (path: string): Assertion =>
+  Assertion.make({
+    _tag: "Exists",
+    path,
+  });
+
+export const make = (...assertions: Array<Assertion>): Assert => Assert.make(assertions);
+
+export const check = Effect.fn(function* (
+  sandbox: Sandbox,
+  assertion: Assertion,
+): Effect.fn.Return<void, AssertionFailure> {
+  switch (assertion._tag) {
+    case "Success": {
+      yield* runString(sandbox, assertion.command, assertion);
+      return;
+    }
+    case "Equal": {
+      const actual = yield* runString(sandbox, assertion.command, assertion);
+      if (actual !== assertion.expected) {
+        return yield* Effect.fail(
+          AssertionFailure.make({
+            assertion,
+            expected: assertion.expected,
+            actual,
+            message: `Expected command output to equal ${JSON.stringify(assertion.expected)}, got ${JSON.stringify(actual)}`,
+          }),
+        );
+      }
+      return;
+    }
+    case "Program": {
+      const command = `command -v ${bashQuote(assertion.program)}`;
+      yield* runString(sandbox, command, assertion).pipe(
+        Effect.mapError((error) =>
+          AssertionFailure.make({
+            ...error,
+            message: `Expected program to be available: ${assertion.program}`,
+          }),
+        ),
+      );
+      return;
+    }
+    case "Env": {
+      const command = `printenv ${bashQuote(assertion.name)}`;
+      const actual = yield* runString(sandbox, command, assertion).pipe(
+        Effect.mapError((error) =>
+          AssertionFailure.make({
+            ...error,
+            message: `Expected environment variable to exist: ${assertion.name}`,
+          }),
+        ),
+      );
+
+      if (assertion.value !== undefined && actual !== assertion.value) {
+        return yield* Effect.fail(
+          AssertionFailure.make({
+            assertion,
+            expected: assertion.value,
+            actual,
+            message: `Expected environment variable ${assertion.name} to equal ${JSON.stringify(assertion.value)}, got ${JSON.stringify(actual)}`,
+          }),
+        );
+      }
+      return;
+    }
+    case "Exists": {
+      const command = `test -e ${bashQuote(assertion.path)}`;
+      yield* runString(sandbox, command, assertion).pipe(
+        Effect.mapError((error) =>
+          AssertionFailure.make({
+            ...error,
+            message: `Expected path to exist: ${assertion.path}`,
+          }),
+        ),
+      );
+      return;
+    }
+  }
+});
+
+export const assert = Effect.fn(function* (
+  sandbox: Sandbox,
+  assertions: Iterable<Assertion>,
+  options: AssertOptions = defaultOptions,
+): Effect.fn.Return<void, SandboxError> {
+  yield* Effect.validate(assertions, (assertion) => check(sandbox, assertion), {
+    concurrency: options.concurrency ?? defaultOptions.concurrency,
+    discard: true,
+  }).pipe(Effect.mapError(SandboxError.assert));
+});
+
+export const command = (strings: TemplateStringsArray, ...values: Array<string>): Assertion =>
+  success(commandValue(CP.make(strings, ...values)));
+
+export const equals =
+  (expected: string) =>
+  (strings: TemplateStringsArray, ...values: Array<string>): Assertion =>
+    equal(commandValue(CP.make(strings, ...values)), expected);
+
+export * from "./schema.ts";

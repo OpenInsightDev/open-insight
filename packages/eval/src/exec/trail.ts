@@ -26,7 +26,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
     | Path.Path
     | Scope.Scope
   > {
-    const { snapshot, context, gradeContext, resources, metadata, prompt, graders } = task;
+    const { snapshot, assert, context, gradeContext, resources, metadata, prompt, graders } = task;
 
     yield* Effect.annotateCurrentSpan({
       taskName: metadata.name,
@@ -36,6 +36,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
     const sandboxProvider = yield* Sandbox.ProviderService;
     const agentProvider = yield* Agent.ProviderService;
 
+    // TODO support snapshot is null
     const derived = yield* agentProvider
       .deriveSnapshot({ snapshot, context })
       .pipe(Effect.mapError(ExecError.taskInit({ task: metadata })));
@@ -67,7 +68,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
         yield* Effect.logDebug("Starting sandbox for trail");
 
         const sandbox = yield* sandboxProvider
-          .runSandbox({ snapshot: derived, resources })
+          .runSandbox({ snapshot: derived, assert, resources })
           .pipe(Effect.mapError(ExecError.taskExec({ task: metadata, trailIndex })));
 
         yield* Effect.logDebug("Sandbox is ready, Starting trail execution");

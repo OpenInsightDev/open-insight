@@ -1,4 +1,5 @@
 import { Context, Effect, type Scope } from "effect";
+import * as Assert from "../assert/index.ts";
 import type * as SandboxContext from "../context/index.ts";
 import type { SandboxError } from "../error.ts";
 import type { ResourceLimits } from "../resource.ts";
@@ -48,7 +49,8 @@ export type Provider = Readonly<{
    */
   runSandbox(
     options: Readonly<{
-      snapshot: Snapshot;
+      snapshot: Snapshot | null;
+      assert: Assert.Assertions | null;
       resources: ResourceLimits | null;
     }>,
   ): Effect.Effect<Sandbox, SandboxError, Scope.Scope>;

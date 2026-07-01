@@ -3,6 +3,7 @@ import { ChildProcess as CP } from "effect/unstable/process";
 import { Spawn } from "@open-insight/utils";
 import { SandboxError } from "../error.ts";
 import * as Snapshot from "../snapshot/index.ts";
+import * as Assert from "../assert/index.ts";
 
 export const SANDBOX_NAME = "open-insight-sandbox";
 
@@ -40,6 +41,8 @@ export type MakeSandboxOptions = Readonly<{
   upload: Sandbox["upload"] | "rsync";
   readFile: Sandbox["readFile"] | "cat";
   writeFile: Sandbox["writeFile"] | "tee";
+
+  assert?: Assert.Assert;
 }>;
 
 export const make = Effect.fn(function* ({
@@ -49,8 +52,11 @@ export const make = Effect.fn(function* ({
   upload,
   readFile,
   writeFile,
+  assert,
 }: MakeSandboxOptions): Effect.fn.Return<Sandbox, SandboxError, Spawn.SpawnService> {
   const spawner = yield* Spawn.SpawnService;
+
+  // TODO supports Assertions
 
   const $ = Effect.fn(function* (
     command: CP.Command,

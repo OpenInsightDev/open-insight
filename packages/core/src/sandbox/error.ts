@@ -1,12 +1,15 @@
 import { Schema } from "effect";
+import { Assertion } from "./assert/schema.ts";
 import { Snapshot } from "./snapshot/index.ts";
 import { Instruction } from "./snapshot/instruction.ts";
-import * as Context from "./context/schema.ts";
+
+const ContextMode = Schema.String;
+type ContextMode = Schema.Schema.Type<typeof ContextMode>;
 
 export class ContextResolveError extends Schema.TaggedErrorClass<ContextResolveError>()(
   "ContextResolveError",
   {
-    mode: Context.ModeSchema,
+    mode: ContextMode,
     cause: Schema.Defect(),
   },
 ) {}
@@ -67,6 +70,17 @@ export class InstructionUnsupportedError extends Schema.TaggedErrorClass<Instruc
   },
 ) {}
 
+export class AssertionFailure extends Schema.Class<AssertionFailure>("AssertionFailure")({
+  assertion: Assertion,
+  message: Schema.String,
+  expected: Schema.optional(Schema.String),
+  actual: Schema.optional(Schema.String),
+}) {}
+
+export class AssertionError extends Schema.TaggedErrorClass<AssertionError>()("AssertionError", {
+  failures: Schema.Array(AssertionFailure),
+}) {}
+
 export const SandboxErrorReason = Schema.Union([
   ContextResolveError,
   InvalidContextError,
@@ -76,12 +90,13 @@ export const SandboxErrorReason = Schema.Union([
   SandboxExposeError,
   SnapshotUnsupportedError,
   InstructionUnsupportedError,
+  AssertionError,
 ]);
 
 export class SandboxError extends Schema.TaggedErrorClass<SandboxError>()("SandboxError", {
   reason: SandboxErrorReason,
 }) {
-  static contextResolve = (mode: Context.Mode) => (cause: unknown) =>
+  static contextResolve = (mode: ContextMode) => (cause: unknown) =>
     this.make({
       reason: ContextResolveError.make({
         mode,
@@ -160,6 +175,13 @@ export class SandboxError extends Schema.TaggedErrorClass<SandboxError>()("Sandb
         name,
         snapshot,
         instruction,
+      }),
+    });
+
+  static assert = (failures: ReadonlyArray<AssertionFailure>) =>
+    this.make({
+      reason: AssertionError.make({
+        failures: Array.from(failures),
       }),
     });
 }
