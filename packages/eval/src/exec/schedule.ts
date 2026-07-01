@@ -37,6 +37,7 @@ export const run = Effect.fn("exec/schedule")(
     const partQueue = yield* Queue.bounded<Response.StreamPart<any>, Cause.Done>(128);
 
     const eventQueue = yield* Queue.bounded<Event, Cause.Done>(128);
+    yield* Queue.offer(eventQueue, BenchScheduleEvent.make({ bench: metadata.name, op: "start" }));
 
     const snapshotSem = yield* Semaphore.make(snapshotConcurrency);
     const snapshotCountdown = yield* Countdown.make(tasks.length);
@@ -62,6 +63,10 @@ export const run = Effect.fn("exec/schedule")(
         yield* Effect.logDebug("Waiting for all task snapshots");
         yield* snapshotCountdown.await;
         yield* Effect.logDebug("All task snapshots are ready");
+        yield* Queue.offer(
+          eventQueue,
+          TaskScheduleEvent.make({ bench: metadata.name, task: task.metadata.name, op: "start" }),
+        );
 
         const fibers: Array<Fiber.Fiber<void, ExecError>> = [];
 
@@ -81,6 +86,10 @@ export const run = Effect.fn("exec/schedule")(
           { concurrency: "unbounded" },
         );
         yield* Effect.logDebug("Completed task trails");
+        yield* Queue.offer(
+          eventQueue,
+          TaskScheduleEvent.make({ bench: metadata.name, task: task.metadata.name, op: "stop" }),
+        );
         // wait for all trails to finish successfully
         // before leaving the task scope and cleaning up snapshots and other resources
       },
@@ -117,11 +126,10 @@ export const run = Effect.fn("exec/schedule")(
 
     yield* Effect.all(
       loadedTasks.map((task) => scheduleTrail({ task })),
-      {
-        concurrency: "unbounded",
-      },
+      { concurrency: "unbounded" },
     ).pipe(Effect.scoped);
     yield* Effect.logDebug("Scheduled all tasks");
+    yield* Queue.offer(eventQueue, BenchScheduleEvent.make({ bench: metadata.name, op: "stop" }));
   },
   (effect, { executor: { benchmark } }) =>
     effect.pipe(

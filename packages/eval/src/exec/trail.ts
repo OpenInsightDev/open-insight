@@ -48,17 +48,24 @@ export const createTrail = Effect.fn("exec/createTrail")(
 
     const nextTrailIndex = yield* Ref.make(0);
 
-    const runTrail = Effect.fn("exec/runTrail")(
-      function* ({ trailIndex, sandbox }: { trailIndex: number; sandbox: Sandbox.Sandbox }) {
+    const runTrail = Effect.fn(
+      function* (trailIndex: number) {
         yield* Effect.annotateCurrentSpan({
-          taskName: task.metadata.name,
+          taskName: metadata.name,
           trailIndex,
         });
-        yield* Effect.logDebug("Starting trail execution");
 
-        const provider = yield* Agent.ProviderService;
+        yield* Effect.logDebug("Starting sandbox for trail");
+
+        const sandbox = yield* sandboxProvider
+          .runSandbox({ snapshot: derived, resources })
+          .pipe(Effect.mapError(ExecError.taskExec({ task: metadata, trailIndex })))
+          .pipe(Effect.scoped);
+
+        yield* Effect.logDebug("Sandbox is ready, Starting trail execution");
 
         const { prompt, graders } = task;
+        const provider = yield* Agent.ProviderService;
         const agent = yield* provider.runSession({ sandbox });
         yield* Effect.logDebug("Started agent session");
 
@@ -114,7 +121,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
         });
         yield* Effect.logDebug("Published grade metric delta");
       },
-      (effect, { trailIndex }) =>
+      (effect, trailIndex) =>
         effect.pipe(
           Effect.annotateLogs({ taskName: metadata.name, trailIndex }),
           Effect.mapError(ExecError.taskExec({ task: metadata, trailIndex })),
@@ -123,28 +130,16 @@ export const createTrail = Effect.fn("exec/createTrail")(
 
     return Effect.gen(function* () {
       const trailIndex = yield* Ref.getAndUpdate(nextTrailIndex, (n) => n + 1);
-
-      yield* Effect.annotateCurrentSpan({
-        taskName: metadata.name,
-        trailIndex,
-      });
-      yield* Effect.logDebug("Starting sandbox for trail");
-
-      const sandbox = yield* sandboxProvider
-        .runSandbox({ snapshot: derived, resources })
-        .pipe(Effect.mapError(ExecError.taskExec({ task: metadata, trailIndex })))
-        .pipe(Effect.scoped);
-
-      yield* Effect.logDebug("Sandbox is ready");
-
-      yield* runTrail({ trailIndex, sandbox }).pipe(
-        Effect.provideService(Agent.ProviderService, agentProvider),
+      yield* Effect.logDebug(`Starting trail ${trailIndex}`);
+      yield* runTrail(trailIndex);
+      yield* Effect.logDebug(`Completed trail ${trailIndex}`);
+    })
+      .pipe(Effect.provideService(Agent.ProviderService, agentProvider))
+      .pipe(
+        Effect.annotateLogs({
+          taskName: metadata.name,
+        }),
       );
-    }).pipe(
-      Effect.annotateLogs({
-        taskName: metadata.name,
-      }),
-    );
   },
   (effect, { task }) =>
     effect.pipe(
