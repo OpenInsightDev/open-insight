@@ -164,7 +164,6 @@ export const transform = ({
 
       const trajRun = trajStream
         .pipe(Stream.tap(consumeTrajMetrics, { concurrency: "unbounded" }))
-        .pipe(Stream.ensuring(Queue.end(outputQueue)))
         .pipe(Stream.runDrain);
 
       const taskRun = taskStream
@@ -174,12 +173,13 @@ export const transform = ({
 
       const benchRun = Stream.fromQueue(benchQueue)
         .pipe(Stream.tap(consumeBenchMetrics, { concurrency: "unbounded" }))
-        .pipe(Stream.ensuring(Queue.end(outputQueue)))
         .pipe(Stream.runDrain);
 
-      yield* Effect.all([trajRun, taskRun, benchRun], { concurrency: "unbounded" });
+      yield* Effect.all([trajRun, taskRun, benchRun], { concurrency: "unbounded" })
+        .pipe(Effect.ensuring(Queue.end(outputQueue)))
+        .pipe(Effect.forkChild);
 
-      return Stream.fromQueue(outputQueue).pipe(Stream.scoped);
+      return Stream.fromQueue(outputQueue);
     },
-    (effect) => effect.pipe(Effect.scoped, Stream.unwrap),
+    (effect) => effect.pipe(Effect.awaitAllChildren, Stream.unwrap),
   );

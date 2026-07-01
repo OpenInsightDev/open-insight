@@ -179,13 +179,13 @@ describe("exec schedule", () => {
       const events: Array<Event> = [];
       const testProviders = yield* makeTestProviders(events);
       const metrics = yield* Metric.init<Task.Task>().pipe(
-        Metric.withTask("grade-count", (grades) => grades.length),
+        Metric.withTaskEach("score-each", (grade) => grade.score),
       );
 
       const result = yield* testProviders.provide(
         Schedule.run(
           {
-            trailCount: 1,
+            trailCount: 130,
             tasks: [Effect.succeed(makeTask("alpha"))],
             metrics,
             metadata: { name: "metrics-blocking-bench", description: "metrics blocking probe" },
@@ -197,16 +197,17 @@ describe("exec schedule", () => {
       );
 
       assert.strictEqual(yield* Ref.get(testProviders.derivedSnapshots), 1);
-      assert.strictEqual(yield* Ref.get(testProviders.sessions), 1);
+      assert.strictEqual(yield* Ref.get(testProviders.sessions), 130);
       assert.strictEqual(yield* Ref.get(testProviders.removedSnapshots), 1);
 
       assert.deepStrictEqual(result.tasks["alpha"]?.trails[0]?.grades, { score: 1 });
-      assert.deepStrictEqual(result.tasks["alpha"]?.metrics, { "grade-count": [1] });
+      assert.deepStrictEqual(result.tasks["alpha"]?.trails[129]?.grades, { score: 1 });
+      assert.deepStrictEqual(result.tasks["alpha"]?.metrics, { "score-each": [1] });
 
       const summaries = events.map(eventSummary);
-      assert.deepStrictEqual(
-        summaries.filter((summary) => summary.startsWith("metric:")),
-        ["metric:TaskOutput:grade-count"],
+      assert.strictEqual(
+        summaries.filter((summary) => summary === "metric:TaskOutput:score-each").length,
+        130,
       );
       assert.include(summaries, "bench:stop:metrics-blocking-bench");
     }),

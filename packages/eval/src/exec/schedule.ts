@@ -191,10 +191,7 @@ export const run = Effect.fn("exec/schedule")(
 
     yield* Option.match(transport, {
       onSome: (transport) =>
-        Effect.gen(function* () {
-          const stream = Stream.fromQueue(eventQueue);
-          yield* transport.send({ stream });
-        }).pipe(Effect.forkChild),
+        transport.send({ stream: Stream.fromQueue(eventQueue) }).pipe(Effect.forkChild),
       onNone: () => Effect.void,
     });
 
@@ -207,40 +204,39 @@ export const run = Effect.fn("exec/schedule")(
 
     const taskMetadata = loadedTasks.map((task) => task.metadata);
 
-    yield* Effect.gen(function* () {
-      yield* Effect.gen(function* () {
-        yield* offerEvent(
-          InitEvent.make({
-            bench: metadata,
-            tasks: taskMetadata,
-            metrics: metrics?.metadata ?? [],
-          }),
-        );
+    const runTaskSchedule = Effect.fn("exec/scheduleTasks")(function* () {
+      yield* offerEvent(
+        InitEvent.make({
+          bench: metadata,
+          tasks: taskMetadata,
+          metrics: metrics?.metadata ?? [],
+        }),
+      );
 
-        yield* offerEvent(
-          BenchScheduleEvent.make({
-            bench: metadata.name,
-            op: "start",
-          }),
-        );
+      yield* offerEvent(
+        BenchScheduleEvent.make({
+          bench: metadata.name,
+          op: "start",
+        }),
+      );
 
-        yield* Effect.all(
-          loadedTasks.map((task) => scheduleTrail({ task })),
-          { concurrency: "unbounded" },
-        );
+      yield* Effect.all(
+        loadedTasks.map((task) => scheduleTrail({ task })),
+        { concurrency: "unbounded" },
+      );
 
-        yield* offerEvent(
-          BenchScheduleEvent.make({
-            bench: metadata.name,
-            op: "stop",
-          }),
-        );
-      }).pipe(Effect.ensuring(Queue.end(metricQueue)));
+      yield* offerEvent(
+        BenchScheduleEvent.make({
+          bench: metadata.name,
+          op: "stop",
+        }),
+      );
+    });
 
-      if (metricsFiber) {
-        yield* Fiber.join(metricsFiber);
-      }
-    }).pipe(Effect.ensuring(Queue.end(eventQueue)));
+    yield* runTaskSchedule()
+      .pipe(Effect.ensuring(Queue.end(metricQueue)))
+      .pipe(Effect.andThen(metricsFiber ? Fiber.join(metricsFiber) : Effect.void))
+      .pipe(Effect.ensuring(Queue.end(eventQueue)));
 
     yield* Effect.logDebug("Scheduled all tasks");
 
