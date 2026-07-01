@@ -6,6 +6,15 @@ import * as Metric from "@/metric/index.ts";
 import { createTrail } from "./trail.ts";
 import { ExecError } from "./error.ts";
 import { Countdown } from "@open-insight/utils";
+import { Response } from "effect/unstable/ai";
+import {
+  type Event,
+  InitEvent,
+  TaskScheduleEvent,
+  BenchScheduleEvent,
+  MetricsStreamEvent,
+  TaskStreamPartEvent,
+} from "./event/index.ts";
 
 export const run = Effect.fn("exec/schedule")(
   function* ({
@@ -25,6 +34,9 @@ export const run = Effect.fn("exec/schedule")(
     yield* Effect.logDebug("Starting evaluation schedule");
 
     const metricQueue = yield* Queue.bounded<Metric.Input, Cause.Done>(128);
+    const partQueue = yield* Queue.bounded<Response.StreamPart<any>, Cause.Done>(128);
+
+    const eventQueue = yield* Queue.bounded<Event, Cause.Done>(128);
 
     const snapshotSem = yield* Semaphore.make(snapshotConcurrency);
     const snapshotCountdown = yield* Countdown.make(tasks.length);
@@ -39,7 +51,7 @@ export const run = Effect.fn("exec/schedule")(
         });
         yield* Effect.logDebug("Preparing task schedule");
 
-        const trail = yield* createTrail({ task, metricQueue, config: sandboxConfig })
+        const trail = yield* createTrail({ task, metricQueue, partQueue, config: sandboxConfig })
           // snapshot building should also be limited to avoid overwhelming the sandbox provider
           .pipe((create) => snapshotSem.withPermit(create));
         yield* Effect.logDebug("Task snapshot is ready");

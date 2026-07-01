@@ -3,95 +3,19 @@ import * as Task from "../task/index.ts";
 import * as Metric from "../metric/index.ts";
 import { Agent, Sandbox } from "@open-insight/core/internal";
 import { ExecError } from "./error.ts";
-
-const runTrail = Effect.fn("exec/runTrail")(
-  function* ({
-    task,
-    trailIndex,
-    sandbox,
-    metricQueue,
-  }: {
-    task: Task.Task;
-    trailIndex: number;
-    sandbox: Sandbox.Sandbox;
-    metricQueue: Queue.Enqueue<Metric.Input>;
-  }) {
-    yield* Effect.annotateCurrentSpan({
-      taskName: task.metadata.name,
-      trailIndex,
-    });
-    yield* Effect.logDebug("Starting trail execution");
-
-    const provider = yield* Agent.ProviderService;
-
-    const { prompt, graders } = task;
-    const agent = yield* provider.runSession({ sandbox });
-    yield* Effect.logDebug("Started agent session");
-
-    const stream = yield* agent.prompt({ prompt });
-    yield* Effect.logDebug("Attached prompt stream");
-
-    const trajLength = yield* Ref.make(0);
-
-    const tapDelta = Effect.fn("exec/runTrail/tapDelta")(function* () {
-      const trajectory = yield* agent.trajectory();
-      const prevTrajLength = yield* Ref.get(trajLength);
-      const currTrajLength = trajectory.content.length;
-
-      // not every part makes a new message
-      if (currTrajLength === prevTrajLength) {
-        return;
-      }
-
-      const messages = trajectory.content.slice(prevTrajLength, currTrajLength);
-
-      yield* Ref.set(trajLength, currTrajLength);
-      yield* Queue.offer(metricQueue, {
-        task,
-        trajectory,
-        delta: Metric.Messages({ messages }),
-      });
-    });
-
-    yield* stream.pipe(Stream.tap(tapDelta)).pipe(Stream.drain).pipe(Stream.runCollect);
-
-    const trajectory = yield* agent.trajectory();
-    yield* Effect.logDebug(
-      `Prompt stream completed with ${trajectory.content.length} trajectory message(s)`,
-    );
-
-    const ctx = {
-      trajectory,
-      ...Sandbox.asPromise(sandbox),
-    } satisfies Task.Grade.Context;
-
-    yield* Effect.logDebug(`Starting graders`);
-    const gradeResults = yield* Task.Grade.run(graders)(ctx);
-    yield* Effect.logDebug(`Completed graders`);
-
-    yield* Queue.offer(metricQueue, {
-      task,
-      trajectory,
-      delta: Metric.Grade({ result: gradeResults }),
-    });
-    yield* Effect.logDebug("Published grade metric delta");
-  },
-  (effect, { task: { metadata }, trailIndex }) =>
-    effect.pipe(
-      Effect.annotateLogs({ taskName: metadata.name, trailIndex }),
-      Effect.mapError(ExecError.taskExec({ task: metadata, trailIndex })),
-    ),
-);
+import { Response } from "effect/unstable/ai";
 
 export const createTrail = Effect.fn("exec/createTrail")(
   function* ({
     task,
     config,
     metricQueue,
+    partQueue,
   }: {
     task: Task.Task;
     config?: Sandbox.Config;
     metricQueue: Queue.Enqueue<Metric.Input>;
+    partQueue: Queue.Enqueue<Response.StreamPart<any>>;
   }): Effect.fn.Return<
     Effect.Effect<void, ExecError>,
     ExecError,
@@ -124,6 +48,79 @@ export const createTrail = Effect.fn("exec/createTrail")(
 
     const nextTrailIndex = yield* Ref.make(0);
 
+    const runTrail = Effect.fn("exec/runTrail")(
+      function* ({ trailIndex, sandbox }: { trailIndex: number; sandbox: Sandbox.Sandbox }) {
+        yield* Effect.annotateCurrentSpan({
+          taskName: task.metadata.name,
+          trailIndex,
+        });
+        yield* Effect.logDebug("Starting trail execution");
+
+        const provider = yield* Agent.ProviderService;
+
+        const { prompt, graders } = task;
+        const agent = yield* provider.runSession({ sandbox });
+        yield* Effect.logDebug("Started agent session");
+
+        const stream = yield* agent.prompt({ prompt });
+        yield* Effect.logDebug("Attached prompt stream");
+
+        const trajLength = yield* Ref.make(0);
+
+        const tapDelta = Effect.fn("exec/runTrail/tapDelta")(function* (
+          part: Response.StreamPart<any>,
+        ) {
+          yield* Queue.offer(partQueue, part);
+
+          const trajectory = yield* agent.trajectory();
+          const prevTrajLength = yield* Ref.get(trajLength);
+          const currTrajLength = trajectory.content.length;
+
+          // not every part makes a new message
+          if (currTrajLength === prevTrajLength) {
+            return;
+          }
+
+          const messages = trajectory.content.slice(prevTrajLength, currTrajLength);
+
+          yield* Ref.set(trajLength, currTrajLength);
+          yield* Queue.offer(metricQueue, {
+            task,
+            trajectory,
+            delta: Metric.Messages({ messages }),
+          });
+        });
+
+        yield* stream.pipe(Stream.tap(tapDelta)).pipe(Stream.drain).pipe(Stream.runCollect);
+
+        const trajectory = yield* agent.trajectory();
+        yield* Effect.logDebug(
+          `Prompt stream completed with ${trajectory.content.length} trajectory message(s)`,
+        );
+
+        const ctx = {
+          trajectory,
+          ...Sandbox.asPromise(sandbox),
+        } satisfies Task.Grade.Context;
+
+        yield* Effect.logDebug(`Starting graders`);
+        const gradeResults = yield* Task.Grade.run(graders)(ctx);
+        yield* Effect.logDebug(`Completed graders`);
+
+        yield* Queue.offer(metricQueue, {
+          task,
+          trajectory,
+          delta: Metric.Grade({ result: gradeResults }),
+        });
+        yield* Effect.logDebug("Published grade metric delta");
+      },
+      (effect, { trailIndex }) =>
+        effect.pipe(
+          Effect.annotateLogs({ taskName: metadata.name, trailIndex }),
+          Effect.mapError(ExecError.taskExec({ task: metadata, trailIndex })),
+        ),
+    );
+
     return Effect.gen(function* () {
       const trailIndex = yield* Ref.getAndUpdate(nextTrailIndex, (n) => n + 1);
 
@@ -140,7 +137,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
 
       yield* Effect.logDebug("Sandbox is ready");
 
-      yield* runTrail({ task, trailIndex, sandbox, metricQueue }).pipe(
+      yield* runTrail({ trailIndex, sandbox }).pipe(
         Effect.provideService(Agent.ProviderService, agentProvider),
       );
     }).pipe(

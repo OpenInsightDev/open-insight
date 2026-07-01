@@ -1,4 +1,5 @@
 import type { Agent } from "@open-insight/core/internal";
+import * as Chart from "./chart.ts";
 import * as Task from "../task/index.ts";
 import { Data, Schema } from "effect";
 
@@ -36,3 +37,20 @@ export class BenchOutput extends Schema.TaggedClass<BenchOutput>()("BenchmarkOut
 
 export const OutputSchema = Schema.Union([TrajOutput, TaskOutput, BenchOutput]);
 export type Output = Schema.Schema.Type<typeof OutputSchema>;
+
+export const TypeSchema = Schema.Union([
+  Schema.Literal("Trajectory"),
+  Schema.Literal("Task"),
+  Schema.Literal("Benchmark"),
+]);
+export type Type = Schema.Schema.Type<typeof TypeSchema>;
+
+export const VariantSchema = Schema.Union([Schema.Literal("Each"), Schema.Literal("All")]);
+export type Variant = Schema.Schema.Type<typeof VariantSchema>;
+
+export class Metadata extends Schema.Class<Metadata>("Metadata")({
+  name: Schema.String,
+  type: TypeSchema,
+  variant: VariantSchema,
+  chart: Chart.TypeSchema,
+}) {}
