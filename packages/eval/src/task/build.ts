@@ -27,8 +27,6 @@ export type Task<G extends Grade.Grader = Grade.Grader> = Readonly<{
   assert: Sandbox.Assert.Assert | null;
 
   resources: Sandbox.ResourceLimits | null;
-
-  readonly _grader?: () => G;
 }>;
 
 export type BuiltTask<T extends Task = Task> = Effect.Effect<T, TaskError>;

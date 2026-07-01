@@ -31,6 +31,7 @@ import { range } from "effect/Array";
 import * as Benchmark from "@/benchmark/index.ts";
 import { ExecResult } from "./result.ts";
 import { castDraft, produce } from "immer";
+import type { ChildProcessSpawner } from "effect/unstable/process";
 
 const updateTrailResult =
   ({ task, trailIndex, trajectory, delta }: Metric.Input) =>
@@ -98,6 +99,7 @@ export const run = Effect.fn("exec/schedule")(
     | Agent.ProviderService
     | Sandbox.ProviderService
     | FileSystem.FileSystem
+    | ChildProcessSpawner.ChildProcessSpawner
     | Path.Path
     | Scope.Scope
   > {
