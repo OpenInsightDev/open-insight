@@ -114,7 +114,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
           });
         });
 
-        yield* stream.pipe(Stream.tap(tapDelta)).pipe(Stream.drain).pipe(Stream.runCollect);
+        yield* stream.pipe(Stream.tap(tapDelta)).pipe(Stream.runDrain);
 
         const trajectory = yield* agent.trajectory();
         yield* Effect.logDebug(
