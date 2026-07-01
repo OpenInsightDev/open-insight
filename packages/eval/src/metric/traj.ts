@@ -80,6 +80,7 @@ export const buildReduce = ({ name, exec }: { name: string; exec: ReduceExec }) 
 
   return Effect.fn(function* ({
     task,
+    trailIndex,
     trajectory,
     delta,
   }: Input): Effect.fn.Return<TrajOutput | null, MetricError> {
@@ -99,6 +100,7 @@ export const buildReduce = ({ name, exec }: { name: string; exec: ReduceExec }) 
     return TrajOutput.make({
       name,
       task: task.metadata,
+      trailIndex,
       result,
     });
   });
@@ -107,6 +109,7 @@ export const buildReduce = ({ name, exec }: { name: string; exec: ReduceExec }) 
 export const buildEach = ({ name, exec }: { name: string; exec: EachExec }) =>
   Effect.fn(function* ({
     task,
+    trailIndex,
     trajectory,
     delta,
   }: Input): Effect.fn.Return<TrajOutput | null, MetricError> {
@@ -119,6 +122,7 @@ export const buildEach = ({ name, exec }: { name: string; exec: EachExec }) =>
     return TrajOutput.make({
       name,
       task: task.metadata,
+      trailIndex,
       result,
     });
   });
@@ -126,6 +130,7 @@ export const buildEach = ({ name, exec }: { name: string; exec: EachExec }) =>
 export const buildAll = ({ name, exec }: { name: string; exec: AllExec }) => {
   return Effect.fn(function* ({
     task,
+    trailIndex,
     trajectory,
     delta,
   }: Input): Effect.fn.Return<TrajOutput | null, MetricError> {
@@ -139,6 +144,7 @@ export const buildAll = ({ name, exec }: { name: string; exec: AllExec }) => {
     return TrajOutput.make({
       name,
       task: task.metadata,
+      trailIndex,
       result,
     });
   });

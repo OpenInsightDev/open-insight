@@ -102,6 +102,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
           yield* Ref.set(trajLength, currTrajLength);
           yield* Queue.offer(metricQueue, {
             task,
+            trailIndex,
             trajectory,
             delta: Metric.Messages({ messages }),
           });
@@ -125,6 +126,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
 
         yield* Queue.offer(metricQueue, {
           task,
+          trailIndex,
           trajectory,
           delta: Metric.Grade({ result: gradeResults }),
         });

@@ -3,6 +3,7 @@ import { Schema } from "effect";
 
 export class TrailResult extends Schema.Class<TrailResult>("TrailResult")({
   grades: Schema.Record(Schema.String, Schema.Json),
+  metrics: Schema.Record(Schema.String, Schema.Json),
   trajectory: Agent.Trajectory,
 }) {}
 

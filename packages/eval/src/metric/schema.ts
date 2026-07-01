@@ -13,6 +13,7 @@ export const { Grade, Messages } = Data.taggedEnum<InputDelta>();
 
 export type Input = Readonly<{
   task: Task.Task;
+  trailIndex: number;
   trajectory: Agent.Trajectory;
   delta: InputDelta;
 }>;
@@ -20,6 +21,7 @@ export type Input = Readonly<{
 export class TrajOutput extends Schema.TaggedClass<TrajOutput>()("TrajOutput", {
   name: Schema.String,
   task: Task.MetadataSchema,
+  trailIndex: Schema.Number,
   result: Schema.Json,
 }) {}
 

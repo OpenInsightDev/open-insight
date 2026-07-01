@@ -1,4 +1,4 @@
-import { Effect, Layer, Scope } from "effect";
+import { Effect, Scope } from "effect";
 import { type Executor } from "./build.ts";
 import { NodeHttpClient, NodeServices } from "@effect/platform-node";
 import { ExecError } from "./error.ts";
@@ -6,7 +6,6 @@ import { type Config } from "./config.ts";
 import type * as _Core from "@open-insight/core";
 import { run as runSchedule } from "./schedule.ts";
 import type { ExecResult } from "./result/index.ts";
-import { Agent, Sandbox } from "@open-insight/core/internal";
 
 export const run = Effect.fn(
   function* <E, R>(
