@@ -7,6 +7,7 @@ export {
   withBenchmark,
   withHarness,
   withMetrics,
+  withTransport,
   withTrailCount,
 } from "./index.ts";
 export * from "./event/export.ts";

@@ -12,6 +12,8 @@ export {
   withTrajReduce,
 } from "./build.ts";
 
+export * from "./builtin/export.ts";
+
 export * as Traj from "./traj.ts";
 export * as Task from "./task.ts";
 export * as Bench from "./bench.ts";

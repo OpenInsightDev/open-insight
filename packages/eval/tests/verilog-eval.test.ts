@@ -1,4 +1,4 @@
-import { Agent, Benchmark, Harness, Sandbox, Task, Effect, Exec } from "@open-insight/eval";
+import { Agent, Benchmark, Harness, Sandbox, Task, Effect, Exec, Metric } from "@open-insight/eval";
 import path from "pathe";
 import * as fs from "fs";
 import { OpenAiClient, OpenAiLanguageModel } from "@effect/ai-openai";
@@ -59,6 +59,18 @@ const benchmark = Benchmark.init<VerilogEvalTask>({
   description: "A benchmark for testing the Verilog Eval Task",
 }).pipe(Benchmark.withTasks(tasks), Benchmark.build);
 
+const metrics = Metric.init<VerilogEvalTask>().pipe(
+  Metric.withTask("passAt1", (grades) => {
+    const passes = grades.map(({ simPass }) => simPass);
+    return Metric.passAtK({ k: 1 })(passes);
+  }),
+  Metric.withBenchmark("avgPass@1", (tasks) => {
+    const values = Object.values(tasks);
+    const passes = values.map(({ passAt1 }) => passAt1);
+    return Metric.mean(passes);
+  }),
+);
+
 const OpenAi = OpenAiClient.layerConfig({
   apiKey: Config.redacted("OPENAI_API_KEY"),
 });
@@ -75,9 +87,13 @@ const harness = Harness.init<VerilogEvalTask>().pipe(
   Harness.build,
 );
 
+const sseTransport = Exec.SSE.make({ baseUrl: "http://localhost:7689" });
+
 const executor = Exec.init<VerilogEvalTask>().pipe(
   Exec.withBenchmark(benchmark),
   Exec.withHarness(harness),
+  Exec.withMetrics(metrics),
+  Exec.withTransport(sseTransport),
   Exec.build,
 );
 
