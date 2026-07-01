@@ -43,7 +43,7 @@
     "@open-insight/core": "workspace:*",
     "ai": "^7.0.0",
     "effect": "catalog:",
-    "immer": "^10.1.1",
+    "immer": "catalog:",
     "picomatch": "^4.0.4"
   },
   "devDependencies": {

@@ -21,6 +21,7 @@ catalog:
   ai: ^7.0.4
   '@changesets/cli': ^2.31.0
   pathe: ^2.0.3
+  immer: ^10.2.0
 overrides:
   vite: "catalog:"
   vitest: "catalog:"

@@ -108,22 +108,28 @@ export class GaugeDataPoint extends Schema.TaggedClass<GaugeDataPoint>()("GaugeD
   units: Schema.optionalKey(Schema.String),
 }) {}
 
-export const ChartDataPoint = Schema.suspend(() =>
-  Schema.Union([
-    BarDataPoint,
-    GroupedBarDataPoint,
-    PieDataPoint,
-    LineDataPoint,
-    SeriesDataPoint,
-    ScatterDataPoint,
-    RadarDataPoint,
-    HeatmapDataPoint,
-    TreemapDataPoint,
-    SankeyLink,
-    FunnelDataPoint,
-    WordCloudDataPoint,
-    BoxPlotDataPoint,
-    CandlestickDataPoint,
-    GaugeDataPoint,
-  ]),
-);
+export const ChartDataPointSchema = Schema.Union([
+  BarDataPoint,
+  GroupedBarDataPoint,
+  PieDataPoint,
+  LineDataPoint,
+  SeriesDataPoint,
+  ScatterDataPoint,
+  RadarDataPoint,
+  HeatmapDataPoint,
+  TreemapDataPoint,
+  SankeyLink,
+  FunnelDataPoint,
+  WordCloudDataPoint,
+  BoxPlotDataPoint,
+  CandlestickDataPoint,
+  GaugeDataPoint,
+]);
+export type ChartDataPoint = Schema.Schema.Type<typeof ChartDataPointSchema>;
+
+export type Format<R> = (result: R) => ChartDataPoint[];
+
+export type Chart<N extends string = string, R = unknown> = Readonly<{
+  name: N;
+  format: Format<R>;
+}>;

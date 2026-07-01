@@ -223,6 +223,9 @@ catalogs:
     effect:
       specifier: 4.0.0-beta.90
       version: 4.0.0-beta.90
+    immer:
+      specifier: ^10.2.0
+      version: 10.2.0
     pathe:
       specifier: ^2.0.3
       version: 2.0.3
@@ -277,7 +280,7 @@ importers:
         version: 4.0.0-beta.91(effect@4.0.0-beta.90)(ioredis@5.11.1)
       '@effect/vitest':
         specifier: 4.0.0-beta.91
-        version: 4.0.0-beta.91(effect@4.0.0-beta.90)(vitest@4.1.9(@types/node@25.9.4)(@vitest/browser-preview@4.1.9)(vite@8.1.0(@types/node@25.9.4)(jiti@2.7.0)(yaml@2.9.0)))
+        version: 4.0.0-beta.91(effect@4.0.0-beta.90)(vitest@4.1.9)
       '@open-insight/utils':
         specifier: workspace:*
         version: link:../utils
@@ -310,7 +313,7 @@ importers:
         version: 4.0.0-beta.91(effect@4.0.0-beta.90)(ioredis@5.11.1)
       '@effect/vitest':
         specifier: 'catalog:'
-        version: 4.0.0-beta.91(effect@4.0.0-beta.90)(vitest@4.1.9(@types/node@25.9.4)(@vitest/browser-preview@4.1.9)(vite@8.1.0(@types/node@25.9.4)(jiti@2.7.0)(yaml@2.9.0)))
+        version: 4.0.0-beta.91(effect@4.0.0-beta.90)(vitest@4.1.9)
       '@open-insight/core':
         specifier: workspace:*
         version: link:../core
@@ -321,7 +324,7 @@ importers:
         specifier: 'catalog:'
         version: 4.0.0-beta.90
       immer:
-        specifier: ^10.1.1
+        specifier: 'catalog:'
         version: 10.2.0
       picomatch:
         specifier: ^4.0.4
@@ -2376,7 +2379,7 @@ snapshots:
       '@effect/tsgo-win32-arm64': 0.14.6
       '@effect/tsgo-win32-x64': 0.14.6
 
-  '@effect/vitest@4.0.0-beta.91(effect@4.0.0-beta.90)(vitest@4.1.9(@types/node@25.9.4)(@vitest/browser-preview@4.1.9)(vite@8.1.0(@types/node@25.9.4)(jiti@2.7.0)(yaml@2.9.0)))':
+  '@effect/vitest@4.0.0-beta.91(effect@4.0.0-beta.90)(vitest@4.1.9)':
     dependencies:
       effect: 4.0.0-beta.90
       vitest: 4.1.9(@types/node@25.9.4)(@vitest/browser-preview@4.1.9)(vite@8.1.0(@types/node@25.9.4)(jiti@2.7.0)(yaml@2.9.0))
