@@ -78,6 +78,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
             .runSandbox({ snapshot: derived, assert, resources })
             .pipe(Effect.mapError(ExecError.taskExec({ task: metadata, trailIndex })));
         } else if (allowHost) {
+          // TODO do we really want this
           sandbox = yield* Sandbox.makeHost({ assert });
         } else {
           yield* Effect.die(
