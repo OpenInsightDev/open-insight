@@ -9,3 +9,4 @@ export {
   withMetrics,
   withTrailCount,
 } from "./index.ts";
+export * from "./event/export.ts";

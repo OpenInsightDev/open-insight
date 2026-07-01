@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as McpRouteImport } from './routes/mcp'
+import { Route as EventRouteImport } from './routes/event'
 import { Route as AboutRouteImport } from './routes/about'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as DemoTableRouteImport } from './routes/demo/table'
@@ -19,6 +20,11 @@ import { Route as DemoApiMcpTodosRouteImport } from './routes/demo/api.mcp-todos
 const McpRoute = McpRouteImport.update({
   id: '/mcp',
   path: '/mcp',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EventRoute = EventRouteImport.update({
+  id: '/event',
+  path: '/event',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AboutRoute = AboutRouteImport.update({
@@ -50,6 +56,7 @@ const DemoApiMcpTodosRoute = DemoApiMcpTodosRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
+  '/event': typeof EventRoute
   '/mcp': typeof McpRoute
   '/demo/mcp-todos': typeof DemoMcpTodosRoute
   '/demo/table': typeof DemoTableRoute
@@ -58,6 +65,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
+  '/event': typeof EventRoute
   '/mcp': typeof McpRoute
   '/demo/mcp-todos': typeof DemoMcpTodosRoute
   '/demo/table': typeof DemoTableRoute
@@ -67,6 +75,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
+  '/event': typeof EventRoute
   '/mcp': typeof McpRoute
   '/demo/mcp-todos': typeof DemoMcpTodosRoute
   '/demo/table': typeof DemoTableRoute
@@ -77,6 +86,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/about'
+    | '/event'
     | '/mcp'
     | '/demo/mcp-todos'
     | '/demo/table'
@@ -85,6 +95,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/about'
+    | '/event'
     | '/mcp'
     | '/demo/mcp-todos'
     | '/demo/table'
@@ -93,6 +104,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/about'
+    | '/event'
     | '/mcp'
     | '/demo/mcp-todos'
     | '/demo/table'
@@ -102,6 +114,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AboutRoute: typeof AboutRoute
+  EventRoute: typeof EventRoute
   McpRoute: typeof McpRoute
   DemoMcpTodosRoute: typeof DemoMcpTodosRoute
   DemoTableRoute: typeof DemoTableRoute
@@ -115,6 +128,13 @@ declare module '@tanstack/react-router' {
       path: '/mcp'
       fullPath: '/mcp'
       preLoaderRoute: typeof McpRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/event': {
+      id: '/event'
+      path: '/event'
+      fullPath: '/event'
+      preLoaderRoute: typeof EventRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/about': {
@@ -158,6 +178,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AboutRoute: AboutRoute,
+  EventRoute: EventRoute,
   McpRoute: McpRoute,
   DemoMcpTodosRoute: DemoMcpTodosRoute,
   DemoTableRoute: DemoTableRoute,
@@ -166,12 +187,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { createStart } from '@tanstack/react-start'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-  }
-}
