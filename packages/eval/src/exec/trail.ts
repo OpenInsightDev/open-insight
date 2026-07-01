@@ -18,7 +18,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
     metricQueue: Queue.Enqueue<Metric.Input>;
     eventQueue: Queue.Enqueue<Event>;
   }): Effect.fn.Return<
-    Effect.Effect<void, ExecError>,
+    Effect.Effect<void, ExecError, Scope.Scope>,
     ExecError,
     Sandbox.ProviderService | Agent.ProviderService | Scope.Scope
   > {
@@ -34,6 +34,10 @@ export const createTrail = Effect.fn("exec/createTrail")(
 
     const derived = yield* agentProvider
       .deriveSnapshot({ snapshot, context })
+      .pipe(Effect.mapError(ExecError.taskInit({ task: metadata })));
+
+    yield* sandboxProvider
+      .ensureSnapshot({ snapshot: derived, context })
       .pipe(Effect.mapError(ExecError.taskInit({ task: metadata })));
 
     yield* Effect.logDebug("Prepared derived snapshot");
@@ -60,8 +64,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
 
         const sandbox = yield* sandboxProvider
           .runSandbox({ snapshot: derived, resources })
-          .pipe(Effect.mapError(ExecError.taskExec({ task: metadata, trailIndex })))
-          .pipe(Effect.scoped);
+          .pipe(Effect.mapError(ExecError.taskExec({ task: metadata, trailIndex })));
 
         yield* Effect.logDebug("Sandbox is ready, Starting trail execution");
 

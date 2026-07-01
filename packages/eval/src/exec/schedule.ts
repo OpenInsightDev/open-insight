@@ -90,7 +90,7 @@ export const run = Effect.fn("exec/schedule")(
       );
     }
 
-    const { snapshotConcurrency = 1, trailConcurrency = 1 } = harnessConfig ?? {};
+    const { snapshotConcurrency = 32, trailConcurrency = 32 } = harnessConfig ?? {};
     const metricQueue = yield* Queue.bounded<Metric.Input, Cause.Done>(128);
     const eventQueue = yield* Queue.bounded<Event, Cause.Done>(128);
     const transport = yield* Effect.serviceOption(EventTransportService);
@@ -173,8 +173,9 @@ export const run = Effect.fn("exec/schedule")(
         ),
     );
 
-    const metricsFiber = metrics
-      ? yield* Stream.fromQueue(metricQueue)
+    const metricStream = Stream.fromQueue(metricQueue);
+    const metricsFiber = yield* metrics
+      ? metricStream
           .pipe(
             Stream.tap((input) => Ref.update(result, updateTrailResult(input))),
             Metric.transform({ metrics, trailCount, taskCount: tasks.length }),
@@ -186,17 +187,17 @@ export const run = Effect.fn("exec/schedule")(
           )
           .pipe(Effect.mapError(ExecError.metric))
           .pipe(Effect.tap(() => Effect.logDebug("Completed metrics stream")))
-          .pipe(Effect.forkScoped)
-      : null;
+          .pipe(Effect.forkChild)
+      : metricStream.pipe(Stream.runDrain, Effect.forkChild);
 
     if (metricsFiber) {
       yield* Effect.logDebug("Started metrics stream");
     }
 
-    yield* Option.match(transport, {
+    const transportFiber = yield* Option.match(transport, {
       onSome: (transport) =>
         transport.send({ stream: Stream.fromQueue(eventQueue) }).pipe(Effect.forkChild),
-      onNone: () => Effect.void,
+      onNone: () => Stream.fromQueue(eventQueue).pipe(Stream.runDrain, Effect.forkChild),
     });
 
     const runSchedule = Effect.fn("exec/runSchedule")(function* () {
@@ -239,8 +240,9 @@ export const run = Effect.fn("exec/schedule")(
 
     yield* runSchedule()
       .pipe(Effect.ensuring(Queue.end(metricQueue)))
-      .pipe(Effect.andThen(metricsFiber ? Fiber.join(metricsFiber) : Effect.void))
-      .pipe(Effect.ensuring(Queue.end(eventQueue)));
+      .pipe(Effect.andThen(Fiber.join(metricsFiber)))
+      .pipe(Effect.ensuring(Queue.end(eventQueue)))
+      .pipe(Effect.andThen(Fiber.join(transportFiber)));
 
     yield* Effect.logDebug("Scheduled all tasks");
 

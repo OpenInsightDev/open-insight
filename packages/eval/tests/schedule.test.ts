@@ -1,5 +1,5 @@
 import { assert, describe, it } from "@effect/vitest";
-import { Effect, Layer, Ref, Stream } from "effect";
+import { Deferred, Effect, Fiber, Layer, Ref, Stream } from "effect";
 import { AiError, Prompt, Response } from "effect/unstable/ai";
 import { Agent, Sandbox } from "@open-insight/core/internal";
 import * as Schedule from "@/exec/schedule.ts";
@@ -65,6 +65,7 @@ const eventSummary = (event: Event): string => {
 type TestProviderOptions = Readonly<{
   failAgentDeriveSnapshot?: boolean;
   failRunSandbox?: boolean;
+  transport?: EventTransport;
 }>;
 
 const makeTestProviders = Effect.fn(function* (
@@ -123,7 +124,7 @@ const makeTestProviders = Effect.fn(function* (
       ),
   } satisfies Agent.Provider;
 
-  const transport: EventTransport = {
+  const transport: EventTransport = options.transport ?? {
     send: ({ stream }) =>
       stream.pipe(
         Stream.runForEach((event) =>
@@ -256,6 +257,83 @@ describe("exec schedule", () => {
     10_000,
   );
 
+  it.effect(
+    "drains metric events published after the schedule stops before joining the transport",
+    () =>
+      Effect.gen(function* () {
+        const events: Array<Event> = [];
+        const benchStopObserved = yield* Deferred.make<void>();
+        const metricComputedAfterBenchStop = yield* Deferred.make<void>();
+        const releaseTransport = yield* Deferred.make<void>();
+        const completed = yield* Ref.make(false);
+
+        const transport: EventTransport = {
+          send: ({ stream }) =>
+            stream.pipe(
+              Stream.runForEach((event) =>
+                Effect.gen(function* () {
+                  events.push(event);
+
+                  if (event._tag === "BenchScheduleEvent" && event.op === "stop") {
+                    yield* Deferred.succeed(benchStopObserved, void 0);
+                    yield* Deferred.await(releaseTransport);
+                  }
+                }),
+              ),
+            ),
+        };
+
+        const testProviders = yield* makeTestProviders(events, { transport });
+        const metrics = yield* Metric.init<Task.Task>().pipe(
+          Metric.withTaskEach("after-stop-score", async (grade) => {
+            await Effect.runPromise(Deferred.await(benchStopObserved));
+            await Effect.runPromise(Deferred.succeed(metricComputedAfterBenchStop, void 0));
+            return grade.score;
+          }),
+        );
+
+        const fiber = yield* testProviders
+          .provide(
+            Schedule.run(
+              {
+                trailCount: 1,
+                tasks: [Effect.succeed(makeTask("alpha"))],
+                metrics,
+                metadata: {
+                  name: "queue-termination-bench",
+                  description: "queue termination ordering",
+                },
+              },
+              {
+                harnessConfig: { snapshotConcurrency: 1, trailConcurrency: 1 },
+              },
+            ).pipe(Effect.tap(() => Ref.set(completed, true))),
+          )
+          .pipe(Effect.forkScoped);
+
+        yield* Deferred.await(benchStopObserved);
+        yield* Deferred.await(metricComputedAfterBenchStop);
+        yield* Effect.yieldNow;
+
+        assert.isFalse(yield* Ref.get(completed));
+
+        yield* Deferred.succeed(releaseTransport, void 0);
+        const result = yield* Fiber.join(fiber);
+
+        assert.deepStrictEqual(result.tasks["alpha"]?.metrics, { "after-stop-score": [1] });
+
+        const summaries = events.map(eventSummary);
+        const benchStopIndex = summaries.indexOf("bench:stop:queue-termination-bench");
+        const metricIndex = summaries.indexOf("metric:TaskOutput:after-stop-score");
+
+        assert.isAtLeast(benchStopIndex, 0);
+        assert.isAtLeast(metricIndex, 0);
+        assert.isBelow(benchStopIndex, metricIndex);
+        assert.strictEqual(yield* Ref.get(completed), true);
+      }),
+    10_000,
+  );
+
   it.effect("fails with InitError when trailCount is zero", () =>
     Effect.gen(function* () {
       const events: Array<Event> = [];
@@ -379,7 +457,9 @@ describe("exec schedule", () => {
 
         assert.instanceOf(error, ExecError);
         assert.strictEqual(error.reason._tag, "TaskExecError");
-        assert.strictEqual(error.reason.trailIndex, 0);
+        if (error.reason._tag === "TaskExecError") {
+          assert.strictEqual(error.reason.trailIndex, 0);
+        }
         assert.deepStrictEqual(events.map(eventSummary), [
           "init:sandbox-failure-bench:alpha",
           "bench:start:sandbox-failure-bench",
