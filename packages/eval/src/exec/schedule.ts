@@ -7,6 +7,7 @@ import { createTrail } from "./trail.ts";
 import { ExecError } from "./error.ts";
 import { Countdown } from "@open-insight/utils";
 import { Response } from "effect/unstable/ai";
+import { Agent, Sandbox } from "@open-insight/core/internal";
 import {
   type Event,
   InitEvent,
@@ -16,17 +17,23 @@ import {
   TaskStreamPartEvent,
 } from "./event/index.ts";
 import { range } from "effect/Array";
+import * as Benchmark from "@/benchmark/index.ts";
 
 export const run = Effect.fn("exec/schedule")(
-  function* ({
-    executor: { benchmark, harness, trailCount, metrics },
-    config: { harnessConfig, sandboxConfig },
-  }: {
-    executor: Executor;
-    config: Config;
-  }): Effect.fn.Return<void, ExecError> {
-    const { tasks, metadata } = benchmark;
-    const { sandbox, agent } = harness;
+  function* (
+    {
+      trailCount,
+      tasks,
+      metrics,
+      metadata,
+    }: Readonly<{
+      trailCount: number;
+      tasks: Task.Tasks;
+      metrics: Metric.Metrics | null;
+      metadata: Benchmark.Metadata;
+    }>,
+    { harnessConfig, sandboxConfig }: Config,
+  ): Effect.fn.Return<void, ExecError, Agent.ProviderService | Sandbox.ProviderService> {
     const { snapshotConcurrency = 1, trailConcurrency = 1 } = harnessConfig ?? {};
 
     yield* Effect.annotateCurrentSpan({
@@ -102,7 +109,7 @@ export const run = Effect.fn("exec/schedule")(
               taskName: task.metadata.name,
             }),
           )
-          .pipe(Effect.provide(agent), Effect.provide(sandbox))
+          // .pipe(Effect.provide(agent), Effect.provide(sandbox))
           .pipe(Effect.mapError(ExecError.taskInit({ task: task.metadata }))),
     );
 
@@ -135,10 +142,10 @@ export const run = Effect.fn("exec/schedule")(
     yield* Effect.logDebug("Scheduled all tasks");
     yield* Queue.offer(eventQueue, BenchScheduleEvent.make({ bench: metadata.name, op: "stop" }));
   },
-  (effect, { executor: { benchmark } }) =>
+  (effect, { metadata }) =>
     effect.pipe(
       Effect.annotateLogs({
-        benchmark: benchmark.metadata.name,
+        benchmark: metadata.name,
       }),
     ),
 );
