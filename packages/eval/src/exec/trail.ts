@@ -131,15 +131,15 @@ export const createTrail = Effect.fn("exec/createTrail")(
     return Effect.gen(function* () {
       const trailIndex = yield* Ref.getAndUpdate(nextTrailIndex, (n) => n + 1);
       yield* Effect.logDebug(`Starting trail ${trailIndex}`);
-      yield* runTrail(trailIndex);
+      yield* runTrail(trailIndex)
+        .pipe(Effect.provideService(Agent.ProviderService, agentProvider))
+        .pipe(
+          Effect.annotateLogs({
+            taskName: metadata.name,
+          }),
+        );
       yield* Effect.logDebug(`Completed trail ${trailIndex}`);
-    })
-      .pipe(Effect.provideService(Agent.ProviderService, agentProvider))
-      .pipe(
-        Effect.annotateLogs({
-          taskName: metadata.name,
-        }),
-      );
+    });
   },
   (effect, { task }) =>
     effect.pipe(

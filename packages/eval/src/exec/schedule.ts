@@ -15,6 +15,7 @@ import {
   MetricsStreamEvent,
   TaskStreamPartEvent,
 } from "./event/index.ts";
+import { range } from "effect/Array";
 
 export const run = Effect.fn("exec/schedule")(
   function* ({
@@ -70,7 +71,7 @@ export const run = Effect.fn("exec/schedule")(
 
         const fibers: Array<Fiber.Fiber<void, ExecError>> = [];
 
-        for (const trailIndex of Array.from({ length: trailCount }, (_, index) => index)) {
+        for (const trailIndex of range(0, trailCount - 1)) {
           yield* Effect.logDebug(`Forking trail ${trailIndex}`);
           const fiber = yield* trail
             .pipe((trail) => trailSem.withPermit(trail))
@@ -109,12 +110,15 @@ export const run = Effect.fn("exec/schedule")(
       yield* Effect.logDebug("Starting metrics stream");
       yield* Stream.fromQueue(metricQueue).pipe(
         Metric.transform({ metrics, trailCount, taskCount: tasks.length }),
+        Stream.tap((output) =>
+          Queue.offer(eventQueue, MetricsStreamEvent.make({ bench: metadata.name, output })),
+        ),
         Stream.runDrain,
         Pull.catchDone(() => Effect.void),
         Effect.mapError(ExecError.metric),
       );
     } else {
-      yield* Effect.logDebug("Skipping metrics stream");
+      yield* Effect.logDebug("Skipping metrics");
     }
 
     yield* Effect.logDebug("Loading tasks");
