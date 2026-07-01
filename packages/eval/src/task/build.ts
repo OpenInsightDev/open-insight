@@ -1,9 +1,10 @@
 import type * as Grade from "./grade/index.ts";
 import type { Contravariant } from "../utils/variant.ts";
 import { Sandbox } from "@open-insight/core/internal";
-import { type Brand, Effect, Schema } from "effect";
+import { type Brand, Effect, FileSystem, Path, Schema } from "effect";
 import { Prompt } from "effect/unstable/ai";
-import type { TaskError } from "./error.ts";
+import { TaskError } from "./error.ts";
+import { assertNonNull } from "@/utils/type.ts";
 
 export type ID = string;
 
@@ -20,7 +21,7 @@ export type Task<G extends Grade.Grader = Grade.Grader> = Readonly<{
   prompt: ReadonlyArray<Prompt.UserMessage>;
 
   snapshot: Sandbox.Snapshot.Snapshot;
-  context: Sandbox.Context.Mode;
+  context: Sandbox.Context.Context;
 
   resources: Sandbox.ResourceLimits | null;
 
@@ -62,10 +63,9 @@ export const withTextPrompt =
       ],
     }));
 
-type HasContext = Brand.Brand<"context">;
 export const withContext =
-  (context: Sandbox.Context.Mode) =>
-  <G extends Grade.Grader, H, R>(build: Builder<G, H, R>): Builder<G, H | HasContext, R> =>
+  (context: Sandbox.Context.Context) =>
+  <G extends Grade.Grader, H, R>(build: Builder<G, H, R>): Builder<G, H, R> =>
     Effect.map(build, (t) => ({ ...t, context }));
 
 type HasSnapshot = Brand.Brand<"snapshot">;
@@ -89,6 +89,22 @@ export const withResources =
   <G extends Grade.Grader, H, R>(build: Builder<G, H, R>): Builder<G, H, R> =>
     Effect.map(build, (t) => ({ ...t, resources }));
 
-export const build = <G extends Grade.Grader, R>(
-  build: Builder<G, HasPrompt | HasContext | HasSnapshot | G, R>,
-): Effect.Effect<Task<G>, TaskError, R> => build as Effect.Effect<Task<G>, TaskError, R>;
+export const build = Effect.fn(function* <G extends Grade.Grader, R>(
+  build: Builder<G, HasPrompt | HasSnapshot | G, R>,
+): Effect.fn.Return<Task<G>, TaskError, R | Path.Path | FileSystem.FileSystem> {
+  let { metadata, prompt, snapshot, context, graders, resources } = yield* build;
+
+  assertNonNull(metadata);
+  assertNonNull(prompt);
+  assertNonNull(snapshot);
+  assertNonNull(graders);
+
+  return {
+    metadata,
+    prompt,
+    snapshot,
+    context: context ?? Sandbox.Context.Cwd,
+    graders,
+    resources: resources ?? null,
+  };
+});

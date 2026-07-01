@@ -1,5 +1,5 @@
 import { Brand, Effect, FileSystem, Path, Schema } from "effect";
-import { SandboxError } from "../error.ts";
+import { SandboxError } from "./error.ts";
 
 export const ContextSchema = Schema.String;
 export type Context = Schema.Schema.Type<typeof ContextSchema> & Brand.Brand<"Context">;
@@ -29,5 +29,3 @@ export const make = Effect.fn(function* (
 
   return makeContext(resolved);
 });
-
-export const Cwd = makeContext(process.cwd());

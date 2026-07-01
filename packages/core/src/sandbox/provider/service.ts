@@ -15,7 +15,7 @@ export type Provider = Readonly<{
   ensureSnapshot(
     options: Readonly<{
       snapshot: Snapshot;
-      context: SandboxContext.Mode;
+      context: SandboxContext.Context;
     }>,
   ): Effect.Effect<void, SandboxError>;
 
@@ -27,7 +27,7 @@ export type Provider = Readonly<{
   deriveSnapshot(
     options: Readonly<{
       snapshot: Snapshot;
-      context: SandboxContext.Mode;
+      context: SandboxContext.Context;
       instructions: Instructions;
     }>,
   ): Effect.Effect<void, SandboxError>;

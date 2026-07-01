@@ -1,4 +1,4 @@
-import { Effect, Queue, Ref, Scope, Stream } from "effect";
+import { Effect, FileSystem, Path, Queue, Ref, Scope, Stream } from "effect";
 import * as Task from "../task/index.ts";
 import * as Metric from "../metric/index.ts";
 import { Agent, Sandbox } from "@open-insight/core/internal";
@@ -20,7 +20,11 @@ export const createTrail = Effect.fn("exec/createTrail")(
   }): Effect.fn.Return<
     Effect.Effect<void, ExecError, Scope.Scope>,
     ExecError,
-    Sandbox.ProviderService | Agent.ProviderService | Scope.Scope
+    | Sandbox.ProviderService
+    | Agent.ProviderService
+    | FileSystem.FileSystem
+    | Path.Path
+    | Scope.Scope
   > {
     const { snapshot, context, resources, metadata, prompt, graders } = task;
 
@@ -119,6 +123,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
 
         const ctx = {
           trajectory,
+          context,
           ...Sandbox.asPromise(sandbox),
         } satisfies Task.Grade.Context;
 

@@ -1,4 +1,5 @@
 import { assert, describe, it } from "@effect/vitest";
+import * as NodePlatform from "@effect/platform-node";
 import { Deferred, Effect, Fiber, Layer, Ref, Stream } from "effect";
 import { AiError, Prompt, Response } from "effect/unstable/ai";
 import { Agent, Sandbox } from "@open-insight/core/internal";
@@ -31,7 +32,33 @@ const makeTask = (name: string): Task.Task => ({
     image: "open-insight/schedule-test:latest",
     instructions: [],
   }),
-  context: Sandbox.Context.Cwd,
+  context: Sandbox.Context.make(import.meta.dirname),
+  resources: null,
+});
+
+const makeContextTask = (
+  name: string,
+  expectedContext: string,
+  setContext: (context: string) => void,
+): Task.Task => ({
+  metadata: { name },
+  prompt: [
+    Prompt.userMessage({
+      content: [Prompt.textPart({ text: `solve ${name}` })],
+    }),
+  ],
+  graders: {
+    score: async ({ trajectory, context }) => {
+      setContext(context);
+      assert.strictEqual(context, expectedContext);
+      return trajectory.content.length;
+    },
+  },
+  snapshot: Sandbox.Snapshot.make({
+    image: "open-insight/schedule-test:latest",
+    instructions: [],
+  }),
+  context: yield * Sandbox.Context.make(expectedContext),
   resources: null,
 });
 
@@ -140,6 +167,9 @@ const makeTestProviders = Effect.fn(function* (
       Effect.provideService(Sandbox.ProviderService, sandboxProvider),
       Effect.provideService(Agent.ProviderService, agentProvider),
       Effect.provide(Layer.succeed(EventTransportService, transport)),
+      Effect.provide(
+        Layer.mergeAll(NodePlatform.NodeFileSystem.layer, NodePlatform.NodePath.layer),
+      ),
     );
 
   return {
@@ -212,6 +242,36 @@ describe("exec schedule", () => {
         assert.strictEqual(partIndices.length, 2);
         assert.isTrue(partIndices.every((index) => startIndex < index && index < stopIndex));
       }
+    }),
+  );
+
+  it.effect("provides the resolved task context path to graders", () =>
+    Effect.gen(function* () {
+      const events: Array<Event> = [];
+      const testProviders = yield* makeTestProviders(events);
+      let resolvedContext: string | undefined;
+
+      yield* testProviders.provide(
+        Schedule.run(
+          {
+            trailCount: 1,
+            tasks: [
+              Effect.succeed(
+                makeContextTask("alpha", "/workspace/task", (context) => {
+                  resolvedContext = context;
+                }),
+              ),
+            ],
+            metrics: null,
+            metadata: { name: "schedule-bench", description: "schedule integration test" },
+          },
+          {
+            harnessConfig: { snapshotConcurrency: 1, trailConcurrency: 1 },
+          },
+        ),
+      );
+
+      assert.strictEqual(resolvedContext, "/workspace/task");
     }),
   );
 

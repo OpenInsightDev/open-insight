@@ -29,7 +29,11 @@ export const fromDir = <T extends Task.Task>({
 
     return taskFiles.map((taskFile) =>
       Effect.gen(function* () {
-        const context = Sandbox.Context.makeDir(path.dirname(taskFile));
+        const context = yield* Sandbox.Context.make(path.dirname(taskFile)).pipe(
+          Effect.provideService(Path.Path, path),
+          Effect.provideService(FileSystem.FileSystem, fs),
+          Effect.mapError(TaskError.load),
+        );
 
         const fileUrl = yield* path.toFileUrl(taskFile).pipe(Effect.mapError(TaskError.load));
         const module = yield* Effect.tryPromise({
@@ -47,7 +51,8 @@ export const fromDir = <T extends Task.Task>({
           );
         }
 
-        return { ...module.default, context } satisfies T;
+        // overrides the context of the task with the context of the actual file
+        return { ...module.default, context };
       }),
     );
   });

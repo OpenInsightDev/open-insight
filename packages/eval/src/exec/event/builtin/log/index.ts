@@ -1,7 +1,7 @@
 import { Effect, Schema, Scope } from "effect";
 import type { EventTransport } from "@/exec/event/index.ts";
 import { ExecError } from "@/exec/error.ts";
-import { type Event, EventSchema, type EventStream } from "@/exec/event/schema.ts";
+import { type Event, EventSchema } from "@/exec/event/schema.ts";
 
 const transport = "log";
 

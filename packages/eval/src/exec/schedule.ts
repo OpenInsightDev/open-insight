@@ -1,4 +1,17 @@
-import { Cause, Effect, Fiber, Match, Option, Queue, Ref, Scope, Semaphore, Stream } from "effect";
+import {
+  Cause,
+  Effect,
+  Fiber,
+  FileSystem,
+  Match,
+  Option,
+  Path,
+  Queue,
+  Ref,
+  Scope,
+  Semaphore,
+  Stream,
+} from "effect";
 import type { Config } from "./config.ts";
 import * as Task from "../task/index.ts";
 import * as Metric from "@/metric/index.ts";
@@ -82,7 +95,11 @@ export const run = Effect.fn("exec/schedule")(
   ): Effect.fn.Return<
     ExecResult,
     ExecError,
-    Agent.ProviderService | Sandbox.ProviderService | Scope.Scope
+    | Agent.ProviderService
+    | Sandbox.ProviderService
+    | FileSystem.FileSystem
+    | Path.Path
+    | Scope.Scope
   > {
     if (!Number.isInteger(trailCount) || trailCount <= 0) {
       return yield* Effect.fail(

@@ -79,13 +79,7 @@ export const build = <T extends Task.Task, R>(
   builder: Builder<T, HasBenchmark | HasHarness, R>,
 ): Effect.Effect<Executor<T>, ExecError, R> =>
   Effect.gen(function* () {
-    const {
-      benchmark,
-      harness,
-      transport,
-      metrics,
-      trailCount = 1,
-    } = yield* builder.pipe(Effect.mapError(ExecError.init));
+    const { benchmark, harness, transport, metrics, trailCount = 1 } = yield* builder;
 
     assertNonNull(benchmark);
     assertNonNull(harness);

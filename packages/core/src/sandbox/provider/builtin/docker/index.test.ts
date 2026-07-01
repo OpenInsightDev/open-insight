@@ -174,7 +174,7 @@ describe("docker provider", () => {
 
       yield* provider.ensureSnapshot({
         snapshot,
-        context: ContextDir.makeDir("/workspace/context"),
+        context: yield* ContextDir.make("/workspace/context"),
       });
 
       const buildCommand = records.find(
@@ -195,7 +195,7 @@ describe("docker provider", () => {
 
       yield* provider.ensureSnapshot({
         snapshot,
-        context: ContextDir.makeDir("/workspace/context"),
+        context: yield* ContextDir.make("/workspace/context"),
       });
 
       assert.isTrue(
@@ -225,7 +225,7 @@ describe("docker provider", () => {
       const derivedName = yield* Snapshot.makeName(derivedSnapshot);
       yield* provider.deriveSnapshot({
         snapshot: baseSnapshot,
-        context: ContextDir.makeDir("/workspace/context"),
+        context: yield* ContextDir.make("/workspace/context"),
         instructions,
       });
 

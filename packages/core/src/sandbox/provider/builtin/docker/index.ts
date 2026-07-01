@@ -1,10 +1,9 @@
 import * as Sandbox from "@/sandbox/index.ts";
 import { Spawn } from "@open-insight/utils";
-import * as ContextDir from "@/sandbox/context/index.ts";
 import { SandboxError } from "@/sandbox/error.ts";
 import * as Provider from "@/sandbox/provider/index.ts";
 import * as Snapshot from "@/sandbox/snapshot/index.ts";
-import { Context, Crypto, Effect, FileSystem, Path, Stream } from "effect";
+import { Crypto, Effect, FileSystem, Stream } from "effect";
 import { ChildProcess as CP } from "effect/unstable/process";
 import { makeRuntime } from "./utils.ts";
 
@@ -48,19 +47,13 @@ export const make = Effect.fn(
   }: MakeOptions): Effect.fn.Return<
     Provider.Provider,
     SandboxError,
-    Crypto.Crypto | FileSystem.FileSystem | Path.Path | Spawn.SpawnService
+    Crypto.Crypto | FileSystem.FileSystem | Spawn.SpawnService
   > {
     const runtime = yield* makeRuntime().pipe(Effect.mapError(SandboxError.provider("docker")));
 
     const crypto = yield* Crypto.Crypto;
     const spawner = yield* Spawn.SpawnService;
     const fs = yield* FileSystem.FileSystem;
-    const path = yield* Path.Path;
-
-    const serviceContext = Context.mergeAll(
-      Context.make(FileSystem.FileSystem, fs),
-      Context.make(Path.Path, path),
-    );
 
     const ensureSnapshot = Effect.fn(function* ({ snapshot, context }) {
       const mapBuildError = Effect.mapError(SandboxError.snapshotBuild(snapshot));
@@ -78,10 +71,6 @@ export const make = Effect.fn(
         return;
       }
 
-      const contextDir = yield* ContextDir.resolve(context).pipe(
-        Effect.provideContext(serviceContext),
-        mapBuildError,
-      );
       const containerfilePath = yield* fs
         .makeTempFile({
           prefix: "open-insight-",
@@ -89,7 +78,7 @@ export const make = Effect.fn(
         })
         .pipe(mapBuildError);
 
-      const command = CP.make`build -f ${containerfilePath} -t ${name} ${contextDir}`.pipe(runtime);
+      const command = CP.make`build -f ${containerfilePath} -t ${name} ${context}`.pipe(runtime);
 
       const containerfile = yield* Snapshot.encode(snapshot).pipe(mapBuildError);
       yield* fs.writeFileString(containerfilePath, containerfile).pipe(mapBuildError);

@@ -13,7 +13,7 @@ export type Agent = Readonly<{
 
 export type Provider = Readonly<{
   deriveSnapshot: (
-    options: Readonly<{ snapshot: Sandbox.Snapshot.Snapshot; context: Sandbox.Context.Mode }>,
+    options: Readonly<{ snapshot: Sandbox.Snapshot.Snapshot; context: Sandbox.Context.Context }>,
   ) => Effect.Effect<Sandbox.Snapshot.Snapshot, AgentError>;
 
   runSession(options: Readonly<{ sandbox: Sandbox.Sandbox }>): Effect.Effect<Agent, AgentError>;

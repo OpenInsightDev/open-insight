@@ -6,6 +6,7 @@ import { TaskError } from "../error.ts";
 export type Context = Sandbox.SandboxPromise &
   Readonly<{
     trajectory: Agent.Trajectory;
+    context: string;
   }>;
 
 export type Exec<R = unknown> = Bivariant<(ctx: Context) => PromiseLike<R>>;

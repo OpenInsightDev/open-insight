@@ -20,17 +20,11 @@ export const make = Effect.fn(
   }: MakeOptions): Effect.fn.Return<
     Sandbox.Provider,
     Sandbox.SandboxError,
-    Crypto.Crypto | FileSystem.FileSystem | Path.Path | Spawn.SpawnService
+    Crypto.Crypto | FileSystem.FileSystem | Spawn.SpawnService
   > {
     const crypto = yield* Crypto.Crypto;
     const spawner = yield* Spawn.SpawnService;
     const fs = yield* FileSystem.FileSystem;
-    const path = yield* Path.Path;
-
-    const serviceContext = Context.mergeAll(
-      Context.make(FileSystem.FileSystem, fs),
-      Context.make(Path.Path, path),
-    );
 
     const ensureSnapshot = Effect.fn(function* (options) {
       const { snapshot, context } = options;
@@ -41,10 +35,6 @@ export const make = Effect.fn(
         mapBuildError,
       );
 
-      const contextDir = yield* Sandbox.Context.resolve(context).pipe(
-        Effect.provideContext(serviceContext),
-        mapBuildError,
-      );
       const containerfilePath = yield* fs
         .makeTempFile({
           prefix: "sandbox-apple-container-",
@@ -52,7 +42,7 @@ export const make = Effect.fn(
         })
         .pipe(mapBuildError);
 
-      const command = CP.make`container build -f ${containerfilePath} -t ${name} ${contextDir}`;
+      const command = CP.make`container build -f ${containerfilePath} -t ${name} ${context}`;
 
       const containerfile = yield* Sandbox.Snapshot.encode(snapshot).pipe(mapBuildError);
       yield* fs.writeFileString(containerfilePath, containerfile).pipe(mapBuildError);

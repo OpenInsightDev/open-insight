@@ -1,4 +1,4 @@
-import { Effect, Scope } from "effect";
+import { Effect, FileSystem, Path, Scope } from "effect";
 import { type Executor } from "./build.ts";
 import { NodeHttpClient, NodeServices } from "@effect/platform-node";
 import { ExecError } from "./error.ts";
@@ -11,7 +11,7 @@ export const run = Effect.fn(
   function* <E, R>(
     executor: Effect.Effect<Executor, E, R>,
     config: Config = {},
-  ): Effect.fn.Return<ExecResult, E | ExecError, R> {
+  ): Effect.fn.Return<ExecResult, E | ExecError, R | FileSystem.FileSystem | Path.Path> {
     const {
       benchmark: { metadata, tasks },
       harness: { agent, sandbox },

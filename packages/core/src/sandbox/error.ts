@@ -11,6 +11,13 @@ export class ContextResolveError extends Schema.TaggedErrorClass<ContextResolveE
   },
 ) {}
 
+export class InvalidContextError extends Schema.TaggedErrorClass<InvalidContextError>()(
+  "InvalidContextError",
+  {
+    cause: Schema.Defect(),
+  },
+) {}
+
 export class SnapshotError extends Schema.TaggedErrorClass<SnapshotError>()("SnapshotError", {
   kind: Schema.Union([Schema.Literal("build"), Schema.Literal("use")]),
   snapshot: Snapshot,
@@ -62,6 +69,7 @@ export class InstructionUnsupportedError extends Schema.TaggedErrorClass<Instruc
 
 export const SandboxErrorReason = Schema.Union([
   ContextResolveError,
+  InvalidContextError,
   ProviderError,
   SnapshotError,
   SandboxExecError,
@@ -77,6 +85,13 @@ export class SandboxError extends Schema.TaggedErrorClass<SandboxError>()("Sandb
     this.make({
       reason: ContextResolveError.make({
         mode,
+        cause,
+      }),
+    });
+
+  static context = (cause: unknown) =>
+    this.make({
+      reason: InvalidContextError.make({
         cause,
       }),
     });
