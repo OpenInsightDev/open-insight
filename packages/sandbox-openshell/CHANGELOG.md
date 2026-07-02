@@ -1,5 +1,13 @@
 # @open-insight/sandbox-openshell
 
+## 0.0.4
+
+### Patch Changes
+
+- Testing
+- Updated dependencies
+  - @open-insight/core@0.0.4
+
 ## 0.0.3
 
 ### Patch Changes
