@@ -2,6 +2,7 @@ packages:
   - apps/*
   - packages/*
   - tools/*
+  - apps/@open-insight/*
 
 catalogMode: prefer
 
@@ -11,7 +12,7 @@ catalog:
   "@effect/language-service": ^0.86.2
   "@effect/tsgo": ^0.14.6
   "@typescript/native-preview": 7.0.0-dev.20260629.1
-  typescript: ^5
+  typescript: ^5.9.3
   vite: npm:@voidzero-dev/vite-plus-core@latest
   vitest: 4.1.9
   vite-plus: ^0.2.1
@@ -57,15 +58,4 @@ minimumReleaseAgeExclude:
   - "@typescript/native-preview-win32-arm64@7.0.0-dev.20260629.1"
   - "@typescript/native-preview-win32-x64@7.0.0-dev.20260629.1"
   - "@typescript/native-preview@7.0.0-dev.20260629.1"
-  - '@astrojs/compiler-binding-darwin-arm64@0.3.0'
-  - '@astrojs/compiler-binding-darwin-x64@0.3.0'
-  - '@astrojs/compiler-binding-linux-arm64-gnu@0.3.0'
-  - '@astrojs/compiler-binding-linux-arm64-musl@0.3.0'
-  - '@astrojs/compiler-binding-linux-x64-gnu@0.3.0'
-  - '@astrojs/compiler-binding-linux-x64-musl@0.3.0'
-  - '@astrojs/compiler-binding-wasm32-wasi@0.3.0'
-  - '@astrojs/compiler-binding-win32-arm64-msvc@0.3.0'
-  - '@astrojs/compiler-binding-win32-x64-msvc@0.3.0'
-  - '@astrojs/compiler-binding@0.3.0'
-  - '@astrojs/compiler-rs@0.3.0'
-  - astro@7.0.4
+  

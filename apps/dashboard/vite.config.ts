@@ -1,22 +1,32 @@
 import { defineConfig } from "vite-plus";
-import { devtools } from "@tanstack/devtools-vite";
-
-import { tanstackStart } from "@tanstack/react-start/plugin/vite";
-
-import viteReact from "@vitejs/plugin-react";
-import tailwindcss from "@tailwindcss/vite";
-import { nitro } from "nitro/vite";
+import react, { reactCompilerPreset } from "@vitejs/plugin-react";
+import babel from "@rolldown/plugin-babel";
 import { lazyPlugins } from "vite-plus";
 
-const config = defineConfig({
-  resolve: { tsconfigPaths: true },
-  plugins: lazyPlugins(() => [
-    devtools(),
-    nitro({ rollupConfig: { external: [/^@sentry\//] } }),
-    tailwindcss(),
-    tanstackStart(),
-    viteReact(),
-  ]),
+// https://vite.dev/config/
+export default defineConfig({
+  lint: {
+    plugins: ["react", "typescript", "oxc"],
+    rules: {
+      "react/rules-of-hooks": "error",
+      "react/only-export-components": [
+        "warn",
+        {
+          allowConstantExport: true,
+        },
+      ],
+      "vite-plus/prefer-vite-plus-imports": "error",
+    },
+    options: {
+      typeAware: true,
+      typeCheck: true,
+    },
+    jsPlugins: [
+      {
+        name: "vite-plus",
+        specifier: "vite-plus/oxlint-plugin",
+      },
+    ],
+  },
+  plugins: lazyPlugins(() => [react(), babel({ presets: [reactCompilerPreset()] })]),
 });
-
-export default config;
