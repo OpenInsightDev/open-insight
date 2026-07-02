@@ -19,7 +19,7 @@ export const MetadataSchema: Schema.Schema<Metadata> = Schema.Struct({
 export type Benchmark<T extends Task.Task = Task.Task> = Readonly<{
   tasks: Task.Tasks<T>;
   metadata: Metadata;
-}>;
+}> & { _T?: T };
 
 export type TaskOf<B> = B extends Benchmark<infer T> ? T : never;
 

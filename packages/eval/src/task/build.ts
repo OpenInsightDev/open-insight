@@ -1,7 +1,7 @@
 import type * as Grade from "./grade/index.ts";
 import type { Contravariant } from "../utils/variant.ts";
 import { Sandbox } from "@open-insight/core/internal";
-import { type Brand, Effect, FileSystem, Path, Schema, type Scope } from "effect";
+import { type Brand, Effect, Schema, type Scope } from "effect";
 import { Prompt } from "effect/unstable/ai";
 import { TaskError } from "./error.ts";
 import { assertNonNull } from "@/utils/type.ts";
@@ -90,9 +90,7 @@ export const withSnapshot =
 
 export const withGrader =
   <N extends string, T>(name: N, exec: Grade.Exec<T>) =>
-  <G extends Grade.Grader, H, R>(
-    build: Builder<G, H, R>,
-  ): Builder<G | Grade.Grader<N, T>, H | Grade.Grader<N, T>, R> =>
+  <G extends Grade.Grader, H, R>(build: Builder<G, H, R>): Builder<G, H | Grade.Grader<N, T>, R> =>
     Effect.map(build, (t) => ({
       ...t,
       graders: Object.assign({}, t.graders, { [name]: exec }),
