@@ -7,7 +7,7 @@ import * as Bench from "@/benchmark/index.ts";
 
 export class InitEvent extends Schema.TaggedClass<InitEvent>()("InitEvent", {
   bench: Bench.MetadataSchema,
-  tasks: Schema.Array(Task.MetadataSchema),
+  tasks: Schema.Array(Task.Metadata),
   metrics: Schema.Array(Metric.Metadata),
 }) {}
 

@@ -37,7 +37,7 @@ const updateTrailResult =
   ({ task, trailIndex, trajectory, delta }: Metric.Input) =>
   (current: ExecResult): ExecResult =>
     produce(current, (draft) => {
-      const taskName = task.metadata.name;
+      const taskName = task.name;
       const taskResult = (draft.tasks[taskName] ??= {
         metrics: {},
         trails: [],
@@ -83,16 +83,14 @@ export const run = Effect.fn("exec/schedule")(
   function* (
     {
       trailCount,
-      tasks,
       metrics,
-      metadata,
+      benchmark,
     }: Readonly<{
       trailCount: number;
-      tasks: Task.Tasks;
       metrics: Metric.Metrics | null;
-      metadata: Benchmark.Metadata;
+      benchmark: Benchmark.Benchmark;
     }>,
-    { harnessConfig, sandboxConfig }: Config,
+    { harness, sandbox }: Config,
   ): Effect.fn.Return<
     ExecResult,
     ExecError,
@@ -109,13 +107,13 @@ export const run = Effect.fn("exec/schedule")(
       );
     }
 
-    const { snapshotConcurrency = 32, trailConcurrency = 32 } = harnessConfig ?? {};
+    const { snapshotConcurrency = 32, trailConcurrency = 32 } = harness ?? {};
     const metricQueue = yield* Queue.bounded<Metric.Input, Cause.Done>(128);
     const eventQueue = yield* Queue.bounded<Event, Cause.Done>(128);
     const transport = yield* Effect.serviceOption(EventTransportService);
 
     const snapshotSem = yield* Semaphore.make(snapshotConcurrency);
-    const snapshotCountdown = yield* Countdown.make(tasks.length);
+    const snapshotCountdown = yield* Countdown.make(benchmark.tasks.length);
     const trailSem = yield* Semaphore.make(trailConcurrency);
 
     const result = yield* Ref.make<ExecResult>({
@@ -126,20 +124,20 @@ export const run = Effect.fn("exec/schedule")(
     const offerEvent = (event: Event) => Queue.offer(eventQueue, event);
 
     yield* Effect.annotateCurrentSpan({
-      benchmark: metadata.name,
+      benchmark: benchmark.name,
     });
     yield* Effect.logDebug("Starting evaluation schedule");
 
     const scheduleTrail = Effect.fn("exec/scheduleTrail")(
       function* ({ task }: { task: Task.Task }) {
         yield* Effect.annotateCurrentSpan({
-          benchmark: metadata.name,
-          taskName: task.metadata.name,
+          benchmark: benchmark.name,
+          taskName: task.name,
           trailCount,
         });
         yield* Effect.logDebug("Preparing task schedule");
 
-        const trail = yield* createTrail({ task, metricQueue, eventQueue, config: sandboxConfig })
+        const trail = yield* createTrail({ task, metricQueue, eventQueue, config: sandbox })
           // snapshot building should also be limited to avoid overwhelming the sandbox provider
           .pipe((create) => snapshotSem.withPermit(create));
         yield* Effect.logDebug("Task snapshot is ready");
@@ -153,8 +151,8 @@ export const run = Effect.fn("exec/schedule")(
 
         yield* offerEvent(
           TaskScheduleEvent.make({
-            bench: metadata.name,
-            task: task.metadata.name,
+            bench: benchmark.name,
+            task: task.name,
             op: "start",
           }),
         );
@@ -177,8 +175,8 @@ export const run = Effect.fn("exec/schedule")(
         yield* Effect.logDebug("Completed task trails");
         yield* offerEvent(
           TaskScheduleEvent.make({
-            bench: metadata.name,
-            task: task.metadata.name,
+            bench: benchmark.name,
+            task: task.name,
             op: "stop",
           }),
         );
@@ -186,8 +184,8 @@ export const run = Effect.fn("exec/schedule")(
       (effect, { task }) =>
         effect.pipe(
           Effect.annotateLogs({
-            benchmark: metadata.name,
-            taskName: task.metadata.name,
+            benchmark: benchmark.name,
+            taskName: task.name,
           }),
         ),
     );
@@ -197,10 +195,10 @@ export const run = Effect.fn("exec/schedule")(
       ? metricStream
           .pipe(
             Stream.tap((input) => Ref.update(result, updateTrailResult(input))),
-            Metric.transform({ metrics, trailCount, taskCount: tasks.length }),
+            Metric.transform({ metrics, trailCount, taskCount: benchmark.tasks.length }),
             Stream.tap((output) => Ref.update(result, updateMetricResult(output))),
             Stream.tap((output) =>
-              offerEvent(MetricsStreamEvent.make({ bench: metadata.name, output })),
+              offerEvent(MetricsStreamEvent.make({ bench: benchmark.name, output })),
             ),
             Stream.runDrain,
           )
@@ -216,7 +214,7 @@ export const run = Effect.fn("exec/schedule")(
     const runSchedule = Effect.fn("exec/runSchedule")(function* () {
       yield* Effect.logDebug("Loading tasks");
       const loadedTasks = yield* Effect.all(
-        tasks.map((task) => task.pipe(Effect.mapError(ExecError.taskLoad))),
+        benchmark.tasks.map((task) => task.pipe(Effect.mapError(ExecError.taskLoad))),
         { concurrency: "unbounded" },
       );
       if (loadedTasks.length === 0) {
@@ -225,19 +223,17 @@ export const run = Effect.fn("exec/schedule")(
       }
       yield* Effect.logDebug(`Loaded ${loadedTasks.length} task(s)`);
 
-      const taskMetadata = loadedTasks.map((task) => task.metadata);
-
       yield* offerEvent(
         InitEvent.make({
-          bench: metadata,
-          tasks: taskMetadata,
+          bench: benchmark,
+          tasks: loadedTasks,
           metrics: metrics?.metadata ?? [],
         }),
       );
 
       yield* offerEvent(
         BenchScheduleEvent.make({
-          bench: metadata.name,
+          bench: benchmark.name,
           op: "start",
         }),
       );
@@ -249,7 +245,7 @@ export const run = Effect.fn("exec/schedule")(
 
       yield* offerEvent(
         BenchScheduleEvent.make({
-          bench: metadata.name,
+          bench: benchmark.name,
           op: "stop",
         }),
       );
@@ -271,12 +267,12 @@ export const run = Effect.fn("exec/schedule")(
 
     return yield* Ref.get(result);
   },
-  (effect, { metadata }) =>
+  (effect, { benchmark }) =>
     effect.pipe(
       Effect.scoped,
       Effect.awaitAllChildren,
       Effect.annotateLogs({
-        benchmark: metadata.name,
+        benchmark: benchmark.name,
       }),
     ),
 );

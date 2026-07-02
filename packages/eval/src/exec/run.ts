@@ -19,14 +19,14 @@ export const run = Effect.fn(
     R | FileSystem.FileSystem | Path.Path | ChildProcessSpawner.ChildProcessSpawner
   > {
     const {
-      benchmark: { metadata, tasks },
+      benchmark,
       harness: { layer },
       trailCount,
       metrics,
       transport,
     } = yield* executor;
 
-    let pipeline = runSchedule({ trailCount, tasks, metrics, metadata }, config).pipe(
+    let pipeline = runSchedule({ trailCount, metrics, benchmark }, config).pipe(
       Effect.provide(layer),
       Effect.mapError(ExecError.init),
     );
@@ -35,7 +35,7 @@ export const run = Effect.fn(
       pipeline = pipeline.pipe(Effect.provide(transport.value));
     }
 
-    const otelConfig = config?.otelConfig;
+    const otelConfig = config?.otel;
     if (otelConfig) {
       pipeline = pipeline.pipe(Effect.provide(NodeSdk.layer(() => otelConfig)));
     }
