@@ -42,7 +42,8 @@
     "ai": "catalog:",
     "dockerfile-ast": "^0.7.1",
     "effect": "catalog:",
-    "picomatch": "^4.0.4"
+    "picomatch": "^4.0.4",
+    "semver": "catalog:"
   },
   "devDependencies": {
     "@effect/platform-node": "4.0.0-beta.91",
@@ -50,6 +51,7 @@
     "@open-insight/utils": "workspace:*",
     "@types/node": "^25.6.2",
     "@types/picomatch": "^4.0.3",
+    "@types/semver": "catalog:",
     "@typescript/native-preview": "catalog:",
     "bumpp": "^11.1.0",
     "typescript": "^5",

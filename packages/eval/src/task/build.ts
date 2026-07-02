@@ -23,8 +23,7 @@ export type Task<G extends Grade.Grader = Grade.Grader> = Readonly<{
   context: Sandbox.Context.Context;
   gradeContext: Sandbox.Context.Context | null;
 
-  snapshot: Sandbox.Snapshot.Snapshot | null;
-  assert: Sandbox.Assert.Assert | null;
+  snapshot: Sandbox.Snapshot.Snapshot;
 
   resources: Sandbox.ResourceLimits | null;
 }>;
@@ -88,11 +87,6 @@ export const withSnapshot =
   <G extends Grade.Grader, H, R>(build: Builder<G, H, R>): Builder<G, H, R> =>
     Effect.map(build, (t) => ({ ...t, snapshot }));
 
-export const withAssert =
-  (assert: Sandbox.Assert.Assert) =>
-  <G extends Grade.Grader, H, R>(build: Builder<G, H, R>): Builder<G, H, R> =>
-    Effect.map(build, (t) => ({ ...t, assert }));
-
 export const withGrader =
   <N extends string, T>(name: N, exec: Grade.Exec<T>) =>
   <G extends Grade.Grader, H, R>(
@@ -111,21 +105,17 @@ export const withResources =
 export const build = Effect.fn(function* <G extends Grade.Grader, R, E>(
   build: Builder<G, HasPrompt | G, R, E>,
 ): Effect.fn.Return<Task<G>, E | TaskError, R | Path.Path | FileSystem.FileSystem> {
-  let { metadata, prompt, snapshot, assert, context, gradeContext, graders, resources } =
-    yield* build;
+  let { metadata, prompt, snapshot, context, gradeContext, graders, resources } = yield* build;
 
   assertNonNull(metadata);
   assertNonNull(prompt);
   assertNonNull(graders);
-
-  // must have either snapshot or assert
-  assertNonNull(snapshot ?? assert);
+  assertNonNull(snapshot);
 
   return {
     metadata,
     prompt,
-    snapshot: snapshot ?? null,
-    assert: assert ?? null,
+    snapshot,
     context: context ?? Sandbox.Context.Cwd,
     gradeContext: gradeContext ?? null,
     graders,

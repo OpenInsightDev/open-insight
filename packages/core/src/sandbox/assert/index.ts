@@ -5,6 +5,7 @@ import { AssertionFailure, SandboxError } from "../error.ts";
 import type { Sandbox } from "../sandbox/index.ts";
 import { bashQuote } from "../utils.ts";
 import { type Assert, Assertion, AssertSchema } from "./schema.ts";
+import semver from "semver";
 
 export type AssertOptions = Readonly<{
   concurrency?: "unbounded" | number;
@@ -136,6 +137,40 @@ export const check = Effect.fn(function* (
           }),
         ),
       );
+      return;
+    }
+    case "Version": {
+      const versionCommand = `command -v ${bashQuote(assertion.command)}`;
+      const versionOutput = yield* runString(sandbox, versionCommand, assertion).pipe(
+        Effect.mapError((error) =>
+          AssertionFailure.make({
+            ...error,
+            message: `Expected command to be available: ${assertion.command}`,
+          }),
+        ),
+      );
+
+      if (!semver.valid(assertion.range)) {
+        return yield* Effect.fail(
+          AssertionFailure.make({
+            assertion,
+            expected: assertion.range,
+            actual: versionOutput,
+            message: `Expected range to be a valid semver string, got ${JSON.stringify(assertion.range)}`,
+          }),
+        );
+      }
+
+      if (!semver.satisfies(versionOutput, assertion.range)) {
+        return yield* Effect.fail(
+          AssertionFailure.make({
+            assertion,
+            expected: assertion.range,
+            actual: versionOutput,
+            message: `Expected command output to satisfy ${JSON.stringify(assertion.range)}, got ${JSON.stringify(versionOutput)}`,
+          }),
+        );
+      }
       return;
     }
     case "Env": {

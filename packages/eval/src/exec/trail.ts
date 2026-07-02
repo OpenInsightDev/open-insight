@@ -10,7 +10,7 @@ import { ChildProcessSpawner } from "effect/unstable/process";
 export const createTrail = Effect.fn("exec/createTrail")(
   function* ({
     task,
-    config: { cacheSnapshot, allowHost } = {},
+    config: { cacheSnapshot } = {},
     metricQueue,
     eventQueue,
   }: {
@@ -28,7 +28,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
     | Path.Path
     | Scope.Scope
   > {
-    const { snapshot, assert, context, gradeContext, resources, metadata, prompt, graders } = task;
+    const { snapshot, context, gradeContext, resources, metadata, prompt, graders } = task;
 
     yield* Effect.annotateCurrentSpan({
       taskName: metadata.name,
@@ -38,28 +38,24 @@ export const createTrail = Effect.fn("exec/createTrail")(
     const sandboxProvider = yield* Sandbox.ProviderService;
     const agentProvider = yield* Agent.ProviderService;
 
-    let derived: Sandbox.Snapshot.Snapshot | null = null;
-    if (snapshot) {
-      // TODO how to handle snapshot is Scratch?
-      const derived = yield* agentProvider
-        .deriveSnapshot({ snapshot, context })
-        .pipe(Effect.mapError(ExecError.taskInit({ task: metadata })));
+    const derived = yield* agentProvider
+      .deriveSnapshot({ snapshot, context })
+      .pipe(Effect.mapError(ExecError.taskInit({ task: metadata })));
 
-      yield* sandboxProvider
-        .ensureSnapshot({ snapshot: derived, context })
-        .pipe(Effect.mapError(ExecError.taskInit({ task: metadata })));
+    yield* sandboxProvider
+      .ensureSnapshot({ snapshot: derived, context })
+      .pipe(Effect.mapError(ExecError.taskInit({ task: metadata })));
 
-      yield* Effect.logDebug("Prepared derived snapshot");
+    yield* Effect.logDebug("Prepared derived snapshot");
 
-      yield* Effect.addFinalizer(
-        Effect.fn("exec/createTrail/finalizeSnapshot")(function* () {
-          if (!cacheSnapshot) {
-            yield* Effect.logDebug("Removing derived snapshot");
-            yield* sandboxProvider.removeSnapshot({ snapshot: derived }).pipe(Effect.ignore);
-          }
-        }),
-      );
-    }
+    yield* Effect.addFinalizer(
+      Effect.fn("exec/createTrail/finalizeSnapshot")(function* () {
+        if (!cacheSnapshot) {
+          yield* Effect.logDebug("Removing derived snapshot");
+          yield* sandboxProvider.removeSnapshot({ snapshot: derived }).pipe(Effect.ignore);
+        }
+      }),
+    );
 
     const nextTrailIndex = yield* Ref.make(0);
 
@@ -72,20 +68,9 @@ export const createTrail = Effect.fn("exec/createTrail")(
 
         yield* Effect.logDebug("Starting sandbox for trail");
 
-        let sandbox: Sandbox.Sandbox;
-        if (derived) {
-          sandbox = yield* sandboxProvider
-            .runSandbox({ snapshot: derived, assert, resources })
-            .pipe(Effect.mapError(ExecError.taskExec({ task: metadata, trailIndex })));
-        } else if (allowHost) {
-          // TODO do we really want this
-          sandbox = yield* Sandbox.makeHost({ assert });
-        } else {
-          yield* Effect.die(
-            new Error("Task requires to run directly on host, but allowHost is not enabled"),
-          );
-          throw new Error("unreachable");
-        }
+        const sandbox = yield* sandboxProvider
+          .runSandbox({ snapshot: derived, resources })
+          .pipe(Effect.mapError(ExecError.taskExec({ task: metadata, trailIndex })));
 
         yield* Effect.logDebug("Sandbox is ready, Starting trail execution");
 

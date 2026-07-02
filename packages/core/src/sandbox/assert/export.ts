@@ -10,7 +10,7 @@ export {
   program,
   success,
   Assertion,
-  Assertions,
+  type Assert,
   type AssertOptions,
 } from "./index.ts";
 
