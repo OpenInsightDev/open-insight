@@ -5,6 +5,15 @@ import { TaskError } from "../error.ts";
 import { Sandbox } from "@open-insight/core/internal";
 import type { Loader } from "./index.ts";
 
+/**
+ * Discovers task modules from a directory.
+ *
+ * Each discovered script is treated as a task module:
+ * - export its built task via default export
+ * - be safe to load from any working directory
+ *
+ * Note: If the script contains any file system operations, e.g. `fs.readFileSync`, it must use `import.meta.dirname` or `import.meta.url` to resolve the absolute path of the task directory. Using relative paths will lead to unexpected results.
+ */
 export const fromDir = <T extends Task.Task>({
   dir,
   glob = "**/index.ts",

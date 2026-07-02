@@ -1,10 +1,12 @@
 import { assert, describe, it } from "@effect/vitest";
+import { NodeServices } from "@effect/platform-node";
 import { Effect, Stream } from "effect";
 import { Agent, Benchmark, Exec, Harness, Metric, Sandbox, Task } from "@open-insight/eval";
-import type { EventTransport } from "@/exec/event/index.ts";
+import { Spawn } from "@open-insight/utils";
 
-type RandomEvenTask = Task.Task<Task.Grader<"randomEven", boolean>>;
-type RandomEvenGrade = Task.Grade.Result<Task.Grader<"randomEven", boolean>>;
+type RandomEvenGrader = Task.Grader<"randomEven", boolean>;
+type RandomEvenTask = Task.Task<RandomEvenGrader>;
+type RandomEvenGrade = Task.Grade.Result<RandomEvenGrader>;
 
 const trailCount = 8;
 
@@ -34,14 +36,9 @@ const task = Task.init<RandomEvenTask>({
   description: "Passes when a random number generated inside the sandbox is even.",
 }).pipe(
   Task.withTextPrompt("Write any answer."),
-  Task.withGrader("randomEven", async ({ cmd }) => {
-    const { stdout } = await cmd({
-      command: "sh",
-      args: ["-c", "od -An -N4 -tu4 /dev/urandom | tr -d ' '"],
-      cwd: "/workspace",
-    });
-    const value = Number.parseInt(stdout.trim(), 10);
-
+  Task.withGrader("randomEven", async ({ $ }) => {
+    const output = await $({ cwd: "/workspace" })`od -An -N4 -tu4 /dev/urandom | tr -d ' '`;
+    const value = Number.parseInt(output.trim(), 10);
     return Number.isFinite(value) && value % 2 === 0;
   }),
   Task.withSnapshot(
@@ -50,7 +47,7 @@ const task = Task.init<RandomEvenTask>({
       WORKDIR /workspace
     `),
   ),
-  Task.withContext(Effect.succeed(Sandbox.Context.Cwd)),
+  Task.withContext(Sandbox.Context.Cwd),
   Task.withResources({}),
   Task.build,
 );
@@ -60,18 +57,18 @@ const benchmark = Benchmark.init<RandomEvenTask>({
   description: "A minimal Docker-backed integration test for eval.",
 }).pipe(Benchmark.withTasks(Task.fromArray([task])), Benchmark.build);
 
-const metricPassAtK = (k: number, grades: ReadonlyArray<RandomEvenGrade>) =>
+const metricPassAtK = (k: number) => (grades: ReadonlyArray<RandomEvenGrade>) =>
   passAtK({
     k,
     passes: grades.map(({ randomEven }) => randomEven),
   });
 
 const metrics = Metric.init<RandomEvenTask>().pipe(
-  Metric.withTask("pass@1", (grades) => metricPassAtK(1, grades)),
-  Metric.withTask("pass@2", (grades) => metricPassAtK(2, grades)),
-  Metric.withTask("pass@3", (grades) => metricPassAtK(3, grades)),
-  Metric.withTask("pass@4", (grades) => metricPassAtK(4, grades)),
-  Metric.withTask("pass@5", (grades) => metricPassAtK(5, grades)),
+  Metric.withTask("pass@1", metricPassAtK(1)),
+  Metric.withTask("pass@2", metricPassAtK(2)),
+  Metric.withTask("pass@3", metricPassAtK(3)),
+  Metric.withTask("pass@4", metricPassAtK(4)),
+  Metric.withTask("pass@5", metricPassAtK(5)),
 );
 
 const sandbox = Sandbox.Docker.make({ portMappings: [] });
@@ -97,7 +94,7 @@ describe("random even docker eval", () => {
                 }),
               ),
             ),
-        } satisfies EventTransport);
+        } satisfies Exec.EventTransport);
 
         const executor = Exec.init<RandomEvenTask>().pipe(
           Exec.withBenchmark(benchmark),
@@ -125,7 +122,7 @@ describe("random even docker eval", () => {
           const metricName = `pass@${k}`;
           assert.deepStrictEqual(taskResult?.metrics[metricName], [passAtK({ k, passes })]);
         }
-      }),
+      }).pipe(Effect.provide(Spawn.SpawnService.layer), Effect.provide(NodeServices.layer)),
     60_000,
   );
 });

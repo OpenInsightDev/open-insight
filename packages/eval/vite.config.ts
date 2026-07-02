@@ -24,5 +24,8 @@ export default defineConfig({
       typeCheck: true,
     },
   },
+  test: {
+    include: ["src/**/*.test.ts"],
+  },
   fmt: {},
 });

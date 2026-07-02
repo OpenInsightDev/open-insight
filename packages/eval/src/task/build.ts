@@ -1,7 +1,7 @@
 import type * as Grade from "./grade/index.ts";
 import type { Contravariant } from "../utils/variant.ts";
 import { Sandbox } from "@open-insight/core/internal";
-import { type Brand, Effect, FileSystem, Path, Schema } from "effect";
+import { type Brand, Effect, FileSystem, Path, Schema, type Scope } from "effect";
 import { Prompt } from "effect/unstable/ai";
 import { TaskError } from "./error.ts";
 import { assertNonNull } from "@/utils/type.ts";
@@ -11,6 +11,8 @@ export type ID = string;
 export const MetadataSchema = Schema.Struct({
   name: Schema.String,
   description: Schema.optional(Schema.String),
+  keywords: Schema.optional(Schema.Array(Schema.String)),
+  authors: Schema.optional(Schema.Array(Schema.String)),
 });
 export type Metadata = Schema.Schema.Type<typeof MetadataSchema>;
 
@@ -26,19 +28,18 @@ export type Task<G extends Grade.Grader = Grade.Grader> = Readonly<{
   snapshot: Sandbox.Snapshot.Snapshot;
 
   resources: Sandbox.ResourceLimits | null;
-}>;
+}> & { _G?: G };
 
-export type BuiltTask<T extends Task = Task> = Effect.Effect<T, TaskError>;
+export type BuiltTask<T extends Task = Task> = Effect.Effect<T, TaskError, Scope.Scope>;
 export type Tasks<T extends Task = Task> = ReadonlyArray<BuiltTask<T>>;
 
 export type GraderOf<T> = T extends Task<infer G> ? G : never;
 
-type Builder<
-  G extends Grade.Grader = Grade.Grader,
-  H = never,
-  R = never,
-  E = TaskError,
-> = Effect.Effect<Partial<Task<G>>, E, R> & {
+type Builder<G extends Grade.Grader = Grade.Grader, H = never, R = never> = Effect.Effect<
+  Partial<Task<G>>,
+  TaskError,
+  R
+> & {
   _typestate?: Contravariant<H>;
 };
 
@@ -66,19 +67,19 @@ export const withTextPrompt =
 
 export const withContext =
   <CE, CR>(context: Effect.Effect<Sandbox.Context.Context, CE, CR>) =>
-  <G extends Grade.Grader, H, R, E>(build: Builder<G, H, R, E>): Builder<G, H, R | CR, E | CE> =>
+  <G extends Grade.Grader, H, R>(build: Builder<G, H, R>): Builder<G, H, R | CR> =>
     Effect.fn("task/withContext")(function* () {
       const t = yield* build;
-      const resolvedContext = yield* context;
+      const resolvedContext = yield* context.pipe(Effect.mapError(TaskError.load));
       return { ...t, context: resolvedContext };
     })();
 
 export const withGradeContext =
   <CE, CR>(gradeContext: Effect.Effect<Sandbox.Context.Context, CE, CR>) =>
-  <G extends Grade.Grader, H, R, E>(build: Builder<G, H, R, E>): Builder<G, H, R | CR, E | CE> =>
+  <G extends Grade.Grader, H, R>(build: Builder<G, H, R>): Builder<G, H, R | CR> =>
     Effect.fn("task/withGradeContext")(function* () {
       const t = yield* build;
-      const resolvedGradeContext = yield* gradeContext;
+      const resolvedGradeContext = yield* gradeContext.pipe(Effect.mapError(TaskError.load));
       return { ...t, gradeContext: resolvedGradeContext };
     })();
 
@@ -90,8 +91,8 @@ export const withSnapshot =
 export const withGrader =
   <N extends string, T>(name: N, exec: Grade.Exec<T>) =>
   <G extends Grade.Grader, H, R>(
-    build: Grade.Grader<N, T> extends G ? Builder<G, H, R> : never,
-  ): Builder<G, H | Grade.Grader<N, T>, R> =>
+    build: Builder<G, H, R>,
+  ): Builder<G | Grade.Grader<N, T>, H | Grade.Grader<N, T>, R> =>
     Effect.map(build, (t) => ({
       ...t,
       graders: Object.assign({}, t.graders, { [name]: exec }),
@@ -102,9 +103,9 @@ export const withResources =
   <G extends Grade.Grader, H, R>(build: Builder<G, H, R>): Builder<G, H, R> =>
     Effect.map(build, (t) => ({ ...t, resources }));
 
-export const build = Effect.fn(function* <G extends Grade.Grader, R, E>(
-  build: Builder<G, HasPrompt | G, R, E>,
-): Effect.fn.Return<Task<G>, E | TaskError, R | Path.Path | FileSystem.FileSystem> {
+export const build = Effect.fn(function* <G extends Grade.Grader, R>(
+  build: Builder<G, HasPrompt | G, R>,
+): Effect.fn.Return<Task<G>, TaskError, R> {
   let { metadata, prompt, snapshot, context, gradeContext, graders, resources } = yield* build;
 
   assertNonNull(metadata);
@@ -112,11 +113,15 @@ export const build = Effect.fn(function* <G extends Grade.Grader, R, E>(
   assertNonNull(graders);
   assertNonNull(snapshot);
 
+  if (!context) {
+    context = yield* Sandbox.Context.Cwd;
+  }
+
   return {
     metadata,
     prompt,
     snapshot,
-    context: context ?? Sandbox.Context.Cwd,
+    context,
     gradeContext: gradeContext ?? null,
     graders,
     resources: resources ?? null,

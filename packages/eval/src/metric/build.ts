@@ -168,9 +168,3 @@ export const withBenchmark =
         draft.metadata.push({ name, type: "Benchmark", variant: "All" });
       }),
     );
-
-export type MetricResult<
-  TAM = TaskMetric.Metric,
-  TRAM = TrajMetric.Metric,
-  BAM = BenchMetric.Metric,
-> = TaskMetric.Result<TAM> & TrajMetric.Result<TRAM> & BenchMetric.Result<BAM>;

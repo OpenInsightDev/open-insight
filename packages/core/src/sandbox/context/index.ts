@@ -30,4 +30,4 @@ export const make = Effect.fn(function* (
   return makeContext(resolved);
 });
 
-export const Cwd = makeContext(process.cwd());
+export const Cwd = Effect.succeed(makeContext(process.cwd()));
