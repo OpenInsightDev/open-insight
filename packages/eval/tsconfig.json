@@ -10,6 +10,7 @@
     "strict": true,
     "noUnusedLocals": true,
     "declaration": true,
+    "declarationMap": true,
     "noEmit": true,
     "allowImportingTsExtensions": true,
     "esModuleInterop": true,
