@@ -1,4 +1,4 @@
-import { Effect, FileSystem, Path, Scope } from "effect";
+import { Effect, FileSystem, Option, Path, Scope } from "effect";
 import { NodeSdk } from "@effect/opentelemetry";
 import { type Executor } from "./build.ts";
 import { NodeHttpClient, NodeServices } from "@effect/platform-node";
@@ -20,19 +20,19 @@ export const run = Effect.fn(
   > {
     const {
       benchmark: { metadata, tasks },
-      harness: { agent, sandbox },
+      harness: { layer },
       trailCount,
       metrics,
       transport,
     } = yield* executor;
 
     let pipeline = runSchedule({ trailCount, tasks, metrics, metadata }, config).pipe(
-      Effect.provide([agent, sandbox]),
+      Effect.provide(layer),
       Effect.mapError(ExecError.init),
     );
 
-    if (transport) {
-      pipeline = pipeline.pipe(Effect.provide(transport));
+    if (Option.isSome(transport)) {
+      pipeline = pipeline.pipe(Effect.provide(transport.value));
     }
 
     const otelConfig = config?.otelConfig;
@@ -43,10 +43,12 @@ export const run = Effect.fn(
     return yield* pipeline;
   },
   (effect) =>
-    effect.pipe(Effect.provide(NodeServices.layer), Effect.provide(NodeHttpClient.layerUndici)),
+    effect
+      .pipe(Effect.provide(NodeServices.layer), Effect.provide(NodeHttpClient.layerUndici))
+      .pipe(Effect.scoped),
 );
 
 export const runPromise = async <E>(
   executor: Effect.Effect<Executor, E, Scope.Scope>,
   config?: Config,
-) => Effect.runPromise(run(executor, config).pipe(Effect.scoped));
+) => Effect.runPromise(run(executor, config));

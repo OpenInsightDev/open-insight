@@ -3,12 +3,14 @@ import { Effect, Schema } from "effect";
 
 export class Metadata extends Schema.Class<Metadata>("BenchmarkMetadata")({
   name: Schema.String,
-  description: Schema.String,
+  description: Schema.optional(Schema.String),
   categories: Schema.optional(Schema.Array(Schema.String)),
   homepage: Schema.optional(Schema.String),
   registry: Schema.optional(Schema.String),
   authors: Schema.optional(Schema.Array(Schema.String)),
 }) {}
+
+export const MetadataSchema: Schema.Schema<Metadata> = Metadata;
 
 export type Benchmark<T extends Task.Task = Task.Task> = Metadata &
   Readonly<{
