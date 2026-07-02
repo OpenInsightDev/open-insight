@@ -9,6 +9,7 @@ export default defineConfig({
       tsgo: true,
     },
     clean: true,
+    copy: [{ from: "src/**/*.ts", flatten: false }],
     sourcemap: true,
     entry: {
       internal: "src/index.ts",

@@ -12,7 +12,7 @@ export const fromContainerfile = Effect.fn(function* ({
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
 
-  const contextDir = yield* Context.make(context);
+  const contextDir = yield* Context.fromDir(context);
   const containerfilePath = path.join(contextDir, filePath);
 
   const content = yield* fs.readFileString(containerfilePath);

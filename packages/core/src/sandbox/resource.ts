@@ -14,8 +14,17 @@ export const ResourceLimitsSchema = Schema.Struct({
   memoryMiB: Schema.optionalKey(NonNegativeInt).annotate({
     description: "Maximum memory available to the sandbox, in MiB.",
   }),
-  diskMiB: Schema.optionalKey(NonNegativeInt).annotate({
+  storageMiB: Schema.optionalKey(NonNegativeInt).annotate({
     description: "Maximum writable disk space available to the sandbox, in MiB.",
+  }),
+  internet: Schema.optionalKey(Schema.Boolean).annotate({
+    description: "Whether the sandbox has access to the internet.",
+  }),
+  buildTimeoutSec: Schema.optionalKey(NonNegativeInt).annotate({
+    description: "Maximum time allowed for the build phase, in seconds.",
+  }),
+  runTimeoutSec: Schema.optionalKey(NonNegativeInt).annotate({
+    description: "Maximum time allowed for the run phase, in seconds.",
   }),
 }).annotate({
   description: "Sandbox resource limit configuration.",

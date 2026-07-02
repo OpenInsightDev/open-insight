@@ -65,9 +65,10 @@ export const withTextPrompt =
       ],
     }));
 
+type HasContext = Brand.Brand<"context">;
 export const withContext =
   <CE, CR>(context: Effect.Effect<Sandbox.Context.Context, CE, CR>) =>
-  <G extends Grade.Grader, H, R>(build: Builder<G, H, R>): Builder<G, H, R | CR> =>
+  <G extends Grade.Grader, H, R>(build: Builder<G, H, R>): Builder<G, H | HasContext, R | CR> =>
     Effect.fn("task/withContext")(function* () {
       const t = yield* build;
       const resolvedContext = yield* context.pipe(Effect.mapError(TaskError.load));
@@ -102,7 +103,7 @@ export const withResources =
     Effect.map(build, (t) => ({ ...t, resources }));
 
 export const build = Effect.fn(function* <G extends Grade.Grader, R>(
-  build: Builder<G, HasPrompt | G, R>,
+  build: Builder<G, HasPrompt | HasContext | G, R>,
 ): Effect.fn.Return<Task<G>, TaskError, R> {
   let { metadata, prompt, snapshot, context, gradeContext, graders, resources } = yield* build;
 
@@ -110,10 +111,7 @@ export const build = Effect.fn(function* <G extends Grade.Grader, R>(
   assertNonNull(prompt);
   assertNonNull(graders);
   assertNonNull(snapshot);
-
-  if (!context) {
-    context = yield* Sandbox.Context.Cwd;
-  }
+  assertNonNull(context);
 
   return {
     metadata,

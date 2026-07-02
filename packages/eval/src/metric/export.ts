@@ -19,3 +19,23 @@ export * as Task from "./task.ts";
 export * as Bench from "./bench.ts";
 
 export * as Internal from "./index.ts";
+
+export {
+  Bar,
+  GroupedBar,
+  Pie,
+  Line,
+  Series,
+  Scatter,
+  Radar,
+  Heatmap,
+  Treemap,
+  SankeyLink,
+  Funnel,
+  WordCloud,
+  BoxPlot,
+  Candlestick,
+  Gauge,
+  type Chart,
+  type Type,
+} from "./chart.ts";

@@ -6,7 +6,7 @@ export type Context = Schema.Schema.Type<typeof ContextSchema> & Brand.Brand<"Co
 
 const makeContext = Brand.nominal<Context>();
 
-export const make = Effect.fn(function* (
+export const fromDir = Effect.fn(function* (
   dir: string,
 ): Effect.fn.Return<Context, SandboxError, Path.Path | FileSystem.FileSystem> {
   if (!dir.startsWith("/")) {
@@ -30,4 +30,5 @@ export const make = Effect.fn(function* (
   return makeContext(resolved);
 });
 
-export const Cwd = Effect.succeed(makeContext(process.cwd()));
+export const RunDir = Effect.succeed(makeContext(process.cwd()));
+export const DontCare = Effect.succeed(makeContext("/tmp"));

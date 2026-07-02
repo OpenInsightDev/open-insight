@@ -13,8 +13,11 @@
     "directory": "packages/eval"
   },
   "files": [
-    "dist",
-    "src"
+    "dist/**/*.mjs",
+    "dist/**/*.mjs.map",
+    "dist/**/*.mts",
+    "dist/**/*.mts.map",
+    "src/**/*.ts"
   ],
   "type": "module",
   "exports": {
