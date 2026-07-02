@@ -1,0 +1,18 @@
+[submodule ".repos/agentclientprotocol"]
+	path = .repos/agentclientprotocol
+	url = https://github.com/agentclientprotocol/typescript-sdk.git
+[submodule ".repos/terminal-bench-2"]
+	path = .repos/terminal-bench-2
+	url = https://github.com/observerw/terminal-bench-2.git
+[submodule ".repos/effect"]
+	path = .repos/effect
+	url = https://github.com/Effect-TS/effect-smol.git
+[submodule ".repos/ai"]
+	path = .repos/ai
+	url = https://github.com/vercel/ai.git
+[submodule ".repos/harbor"]
+	path = .repos/harbor
+	url = https://github.com/harbor-framework/harbor.git
+[submodule ".repos/verilog-eval"]
+	path = .repos/verilog-eval
+	url = https://github.com/NVlabs/verilog-eval.git
