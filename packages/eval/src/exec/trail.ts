@@ -28,10 +28,10 @@ export const createTrail = Effect.fn("exec/createTrail")(
     | Path.Path
     | Scope.Scope
   > {
-    const { snapshot, context, gradeContext, resources, metadata, prompt, graders } = task;
+    const { snapshot, context, gradeContext, resources, prompt, graders } = task;
 
     yield* Effect.annotateCurrentSpan({
-      taskName: metadata.name,
+      taskName: task.name,
     });
     yield* Effect.logDebug("Preparing derived snapshot");
 
@@ -40,11 +40,11 @@ export const createTrail = Effect.fn("exec/createTrail")(
 
     const derived = yield* agentProvider
       .deriveSnapshot({ snapshot, context })
-      .pipe(Effect.mapError(ExecError.taskInit({ task: metadata })));
+      .pipe(Effect.mapError(ExecError.taskInit({ task })));
 
     yield* sandboxProvider
       .ensureSnapshot({ snapshot: derived, context })
-      .pipe(Effect.mapError(ExecError.taskInit({ task: metadata })));
+      .pipe(Effect.mapError(ExecError.taskInit({ task })));
 
     yield* Effect.logDebug("Prepared derived snapshot");
 
@@ -62,7 +62,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
     const runTrail = Effect.fn(
       function* (trailIndex: number) {
         yield* Effect.annotateCurrentSpan({
-          taskName: metadata.name,
+          taskName: task.name,
           trailIndex,
         });
 
@@ -70,7 +70,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
 
         const sandbox = yield* sandboxProvider
           .runSandbox({ snapshot: derived, resources })
-          .pipe(Effect.mapError(ExecError.taskExec({ task: metadata, trailIndex })));
+          .pipe(Effect.mapError(ExecError.taskExec({ task, trailIndex })));
 
         yield* Effect.logDebug("Sandbox is ready, Starting trail execution");
 
@@ -89,8 +89,8 @@ export const createTrail = Effect.fn("exec/createTrail")(
           yield* Queue.offer(
             eventQueue,
             TaskStreamPartEvent.make({
-              bench: metadata.name,
-              task: task.metadata.name,
+              bench: task.name,
+              task: task.name,
               parts: [part],
               trailIndex,
             }),
@@ -143,8 +143,8 @@ export const createTrail = Effect.fn("exec/createTrail")(
       },
       (effect, trailIndex) =>
         effect.pipe(
-          Effect.annotateLogs({ taskName: metadata.name, trailIndex }),
-          Effect.mapError(ExecError.taskExec({ task: metadata, trailIndex })),
+          Effect.annotateLogs({ taskName: task.name, trailIndex }),
+          Effect.mapError(ExecError.taskExec({ task, trailIndex })),
         ),
     );
 
@@ -159,7 +159,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
         )
         .pipe(
           Effect.annotateLogs({
-            taskName: metadata.name,
+            taskName: task.name,
           }),
         );
       yield* Effect.logDebug(`Completed trail ${trailIndex}`);
@@ -168,7 +168,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
   (effect, { task }) =>
     effect.pipe(
       Effect.annotateLogs({
-        taskName: task.metadata.name,
+        taskName: task.name,
       }),
     ),
 );

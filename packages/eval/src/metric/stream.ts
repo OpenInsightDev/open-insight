@@ -150,7 +150,7 @@ export const transform = ({
           return;
         }
         yield* Queue.offer(benchQueue, {
-          task: input.task.metadata.name,
+          task: input.task.name,
           input: pipe(
             taskOutputs.map((output) => [output.name, output.result] as const),
             Object.fromEntries,

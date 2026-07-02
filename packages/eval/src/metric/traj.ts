@@ -99,7 +99,7 @@ export const buildReduce = ({ name, exec }: { name: string; exec: ReduceExec }) 
 
     return TrajOutput.make({
       name,
-      task: task.metadata,
+      task: task,
       trailIndex,
       result,
     });
@@ -121,7 +121,7 @@ export const buildEach = ({ name, exec }: { name: string; exec: EachExec }) =>
 
     return TrajOutput.make({
       name,
-      task: task.metadata,
+      task: task,
       trailIndex,
       result,
     });
@@ -143,7 +143,7 @@ export const buildAll = ({ name, exec }: { name: string; exec: AllExec }) => {
 
     return TrajOutput.make({
       name,
-      task: task.metadata,
+      task: task,
       trailIndex,
       result,
     });

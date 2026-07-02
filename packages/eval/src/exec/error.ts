@@ -87,12 +87,12 @@ export class ExecError extends Schema.TaggedErrorClass<ExecError>()("ExecError",
       });
 
   static snapshot =
-    ({ task: { metadata, snapshot } }: { task: Task.Task }) =>
+    ({ task }: { task: Task.Task }) =>
     (cause: unknown) =>
       new ExecError({
         reason: new SnapshotError({
-          task: metadata,
-          snapshot,
+          task,
+          snapshot: task.snapshot,
           cause,
         }),
       });

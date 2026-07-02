@@ -26,7 +26,7 @@ const passAtK = ({ k, passes }: { k: number; passes: ReadonlyArray<boolean> }): 
   return 1 - missProbability;
 };
 
-const main = Effect.fn(function* () {
+Effect.fn(function* () {
   const task = Task.make<RandomEvenTask>({
     name: "task-1",
     prompt: [Prompt.userMessage({ content: [Prompt.textPart({ text: "Write any text." })] })],
@@ -44,7 +44,7 @@ const main = Effect.fn(function* () {
     `),
   });
 
-  const tasks = yield* Task.fromArray([task]);
+  const tasks = yield* Task.fromArray([Effect.succeed(task)]);
   const benchmark = yield* Benchmark.make({
     name: "CustomBenchmark",
     tasks,
@@ -71,7 +71,7 @@ const main = Effect.fn(function* () {
     Effect.provideService(Agent.ProviderService, agent),
   );
 
-  const exec = yield* Exec.make({
+  yield* Exec.make({
     benchmark,
     harness,
     metrics,
