@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
 import { reduceDashboardEvent, type DashboardPageState } from "#/lib/dashboard-state";
 import type { Event as ExecEvent } from "@open-insight/eval";
