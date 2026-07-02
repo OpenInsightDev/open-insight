@@ -39,6 +39,7 @@
   "dependencies": {
     "@agentclientprotocol/sdk": "^1.0.0",
     "@effect/ai-openai": "catalog:",
+    "@effect/opentelemetry": "catalog:",
     "ai": "catalog:",
     "dockerfile-ast": "^0.7.1",
     "effect": "catalog:",

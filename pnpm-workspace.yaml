@@ -34,6 +34,7 @@ catalog:
   recharts: ^3.9.0
   semver: ^7.8.5
   '@types/semver': ^7.7.1
+  '@effect/opentelemetry': ^0.63.0
 overrides:
   vite: "catalog:"
   vitest: "catalog:"

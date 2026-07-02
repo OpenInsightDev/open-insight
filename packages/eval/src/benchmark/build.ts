@@ -7,6 +7,7 @@ import { assertNonNull } from "@/utils/type.ts";
 export type Metadata = Readonly<{
   name: string;
   description: string;
+  categories?: ReadonlyArray<string>;
 }>;
 export const MetadataSchema: Schema.Schema<Metadata> = Schema.Struct({
   name: Schema.String,

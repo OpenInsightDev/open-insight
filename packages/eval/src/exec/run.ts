@@ -1,4 +1,5 @@
-import { Effect, FileSystem, Path, Scope } from "effect";
+import { Effect, Scope } from "effect";
+import { NodeSdk } from "@effect/opentelemetry";
 import { type Executor } from "./build.ts";
 import { NodeHttpClient, NodeServices } from "@effect/platform-node";
 import { ExecError } from "./error.ts";
@@ -7,40 +8,39 @@ import type * as _Core from "@open-insight/core";
 import { run as runSchedule } from "./schedule.ts";
 import type { ExecResult } from "./result.ts";
 
-export const run = Effect.fn(
-  function* <E, R>(
-    executor: Effect.Effect<Executor, E, R>,
-    config: Config = {},
-  ): Effect.fn.Return<ExecResult, E | ExecError, R | FileSystem.FileSystem | Path.Path> {
-    const {
-      benchmark: { metadata, tasks },
-      harness: { agent, sandbox },
-      trailCount,
-      metrics,
-      transport,
-    } = yield* executor;
+export const run = Effect.fn(function* <E, R>(
+  executor: Effect.Effect<Executor, E, R>,
+  config: Config = {},
+): Effect.fn.Return<ExecResult, E | ExecError, R> {
+  const {
+    benchmark: { metadata, tasks },
+    harness: { agent, sandbox },
+    trailCount,
+    metrics,
+    transport,
+  } = yield* executor;
 
-    let eff = runSchedule({ trailCount, tasks, metrics, metadata }, config).pipe(
-      Effect.provide([agent, sandbox]),
-      Effect.mapError(ExecError.init),
-    );
+  let pipeline = runSchedule({ trailCount, tasks, metrics, metadata }, config).pipe(
+    Effect.provide([agent, sandbox]),
+    Effect.mapError(ExecError.init),
+  );
 
-    // TODO how to provide optional layer
-    if (transport) {
-      eff = eff.pipe(Effect.provide(transport));
-    }
+  if (transport) {
+    pipeline = pipeline.pipe(Effect.provide(transport));
+  }
 
-    return yield* eff;
-  },
-  (effect) =>
-    effect.pipe(
-      Effect.provide(NodeServices.layer),
-      Effect.provide(NodeHttpClient.layerUndici),
-      Effect.scoped,
-    ),
-);
+  const otelConfig = config?.otelConfig;
+  if (otelConfig) {
+    pipeline = pipeline.pipe(Effect.provide(NodeSdk.layer(() => otelConfig)));
+  }
+
+  return yield* pipeline.pipe(
+    Effect.provide(NodeServices.layer),
+    Effect.provide(NodeHttpClient.layerUndici),
+  );
+});
 
 export const runPromise = async <E>(
   executor: Effect.Effect<Executor, E, Scope.Scope>,
   config?: Config,
-) => Effect.runPromise(run(executor, config));
+) => Effect.runPromise(run(executor, config).pipe(Effect.scoped));

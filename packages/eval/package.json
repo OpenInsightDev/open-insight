@@ -38,6 +38,7 @@
     "prepublishOnly": "vp run build"
   },
   "dependencies": {
+    "@effect/opentelemetry": "catalog:",
     "@effect/platform-node": "4.0.0-beta.91",
     "@effect/vitest": "catalog:",
     "@open-insight/core": "workspace:*",
