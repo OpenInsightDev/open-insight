@@ -19,7 +19,6 @@ export type Task<G extends Grade.Grader = Grade.Grader> = Metadata &
     prompt: ReadonlyArray<Prompt.UserMessage>;
 
     context: Sandbox.Context.Context;
-    gradeContext: Sandbox.Context.Context | null;
 
     snapshot: Sandbox.Snapshot.Snapshot;
 
@@ -35,7 +34,6 @@ type Options<T extends Task> = Metadata &
     prompt: ReadonlyArray<Prompt.UserMessage>;
     graders: Grade.Map<GraderOf<T>>;
     context: Sandbox.Context.Context;
-    gradeContext?: Sandbox.Context.Context;
     snapshot: Sandbox.Snapshot.Snapshot;
     resources?: Sandbox.ResourceLimits;
   }>;
@@ -44,7 +42,6 @@ export const make = <T extends Task>({
   prompt,
   graders,
   context,
-  gradeContext,
   snapshot,
   resources,
   ...metadata
@@ -53,7 +50,6 @@ export const make = <T extends Task>({
   prompt,
   graders,
   context,
-  gradeContext: gradeContext ?? null,
   snapshot,
   resources: resources ?? null,
 });

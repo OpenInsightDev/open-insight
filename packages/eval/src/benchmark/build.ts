@@ -22,8 +22,8 @@ type Options<T extends Task.Task> = Metadata &
     tasks: Task.Tasks<T>;
   }>;
 
-export const make = ({ tasks, ...metadata }: Options<Task.Task>) =>
+export const make = <T extends Task.Task>({ tasks, ...metadata }: Options<T>) =>
   Effect.succeed({
     ...metadata,
     tasks,
-  } satisfies Benchmark<Task.Task>);
+  } satisfies Benchmark<T>);
