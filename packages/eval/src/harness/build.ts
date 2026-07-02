@@ -3,6 +3,7 @@ import { Agent, Sandbox } from "@open-insight/core/internal";
 import { type Brand, Effect, Layer } from "effect";
 import { HarnessError } from "./error.ts";
 import type * as Task from "../task/index.ts";
+import { assertNonNull } from "@/utils/type.ts";
 
 export type Harness<T extends Task.Task = Task.Task> = Readonly<{
   sandbox: Layer.Layer<Sandbox.ProviderService, HarnessError>;
@@ -43,7 +44,13 @@ export const withAgentProvider =
       return { ...harness, agent: layer };
     });
 
-export const build = <T extends Task.Task, R>(
+export const build = Effect.fn(function* <T extends Task.Task, R>(
   build: Builder<T, HasSandboxProvider | HasAgentProvider, R>,
-): Effect.Effect<Harness<T>, HarnessError, R> =>
-  build as Effect.Effect<Harness<T>, HarnessError, R>;
+): Effect.fn.Return<Harness<T>, HarnessError, R> {
+  const { agent, sandbox } = yield* build;
+
+  assertNonNull(agent);
+  assertNonNull(sandbox);
+
+  return { agent, sandbox };
+});

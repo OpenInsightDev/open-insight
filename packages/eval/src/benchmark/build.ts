@@ -8,6 +8,8 @@ export type Metadata = Readonly<{
   name: string;
   description: string;
   categories?: ReadonlyArray<string>;
+  homepage?: string;
+  authors?: ReadonlyArray<string>;
 }>;
 export const MetadataSchema: Schema.Schema<Metadata> = Schema.Struct({
   name: Schema.String,
