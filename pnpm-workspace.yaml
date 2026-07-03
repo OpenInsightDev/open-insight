@@ -36,6 +36,7 @@ catalog:
   semver: ^7.8.5
   '@types/semver': ^7.7.1
   '@effect/opentelemetry': ^0.63.0
+  idb-keyval: ^6.2.6
 overrides:
   vite: "catalog:"
   vitest: "catalog:"
@@ -58,4 +59,3 @@ minimumReleaseAgeExclude:
   - "@typescript/native-preview-win32-arm64@7.0.0-dev.20260629.1"
   - "@typescript/native-preview-win32-x64@7.0.0-dev.20260629.1"
   - "@typescript/native-preview@7.0.0-dev.20260629.1"
-  

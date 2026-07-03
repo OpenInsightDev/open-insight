@@ -53,6 +53,16 @@ export const fromDir = <T extends Task.Task>({
             );
           }
 
+          if (module.default[Task.TypeId] !== Task.TypeId) {
+            return yield* Effect.fail(
+              TaskError.load(
+                new Error(
+                  `Loading task from file requires a default export of type Task, but the module at ${taskFile} exports a value that is not a valid Task.`,
+                ),
+              ),
+            );
+          }
+
           return module.default as T;
         }),
       ),

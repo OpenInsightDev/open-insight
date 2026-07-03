@@ -2,8 +2,7 @@ import type { Effect, Scope } from "effect";
 import type * as Task from "../index.ts";
 import type { TaskError } from "../error.ts";
 
-export type Tasks<T extends Task.Task = Task.Task> = ReadonlyArray<Task.BuiltTask<T>>;
-
+export type Tasks<T extends Task.Task = Task.Task> = ReadonlyArray<Effect.Effect<T, TaskError>>;
 export type Loader<T extends Task.Task = Task.Task, R = never, E = TaskError> = Effect.Effect<
   Tasks<T>,
   E,

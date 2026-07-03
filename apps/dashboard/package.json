@@ -12,8 +12,10 @@
   "dependencies": {
     "@open-insight/eval": "workspace:*",
     "effect": "catalog:",
+    "idb-keyval": "catalog:",
     "react": "^19.2.7",
-    "react-dom": "^19.2.7"
+    "react-dom": "^19.2.7",
+    "zustand": "catalog:"
   },
   "devDependencies": {
     "@babel/core": "^7.29.7",

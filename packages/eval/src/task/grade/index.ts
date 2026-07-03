@@ -1,5 +1,5 @@
 import type { Agent, Sandbox } from "@open-insight/core/internal";
-import type { Bivariant, UnionToIntersection } from "../../utils/variant.ts";
+import type { Bivariant, UnionToIntersection } from "@/utils/variant.ts";
 import { Brand, Effect, Schema } from "effect";
 import { TaskError } from "../error.ts";
 
