@@ -8,6 +8,7 @@ export class Metadata extends Schema.Class<Metadata>("BenchmarkMetadata")({
   homepage: Schema.optional(Schema.String),
   registry: Schema.optional(Schema.String),
   authors: Schema.optional(Schema.Array(Schema.String)),
+  extra: Schema.optional(Schema.Record(Schema.String, Schema.String)),
 }) {}
 
 export type Benchmark<T extends Task.Task = Task.Task> = Metadata &

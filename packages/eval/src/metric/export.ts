@@ -36,6 +36,7 @@ export {
   BoxPlot,
   Candlestick,
   Gauge,
+  Content,
   type Chart,
   type Type,
 } from "./chart.ts";

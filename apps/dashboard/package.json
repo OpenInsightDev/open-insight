@@ -10,11 +10,23 @@
     "preview": "vp preview"
   },
   "dependencies": {
+    "@fontsource-variable/geist": "catalog:",
     "@open-insight/eval": "workspace:*",
+    "@shadcn/react": "catalog:",
+    "@tailwindcss/vite": "catalog:",
+    "class-variance-authority": "catalog:",
+    "clsx": "catalog:",
     "effect": "catalog:",
     "idb-keyval": "catalog:",
+    "immer": "catalog:",
+    "lucide-react": "catalog:",
+    "radix-ui": "catalog:",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
+    "shadcn": "^4.12.0",
+    "tailwind-merge": "catalog:",
+    "tailwindcss": "catalog:",
+    "tw-animate-css": "catalog:",
     "zustand": "catalog:"
   },
   "devDependencies": {

@@ -53,7 +53,7 @@ export class Heatmap extends Schema.TaggedClass<Heatmap>()("Heatmap", {
 export class Treemap extends Schema.TaggedClass<Treemap>()("Treemap", {
   name: Schema.String,
   value: Schema.Number,
-  children: Schema.optionalKey(Schema.Array(Schema.suspend((): Schema.Schema<Treemap> => Treemap))),
+  parent: Schema.optionalKey(Schema.String),
 }) {}
 
 export class SankeyLink extends Schema.TaggedClass<SankeyLink>()("SankeyLink", {
@@ -69,32 +69,26 @@ export class Funnel extends Schema.TaggedClass<Funnel>()("Funnel", {
 
 export class WordCloud extends Schema.TaggedClass<WordCloud>()("WordCloud", {
   text: Schema.String,
-  weight: Schema.Number,
+  value: Schema.Number,
 }) {}
 
 export class BoxPlot extends Schema.TaggedClass<BoxPlot>()("BoxPlot", {
   label: Schema.String,
-  min: Schema.Number,
-  q1: Schema.Number,
-  median: Schema.Number,
-  q3: Schema.Number,
-  max: Schema.Number,
+  value: Schema.Number,
 }) {}
 
 export class Candlestick extends Schema.TaggedClass<Candlestick>()("Candlestick", {
   time: Schema.Union([Schema.String, Schema.Number]),
-  open: Schema.Number,
-  high: Schema.Number,
-  low: Schema.Number,
-  close: Schema.Number,
+  value: Schema.Number,
 }) {}
 
 export class Gauge extends Schema.TaggedClass<Gauge>()("Gauge", {
   name: Schema.String,
   value: Schema.Number,
-  min: Schema.optionalKey(Schema.Number),
-  max: Schema.optionalKey(Schema.Number),
-  units: Schema.optionalKey(Schema.String),
+}) {}
+
+export class Content extends Schema.TaggedClass<Content>()("Content", {
+  value: Schema.Json,
 }) {}
 
 export const ChartSchema = Schema.Union([
@@ -113,6 +107,7 @@ export const ChartSchema = Schema.Union([
   BoxPlot,
   Candlestick,
   Gauge,
+  Content,
 ]);
 export type Chart = Schema.Schema.Type<typeof ChartSchema>;
 
@@ -132,6 +127,7 @@ export const TypeSchema = Schema.Union([
   Schema.Literal("BoxPlot"),
   Schema.Literal("Candlestick"),
   Schema.Literal("Gauge"),
+  Schema.Literal("Content"),
 ]);
 export type Type = Schema.Schema.Type<typeof TypeSchema>;
 
