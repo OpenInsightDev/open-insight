@@ -7,8 +7,7 @@
     "ready": "vp check && vp run -r test && vp run -r build",
     "dev": "vp run website#dev",
     "prepare": "vp config && effect-tsgo patch",
-    "changeset-version": "changeset version",
-    "changeset-publish": "vp run -r build && changeset publish"
+    "version": "changeset version"
   },
   "devDependencies": {
     "@effect/language-service": "^0.86.2",

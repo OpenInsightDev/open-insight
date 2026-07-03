@@ -1,6 +1,6 @@
 {
   "name": "@open-insight/sandbox-openshell",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "description": "A starter for creating a TypeScript package.",
   "homepage": "https://github.com/author/library#readme",
   "bugs": {
