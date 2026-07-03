@@ -87,7 +87,7 @@ export const run = Effect.fn("exec/schedule")(
       benchmark,
     }: Readonly<{
       trailCount: number;
-      metrics: Metric.Metrics | null;
+      metrics: Option.Option<Metric.Metrics>;
       benchmark: Benchmark.Benchmark;
     }>,
     { harness, sandbox }: Config,
@@ -191,8 +191,9 @@ export const run = Effect.fn("exec/schedule")(
     );
 
     const metricStream = Stream.fromQueue(metricQueue);
-    const metricsFiber = yield* metrics
-      ? metricStream
+    const metricsFiber = yield* Option.match(metrics, {
+      onSome: (metrics) =>
+        metricStream
           .pipe(
             Stream.tap((input) => Ref.update(result, updateTrailResult(input))),
             Metric.transform({ metrics, trailCount, taskCount: benchmark.tasks.length }),
@@ -203,9 +204,9 @@ export const run = Effect.fn("exec/schedule")(
             Stream.runDrain,
           )
           .pipe(Effect.mapError(ExecError.metric))
-          .pipe(Effect.tap(() => Effect.logDebug("Completed metrics stream")))
-          .pipe(Effect.forkChild)
-      : metricStream.pipe(Stream.runDrain, Effect.forkChild);
+          .pipe(Effect.tap(() => Effect.logDebug("Completed metrics stream"))),
+      onNone: () => metricStream.pipe(Stream.runDrain),
+    }).pipe(Effect.forkChild);
 
     if (metricsFiber) {
       yield* Effect.logDebug("Started metrics stream");
@@ -227,7 +228,10 @@ export const run = Effect.fn("exec/schedule")(
         InitEvent.make({
           bench: benchmark,
           tasks: loadedTasks,
-          metrics: metrics?.metadata ?? [],
+          metrics: Option.match(metrics, {
+            onSome: (metrics) => metrics.metadata,
+            onNone: () => [],
+          }),
         }),
       );
 
@@ -251,11 +255,14 @@ export const run = Effect.fn("exec/schedule")(
       );
     });
 
-    const transportFiber = yield* Option.match(transport, {
-      onSome: (transport) =>
-        transport.send({ stream: Stream.fromQueue(eventQueue) }).pipe(Effect.forkChild),
-      onNone: () => Stream.fromQueue(eventQueue).pipe(Stream.runDrain, Effect.forkChild),
-    });
+    const transportFiber = yield* Stream.fromQueue(eventQueue).pipe(
+      (stream) =>
+        Option.match(transport, {
+          onSome: (transport) => transport.send({ stream }),
+          onNone: () => stream.pipe(Stream.runDrain),
+        }),
+      Effect.forkChild,
+    );
 
     yield* runSchedule()
       .pipe(Effect.ensuring(Queue.end(metricQueue)))

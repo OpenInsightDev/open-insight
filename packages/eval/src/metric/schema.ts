@@ -20,14 +20,14 @@ export type Input = Readonly<{
 
 export class TrajOutput extends Schema.TaggedClass<TrajOutput>()("TrajOutput", {
   name: Schema.String,
-  task: Task.MetadataSchema,
+  task: Task.Metadata,
   trailIndex: Schema.Number,
   result: Schema.Json,
 }) {}
 
 export class TaskOutput extends Schema.TaggedClass<TaskOutput>()("TaskOutput", {
   name: Schema.String,
-  task: Task.MetadataSchema,
+  task: Task.Metadata,
   result: Schema.Json,
 }) {}
 
