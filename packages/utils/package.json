@@ -1,6 +1,6 @@
 {
   "name": "@open-insight/utils",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "private": true,
   "description": "Shared Effect-based helpers for the Open Insight workspace.",
   "homepage": "https://github.com/open-insight/open-insight#readme",

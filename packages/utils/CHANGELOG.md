@@ -1,5 +1,11 @@
 # @open-insight/utils
 
+## 0.0.5
+
+### Patch Changes
+
+- patch
+
 ## 0.0.4
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@open-insight/sandbox-apple",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "private": true,
   "description": "Sandbox provider for Apple Container (container CLI).",
   "homepage": "https://github.com/open-insight/open-insight#readme",
