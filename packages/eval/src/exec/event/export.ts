@@ -1,3 +1,3 @@
-export { type Event, EventSchema } from "./schema.ts";
-export { type EventTransport } from "./service.ts";
+export { Event } from "./schema.ts";
+export { type EventTransport, EventTransportService } from "./service.ts";
 export * from "./builtin/export.ts";

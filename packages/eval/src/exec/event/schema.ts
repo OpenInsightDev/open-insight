@@ -53,13 +53,13 @@ export class TaskStreamPartEvent extends Schema.TaggedClass<TaskStreamPartEvent>
   },
 ) {}
 
-export const EventSchema = Schema.Union([
+export const Event = Schema.Union([
   InitEvent,
   TaskScheduleEvent,
   BenchScheduleEvent,
   MetricsStreamEvent,
   TaskStreamPartEvent,
 ]);
-export type Event = Schema.Schema.Type<typeof EventSchema>;
+export type Event = Schema.Schema.Type<typeof Event>;
 
 export type EventStream = Stream.Stream<Event, ExecError>;
