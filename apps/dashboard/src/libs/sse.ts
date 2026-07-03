@@ -95,7 +95,7 @@ const evalEventNames = [
   "TaskStreamPartEvent",
 ] satisfies ReadonlyArray<EvalEvent["_tag"]>;
 
-type EvalEventDecodingServices = Schema.Codec.DecodingServices<typeof Exec.EventSchema>;
+type EvalEventDecodingServices = Schema.Codec.DecodingServices<typeof Exec.Event>;
 
 export const fromEventSourceMessages = <A, R>(
   source: EventSource,
@@ -119,9 +119,7 @@ export const fromEvalEventSourceMessages = (
   source: EventSource,
   options?: FromEvalEventSourceOptions,
 ): Stream.Stream<SseMessage<EvalEvent>, Schema.SchemaError, EvalEventDecodingServices> =>
-  rawMessages(source, evalEventNames, options).pipe(
-    Stream.mapEffect(decodeMessage(Exec.EventSchema)),
-  );
+  rawMessages(source, evalEventNames, options).pipe(Stream.mapEffect(decodeMessage(Exec.Event)));
 
 export const fromEvalEventSource = (
   source: EventSource,

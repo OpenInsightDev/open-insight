@@ -12,8 +12,8 @@ const archiveHash = Effect.fn(function* (url: string) {
   return Encoding.encodeHex(digest);
 });
 
-export const withDist = (url: string) =>
-  Effect.fn(function* <T extends Task.Task>(exec: (distPath: string) => Loader<T>) {
+export const withDist = ({ url, format = "tar.gz" }: { url: string; format?: "tar.gz" }) =>
+  Effect.fn(function* <T extends Task.Task>(exec: (options: { distPath: string }) => Loader<T>) {
     const fs = yield* FileSystem.FileSystem;
     const spawner = yield* Spawn.SpawnService;
 
@@ -25,7 +25,7 @@ export const withDist = (url: string) =>
     const cacheHit = yield* fs.exists(distPath);
     if (!cacheHit) {
       const archivePath = yield* fs.makeTempFile({
-        suffix: ".tar.gz",
+        suffix: `.${format}`,
       });
       const parsedUrl = yield* Schema.decodeUnknownEffect(Schema.URLFromString)(url);
       const bytes = yield* HttpClient.get(parsedUrl).pipe(
@@ -40,5 +40,5 @@ export const withDist = (url: string) =>
       yield* spawner.exitCode(extract);
     }
 
-    return yield* exec(distPath);
+    return yield* exec({ distPath });
   });

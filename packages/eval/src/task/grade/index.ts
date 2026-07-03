@@ -10,7 +10,10 @@ export type Context = Sandbox.SandboxPromise &
 
 export type Exec<R = unknown> = Bivariant<(ctx: Context) => PromiseLike<R>>;
 
-export type Grader<N extends string = string, R = unknown> = Readonly<{ name: N; exec: Exec<R> }> &
+export type Grader<N extends string = string, R = unknown> = Readonly<{
+  name: N;
+  exec: Exec<R>;
+}> &
   Brand.Brand<N>;
 
 export type Map<G> = UnionToIntersection<
