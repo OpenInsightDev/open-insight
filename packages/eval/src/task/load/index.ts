@@ -12,4 +12,10 @@ export type Loader<T extends Task.Task = Task.Task, R = never, E = TaskError> = 
 export * as File from "./file.ts";
 export * as Git from "./git.ts";
 export * as Dist from "./dist.ts";
+export * as Parquet from "./parquet.ts";
 export * from "./iter.ts";
+
+export { fromDir } from "./file.ts";
+export { withDist } from "./dist.ts";
+export { withGitRepo, withGithub, withHuggingface } from "./git.ts";
+export { withParquet, withParquetDir } from "./parquet.ts";

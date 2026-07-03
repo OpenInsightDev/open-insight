@@ -12,7 +12,7 @@ export class AgentGradeService extends Context.Service<
   static layer = Layer.effect(
     this,
     Effect.gen(function* () {
-      const agent = yield* Agent.ProviderService;
+      yield* Agent.ProviderService;
 
       throw new Error("AgentGradeService is not implemented yet.");
     }),
@@ -28,7 +28,7 @@ export class ModelGradeService extends Context.Service<
   static layer = Layer.effect(
     this,
     Effect.gen(function* () {
-      const model = yield* LanguageModel.LanguageModel;
+      yield* LanguageModel.LanguageModel;
       throw new Error("ModelGradeService is not implemented yet.");
     }),
   );

@@ -1,3 +1,13 @@
-export { Event } from "./schema.ts";
-export { type EventTransport, EventTransportService } from "./service.ts";
+export {
+  BenchScheduleEvent,
+  Event,
+  EventTransportService,
+  InitEvent,
+  MetricsStreamEvent,
+  TaskScheduleEvent,
+  TaskStreamPartEvent,
+  type EventStream,
+  type EventTransport,
+} from "./index.ts";
 export * from "./builtin/export.ts";
+export * as Internal from "./index.ts";

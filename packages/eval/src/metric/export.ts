@@ -1,5 +1,24 @@
 export {
+  Bar,
+  BoxPlot,
+  Candlestick,
+  Content,
+  Funnel,
+  Gauge,
+  GroupedBar,
+  Heatmap,
+  Line,
+  MetricError,
+  Pie,
+  Radar,
+  SankeyLink,
+  Scatter,
+  Series,
+  Treemap,
+  WordCloud,
   init,
+  type ChartValue as Chart,
+  type ChartType as Type,
   type Metrics,
   withBenchEach,
   withBenchmark,
@@ -10,33 +29,11 @@ export {
   withTraj,
   withTrajEach,
   withTrajReduce,
-} from "./build.ts";
+} from "./index.ts";
 
 export * from "./builtin/export.ts";
 
-export * as Traj from "./traj.ts";
-export * as Task from "./task.ts";
-export * as Bench from "./bench.ts";
-
+export * as Bench from "./bench/export.ts";
 export * as Internal from "./index.ts";
-
-export {
-  Bar,
-  GroupedBar,
-  Pie,
-  Line,
-  Series,
-  Scatter,
-  Radar,
-  Heatmap,
-  Treemap,
-  SankeyLink,
-  Funnel,
-  WordCloud,
-  BoxPlot,
-  Candlestick,
-  Gauge,
-  Content,
-  type Chart,
-  type Type,
-} from "./chart.ts";
+export * as Task from "./task/export.ts";
+export * as Traj from "./traj/export.ts";

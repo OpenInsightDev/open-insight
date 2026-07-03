@@ -1,2 +1,2 @@
-export { make, type Harness } from "./index.ts";
-export { HarnessError, InitError } from "./error.ts";
+export { HarnessError, make, type Config, type Harness } from "./index.ts";
+export * as Internal from "./index.ts";

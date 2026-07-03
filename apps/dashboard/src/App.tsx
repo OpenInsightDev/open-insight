@@ -1,5 +1,52 @@
 import { useState, type ReactNode } from "react";
+import type { Metric } from "@open-insight/eval";
+import {
+  BarChart,
+  Bar,
+  CartesianGrid,
+  Cell,
+  ComposedChart,
+  ErrorBar,
+  FunnelChart,
+  Funnel,
+  LabelList,
+  LineChart,
+  Line,
+  PieChart,
+  Pie,
+  PolarAngleAxis,
+  PolarGrid,
+  RadarChart,
+  Radar,
+  Sankey,
+  ScatterChart,
+  Scatter,
+  Treemap,
+  XAxis,
+  YAxis,
+  ZAxis,
+} from "recharts";
 import "./App.css";
+import { Badge } from "@/components/ui/badge.tsx";
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card.tsx";
+import {
+  ChartContainer,
+  ChartLegend,
+  ChartLegendContent,
+  ChartTooltip,
+  ChartTooltipContent,
+  type ChartConfig,
+} from "@/components/ui/chart.tsx";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs.tsx";
+import { TooltipProvider } from "@/components/ui/tooltip.tsx";
 import {
   selectBenchmarkTasks,
   selectTaskTrails,
@@ -13,7 +60,8 @@ import {
   type TrailNode,
 } from "./store";
 
-type DashboardTab = "tasks" | "benchmark";
+type ChartType = Metric.Type;
+type DashboardTab = "tasks" | "charts" | "benchmark";
 
 type MetricEntry = {
   name: string;
@@ -471,8 +519,188 @@ const taskProgressItems = (task: TaskNode) => [
   { label: "Failed", value: task.progress.failedTrails },
 ];
 
+const chartTypeCoverage: Record<ChartType, true> = {
+  Bar: true,
+  GroupedBar: true,
+  Pie: true,
+  Line: true,
+  Series: true,
+  Scatter: true,
+  Radar: true,
+  Heatmap: true,
+  Treemap: true,
+  SankeyLink: true,
+  Funnel: true,
+  WordCloud: true,
+  BoxPlot: true,
+  Candlestick: true,
+  Gauge: true,
+  Content: true,
+};
+
+const baseChartConfig = {
+  value: { label: "Value", color: "var(--chart-1)" },
+  secondary: { label: "Secondary", color: "var(--chart-2)" },
+  warning: { label: "Warning", color: "var(--chart-3)" },
+  critical: { label: "Critical", color: "var(--chart-4)" },
+  detail: { label: "Detail", color: "var(--chart-5)" },
+} satisfies ChartConfig;
+
+const groupedBarConfig = {
+  baseline: { label: "Baseline", color: "var(--chart-2)" },
+  current: { label: "Current", color: "var(--chart-1)" },
+  target: { label: "Target", color: "var(--chart-3)" },
+} satisfies ChartConfig;
+
+const seriesConfig = {
+  accuracy: { label: "Accuracy", color: "var(--chart-1)" },
+  latency: { label: "Latency", color: "var(--chart-4)" },
+  tokens: { label: "Tokens", color: "var(--chart-2)" },
+} satisfies ChartConfig;
+
+const barData = [
+  { category: "Research", value: 86 },
+  { category: "Patch", value: 94 },
+  { category: "Triage", value: 48 },
+  { category: "Review", value: 72 },
+  { category: "Report", value: 81 },
+];
+
+const groupedBarData = [
+  { category: "Plan", baseline: 63, current: 79, target: 84 },
+  { category: "Act", baseline: 58, current: 76, target: 82 },
+  { category: "Verify", baseline: 46, current: 68, target: 80 },
+  { category: "Cite", baseline: 71, current: 84, target: 88 },
+];
+
+const pieData = [
+  { name: "Completed", value: 38, fill: "var(--chart-2)" },
+  { name: "Running", value: 12, fill: "var(--chart-1)" },
+  { name: "Failed", value: 8, fill: "var(--chart-4)" },
+  { name: "Queued", value: 15, fill: "var(--chart-3)" },
+];
+
+const lineData = [
+  { x: "09:00", y: 0.58 },
+  { x: "09:30", y: 0.66 },
+  { x: "10:00", y: 0.69 },
+  { x: "10:30", y: 0.74 },
+  { x: "11:00", y: 0.79 },
+  { x: "11:30", y: 0.76 },
+];
+
+const seriesData = [
+  { x: "Run 1", accuracy: 62, latency: 84, tokens: 42 },
+  { x: "Run 2", accuracy: 68, latency: 71, tokens: 49 },
+  { x: "Run 3", accuracy: 73, latency: 64, tokens: 55 },
+  { x: "Run 4", accuracy: 79, latency: 59, tokens: 61 },
+  { x: "Run 5", accuracy: 82, latency: 53, tokens: 67 },
+];
+
+const scatterData = [
+  { x: 42, y: 0.66, size: 360, label: "research" },
+  { x: 58, y: 0.94, size: 520, label: "patch" },
+  { x: 73, y: 0.71, size: 420, label: "review" },
+  { x: 96, y: 0.31, size: 680, label: "triage" },
+  { x: 64, y: 0.82, size: 460, label: "report" },
+];
+
+const radarData = [
+  { category: "Planning", value: 84 },
+  { category: "Evidence", value: 76 },
+  { category: "Tool use", value: 88 },
+  { category: "Recovery", value: 55 },
+  { category: "Output", value: 79 },
+  { category: "Speed", value: 68 },
+];
+
+const heatmapData = [
+  { x: 1, y: 1, value: 42 },
+  { x: 2, y: 1, value: 66 },
+  { x: 3, y: 1, value: 81 },
+  { x: 4, y: 1, value: 71 },
+  { x: 1, y: 2, value: 58 },
+  { x: 2, y: 2, value: 74 },
+  { x: 3, y: 2, value: 89 },
+  { x: 4, y: 2, value: 63 },
+  { x: 1, y: 3, value: 35 },
+  { x: 2, y: 3, value: 52 },
+  { x: 3, y: 3, value: 68 },
+  { x: 4, y: 3, value: 47 },
+];
+
+const treemapData = [
+  { name: "Evidence", value: 34 },
+  { name: "Tool calls", value: 28 },
+  { name: "Reasoning", value: 24 },
+  { name: "Outputs", value: 18 },
+  { name: "Errors", value: 10 },
+  { name: "Usage", value: 14 },
+];
+
+const sankeyData = {
+  nodes: [
+    { name: "Queued" },
+    { name: "Running" },
+    { name: "Completed" },
+    { name: "Failed" },
+    { name: "Review" },
+  ],
+  links: [
+    { source: 0, target: 1, value: 42 },
+    { source: 1, target: 2, value: 28 },
+    { source: 1, target: 3, value: 7 },
+    { source: 1, target: 4, value: 7 },
+    { source: 4, target: 2, value: 5 },
+    { source: 4, target: 3, value: 2 },
+  ],
+};
+
+const funnelData = [
+  { name: "Tasks loaded", value: 120, fill: "var(--chart-1)" },
+  { name: "Trails started", value: 92, fill: "var(--chart-2)" },
+  { name: "Evidence found", value: 74, fill: "var(--chart-3)" },
+  { name: "Passed", value: 53, fill: "var(--chart-4)" },
+];
+
+const wordCloudData = [
+  { x: 18, y: 68, value: 880, text: "citation" },
+  { x: 38, y: 44, value: 620, text: "retry" },
+  { x: 58, y: 72, value: 720, text: "tool" },
+  { x: 76, y: 36, value: 520, text: "latency" },
+  { x: 48, y: 26, value: 450, text: "schema" },
+  { x: 26, y: 22, value: 340, text: "evidence" },
+];
+
+const boxPlotData = [
+  { label: "Research", value: [63, 86], range: [48, 96], median: 76 },
+  { label: "Patch", value: [72, 94], range: [58, 99], median: 88 },
+  { label: "Triage", value: [31, 57], range: [18, 79], median: 44 },
+  { label: "Review", value: [54, 82], range: [37, 90], median: 69 },
+];
+
+const candlestickData = [
+  { time: "09:00", value: [52, 68], range: [44, 74], close: 68 },
+  { time: "09:30", value: [68, 61], range: [55, 72], close: 61 },
+  { time: "10:00", value: [61, 77], range: [57, 83], close: 77 },
+  { time: "10:30", value: [77, 73], range: [66, 81], close: 73 },
+  { time: "11:00", value: [73, 86], range: [71, 91], close: 86 },
+];
+
+const gaugeData = [
+  { name: "Score", value: 74, fill: "var(--chart-1)" },
+  { name: "Remaining", value: 26, fill: "var(--muted)" },
+];
+
+const contentValue = {
+  runId: "bench-agent-042",
+  verdict: "needs review",
+  evidence: ["official-source", "tool-log", "trajectory"],
+  notes: "Failure cluster is isolated to timeout-sensitive tasks.",
+};
+
 function App() {
-  const [activeTab, setActiveTab] = useState<DashboardTab>("tasks");
+  const [activeTab, setActiveTab] = useState<DashboardTab>("charts");
   const [activeTaskName, setActiveTaskName] = useState(mockBenchmark.taskOrder[0] ?? "");
   const [activeTrailIndex, setActiveTrailIndex] = useState<number | undefined>(undefined);
 
@@ -488,53 +716,56 @@ function App() {
   const trailIndex = trail?.index;
 
   return (
-    <main className="dashboard-shell">
-      <DashboardHeader benchmark={benchmark} eventCount={128} lastEventAt={mockUpdatedAt} />
+    <TooltipProvider>
+      <main className="dashboard-shell">
+        <DashboardHeader benchmark={benchmark} eventCount={128} lastEventAt={mockUpdatedAt} />
 
-      <nav className="dashboard-tabs" aria-label="Dashboard sections">
-        <button
-          type="button"
-          className={activeTab === "tasks" ? "is-active" : undefined}
-          onClick={() => setActiveTab("tasks")}
+        <Tabs
+          value={activeTab}
+          onValueChange={(nextValue) => {
+            if (nextValue === "tasks" || nextValue === "charts" || nextValue === "benchmark") {
+              setActiveTab(nextValue);
+            }
+          }}
+          className="dashboard-section-tabs"
         >
-          Tasks
-        </button>
-        <button
-          type="button"
-          className={activeTab === "benchmark" ? "is-active" : undefined}
-          onClick={() => setActiveTab("benchmark")}
-        >
-          Benchmark Stats
-        </button>
-      </nav>
+          <TabsList className="dashboard-tabs-list" variant="line" aria-label="Dashboard sections">
+            <TabsTrigger value="tasks">Tasks</TabsTrigger>
+            <TabsTrigger value="charts">Charts</TabsTrigger>
+            <TabsTrigger value="benchmark">Benchmark Stats</TabsTrigger>
+          </TabsList>
+        </Tabs>
 
-      {activeTab === "benchmark" ? (
-        <BenchmarkStats benchmark={benchmark} />
-      ) : (
-        <section className="tasks-layout">
-          <TaskRail
-            benchmark={benchmark}
-            tasks={tasks}
-            activeTaskName={taskName}
-            onSelectTask={(nextTaskName) => {
-              setActiveTaskName(nextTaskName);
-              setActiveTrailIndex(undefined);
-            }}
-          />
-          <section className="task-workspace">
-            <TaskStats task={task} />
-            <TrailPanel
-              benchmarkName={benchmark.name}
-              taskName={task?.name}
-              trails={trails}
-              activeTrailIndex={trailIndex}
-              trail={trail}
-              onSelectTrail={setActiveTrailIndex}
+        {activeTab === "benchmark" ? (
+          <BenchmarkStats benchmark={benchmark} />
+        ) : activeTab === "charts" ? (
+          <ChartGallery />
+        ) : (
+          <section className="tasks-layout">
+            <TaskRail
+              benchmark={benchmark}
+              tasks={tasks}
+              activeTaskName={taskName}
+              onSelectTask={(nextTaskName) => {
+                setActiveTaskName(nextTaskName);
+                setActiveTrailIndex(undefined);
+              }}
             />
+            <section className="task-workspace">
+              <TaskStats task={task} />
+              <TrailPanel
+                benchmarkName={benchmark.name}
+                taskName={task?.name}
+                trails={trails}
+                activeTrailIndex={trailIndex}
+                trail={trail}
+                onSelectTrail={setActiveTrailIndex}
+              />
+            </section>
           </section>
-        </section>
-      )}
-    </main>
+        )}
+      </main>
+    </TooltipProvider>
   );
 }
 
@@ -800,6 +1031,376 @@ function MessageFlow({ trail }: { trail: TrailNode }) {
         ))
       )}
     </div>
+  );
+}
+
+function ChartGallery() {
+  return (
+    <section className="chart-gallery">
+      <div className="chart-gallery-header">
+        <div>
+          <h2>Metric Chart Types</h2>
+          <p>
+            Mock metric outputs rendered from every chart type exposed by the eval metric schema.
+          </p>
+        </div>
+        <Badge variant="secondary">{Object.keys(chartTypeCoverage).length} chart types</Badge>
+      </div>
+
+      <div className="chart-card-grid">
+        <ChartShowcaseCard
+          type="Bar"
+          title="Task Score"
+          description="Single category-value metric shape for task-level comparisons."
+        >
+          <ChartContainer config={baseChartConfig} className="chart-visual">
+            <BarChart accessibilityLayer data={barData} margin={{ left: 0, right: 8 }}>
+              <CartesianGrid vertical={false} />
+              <XAxis dataKey="category" tickLine={false} axisLine={false} />
+              <YAxis tickLine={false} axisLine={false} width={30} />
+              <ChartTooltip content={<ChartTooltipContent />} />
+              <Bar dataKey="value" fill="var(--color-value)" radius={4} />
+            </BarChart>
+          </ChartContainer>
+        </ChartShowcaseCard>
+
+        <ChartShowcaseCard
+          type="GroupedBar"
+          title="Baseline vs Current"
+          description="Category, group, and value mapped into grouped metric bars."
+        >
+          <ChartContainer config={groupedBarConfig} className="chart-visual">
+            <BarChart accessibilityLayer data={groupedBarData} margin={{ left: 0, right: 8 }}>
+              <CartesianGrid vertical={false} />
+              <XAxis dataKey="category" tickLine={false} axisLine={false} />
+              <YAxis tickLine={false} axisLine={false} width={30} />
+              <ChartTooltip content={<ChartTooltipContent />} />
+              <ChartLegend content={<ChartLegendContent />} />
+              <Bar dataKey="baseline" fill="var(--color-baseline)" radius={3} />
+              <Bar dataKey="current" fill="var(--color-current)" radius={3} />
+              <Bar dataKey="target" fill="var(--color-target)" radius={3} />
+            </BarChart>
+          </ChartContainer>
+        </ChartShowcaseCard>
+
+        <ChartShowcaseCard
+          type="Pie"
+          title="Run State Share"
+          description="Name-value metric distribution for benchmark state."
+        >
+          <ChartContainer config={baseChartConfig} className="chart-visual">
+            <PieChart accessibilityLayer>
+              <ChartTooltip content={<ChartTooltipContent hideLabel />} />
+              <Pie
+                data={pieData}
+                dataKey="value"
+                nameKey="name"
+                innerRadius={48}
+                outerRadius={84}
+                paddingAngle={2}
+              >
+                {pieData.map((item) => (
+                  <Cell key={item.name} fill={item.fill} />
+                ))}
+              </Pie>
+            </PieChart>
+          </ChartContainer>
+        </ChartShowcaseCard>
+
+        <ChartShowcaseCard
+          type="Line"
+          title="Score Trend"
+          description="String x-axis and numeric y-axis across a running benchmark window."
+        >
+          <ChartContainer config={baseChartConfig} className="chart-visual">
+            <LineChart accessibilityLayer data={lineData} margin={{ left: 0, right: 12 }}>
+              <CartesianGrid vertical={false} />
+              <XAxis dataKey="x" tickLine={false} axisLine={false} />
+              <YAxis tickLine={false} axisLine={false} width={32} domain={[0.4, 1]} />
+              <ChartTooltip content={<ChartTooltipContent />} />
+              <Line
+                type="monotone"
+                dataKey="y"
+                stroke="var(--color-value)"
+                strokeWidth={2}
+                dot={{ r: 3 }}
+              />
+            </LineChart>
+          </ChartContainer>
+        </ChartShowcaseCard>
+
+        <ChartShowcaseCard
+          type="Series"
+          title="Multi-signal Series"
+          description="Series, x, and y values pivoted into aligned metric traces."
+        >
+          <ChartContainer config={seriesConfig} className="chart-visual">
+            <LineChart accessibilityLayer data={seriesData} margin={{ left: 0, right: 12 }}>
+              <CartesianGrid vertical={false} />
+              <XAxis dataKey="x" tickLine={false} axisLine={false} />
+              <YAxis tickLine={false} axisLine={false} width={30} />
+              <ChartTooltip content={<ChartTooltipContent />} />
+              <ChartLegend content={<ChartLegendContent />} />
+              <Line dataKey="accuracy" stroke="var(--color-accuracy)" strokeWidth={2} />
+              <Line dataKey="latency" stroke="var(--color-latency)" strokeWidth={2} />
+              <Line dataKey="tokens" stroke="var(--color-tokens)" strokeWidth={2} />
+            </LineChart>
+          </ChartContainer>
+        </ChartShowcaseCard>
+
+        <ChartShowcaseCard
+          type="Scatter"
+          title="Latency vs Accuracy"
+          description="Numeric x/y values with optional size and label metadata."
+        >
+          <ChartContainer config={baseChartConfig} className="chart-visual">
+            <ScatterChart accessibilityLayer margin={{ left: 0, right: 14, top: 10 }}>
+              <CartesianGrid />
+              <XAxis dataKey="x" name="Latency" unit="ms" tickLine={false} axisLine={false} />
+              <YAxis
+                dataKey="y"
+                name="Accuracy"
+                tickLine={false}
+                axisLine={false}
+                width={34}
+                domain={[0.2, 1]}
+              />
+              <ZAxis dataKey="size" range={[80, 460]} />
+              <ChartTooltip content={<ChartTooltipContent />} />
+              <Scatter data={scatterData} fill="var(--color-value)" />
+            </ScatterChart>
+          </ChartContainer>
+        </ChartShowcaseCard>
+
+        <ChartShowcaseCard
+          type="Radar"
+          title="Capability Profile"
+          description="Category, metric, and value projected around one benchmark profile."
+        >
+          <ChartContainer config={baseChartConfig} className="chart-visual">
+            <RadarChart accessibilityLayer data={radarData}>
+              <PolarGrid />
+              <PolarAngleAxis dataKey="category" />
+              <ChartTooltip content={<ChartTooltipContent />} />
+              <Radar
+                dataKey="value"
+                fill="var(--color-value)"
+                fillOpacity={0.24}
+                stroke="var(--color-value)"
+                strokeWidth={2}
+              />
+            </RadarChart>
+          </ChartContainer>
+        </ChartShowcaseCard>
+
+        <ChartShowcaseCard
+          type="Heatmap"
+          title="Task x Signal Density"
+          description="Heatmap schema rendered as a Recharts bubble matrix."
+        >
+          <ChartContainer config={baseChartConfig} className="chart-visual">
+            <ScatterChart accessibilityLayer margin={{ left: 4, right: 16, top: 12, bottom: 4 }}>
+              <CartesianGrid />
+              <XAxis dataKey="x" type="number" domain={[0.5, 4.5]} tickLine={false} />
+              <YAxis dataKey="y" type="number" domain={[0.5, 3.5]} tickLine={false} width={28} />
+              <ZAxis dataKey="value" range={[80, 760]} />
+              <ChartTooltip content={<ChartTooltipContent />} />
+              <Scatter data={heatmapData} fill="var(--color-warning)" />
+            </ScatterChart>
+          </ChartContainer>
+        </ChartShowcaseCard>
+
+        <ChartShowcaseCard
+          type="Treemap"
+          title="Evidence Volume"
+          description="Name-value leaves grouped by benchmark evidence categories."
+        >
+          <ChartContainer config={baseChartConfig} className="chart-visual">
+            <Treemap
+              data={treemapData}
+              dataKey="value"
+              nameKey="name"
+              stroke="var(--background)"
+              fill="var(--color-value)"
+              aspectRatio={1.45}
+            />
+          </ChartContainer>
+        </ChartShowcaseCard>
+
+        <ChartShowcaseCard
+          type="SankeyLink"
+          title="Execution Flow"
+          description="Source, target, and value links across benchmark run states."
+        >
+          <ChartContainer config={baseChartConfig} className="chart-visual">
+            <Sankey
+              data={sankeyData}
+              dataKey="value"
+              node={{ fill: "var(--color-value)", stroke: "var(--background)", strokeWidth: 1 }}
+              link={{ stroke: "var(--color-secondary)", strokeOpacity: 0.35 }}
+              margin={{ left: 8, right: 8, top: 8, bottom: 8 }}
+            >
+              <ChartTooltip content={<ChartTooltipContent />} />
+            </Sankey>
+          </ChartContainer>
+        </ChartShowcaseCard>
+
+        <ChartShowcaseCard
+          type="Funnel"
+          title="Evaluation Funnel"
+          description="Name-value funnel from loaded tasks to passing outcomes."
+        >
+          <ChartContainer config={baseChartConfig} className="chart-visual">
+            <FunnelChart accessibilityLayer>
+              <ChartTooltip content={<ChartTooltipContent />} />
+              <Funnel data={funnelData} dataKey="value" nameKey="name" isAnimationActive>
+                <LabelList dataKey="name" position="right" fill="var(--foreground)" />
+              </Funnel>
+            </FunnelChart>
+          </ChartContainer>
+        </ChartShowcaseCard>
+
+        <ChartShowcaseCard
+          type="WordCloud"
+          title="Signal Terms"
+          description="Text and value represented as weighted labeled bubbles."
+        >
+          <ChartContainer config={baseChartConfig} className="chart-visual">
+            <ScatterChart accessibilityLayer margin={{ left: 8, right: 8, top: 8, bottom: 8 }}>
+              <XAxis dataKey="x" type="number" domain={[0, 100]} hide />
+              <YAxis dataKey="y" type="number" domain={[0, 100]} hide />
+              <ZAxis dataKey="value" range={[180, 980]} />
+              <ChartTooltip content={<ChartTooltipContent />} />
+              <Scatter data={wordCloudData} fill="var(--color-detail)">
+                <LabelList dataKey="text" position="center" fill="var(--background)" />
+              </Scatter>
+            </ScatterChart>
+          </ChartContainer>
+        </ChartShowcaseCard>
+
+        <ChartShowcaseCard
+          type="BoxPlot"
+          title="Score Distribution"
+          description="Label and value samples summarized into interquartile ranges."
+        >
+          <ChartContainer config={baseChartConfig} className="chart-visual">
+            <ComposedChart accessibilityLayer data={boxPlotData} margin={{ left: 0, right: 12 }}>
+              <CartesianGrid vertical={false} />
+              <XAxis dataKey="label" tickLine={false} axisLine={false} />
+              <YAxis tickLine={false} axisLine={false} width={30} domain={[0, 100]} />
+              <ChartTooltip content={<ChartTooltipContent />} />
+              <Bar dataKey="value" fill="var(--color-value)" radius={3} barSize={22}>
+                <ErrorBar dataKey="range" width={8} stroke="var(--color-critical)" />
+              </Bar>
+              <Line
+                dataKey="median"
+                stroke="var(--color-critical)"
+                strokeWidth={2}
+                dot={{ r: 3 }}
+              />
+            </ComposedChart>
+          </ChartContainer>
+        </ChartShowcaseCard>
+
+        <ChartShowcaseCard
+          type="Candlestick"
+          title="Run Score Movement"
+          description="Time and value samples rendered as ranged open-close bars."
+        >
+          <ChartContainer config={baseChartConfig} className="chart-visual">
+            <ComposedChart
+              accessibilityLayer
+              data={candlestickData}
+              margin={{ left: 0, right: 12 }}
+            >
+              <CartesianGrid vertical={false} />
+              <XAxis dataKey="time" tickLine={false} axisLine={false} />
+              <YAxis tickLine={false} axisLine={false} width={30} domain={[40, 95]} />
+              <ChartTooltip content={<ChartTooltipContent />} />
+              <Bar dataKey="value" fill="var(--color-secondary)" radius={3} barSize={18}>
+                <ErrorBar dataKey="range" width={7} stroke="var(--color-value)" />
+              </Bar>
+              <Line dataKey="close" stroke="var(--color-value)" strokeWidth={2} dot={{ r: 3 }} />
+            </ComposedChart>
+          </ChartContainer>
+        </ChartShowcaseCard>
+
+        <ChartShowcaseCard
+          type="Gauge"
+          title="Overall Score"
+          description="Name and value rendered as a compact benchmark gauge."
+        >
+          <ChartContainer config={baseChartConfig} className="chart-visual gauge-visual">
+            <PieChart accessibilityLayer>
+              <Pie
+                data={gaugeData}
+                dataKey="value"
+                nameKey="name"
+                startAngle={180}
+                endAngle={0}
+                innerRadius={70}
+                outerRadius={94}
+                paddingAngle={1}
+              >
+                {gaugeData.map((item) => (
+                  <Cell key={item.name} fill={item.fill} />
+                ))}
+              </Pie>
+            </PieChart>
+          </ChartContainer>
+          <div className="gauge-readout">
+            <strong>74%</strong>
+            <span>weighted benchmark score</span>
+          </div>
+        </ChartShowcaseCard>
+
+        <ChartShowcaseCard
+          type="Content"
+          title="Structured Content"
+          description="Arbitrary JSON content shown beside summary evidence."
+          footer="Content is intentionally not coerced into numeric axes."
+        >
+          <div className="content-chart">
+            <pre>{formatJson(contentValue)}</pre>
+            <div className="content-evidence">
+              <Badge variant="outline">official-source</Badge>
+              <Badge variant="outline">tool-log</Badge>
+              <Badge variant="outline">trajectory</Badge>
+            </div>
+          </div>
+        </ChartShowcaseCard>
+      </div>
+    </section>
+  );
+}
+
+function ChartShowcaseCard({
+  type,
+  title,
+  description,
+  footer,
+  children,
+}: {
+  type: ChartType;
+  title: string;
+  description: string;
+  footer?: string;
+  children: ReactNode;
+}) {
+  return (
+    <Card className="chart-card" size="sm">
+      <CardHeader>
+        <CardTitle>{title}</CardTitle>
+        <CardDescription>{description}</CardDescription>
+        <CardAction>
+          <Badge variant="outline">{type}</Badge>
+        </CardAction>
+      </CardHeader>
+      <CardContent className="chart-card-content">{children}</CardContent>
+      {footer === undefined ? null : (
+        <CardFooter className="chart-card-footer">{footer}</CardFooter>
+      )}
+    </Card>
   );
 }
 
