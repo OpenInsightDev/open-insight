@@ -21,7 +21,7 @@ const formatResources = (resources: Sandbox.ResourceLimits | null): Array<string
     return [];
   }
 
-  const { numCPUs, memoryMiB, numGPUs, diskMiB } = resources;
+  const { numCPUs, memoryMiB, numGPUs, storageMiB } = resources;
   const resourceArgs: Array<string> = [];
   if (numCPUs !== undefined) {
     resourceArgs.push("--cpus", `${numCPUs}`);
@@ -35,8 +35,8 @@ const formatResources = (resources: Sandbox.ResourceLimits | null): Array<string
     resourceArgs.push("--gpus", `count=${numGPUs}`);
   }
 
-  if (diskMiB !== undefined) {
-    resourceArgs.push("--storage-opt", `size=${diskMiB}m`);
+  if (storageMiB !== undefined) {
+    resourceArgs.push("--storage-opt", `size=${storageMiB}m`);
   }
   return resourceArgs;
 };

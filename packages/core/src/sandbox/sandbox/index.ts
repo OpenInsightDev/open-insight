@@ -3,7 +3,6 @@ import { ChildProcess as CP } from "effect/unstable/process";
 import { Spawn } from "@open-insight/utils";
 import { SandboxError } from "../error.ts";
 import * as Snapshot from "../snapshot/index.ts";
-import * as Assert from "../assert/index.ts";
 
 export const SANDBOX_NAME = "open-insight-sandbox";
 
@@ -41,8 +40,6 @@ export type MakeSandboxOptions = Readonly<{
   upload: Sandbox["upload"] | "rsync";
   readFile: Sandbox["readFile"] | "cat";
   writeFile: Sandbox["writeFile"] | "tee";
-
-  assert: Assert.Assert | null;
 }>;
 
 export const make = Effect.fn(function* ({
@@ -52,7 +49,6 @@ export const make = Effect.fn(function* ({
   upload,
   readFile,
   writeFile,
-  assert,
 }: MakeSandboxOptions): Effect.fn.Return<Sandbox, SandboxError, Spawn.SpawnService> {
   const spawner = yield* Spawn.SpawnService;
 
@@ -135,36 +131,5 @@ export const make = Effect.fn(function* ({
     expose,
   } satisfies Sandbox;
 });
-
-export const makeHost = Effect.fn(
-  function* ({
-    assert,
-  }: {
-    assert: Assert.Assert | null;
-  }): Effect.fn.Return<Sandbox, SandboxError, Spawn.SpawnService> {
-    const spawner = yield* Spawn.SpawnService;
-
-    const $ = Effect.fn(function* (
-      command: CP.StandardCommand,
-      input?: string,
-    ): Effect.fn.Return<string, SandboxError> {
-      throw new Error("Host sandbox is not implemented yet");
-    });
-
-    const expose: Sandbox["expose"] = ({ hostPort }) =>
-      Effect.succeed({ hostUrl: `http://localhost:${hostPort}` });
-
-    return yield* make({
-      $,
-      expose,
-      download: "rsync",
-      upload: "rsync",
-      readFile: "cat",
-      writeFile: "tee",
-      assert,
-    });
-  },
-  (effect) => effect.pipe(Effect.provide(Spawn.SpawnService.layer)),
-);
 
 export * from "./promise.ts";

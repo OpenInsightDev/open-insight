@@ -14,12 +14,12 @@ export class TaskLoadError extends Schema.TaggedErrorClass<TaskLoadError>()("Tas
 }) {}
 
 export class TaskInitError extends Schema.TaggedErrorClass<TaskInitError>()("TaskInitError", {
-  task: Task.MetadataSchema,
+  task: Task.Metadata,
   cause: Schema.Defect(),
 }) {}
 
 export class TaskExecError extends Schema.TaggedErrorClass<TaskExecError>()("TaskExecError", {
-  task: Task.MetadataSchema,
+  task: Task.Metadata,
   trailIndex: NonNegativeInt,
   cause: Schema.Defect(),
 }) {}
@@ -42,7 +42,7 @@ export class EventTransportError extends Schema.TaggedErrorClass<EventTransportE
 ) {}
 
 export class SnapshotError extends Schema.TaggedErrorClass<SnapshotError>()("SnapshotError", {
-  task: Task.MetadataSchema,
+  task: Task.Metadata,
   snapshot: Sandbox.Snapshot.Snapshot,
   cause: Schema.Defect(),
 }) {}

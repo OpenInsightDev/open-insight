@@ -1,5 +1,4 @@
 import { Context, Effect, type Scope } from "effect";
-import * as Assert from "../assert/index.ts";
 import type * as SandboxContext from "../context/index.ts";
 import type { SandboxError } from "../error.ts";
 import type { ResourceLimits } from "../resource.ts";

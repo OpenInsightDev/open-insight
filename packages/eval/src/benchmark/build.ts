@@ -10,8 +10,6 @@ export class Metadata extends Schema.Class<Metadata>("BenchmarkMetadata")({
   authors: Schema.optional(Schema.Array(Schema.String)),
 }) {}
 
-export const MetadataSchema: Schema.Schema<Metadata> = Metadata;
-
 export type Benchmark<T extends Task.Task = Task.Task> = Metadata &
   Readonly<{
     tasks: Task.Tasks<T>;

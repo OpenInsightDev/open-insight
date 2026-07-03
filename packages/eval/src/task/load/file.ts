@@ -63,7 +63,7 @@ export const fromDir = <T extends Task.Task>({
             );
           }
 
-          return module.default as T;
+          return Effect.succeed(module.default as T);
         }),
       ),
       { concurrency: "unbounded" },
