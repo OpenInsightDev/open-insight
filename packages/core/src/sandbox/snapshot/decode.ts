@@ -10,8 +10,8 @@ import {
   Workdir,
 } from "dockerfile-ast";
 import { Effect, Option, Schema, SchemaGetter, SchemaIssue } from "effect";
-import { Instruction } from "./instruction.ts";
-import { Snapshot } from "./schema.ts";
+import { Instruction } from "./inst.ts";
+import { Snapshot } from "./build.ts";
 
 const encodeInstruction = (instruction: Instruction): string =>
   Instruction.match(instruction, {

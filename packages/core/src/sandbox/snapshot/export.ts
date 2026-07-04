@@ -1,8 +1,8 @@
-export { derive, extend, fromImage, hash, Image, make } from "./index.ts";
-export { Snapshot } from "./schema.ts";
-export { decodeSync as fromContainerfile } from "./decode.ts";
+export { extend, fromImage, hash, Image, make, Snapshot, fromContainerfile } from "./build.ts";
 
-export * as Inst from "./instruction.ts";
-export { Instruction, Instructions } from "./instruction.ts";
+export * as Inst from "./inst.ts";
+export { Instruction, Instructions } from "./inst.ts";
+
+export { type Handle } from "./handle.ts";
 
 export * as Internal from "./index.ts";
