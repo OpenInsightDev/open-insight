@@ -9,3 +9,4 @@ export * as Snapshot from "./snapshot/export.ts";
 export { type Config } from "./config.ts";
 
 export { ResourceLimits } from "./resource.ts";
+export { formatBash } from "./utils.ts";

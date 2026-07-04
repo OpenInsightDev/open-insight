@@ -1,19 +1,10 @@
-import { FileSystem, Path, Schema } from "effect";
-import { Instructions } from "./inst.ts";
 import { Crypto, Effect, Encoding } from "effect";
+import { FileSystem, Path } from "effect";
 import { decode, encode } from "./decode.ts";
+import { Instructions } from "./inst.ts";
+import { Image, Snapshot } from "./schema.ts";
 import type { Context } from "../index.ts";
-
-/**
- * OCI image reference (e.g. `docker.io/library/node:18-alpine`).
- */
-export const Image = Schema.String;
-export type Image = Schema.Schema.Type<typeof Image>;
-
-export class Snapshot extends Schema.Class<Snapshot>("Snapshot")({
-  image: Image,
-  instructions: Instructions,
-}) {}
+export { Image, Snapshot } from "./schema.ts";
 
 /**
  * The name of the snapshot.

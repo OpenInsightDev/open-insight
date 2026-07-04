@@ -7,4 +7,7 @@
   - 该库提供了 `fork` API 可用于从一个 forkable 的 machine 衍生出一个新的 machine 实例（参考 https://smolmachines.com/docs/machine），因此可做到类似于 snapshot 的效果。
 - 端口映射采用和 Docker 一样的预先映射配置。
 
-详细文档在 https://smolmachines.com/docs/machine。
+参考文档：
+
+- 详细文档在 https://smolmachines.com/docs/machine；
+- 运行 `smolvm --help` 查看文档；

@@ -1,0 +1,538 @@
+import { Sandbox } from "@open-insight/core";
+import { Spawn } from "@open-insight/utils";
+import { Crypto, Effect, FileSystem, Path, Schema, type Scope } from "effect";
+import { ChildProcess as CP } from "effect/unstable/process";
+import { Machine, type ExecOptions, type PortSpec, type ResourceSpec } from "smolmachines";
+
+export type PortMapping = Readonly<{
+  sandboxPort: number;
+  hostPort: number;
+}>;
+
+export type MakeOptions = Readonly<{
+  portMappings?: Array<PortMapping>;
+}>;
+
+const SnapshotState = Schema.Struct({
+  env: Schema.Record(Schema.String, Schema.String),
+  workdir: Schema.UndefinedOr(Schema.String),
+});
+type SnapshotState = Schema.Schema.Type<typeof SnapshotState>;
+
+type SnapshotMachine = Readonly<{
+  machine: Machine;
+  state: SnapshotState;
+}>;
+
+const initialState: SnapshotState = {
+  env: {},
+  workdir: undefined,
+};
+
+const metadataPath = "/open-insight/snapshot.json";
+const supportedBaseImages = new Set(["scratch", "alpine", "alpine:latest"]);
+
+const formatResources = (resources: Sandbox.ResourceLimits | null): ResourceSpec => {
+  const spec: ResourceSpec = { network: true };
+
+  if (resources?.numCPUs !== undefined) {
+    spec.cpus = resources.numCPUs;
+  }
+
+  if (resources?.memoryMiB !== undefined) {
+    spec.memoryMb = resources.memoryMiB;
+  }
+
+  if (resources?.storageMiB !== undefined) {
+    spec.storageGb = Math.ceil(resources.storageMiB / 1024);
+  }
+
+  if (resources?.numGPUs !== undefined && resources.numGPUs > 0) {
+    spec.gpu = true;
+  }
+
+  return spec;
+};
+
+const formatPorts = (portMappings: ReadonlyArray<PortMapping>): Array<PortSpec> =>
+  portMappings.map((mapping) => ({
+    host: mapping.hostPort,
+    guest: mapping.sandboxPort,
+  }));
+
+const guestDirname = (filePath: string) => {
+  const parts = filePath.split("/").filter((part) => part.length > 0);
+  if (parts.length <= 1) {
+    return filePath.startsWith("/") ? "/" : ".";
+  }
+  const directory = parts.slice(0, -1).join("/");
+  return filePath.startsWith("/") ? `/${directory}` : directory;
+};
+
+const guestJoin = (directory: string, file: string) =>
+  `${directory.replace(/\/+$/, "")}/${file.replace(/^\/+/, "")}`;
+
+const makeExecOptions = (command: CP.StandardCommand | undefined, state: SnapshotState) => {
+  const env: Record<string, string> = { ...state.env };
+  for (const [key, value] of Object.entries(command?.options.env ?? {})) {
+    if (value !== undefined) {
+      env[key] = value;
+    }
+  }
+
+  const options: ExecOptions = {};
+  if (Object.keys(env).length > 0) {
+    options.env = env;
+  }
+
+  const workdir = command?.options.cwd ?? state.workdir;
+  if (workdir !== undefined) {
+    options.workdir = workdir;
+  }
+
+  return options;
+};
+
+export const make = Effect.fn("sandbox/provider/smolmachines")(
+  function* ({
+    portMappings = [],
+  }: MakeOptions): Effect.fn.Return<
+    Sandbox.Provider,
+    Sandbox.SandboxError,
+    Crypto.Crypto | FileSystem.FileSystem | Path.Path | Spawn.SpawnService
+  > {
+    const crypto = yield* Crypto.Crypto;
+    const spawner = yield* Spawn.SpawnService;
+    const fs = yield* FileSystem.FileSystem;
+    const path = yield* Path.Path;
+    const ports = formatPorts(portMappings);
+    const snapshotMachines = new Map<string, SnapshotMachine>();
+
+    const run = (
+      machine: Machine,
+      command: ReadonlyArray<string>,
+      options: ExecOptions | undefined,
+      mapError: (cause: unknown) => Sandbox.SandboxError,
+    ) =>
+      Effect.tryPromise({
+        try: async () => {
+          const result = await machine.exec(Array.from(command), options);
+          result.assertSuccess();
+          return result;
+        },
+        catch: mapError,
+      });
+
+    const removeMachine = (machine: Machine) =>
+      Effect.tryPromise({
+        try: () => machine.delete(),
+        catch: () => undefined,
+      }).pipe(Effect.ignore);
+
+    const stopMachine = (machine: Machine) =>
+      Effect.tryPromise({
+        try: () => machine.stop(),
+        catch: () => undefined,
+      }).pipe(Effect.ignore);
+
+    const readState = (machine: Machine): Effect.Effect<SnapshotState> =>
+      Effect.tryPromise({
+        try: () => machine.readFile(metadataPath),
+        catch: () => undefined,
+      }).pipe(
+        Effect.flatMap((content) =>
+          content === undefined
+            ? Effect.succeed(initialState)
+            : Effect.try({
+                try: () => JSON.parse(content.toString("utf8")),
+                catch: () => initialState,
+              }),
+        ),
+        Effect.flatMap(Schema.decodeUnknownEffect(SnapshotState)),
+        Effect.catch(() => Effect.succeed(initialState)),
+      );
+
+    const writeState = (
+      machine: Machine,
+      state: SnapshotState,
+      mapError: (cause: unknown) => Sandbox.SandboxError,
+    ) =>
+      Effect.gen(function* () {
+        yield* run(machine, ["mkdir", "-p", guestDirname(metadataPath)], undefined, mapError);
+        yield* Effect.tryPromise({
+          try: () => machine.writeFile(metadataPath, `${JSON.stringify(state)}\n`),
+          catch: mapError,
+        });
+      });
+
+    const upload = (
+      machine: Machine,
+      hostPath: string,
+      sandboxPath: string,
+      mapError: (cause: unknown) => Sandbox.SandboxError,
+    ): Effect.Effect<void, Sandbox.SandboxError> =>
+      Effect.gen(function* () {
+        const info = yield* fs.stat(hostPath).pipe(Effect.mapError(mapError));
+        if (info.type === "Directory") {
+          yield* run(machine, ["mkdir", "-p", sandboxPath], undefined, mapError).pipe(
+            Effect.asVoid,
+          );
+
+          const entries = yield* fs.readDirectory(hostPath).pipe(Effect.mapError(mapError));
+          for (const entry of entries) {
+            yield* upload(
+              machine,
+              path.join(hostPath, entry),
+              guestJoin(sandboxPath, entry),
+              mapError,
+            );
+          }
+          return;
+        }
+
+        yield* run(machine, ["mkdir", "-p", guestDirname(sandboxPath)], undefined, mapError).pipe(
+          Effect.asVoid,
+        );
+
+        const content = yield* fs.readFile(hostPath).pipe(Effect.mapError(mapError));
+        yield* Effect.tryPromise({
+          try: () => machine.writeFile(sandboxPath, content),
+          catch: mapError,
+        });
+      });
+
+    const applyInstructions = (
+      machine: Machine,
+      snapshot: Sandbox.Snapshot.Snapshot,
+      context: Sandbox.Context.Context,
+      instructions: Sandbox.Snapshot.Instructions,
+      state: SnapshotState,
+    ) =>
+      Effect.gen(function* () {
+        let nextState = state;
+
+        for (const instruction of instructions) {
+          yield* Sandbox.Snapshot.Inst.Instruction.match(instruction, {
+            Workdir: ({ path: workdir }) =>
+              Effect.gen(function* () {
+                yield* run(
+                  machine,
+                  ["mkdir", "-p", workdir],
+                  undefined,
+                  Sandbox.SandboxError.snapshotBuild(snapshot),
+                ).pipe(Effect.asVoid);
+                nextState = { ...nextState, workdir };
+              }),
+            Env: ({ env }) =>
+              Effect.sync(() => {
+                nextState = { ...nextState, env: { ...nextState.env, ...env } };
+              }),
+            Run: ({ cmd }) =>
+              run(
+                machine,
+                ["sh", "-c", cmd],
+                makeExecOptions(undefined, nextState),
+                Sandbox.SandboxError.snapshotBuild(snapshot),
+              ).pipe(Effect.asVoid),
+            Copy: ({ src, dest }) =>
+              Effect.gen(function* () {
+                for (const source of src) {
+                  const hostPath = path.resolve(context, source);
+                  const sandboxPath =
+                    src.length > 1 || dest.endsWith("/")
+                      ? guestJoin(dest, path.basename(source))
+                      : dest;
+                  yield* upload(
+                    machine,
+                    hostPath,
+                    sandboxPath,
+                    Sandbox.SandboxError.snapshotBuild(snapshot),
+                  );
+                }
+              }),
+            User: () =>
+              Effect.fail(
+                Sandbox.SandboxError.instructionUnsupported("smolmachines", snapshot, instruction),
+              ),
+            Cmd: () =>
+              Effect.fail(
+                Sandbox.SandboxError.instructionUnsupported("smolmachines", snapshot, instruction),
+              ),
+            Entrypoint: () =>
+              Effect.fail(
+                Sandbox.SandboxError.instructionUnsupported("smolmachines", snapshot, instruction),
+              ),
+          });
+        }
+
+        yield* writeState(machine, nextState, Sandbox.SandboxError.snapshotBuild(snapshot));
+        return nextState;
+      });
+
+    const acquireMachine = Effect.fn(function* (handle: Sandbox.Snapshot.Handle.Handle) {
+      const cached = snapshotMachines.get(handle.name);
+      if (cached !== undefined) {
+        return cached;
+      }
+
+      const machine = yield* Effect.tryPromise({
+        try: () => Machine.connect(handle.name, { target: "local" }),
+        catch: Sandbox.SandboxError.snapshotUsage(Sandbox.Snapshot.fromImage(handle.name)),
+      });
+      const state = yield* readState(machine);
+      const entry = { machine, state } satisfies SnapshotMachine;
+      snapshotMachines.set(handle.name, entry);
+      return entry;
+    });
+
+    const registerMachine = Effect.fn(function* ({
+      handle,
+      machine,
+      state,
+      cache,
+    }: {
+      handle: Sandbox.Snapshot.Handle.Handle;
+      machine: Machine;
+      state: SnapshotState;
+      cache: boolean;
+    }): Effect.fn.Return<void, never, Scope.Scope> {
+      snapshotMachines.set(handle.name, { machine, state });
+
+      const cleanup = cache ? stopMachine(machine) : removeMachine(machine);
+      yield* Effect.addFinalizer(() =>
+        cleanup.pipe(Effect.andThen(Effect.sync(() => snapshotMachines.delete(handle.name)))),
+      );
+    });
+
+    const aquireSnapshot = Effect.fn(
+      function* ({ snapshot, context, cache = true }) {
+        if (!supportedBaseImages.has(snapshot.image)) {
+          return yield* Effect.fail(
+            Sandbox.SandboxError.snapshotUnsupported(
+              "smolmachines",
+              snapshot,
+            )(
+              "The local smolmachines SDK does not expose persistent machine creation from arbitrary OCI images.",
+            ),
+          );
+        }
+
+        const handle = yield* Sandbox.Snapshot.Handle.make(snapshot, { format: "pascal" }).pipe(
+          Effect.provideService(Crypto.Crypto, crypto),
+        );
+
+        const existing = yield* Effect.tryPromise({
+          try: () => Machine.connect(handle.name, { target: "local" }),
+          catch: () => undefined,
+        }).pipe(Effect.option);
+
+        if (existing._tag === "Some") {
+          const state = yield* readState(existing.value);
+          yield* registerMachine({ handle, machine: existing.value, state, cache });
+          return handle;
+        }
+
+        const machine = yield* Effect.tryPromise({
+          try: () =>
+            Machine.create({
+              name: handle.name,
+              forkable: true,
+              persistent: true,
+              resources: formatResources(null),
+            }),
+          catch: Sandbox.SandboxError.snapshotBuild(snapshot),
+        });
+
+        const state = yield* applyInstructions(
+          machine,
+          snapshot,
+          context,
+          snapshot.instructions,
+          initialState,
+        );
+
+        yield* registerMachine({ handle, machine, state, cache });
+        return handle;
+      },
+      (effect, { snapshot }) =>
+        effect.pipe(Effect.mapError(Sandbox.SandboxError.snapshotBuild(snapshot))),
+    ) satisfies Sandbox.Provider["aquireSnapshot"];
+
+    const deriveSnapshot = Effect.fn(function* ({ handle, instructions, context, cache = true }) {
+      const base = yield* acquireMachine(handle);
+      const derived = yield* Sandbox.Snapshot.Handle.derive({
+        handle,
+        instructions,
+        format: "pascal",
+      }).pipe(
+        Effect.provideService(Crypto.Crypto, crypto),
+        Effect.mapError(
+          Sandbox.SandboxError.snapshotBuild(Sandbox.Snapshot.fromImage(handle.name)),
+        ),
+      );
+
+      const existing = snapshotMachines.get(derived.name);
+      if (existing !== undefined) {
+        return derived;
+      }
+
+      const persisted = yield* Effect.tryPromise({
+        try: () => Machine.connect(derived.name, { target: "local" }),
+        catch: () => undefined,
+      }).pipe(Effect.option);
+
+      if (persisted._tag === "Some") {
+        const state = yield* readState(persisted.value);
+        yield* registerMachine({ handle: derived, machine: persisted.value, state, cache });
+        return derived;
+      }
+
+      const snapshot = Sandbox.Snapshot.make({ image: handle.name, instructions });
+      const machine = yield* Effect.tryPromise({
+        try: () => base.machine.fork(derived.name),
+        catch: Sandbox.SandboxError.snapshotBuild(snapshot),
+      });
+      const state = yield* applyInstructions(machine, snapshot, context, instructions, base.state);
+
+      yield* registerMachine({ handle: derived, machine, state, cache });
+      return derived;
+    }) satisfies Sandbox.Provider["deriveSnapshot"];
+
+    const runSandbox = Effect.fn(function* ({ handle, resources }) {
+      if (resources !== null) {
+        return yield* Effect.fail(
+          Sandbox.SandboxError.sandboxStart(handle.name)(
+            "The local smolmachines fork API does not support overriding resources for forked sandboxes.",
+          ),
+        );
+      }
+
+      const base = yield* acquireMachine(handle).pipe(
+        Effect.mapError(Sandbox.SandboxError.sandboxStart(handle.name)),
+      );
+      const name = yield* Sandbox.makeName().pipe(
+        Effect.provideService(Crypto.Crypto, crypto),
+        Effect.mapError(Sandbox.SandboxError.sandboxStart(handle.name)),
+      );
+      const machine = yield* Effect.tryPromise({
+        try: () => base.machine.fork(name, ports),
+        catch: Sandbox.SandboxError.sandboxStart(handle.name),
+      });
+
+      yield* Effect.addFinalizer(() => removeMachine(machine));
+
+      const sandboxExec = Effect.fn(function* (
+        command: CP.StandardCommand,
+        input?: string,
+      ): Effect.fn.Return<string, Sandbox.SandboxError> {
+        const bash = Sandbox.formatBash(command);
+        const mapError = Sandbox.SandboxError.sandboxExec({
+          name: handle.name,
+          operation: bash,
+        });
+        const options = makeExecOptions(command, base.state);
+
+        if (input === undefined) {
+          const result = yield* run(machine, ["sh", "-c", bash], options, mapError);
+          return result.stdout;
+        }
+
+        const uuid = yield* crypto.randomUUIDv4.pipe(Effect.mapError(mapError));
+        const stdinPath = `/tmp/open-insight-stdin-${uuid}`;
+        yield* Effect.tryPromise({
+          try: () => machine.writeFile(stdinPath, input),
+          catch: mapError,
+        });
+        const result = yield* run(
+          machine,
+          ["sh", "-c", `${bash} < ${stdinPath}`],
+          options,
+          mapError,
+        ).pipe(
+          Effect.ensuring(
+            run(machine, ["rm", "-f", stdinPath], undefined, mapError).pipe(Effect.ignore),
+          ),
+        );
+        return result.stdout;
+      });
+
+      return yield* Sandbox.make({
+        $: sandboxExec,
+        expose: Effect.fn(function* ({ sandboxPort, hostPort }) {
+          const matchesMapping = portMappings.some(
+            (mapping) => mapping.sandboxPort === sandboxPort && mapping.hostPort === hostPort,
+          );
+
+          if (!matchesMapping) {
+            return yield* Effect.fail(
+              Sandbox.SandboxError.sandboxExpose({ name: handle.name, sandboxPort, hostPort })(
+                "Expected port mapping cannot be exposed because it was not specified in the configuration.",
+              ),
+            );
+          }
+
+          return { hostUrl: `http://localhost:${hostPort}` };
+        }),
+        download: Effect.fn(function* ({ sandboxPath, hostPath }) {
+          const operation = `download ${sandboxPath} -> ${hostPath}`;
+          const content = yield* Effect.tryPromise({
+            try: () => machine.readFile(sandboxPath),
+            catch: Sandbox.SandboxError.sandboxExec({ name: handle.name, operation }),
+          });
+          yield* fs
+            .makeDirectory(path.dirname(hostPath), { recursive: true })
+            .pipe(
+              Effect.andThen(fs.writeFile(hostPath, content)),
+              Effect.mapError(Sandbox.SandboxError.sandboxExec({ name: "host", operation })),
+            );
+        }),
+        upload: Effect.fn(function* ({ sandboxPath, hostPath }) {
+          yield* upload(
+            machine,
+            hostPath,
+            sandboxPath,
+            Sandbox.SandboxError.sandboxExec({
+              name: handle.name,
+              operation: `upload ${hostPath} -> ${sandboxPath}`,
+            }),
+          );
+        }),
+        readFile: Effect.fn(function* ({ sandboxPath }) {
+          const content = yield* Effect.tryPromise({
+            try: () => machine.readFile(sandboxPath),
+            catch: Sandbox.SandboxError.sandboxExec({
+              name: handle.name,
+              operation: `read ${sandboxPath}`,
+            }),
+          });
+          return content.toString("utf8");
+        }),
+        writeFile: Effect.fn(function* ({ sandboxPath, content }) {
+          yield* run(
+            machine,
+            ["mkdir", "-p", guestDirname(sandboxPath)],
+            undefined,
+            Sandbox.SandboxError.sandboxExec({
+              name: handle.name,
+              operation: `mkdir -p ${guestDirname(sandboxPath)}`,
+            }),
+          ).pipe(Effect.asVoid);
+          yield* Effect.tryPromise({
+            try: () => machine.writeFile(sandboxPath, content),
+            catch: Sandbox.SandboxError.sandboxExec({
+              name: handle.name,
+              operation: `write ${sandboxPath}`,
+            }),
+          });
+        }),
+      }).pipe(Effect.provideService(Spawn.SpawnService, spawner));
+    }) satisfies Sandbox.Provider["runSandbox"];
+
+    return {
+      aquireSnapshot,
+      deriveSnapshot,
+      runSandbox,
+    } satisfies Sandbox.Provider;
+  },
+  (effect) => effect.pipe(Effect.provide(Spawn.SpawnService.layer)),
+);
