@@ -1,7 +1,7 @@
 import { Schema } from "effect";
 import { Assertion } from "./assert/schema.ts";
 import { Snapshot } from "./snapshot/index.ts";
-import { Instruction } from "./snapshot/instruction.ts";
+import { Instruction } from "./snapshot/inst.ts";
 
 export class InvalidContextError extends Schema.TaggedErrorClass<InvalidContextError>()(
   "InvalidContextError",

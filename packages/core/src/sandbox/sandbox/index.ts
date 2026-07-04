@@ -2,17 +2,13 @@ import { Crypto, Effect, Match, Stream } from "effect";
 import { ChildProcess as CP } from "effect/unstable/process";
 import { Spawn } from "@open-insight/utils";
 import { SandboxError } from "../error.ts";
-import * as Snapshot from "../snapshot/index.ts";
 
 export const SANDBOX_NAME = "open-insight-sandbox";
 
-export const makeName = Effect.fn(function* (snapshot: Snapshot.Snapshot) {
+export const makeName = Effect.fn(function* () {
   const crypto = yield* Crypto.Crypto;
-
-  const snapshotHash = yield* Snapshot.hash(snapshot);
-  const sandboxID = yield* crypto.randomUUIDv4;
-
-  return `${SANDBOX_NAME}-${snapshotHash}-${sandboxID}`;
+  const id = yield* crypto.randomUUIDv4;
+  return `${SANDBOX_NAME}-${id}`;
 });
 
 export type Sandbox = Readonly<{

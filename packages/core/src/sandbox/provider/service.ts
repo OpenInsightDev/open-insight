@@ -3,7 +3,7 @@ import type * as SandboxContext from "../context/index.ts";
 import type { SandboxError } from "../error.ts";
 import type { ResourceLimits } from "../resource.ts";
 import type { Sandbox } from "../sandbox/index.ts";
-import type { Instructions } from "../snapshot/instruction.ts";
+import type { Instructions } from "../snapshot/inst.ts";
 import type { Handle, Snapshot } from "../snapshot/index.ts";
 
 export type Provider = Readonly<{
@@ -77,6 +77,7 @@ export type Provider = Readonly<{
     options: Readonly<{
       handle: Handle.Handle;
       instructions: Instructions;
+      context: SandboxContext.Context;
     }>,
   ): Effect.Effect<Handle.Handle, SandboxError, Scope.Scope>;
 

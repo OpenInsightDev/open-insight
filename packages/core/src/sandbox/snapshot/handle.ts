@@ -22,7 +22,7 @@ const formatName = ({ hashed, format }: { hashed: string; format: Format }) =>
 
 export const make = Effect.fn(function* (
   snapshot: Snapshot,
-  { format = "oci" }: { format?: Format },
+  { format = "oci" }: { format?: Format } = {},
 ) {
   const hashed = yield* hashSnapshot(snapshot);
   return nominal({ name: formatName({ hashed, format }) });
