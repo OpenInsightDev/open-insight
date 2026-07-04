@@ -1,9 +1,9 @@
 import { Effect } from "effect";
 import { produce } from "immer";
 import * as Task from "../task/index.ts";
-import * as TrajMetric from "./traj.ts";
-import * as TaskMetric from "./task.ts";
-import * as BenchMetric from "./bench.ts";
+import * as TrajMetric from "./traj/index.ts";
+import * as TaskMetric from "./task/index.ts";
+import * as BenchMetric from "./bench/index.ts";
 import type { Format, Exec } from "./chart.ts";
 import type { Metadata } from "./schema.ts";
 
