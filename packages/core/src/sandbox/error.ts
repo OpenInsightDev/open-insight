@@ -3,17 +3,6 @@ import { Assertion } from "./assert/schema.ts";
 import { Snapshot } from "./snapshot/index.ts";
 import { Instruction } from "./snapshot/instruction.ts";
 
-const ContextMode = Schema.String;
-type ContextMode = Schema.Schema.Type<typeof ContextMode>;
-
-export class ContextResolveError extends Schema.TaggedErrorClass<ContextResolveError>()(
-  "ContextResolveError",
-  {
-    mode: ContextMode,
-    cause: Schema.Defect(),
-  },
-) {}
-
 export class InvalidContextError extends Schema.TaggedErrorClass<InvalidContextError>()(
   "InvalidContextError",
   {
@@ -28,10 +17,21 @@ export class SnapshotError extends Schema.TaggedErrorClass<SnapshotError>()("Sna
   message: Schema.optional(Schema.String),
 }) {}
 
-export class ProviderError extends Schema.TaggedErrorClass<ProviderError>()("ProviderError", {
-  name: Schema.String,
-  cause: Schema.Defect(),
-}) {}
+export class ProviderNotAvailable extends Schema.TaggedErrorClass<ProviderNotAvailable>()(
+  "ProviderNotAvailable",
+  {
+    name: Schema.String,
+    cause: Schema.Defect(),
+  },
+) {}
+
+export class SandboxStartError extends Schema.TaggedErrorClass<SandboxStartError>()(
+  "SandboxStartError",
+  {
+    name: Schema.String,
+    cause: Schema.Defect(),
+  },
+) {}
 
 export class SandboxExecError extends Schema.TaggedErrorClass<SandboxExecError>()(
   "SandboxExecError",
@@ -82,10 +82,10 @@ export class AssertionError extends Schema.TaggedErrorClass<AssertionError>()("A
 }) {}
 
 export const SandboxErrorReason = Schema.Union([
-  ContextResolveError,
   InvalidContextError,
-  ProviderError,
+  ProviderNotAvailable,
   SnapshotError,
+  SandboxStartError,
   SandboxExecError,
   SandboxExposeError,
   SnapshotUnsupportedError,
@@ -96,14 +96,6 @@ export const SandboxErrorReason = Schema.Union([
 export class SandboxError extends Schema.TaggedErrorClass<SandboxError>()("SandboxError", {
   reason: SandboxErrorReason,
 }) {
-  static contextResolve = (mode: ContextMode) => (cause: unknown) =>
-    this.make({
-      reason: ContextResolveError.make({
-        mode,
-        cause,
-      }),
-    });
-
   static context = (cause: unknown) =>
     this.make({
       reason: InvalidContextError.make({
@@ -113,7 +105,7 @@ export class SandboxError extends Schema.TaggedErrorClass<SandboxError>()("Sandb
 
   static provider = (name: string) => (cause: unknown) =>
     this.make({
-      reason: ProviderError.make({
+      reason: ProviderNotAvailable.make({
         name,
         cause,
       }),
@@ -133,6 +125,32 @@ export class SandboxError extends Schema.TaggedErrorClass<SandboxError>()("Sandb
       reason: SnapshotError.make({
         kind: "use",
         snapshot,
+        cause,
+      }),
+    });
+
+  static snapshotUnsupported = (name: string, snapshot: Snapshot) => (cause: unknown) =>
+    this.make({
+      reason: SnapshotUnsupportedError.make({
+        name,
+        snapshot,
+        cause,
+      }),
+    });
+
+  static instructionUnsupported = (name: string, snapshot: Snapshot, instruction: Instruction) =>
+    this.make({
+      reason: InstructionUnsupportedError.make({
+        name,
+        snapshot,
+        instruction,
+      }),
+    });
+
+  static sandboxStart = (name: string) => (cause: unknown) =>
+    this.make({
+      reason: SandboxStartError.make({
+        name,
         cause,
       }),
     });
@@ -159,24 +177,6 @@ export class SandboxError extends Schema.TaggedErrorClass<SandboxError>()("Sandb
           cause,
         }),
       });
-
-  static snapshotUnsupported = (name: string, snapshot: Snapshot) => (cause: unknown) =>
-    this.make({
-      reason: SnapshotUnsupportedError.make({
-        name,
-        snapshot,
-        cause,
-      }),
-    });
-
-  static instructionUnsupported = (name: string, snapshot: Snapshot, instruction: Instruction) =>
-    this.make({
-      reason: InstructionUnsupportedError.make({
-        name,
-        snapshot,
-        instruction,
-      }),
-    });
 
   static assert = (failures: ReadonlyArray<AssertionFailure>) =>
     this.make({

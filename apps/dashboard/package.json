@@ -10,6 +10,7 @@
     "preview": "vp preview"
   },
   "dependencies": {
+    "@base-ui/react": "catalog:",
     "@fontsource-variable/geist": "catalog:",
     "@open-insight/eval": "workspace:*",
     "@shadcn/react": "catalog:",
@@ -20,7 +21,6 @@
     "idb-keyval": "catalog:",
     "immer": "catalog:",
     "lucide-react": "catalog:",
-    "radix-ui": "catalog:",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "recharts": "catalog:",

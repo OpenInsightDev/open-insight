@@ -2,31 +2,30 @@ import { Effect, Option } from "effect";
 import { Spawn } from "@open-insight/utils";
 import { ChildProcess } from "effect/unstable/process";
 
-export type Runtime = (self: ChildProcess.Command) => ChildProcess.Command;
-
-export const makeRuntime = Effect.fn("sandbox/docker/makeRuntime")(function* () {
-  // docker-compatible clis
+export const makeRuntime = Effect.fn(function* () {
+  // docker-compatible cli
   const runtimes = ["docker", "podman", "nerdctl"] as const;
+
   const spawner = yield* Spawn.SpawnService;
 
   const whichs = yield* Effect.all(
     runtimes.map((runtime) =>
       spawner.string(ChildProcess.make`command -v ${runtime}`).pipe(
         Effect.map(Option.some),
-        Effect.catchIf(
-          (error: unknown): error is { reason: { _tag: string } } =>
-            Boolean(error && typeof error === "object" && "reason" in error),
-          () => Effect.succeed(Option.none<string>()),
-        ),
+        Effect.catch(() => Effect.succeed(Option.none())),
       ),
     ),
     { concurrency: "unbounded" },
   );
 
-  const found = whichs.find((o): o is Option.Some<string> => Option.isSome(o));
+  const found = whichs.find((runtime): runtime is Option.Some<string> => Option.isSome(runtime));
   if (found === undefined) {
-    return yield* Effect.fail(new Error("No container runtime found."));
+    return yield* Effect.fail(
+      new Error(
+        `No docker-compatible runtime found. Please install one of the following: ${runtimes.join(", ")}`,
+      ),
+    );
   }
 
-  return ChildProcess.prefix(found.value.trim()) satisfies Runtime;
+  return ChildProcess.prefix(found.value.trim());
 });

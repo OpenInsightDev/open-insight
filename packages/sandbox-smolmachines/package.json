@@ -1,6 +1,6 @@
 {
-  "name": "@open-insight/sandbox-openshell",
-  "version": "0.0.7",
+  "name": "@open-insight/sandbox-smolmachines",
+  "version": "0.0.0",
   "description": "A starter for creating a TypeScript package.",
   "homepage": "https://github.com/author/library#readme",
   "bugs": {
@@ -39,5 +39,8 @@
   },
   "peerDependencies": {
     "@open-insight/core": "workspace:*"
+  },
+  "dependencies": {
+    "smolmachines": "catalog:"
   }
 }

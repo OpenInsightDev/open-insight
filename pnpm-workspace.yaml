@@ -1,8 +1,6 @@
 packages:
   - apps/*
   - packages/*
-  - tools/*
-  - apps/@open-insight/*
 
 catalogMode: prefer
 
@@ -41,6 +39,8 @@ catalog:
   '@tailwindcss/vite': ^4.3.2
   lucide-react: ^1.23.0
   '@shadcn/react': ^0.2.0
+  smolmachines: ^1.4.1
+  '@base-ui/react': ^1.6.0
 overrides:
   vite: "catalog:"
   vitest: "catalog:"

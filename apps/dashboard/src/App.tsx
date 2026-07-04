@@ -26,8 +26,18 @@ import {
   YAxis,
   ZAxis,
 } from "recharts";
+import { ActivityIcon, FileTextIcon } from "lucide-react";
 import "./App.css";
+import {
+  Attachment,
+  AttachmentContent,
+  AttachmentDescription,
+  AttachmentGroup,
+  AttachmentMedia,
+  AttachmentTitle,
+} from "@/components/ui/attachment.tsx";
 import { Badge } from "@/components/ui/badge.tsx";
+import { Bubble, BubbleContent } from "@/components/ui/bubble.tsx";
 import {
   Card,
   CardAction,
@@ -45,6 +55,16 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from "@/components/ui/chart.tsx";
+import { Marker, MarkerContent, MarkerIcon } from "@/components/ui/marker.tsx";
+import { Message, MessageContent, MessageFooter, MessageHeader } from "@/components/ui/message.tsx";
+import {
+  MessageScroller,
+  MessageScrollerButton,
+  MessageScrollerContent,
+  MessageScrollerItem,
+  MessageScrollerProvider,
+  MessageScrollerViewport,
+} from "@/components/ui/message-scroller.tsx";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs.tsx";
 import { TooltipProvider } from "@/components/ui/tooltip.tsx";
 import {
@@ -61,7 +81,7 @@ import {
 } from "./store";
 
 type ChartType = Metric.Type;
-type DashboardTab = "tasks" | "charts" | "benchmark";
+type DashboardTab = "tasks" | "charts" | "benchmark" | "agent";
 
 type MetricEntry = {
   name: string;
@@ -723,7 +743,12 @@ function App() {
         <Tabs
           value={activeTab}
           onValueChange={(nextValue) => {
-            if (nextValue === "tasks" || nextValue === "charts" || nextValue === "benchmark") {
+            if (
+              nextValue === "tasks" ||
+              nextValue === "charts" ||
+              nextValue === "benchmark" ||
+              nextValue === "agent"
+            ) {
               setActiveTab(nextValue);
             }
           }}
@@ -732,6 +757,7 @@ function App() {
           <TabsList className="dashboard-tabs-list" variant="line" aria-label="Dashboard sections">
             <TabsTrigger value="tasks">Tasks</TabsTrigger>
             <TabsTrigger value="charts">Charts</TabsTrigger>
+            <TabsTrigger value="agent">Agent Stream</TabsTrigger>
             <TabsTrigger value="benchmark">Benchmark Stats</TabsTrigger>
           </TabsList>
         </Tabs>
@@ -740,6 +766,21 @@ function App() {
           <BenchmarkStats benchmark={benchmark} />
         ) : activeTab === "charts" ? (
           <ChartGallery />
+        ) : activeTab === "agent" ? (
+          <AgentStreamTab
+            benchmark={benchmark}
+            tasks={tasks}
+            activeTaskName={taskName}
+            trails={trails}
+            activeTrailIndex={trailIndex}
+            task={task}
+            trail={trail}
+            onSelectTask={(nextTaskName) => {
+              setActiveTaskName(nextTaskName);
+              setActiveTrailIndex(undefined);
+            }}
+            onSelectTrail={setActiveTrailIndex}
+          />
         ) : (
           <section className="tasks-layout">
             <TaskRail

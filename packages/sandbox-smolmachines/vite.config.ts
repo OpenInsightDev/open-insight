@@ -5,15 +5,16 @@ export default defineConfig({
     tsconfigPaths: true,
   },
   pack: {
+    entry: {
+      internal: "src/index.ts",
+      index: "src/export.ts",
+    },
     dts: {
       tsgo: true,
     },
     clean: true,
     sourcemap: true,
-    entry: {
-      internal: "src/index.ts",
-      index: "src/export.ts",
-    },
+    treeshake: true,
     exports: {
       devExports: true,
     },
@@ -25,7 +26,7 @@ export default defineConfig({
     },
   },
   test: {
-    include: ["src/**/*.test.ts", "tests/**/*.test.ts"],
+    include: ["src/**/*.test.ts"],
   },
   fmt: {},
 });

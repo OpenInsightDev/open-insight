@@ -41,7 +41,7 @@ const formatResources = (resources: Sandbox.ResourceLimits | null): Array<string
   return resourceArgs;
 };
 
-export const make = Effect.fn(
+export const make = Effect.fn("sandbox/provider/docker")(
   function* ({
     portMappings = [],
   }: MakeOptions): Effect.fn.Return<
@@ -140,7 +140,7 @@ export const make = Effect.fn(
         "infinity",
       ]).pipe(runtime);
 
-      yield* spawner.string(run).pipe(Effect.mapError(SandboxError.provider("docker")));
+      yield* spawner.string(run).pipe(Effect.mapError(SandboxError.sandboxStart(sandboxName)));
 
       yield* Effect.addFinalizer(() =>
         spawner.string(CP.make`rm --force ${sandboxName}`.pipe(runtime)).pipe(Effect.ignore),
