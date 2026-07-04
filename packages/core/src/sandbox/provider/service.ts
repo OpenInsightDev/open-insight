@@ -78,6 +78,7 @@ export type Provider = Readonly<{
       handle: Handle.Handle;
       instructions: Instructions;
       context: SandboxContext.Context;
+      cache?: boolean;
     }>,
   ): Effect.Effect<Handle.Handle, SandboxError, Scope.Scope>;
 

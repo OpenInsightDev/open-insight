@@ -1,5 +1,5 @@
 import * as Sandbox from "@/sandbox/index.ts";
-import { Context, Effect, Stream } from "effect";
+import { Context, Effect, Option, Stream } from "effect";
 import { Prompt, Response } from "effect/unstable/ai";
 import { type AgentError } from "./error.ts";
 import type { Prompt as Trajectory } from "effect/unstable/ai/Prompt";
@@ -12,12 +12,13 @@ export type Agent = Readonly<{
   }): Effect.Effect<Stream.Stream<Response.StreamPart<any>, AgentError>>;
 }>;
 
-export type Provider = Readonly<{
-  extendSnapshot: () => Effect.Effect<
-    { instructions: Snapshot.Instructions; context: Sandbox.Context.Context },
-    AgentError
-  >;
+export type SnapshotExtension = Readonly<{
+  instructions: Snapshot.Instructions;
+  context: Sandbox.Context.Context;
+}>;
 
+export type Provider = Readonly<{
+  snapshotExtension: Option.Option<SnapshotExtension>;
   runSession(options: Readonly<{ sandbox: Sandbox.Sandbox }>): Effect.Effect<Agent, AgentError>;
 }>;
 

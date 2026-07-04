@@ -8,4 +8,4 @@ export * as Snapshot from "./snapshot/export.ts";
 
 export { type Config } from "./config.ts";
 
-export { type ResourceLimits, ResourceLimitsSchema } from "./resource.ts";
+export { ResourceLimits } from "./resource.ts";

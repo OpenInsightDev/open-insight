@@ -1,5 +1,5 @@
 import { Chat, LanguageModel, Toolkit } from "effect/unstable/ai";
-import { Effect, Ref, Stream } from "effect";
+import { Effect, Option, Ref, Stream } from "effect";
 import * as Agent from "@/agent/index.ts";
 import { AgentError } from "@/agent/error.ts";
 import * as Sandbox from "@/sandbox/index.ts";
@@ -45,12 +45,8 @@ export const make = Effect.fn(function* ({
     (effect) => effect.pipe(Effect.provideService(LanguageModel.LanguageModel, llm)),
   ) satisfies Agent.Provider["runSession"];
 
-  const deriveSnapshot = Effect.fn(function* ({ snapshot }) {
-    return yield* Effect.succeed(snapshot);
-  }) satisfies Agent.Provider["deriveSnapshot"];
-
   return {
+    snapshotExtension: Option.none(),
     runSession,
-    deriveSnapshot,
   } satisfies Agent.Provider;
 });

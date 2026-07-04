@@ -1,7 +1,7 @@
 import { Cause, Effect, pipe, Queue, Scope, Stream } from "effect";
-import * as TaskMetric from "./task.ts";
-import * as BenchMetric from "./bench.ts";
-import * as TrajMetric from "./traj.ts";
+import * as TaskMetric from "./task/index.ts";
+import * as BenchMetric from "./bench/index.ts";
+import * as TrajMetric from "./traj/index.ts";
 import type { BenchOutput, Input, Output, TaskOutput, TrajOutput } from "./schema.ts";
 import type { MetricError } from "./error.ts";
 import type { Metrics } from "./build.ts";

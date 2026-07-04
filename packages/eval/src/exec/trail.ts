@@ -1,4 +1,4 @@
-import { Effect, FileSystem, Path, Queue, Ref, Scope, Stream } from "effect";
+import { Effect, FileSystem, Option, Path, Queue, Ref, Scope, Stream } from "effect";
 import * as Task from "../task/index.ts";
 import * as Metric from "../metric/index.ts";
 import { Agent, Sandbox } from "@open-insight/core/internal";
@@ -6,7 +6,6 @@ import { ExecError } from "./error.ts";
 import { Response } from "effect/unstable/ai";
 import { type Event, TaskStreamPartEvent } from "./event/index.ts";
 import { ChildProcessSpawner } from "effect/unstable/process";
-import { Snapshot } from "@open-insight/core";
 
 export const createTrail = Effect.fn("exec/createTrail")(
   function* ({
@@ -43,16 +42,20 @@ export const createTrail = Effect.fn("exec/createTrail")(
       .aquireSnapshot({ snapshot, context, cache: cacheTaskSnapshot })
       .pipe(Effect.mapError(ExecError.taskInit({ task })));
 
-    const { instructions, context: extendContext } = yield* agentProvider
-      .extendSnapshot()
-      .pipe(Effect.mapError(ExecError.taskInit({ task })));
-    const agentSnapshot = yield* sandboxProvider
-      .deriveSnapshot({
-        handle: taskSnapshot,
-        instructions,
-        context: extendContext,
-      })
-      .pipe(Effect.mapError(ExecError.taskInit({ task })));
+    const agentSnapshot = yield* agentProvider.snapshotExtension.pipe(
+      Option.match({
+        onSome: ({ instructions, context: extendContext }) =>
+          sandboxProvider
+            .deriveSnapshot({
+              handle: taskSnapshot,
+              instructions,
+              context: extendContext,
+              cache: cacheAgentSnapshot,
+            })
+            .pipe(Effect.mapError(ExecError.taskInit({ task }))),
+        onNone: () => Effect.succeed(taskSnapshot),
+      }),
+    );
 
     yield* Effect.logDebug("Prepared derived snapshot");
 

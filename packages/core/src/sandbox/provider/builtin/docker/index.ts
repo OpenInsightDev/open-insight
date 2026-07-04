@@ -99,7 +99,7 @@ export const make = Effect.fn("sandbox/provider/docker")(
       (effect, { snapshot }) => effect.pipe(Effect.mapError(SandboxError.snapshotBuild(snapshot))),
     ) satisfies Provider.Provider["aquireSnapshot"];
 
-    const deriveSnapshot = Effect.fn(function* ({ handle, context, instructions }) {
+    const deriveSnapshot = Effect.fn(function* ({ handle, context, instructions, cache }) {
       const derived = yield* Snapshot.Handle.derive({ handle, instructions }).pipe(
         Effect.provideService(Crypto.Crypto, crypto),
         Effect.mapError(SandboxError.snapshotBuild(Snapshot.fromImage(handle.name))),
@@ -128,7 +128,9 @@ export const make = Effect.fn("sandbox/provider/docker")(
 
       yield* spawner.string(command).pipe(mapBuildError);
 
-      yield* Effect.addFinalizer(() => removeImage(derived));
+      if (!cache) {
+        yield* Effect.addFinalizer(() => removeImage(derived));
+      }
 
       return derived;
     }) satisfies Provider.Provider["deriveSnapshot"];
