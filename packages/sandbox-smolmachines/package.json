@@ -1,6 +1,6 @@
 {
   "name": "@open-insight/sandbox-smolmachines",
-  "version": "0.0.0",
+  "version": "0.0.8",
   "description": "A starter for creating a TypeScript package.",
   "homepage": "https://github.com/author/library#readme",
   "bugs": {
