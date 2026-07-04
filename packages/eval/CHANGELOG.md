@@ -1,5 +1,13 @@
 # @open-insight/eval
 
+## 0.0.9
+
+### Patch Changes
+
+- update
+- Updated dependencies
+  - @open-insight/core@0.0.9
+
 ## 0.0.8
 
 ### Patch Changes
