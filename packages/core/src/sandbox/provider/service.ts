@@ -64,7 +64,7 @@ export type Provider = Readonly<{
     options: Readonly<{
       snapshot: Snapshot;
       context: SandboxContext.Context;
-      cache: boolean;
+      cache?: boolean;
     }>,
   ): Effect.Effect<Handle.Handle, SandboxError, Scope.Scope>;
 
@@ -89,7 +89,7 @@ export type Provider = Readonly<{
   runSandbox(
     options: Readonly<{
       handle: Handle.Handle;
-      resources?: ResourceLimits;
+      resources: ResourceLimits | null;
     }>,
   ): Effect.Effect<Sandbox, SandboxError, Scope.Scope>;
 }>;

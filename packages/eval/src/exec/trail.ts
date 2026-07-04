@@ -6,11 +6,12 @@ import { ExecError } from "./error.ts";
 import { Response } from "effect/unstable/ai";
 import { type Event, TaskStreamPartEvent } from "./event/index.ts";
 import { ChildProcessSpawner } from "effect/unstable/process";
+import { Snapshot } from "@open-insight/core";
 
 export const createTrail = Effect.fn("exec/createTrail")(
   function* ({
     task,
-    config: { cacheSnapshot } = {},
+    config: { cacheAgentSnapshot, cacheTaskSnapshot } = {},
     metricQueue,
     eventQueue,
   }: {
@@ -38,24 +39,22 @@ export const createTrail = Effect.fn("exec/createTrail")(
     const sandboxProvider = yield* Sandbox.ProviderService;
     const agentProvider = yield* Agent.ProviderService;
 
-    const derived = yield* agentProvider
-      .deriveSnapshot({ snapshot, context })
+    const taskSnapshot = yield* sandboxProvider
+      .aquireSnapshot({ snapshot, context, cache: cacheTaskSnapshot })
       .pipe(Effect.mapError(ExecError.taskInit({ task })));
 
-    yield* sandboxProvider
-      .ensureSnapshot({ snapshot: derived, context })
+    const { instructions, context: extendContext } = yield* agentProvider
+      .extendSnapshot()
+      .pipe(Effect.mapError(ExecError.taskInit({ task })));
+    const agentSnapshot = yield* sandboxProvider
+      .deriveSnapshot({
+        handle: taskSnapshot,
+        instructions,
+        context: extendContext,
+      })
       .pipe(Effect.mapError(ExecError.taskInit({ task })));
 
     yield* Effect.logDebug("Prepared derived snapshot");
-
-    yield* Effect.addFinalizer(
-      Effect.fn("exec/createTrail/finalizeSnapshot")(function* () {
-        if (!cacheSnapshot) {
-          yield* Effect.logDebug("Removing derived snapshot");
-          yield* sandboxProvider.removeSnapshot({ snapshot: derived }).pipe(Effect.ignore);
-        }
-      }),
-    );
 
     const nextTrailIndex = yield* Ref.make(0);
 
@@ -69,7 +68,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
         yield* Effect.logDebug("Starting sandbox for trail");
 
         const sandbox = yield* sandboxProvider
-          .runSandbox({ snapshot: derived, resources })
+          .runSandbox({ handle: agentSnapshot, resources })
           .pipe(Effect.mapError(ExecError.taskExec({ task, trailIndex })));
 
         yield* Effect.logDebug("Sandbox is ready, Starting trail execution");

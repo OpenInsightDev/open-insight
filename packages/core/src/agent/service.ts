@@ -3,6 +3,7 @@ import { Context, Effect, Stream } from "effect";
 import { Prompt, Response } from "effect/unstable/ai";
 import { type AgentError } from "./error.ts";
 import type { Prompt as Trajectory } from "effect/unstable/ai/Prompt";
+import { Snapshot } from "@/sandbox/index.ts";
 
 export type Agent = Readonly<{
   trajectory(): Effect.Effect<Trajectory, AgentError>;
@@ -12,9 +13,10 @@ export type Agent = Readonly<{
 }>;
 
 export type Provider = Readonly<{
-  deriveSnapshot: (
-    options: Readonly<{ snapshot: Sandbox.Snapshot.Snapshot; context: Sandbox.Context.Context }>,
-  ) => Effect.Effect<Sandbox.Snapshot.Snapshot, AgentError>;
+  extendSnapshot: () => Effect.Effect<
+    { instructions: Snapshot.Instructions; context: Sandbox.Context.Context },
+    AgentError
+  >;
 
   runSession(options: Readonly<{ sandbox: Sandbox.Sandbox }>): Effect.Effect<Agent, AgentError>;
 }>;

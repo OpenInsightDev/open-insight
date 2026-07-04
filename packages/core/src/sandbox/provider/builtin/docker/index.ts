@@ -16,7 +16,7 @@ export type MakeOptions = Readonly<{
   portMappings?: Array<PortMapping>;
 }>;
 
-const formatResources = (resources?: Sandbox.ResourceLimits): Array<string> => {
+const formatResources = (resources: Sandbox.ResourceLimits | null): Array<string> => {
   if (!resources) {
     return [];
   }

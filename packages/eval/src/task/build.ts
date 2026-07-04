@@ -50,6 +50,6 @@ type Options<T extends Task> = Metadata &
 
 export const make = <T extends Task>({ resources, ...rest }: Options<T>): Task<GraderOf<T>> => ({
   [TypeId]: TypeId,
-  resources: resources ?? null,
+  resources: resources ?? Sandbox.ResourceLimits.default,
   ...rest,
 });

@@ -1,3 +1,4 @@
 export type Config = Readonly<{
-  cacheSnapshot?: boolean;
+  cacheTaskSnapshot?: boolean;
+  cacheAgentSnapshot?: boolean;
 }>;

@@ -1,7 +1,7 @@
 import { Brand, Schema } from "effect";
 
-export const ContextSchema = Schema.String;
-export type Context = Schema.Schema.Type<typeof ContextSchema> & Brand.Brand<"Context">;
+export const Context = Schema.String;
+export type Context = Schema.Schema.Type<typeof Context> & Brand.Brand<"Context">;
 
 const makeContext = Brand.nominal<Context>();
 

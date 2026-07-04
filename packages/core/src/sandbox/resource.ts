@@ -3,31 +3,22 @@ import { Schema } from "effect";
 const NonNegativeNumber = Schema.Number.check(Schema.isGreaterThanOrEqualTo(0));
 const NonNegativeInt = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0));
 
-export const ResourceLimitsSchema = Schema.Struct({
-  numCPUs: Schema.optionalKey(NonNegativeNumber).annotate({
-    description:
-      "Maximum CPU cores available to the sandbox. Use fractional values such as 0.5 for half a core.",
-  }),
-  numGPUs: Schema.optionalKey(NonNegativeInt).annotate({
-    description: "Maximum GPU devices available to the sandbox.",
-  }),
-  memoryMiB: Schema.optionalKey(NonNegativeInt).annotate({
-    description: "Maximum memory available to the sandbox, in MiB.",
-  }),
-  storageMiB: Schema.optionalKey(NonNegativeInt).annotate({
-    description: "Maximum writable disk space available to the sandbox, in MiB.",
-  }),
-  internet: Schema.optionalKey(Schema.Boolean).annotate({
-    description: "Whether the sandbox has access to the internet.",
-  }),
-  buildTimeoutSec: Schema.optionalKey(NonNegativeInt).annotate({
-    description: "Maximum time allowed for the build phase, in seconds.",
-  }),
-  runTimeoutSec: Schema.optionalKey(NonNegativeInt).annotate({
-    description: "Maximum time allowed for the run phase, in seconds.",
-  }),
-}).annotate({
-  description: "Sandbox resource limit configuration.",
-});
-
-export type ResourceLimits = Schema.Schema.Type<typeof ResourceLimitsSchema>;
+export class ResourceLimits extends Schema.Class<ResourceLimits>("ResourceLimits")({
+  numCPUs: Schema.optional(NonNegativeNumber),
+  numGPUs: Schema.optional(NonNegativeInt),
+  memoryMiB: Schema.optional(NonNegativeInt),
+  storageMiB: Schema.optional(NonNegativeInt),
+  internet: Schema.optional(Schema.Boolean),
+  buildTimeoutSec: Schema.optional(NonNegativeInt),
+  runTimeoutSec: Schema.optional(NonNegativeInt),
+}) {
+  static default = this.make({
+    numCPUs: 1,
+    numGPUs: 0,
+    memoryMiB: 512,
+    storageMiB: 1024,
+    internet: false,
+    buildTimeoutSec: 120,
+    runTimeoutSec: 360,
+  });
+}
