@@ -18,4 +18,4 @@ export * from "./iter.ts";
 export { fromDir } from "./file.ts";
 export { withDist } from "./dist.ts";
 export { withGitRepo, withGithub, withHuggingface } from "./git.ts";
-export { withParquet, withParquetDir } from "./parquet.ts";
+export { withParquetDir } from "./parquet.ts";
