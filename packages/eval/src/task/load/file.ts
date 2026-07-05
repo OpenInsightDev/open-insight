@@ -24,13 +24,13 @@ export const fromDir = <T extends Task.Task>({
     const fs = yield* FileSystem.FileSystem;
     const path = yield* Path.Path;
 
-    const entries = yield* fs
+    const entries = yield* fs // must be relative paths
       .readDirectory(dir, { recursive: true })
       .pipe(Effect.mapError(TaskError.load));
 
     const matcher = picomatch(glob);
     const taskFiles = entries
-      .filter((entry) => matcher(path.relative(dir, entry)))
+      .filter((entry) => matcher(entry))
       .map((entry) => path.join(dir, entry));
 
     return yield* Effect.all(
