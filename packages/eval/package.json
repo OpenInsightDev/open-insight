@@ -46,6 +46,7 @@
     "@effect/platform-node": "catalog:",
     "@effect/vitest": "catalog:",
     "@open-insight/core": "workspace:*",
+    "@opentelemetry/api-logs": "catalog:",
     "@opentelemetry/sdk-metrics": "catalog:",
     "@opentelemetry/sdk-trace-node": "catalog:",
     "ai": "catalog:",
@@ -64,6 +65,5 @@
   },
   "peerDependencies": {
     "effect": "catalog:"
-  },
-  "optionalDependencies": {}
+  }
 }
