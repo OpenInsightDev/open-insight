@@ -91,7 +91,7 @@ export class Content extends Schema.TaggedClass<Content>()("Content", {
   value: Schema.Json,
 }) {}
 
-export const ChartSchema = Schema.Union([
+export const Chart = Schema.Union([
   Bar,
   GroupedBar,
   Pie,
@@ -109,9 +109,9 @@ export const ChartSchema = Schema.Union([
   Gauge,
   Content,
 ]);
-export type Chart = Schema.Schema.Type<typeof ChartSchema>;
+export type Chart = Schema.Schema.Type<typeof Chart>;
 
-export const TypeSchema = Schema.Union([
+export const Type = Schema.Union([
   Schema.Literal("Bar"),
   Schema.Literal("GroupedBar"),
   Schema.Literal("Pie"),
@@ -129,7 +129,7 @@ export const TypeSchema = Schema.Union([
   Schema.Literal("Gauge"),
   Schema.Literal("Content"),
 ]);
-export type Type = Schema.Schema.Type<typeof TypeSchema>;
+export type Type = Schema.Schema.Type<typeof Type>;
 
 export type Exec<R = any> = (result: R) => Chart[];
 

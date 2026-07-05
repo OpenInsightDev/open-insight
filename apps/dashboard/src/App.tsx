@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useState, type ComponentProps, type ReactNode } from "react";
 import type { Metric } from "@open-insight/eval";
 import {
   BarChart,
@@ -26,10 +26,12 @@ import {
   YAxis,
   ZAxis,
 } from "recharts";
-import { ActivityIcon, FileTextIcon } from "lucide-react";
+import { ActivityIcon, DownloadIcon, FileTextIcon } from "lucide-react";
 import "./App.css";
 import {
   Attachment,
+  AttachmentAction,
+  AttachmentActions,
   AttachmentContent,
   AttachmentDescription,
   AttachmentGroup,
@@ -67,6 +69,11 @@ import {
 } from "@/components/ui/message-scroller.tsx";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs.tsx";
 import { TooltipProvider } from "@/components/ui/tooltip.tsx";
+import {
+  StreamingMessageSegmentView,
+  StreamingMessageStream,
+  buildStreamingMessageSegments,
+} from "@/components/streaming-message/index.ts";
 import {
   selectBenchmarkTasks,
   selectTaskTrails,
@@ -493,34 +500,6 @@ const metricBarWidth = (value: unknown): string => {
   return `${Math.max(4, Math.min(100, numericValue))}%`;
 };
 
-const streamPartType = (part: unknown): string => {
-  if (!isRecord(part) || typeof part.type !== "string") {
-    return "part";
-  }
-
-  return part.type;
-};
-
-const streamPartBody = (part: unknown): string => {
-  if (!isRecord(part)) {
-    return formatJson(part);
-  }
-
-  if (typeof part.delta === "string") {
-    return part.delta;
-  }
-
-  if (typeof part.reason === "string") {
-    return `reason: ${part.reason}`;
-  }
-
-  if (part.error !== undefined) {
-    return formatJson(part.error);
-  }
-
-  return formatJson(part);
-};
-
 const progressItems = (progress: BenchmarkNode["progress"]) => [
   { label: "Tasks", value: progress.totalTasks },
   { label: "Running", value: progress.runningTasks },
@@ -719,8 +698,85 @@ const contentValue = {
   notes: "Failure cluster is isolated to timeout-sensitive tasks.",
 };
 
+type AgentExampleMessage = {
+  id: string;
+  role: "agent" | "user" | "status";
+  title: string;
+  body: string;
+  time: string;
+  attachments?: ReadonlyArray<{
+    title: string;
+    description: string;
+    state?: ComponentProps<typeof Attachment>["state"];
+  }>;
+};
+
+const officialAgentExampleMessages: ReadonlyArray<AgentExampleMessage> = [
+  {
+    id: "scope",
+    role: "user",
+    title: "You",
+    body: "我重新设计了 service.ts 的接口，引入了 handle.ts 的概念。请把 docker 当前的实现迁移到新的接口上。实现过程中应当先使用 Snapshot.Handle.{make,derive} 把预期返回的 handle 先构建好，然后从该对象中获取 name，调用 Docker 相关命令来构建对应的 image，最后把 handle 返回。注意新的实现不要偏离原先代码的风格",
+    time: "09:41",
+  },
+  {
+    id: "processed",
+    role: "status",
+    title: "已处理",
+    body: "9m 18s",
+    time: "09:50",
+  },
+  {
+    id: "followup-name",
+    role: "user",
+    title: "You",
+    body: "sandbox 的名字构建应当是基于 handle 的名字加上随机后缀",
+    time: "09:51",
+  },
+  {
+    id: "followup-context",
+    role: "user",
+    title: "You",
+    body: "deriveSnapshot 也应该接收一个 context，把这个加上",
+    time: "09:52",
+  },
+  {
+    id: "followup-scope",
+    role: "user",
+    title: "You",
+    body: "别到处乱改，先把 docker 改对了再说",
+    time: "09:53",
+  },
+  {
+    id: "followup-export",
+    role: "user",
+    title: "You",
+    body: "snapshot导出可以改",
+    time: "09:54",
+  },
+  {
+    id: "answer",
+    role: "agent",
+    title: "Agent",
+    body: "改好了，范围收回到 docker 迁移本身了。",
+    time: "09:58",
+    attachments: [
+      {
+        title: "docker/index.ts",
+        description: "TypeScript · updated",
+        state: "done",
+      },
+      {
+        title: "snapshot/index.ts",
+        description: "TypeScript · export adjusted",
+        state: "done",
+      },
+    ],
+  },
+];
+
 function App() {
-  const [activeTab, setActiveTab] = useState<DashboardTab>("charts");
+  const [activeTab, setActiveTab] = useState<DashboardTab>("agent");
   const [activeTaskName, setActiveTaskName] = useState(mockBenchmark.taskOrder[0] ?? "");
   const [activeTrailIndex, setActiveTrailIndex] = useState<number | undefined>(undefined);
 
@@ -837,6 +893,267 @@ function DashboardHeader({
         <span>Last {formatTimestamp(lastEventAt)}</span>
       </div>
     </header>
+  );
+}
+
+function AgentStreamTab({
+  benchmark,
+  tasks,
+  activeTaskName,
+  trails,
+  activeTrailIndex,
+  task,
+  trail,
+  onSelectTask,
+  onSelectTrail,
+}: {
+  benchmark: BenchmarkNode;
+  tasks: Array<TaskNode>;
+  activeTaskName: string | undefined;
+  trails: Array<TrailNode>;
+  activeTrailIndex: number | undefined;
+  task: TaskNode | undefined;
+  trail: TrailNode | undefined;
+  onSelectTask: (taskName: string) => void;
+  onSelectTrail: (trailIndex: number) => void;
+}) {
+  return (
+    <section className="agent-stream-page">
+      <aside className="agent-stream-sidebar" aria-label="Agent stream controls">
+        <Panel title="Stream Source" aside={<StatusPill status={benchmark.status} compact />}>
+          <div className="agent-selector-group">
+            <div className="rail-heading agent-rail-heading">
+              <span>Tasks</span>
+              <span>{tasks.length}</span>
+            </div>
+            {tasks.map((item) => (
+              <button
+                type="button"
+                key={item.name}
+                className={item.name === activeTaskName ? "task-tab is-active" : "task-tab"}
+                onClick={() => onSelectTask(item.name)}
+              >
+                <span className="task-name">{item.metadata?.name ?? item.name}</span>
+                <span className="task-subline">
+                  {item.progress.completedTrails}/{item.progress.observedTrails} trails
+                </span>
+                <StatusPill status={item.status} compact />
+              </button>
+            ))}
+          </div>
+
+          <div className="agent-selector-group">
+            <div className="rail-heading agent-rail-heading">
+              <span>Trails</span>
+              <span>{trails.length}</span>
+            </div>
+            <div className="trail-tabs agent-trail-tabs" aria-label="Agent stream trails">
+              {trails.length === 0 ? (
+                <p className="empty-inline">No trails</p>
+              ) : (
+                trails.map((item) => (
+                  <button
+                    type="button"
+                    key={item.index}
+                    className={item.index === activeTrailIndex ? "is-active" : undefined}
+                    onClick={() => onSelectTrail(item.index)}
+                  >
+                    #{item.index}
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        </Panel>
+      </aside>
+
+      <div className="agent-stream-main">
+        <Panel
+          title="Agent Message Visual"
+          aside={<Badge variant="secondary">shadcn primitives</Badge>}
+        >
+          <MessageScrollerProvider autoScroll>
+            <MessageScroller className="agent-example-scroller">
+              <MessageScrollerViewport>
+                <MessageScrollerContent className="agent-message-content">
+                  <MessageScrollerItem messageId="marker-intro">
+                    <Marker variant="separator">
+                      <MarkerContent>Today</MarkerContent>
+                    </Marker>
+                  </MessageScrollerItem>
+
+                  {officialAgentExampleMessages.map((message) => (
+                    <MessageScrollerItem
+                      key={message.id}
+                      messageId={message.id}
+                      scrollAnchor={message.role === "user"}
+                    >
+                      <AgentExampleRow message={message} />
+                    </MessageScrollerItem>
+                  ))}
+
+                  <MessageScrollerItem messageId="marker-live">
+                    <Marker variant="border">
+                      <MarkerIcon>
+                        <ActivityIcon />
+                      </MarkerIcon>
+                      <MarkerContent>Streaming follow is owned by MessageScroller</MarkerContent>
+                    </Marker>
+                  </MessageScrollerItem>
+                </MessageScrollerContent>
+              </MessageScrollerViewport>
+              <MessageScrollerButton />
+            </MessageScroller>
+          </MessageScrollerProvider>
+        </Panel>
+
+        <Panel
+          title="Selected Trail Stream"
+          aside={trail === undefined ? undefined : <StatusPill status={trail.status} compact />}
+        >
+          {trail === undefined || task === undefined ? (
+            <p className="empty-inline">No trail selected</p>
+          ) : (
+            <TrailStreamPreview task={task} trail={trail} />
+          )}
+        </Panel>
+      </div>
+    </section>
+  );
+}
+
+function AgentExampleRow({ message }: { message: AgentExampleMessage }) {
+  const align = message.role === "user" ? "end" : "start";
+
+  if (message.role === "status") {
+    return (
+      <Marker variant="separator" className="agent-status-marker">
+        <MarkerContent>
+          {message.title} {message.body}
+        </MarkerContent>
+      </Marker>
+    );
+  }
+
+  return (
+    <Message align={align} className={message.role === "agent" ? "agent-message-row" : undefined}>
+      <MessageContent>
+        {message.role === "agent" ? (
+          <AgentResponseBody message={message} />
+        ) : (
+          <Bubble variant="secondary" align={align} className="agent-user-bubble">
+            <BubbleContent>{message.body}</BubbleContent>
+          </Bubble>
+        )}
+        {message.attachments === undefined ? null : (
+          <AttachmentGroup className="agent-attachment-group">
+            {message.attachments.map((attachment) => (
+              <Attachment key={attachment.title} state={attachment.state}>
+                <AttachmentMedia variant="icon">
+                  <FileTextIcon />
+                </AttachmentMedia>
+                <AttachmentContent>
+                  <AttachmentTitle>{attachment.title}</AttachmentTitle>
+                  <AttachmentDescription>{attachment.description}</AttachmentDescription>
+                </AttachmentContent>
+                <AttachmentActions>
+                  <AttachmentAction aria-label={`Download ${attachment.title}`}>
+                    <DownloadIcon data-icon="inline-start" />
+                  </AttachmentAction>
+                </AttachmentActions>
+              </Attachment>
+            ))}
+          </AttachmentGroup>
+        )}
+      </MessageContent>
+    </Message>
+  );
+}
+
+function AgentResponseBody({ message }: { message: AgentExampleMessage }) {
+  return (
+    <div className="agent-response-body">
+      <p>{message.body}</p>
+      <p>主要变化：</p>
+      <ul>
+        <li>
+          <FileToken>docker/index.ts</FileToken> 迁到新接口：
+          <ul>
+            <li>
+              <CodeToken>aquireSnapshot</CodeToken> 先 <CodeToken>Snapshot.Handle.make</CodeToken>，
+              再用 <CodeToken>handle.name</CodeToken> build image，最后返回 handle。
+            </li>
+            <li>
+              <CodeToken>deriveSnapshot</CodeToken> 接收 <CodeToken>context</CodeToken>，先{" "}
+              <CodeToken>Snapshot.Handle.derive</CodeToken>，再用派生 handle 的{" "}
+              <CodeToken>name</CodeToken> build image。
+            </li>
+            <li>
+              <CodeToken>runSandbox</CodeToken> 改为接收 <CodeToken>handle</CodeToken>，image 用{" "}
+              <CodeToken>handle.name</CodeToken>，sandbox name 基于 handle name 加随机后缀。
+            </li>
+          </ul>
+        </li>
+        <li>
+          <FileToken>snapshot/index.ts</FileToken> 导出 Handle，方便 docker provider 直接使用。
+        </li>
+      </ul>
+    </div>
+  );
+}
+
+function FileToken({ children }: { children: ReactNode }) {
+  return <span className="agent-file-token">{children}</span>;
+}
+
+function CodeToken({ children }: { children: ReactNode }) {
+  return <code className="agent-code-token">{children}</code>;
+}
+
+function TrailStreamPreview({ task, trail }: { task: TaskNode; trail: TrailNode }) {
+  return (
+    <MessageScrollerProvider autoScroll>
+      <MessageScroller className="agent-trail-scroller">
+        <MessageScrollerViewport>
+          <MessageScrollerContent className="agent-message-content">
+            <MessageScrollerItem messageId={`${task.name}-${trail.index}-marker`}>
+              <Marker variant="separator">
+                <MarkerContent>
+                  {task.metadata?.name ?? task.name} / trail #{trail.index}
+                </MarkerContent>
+              </Marker>
+            </MessageScrollerItem>
+
+            {trail.reasoningPreview.length > 0 ? (
+              <MessageScrollerItem messageId={`${task.name}-${trail.index}-reasoning`}>
+                <Message align="start" className="agent-message-row">
+                  <MessageContent>
+                    <MessageHeader>Reasoning preview</MessageHeader>
+                    <div className="agent-stream-text">{trail.reasoningPreview}</div>
+                    <MessageFooter>{formatTimestamp(trail.lastEventAt)}</MessageFooter>
+                  </MessageContent>
+                </Message>
+              </MessageScrollerItem>
+            ) : null}
+
+            {buildStreamingMessageSegments(trail.streamParts).map((segment) => (
+              <MessageScrollerItem
+                key={`${segment.kind}-${segment.id}`}
+                messageId={`${task.name}-${trail.index}-${segment.kind}-${segment.id}`}
+                scrollAnchor={segment.kind === "text"}
+              >
+                <StreamingMessageSegmentView
+                  segment={segment}
+                  footer={formatTimestamp(trail.lastEventAt)}
+                  className="agent-message-row"
+                />
+              </MessageScrollerItem>
+            ))}
+          </MessageScrollerContent>
+        </MessageScrollerViewport>
+        <MessageScrollerButton />
+      </MessageScroller>
+    </MessageScrollerProvider>
   );
 }
 
@@ -1046,32 +1363,11 @@ function TrailUsage({ trail }: { trail: TrailNode }) {
 
 function MessageFlow({ trail }: { trail: TrailNode }) {
   return (
-    <div className="message-flow">
-      {trail.reasoningPreview.length > 0 ? (
-        <article className="message-item">
-          <div className="message-meta">reasoning</div>
-          <p>{trail.reasoningPreview}</p>
-        </article>
-      ) : null}
-      {trail.textPreview.length > 0 ? (
-        <article className="message-item">
-          <div className="message-meta">output</div>
-          <p>{trail.textPreview}</p>
-        </article>
-      ) : null}
-      {trail.streamParts.length === 0 ? (
-        <p className="empty-inline">No stream parts</p>
-      ) : (
-        trail.streamParts.map((part, index) => (
-          <article className="message-item is-compact" key={`${streamPartType(part)}-${index}`}>
-            <div className="message-meta">
-              {index + 1}. {streamPartType(part)}
-            </div>
-            <p>{streamPartBody(part)}</p>
-          </article>
-        ))
-      )}
-    </div>
+    <StreamingMessageStream
+      parts={trail.streamParts}
+      footer={formatTimestamp(trail.lastEventAt)}
+      className="message-flow"
+    />
   );
 }
 

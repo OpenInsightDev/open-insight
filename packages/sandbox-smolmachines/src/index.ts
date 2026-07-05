@@ -33,7 +33,11 @@ const metadataPath = "/open-insight/snapshot.json";
 const supportedBaseImages = new Set(["scratch", "alpine", "alpine:latest"]);
 
 const formatResources = (resources: Sandbox.ResourceLimits | null): ResourceSpec => {
-  const spec: ResourceSpec = { network: true };
+  const spec: ResourceSpec = {};
+
+  if (resources?.internet !== undefined) {
+    spec.network = resources.internet;
+  }
 
   if (resources?.numCPUs !== undefined) {
     spec.cpus = resources.numCPUs;
