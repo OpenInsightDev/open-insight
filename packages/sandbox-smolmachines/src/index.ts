@@ -1,6 +1,6 @@
 import { Sandbox } from "@open-insight/core";
 import { Spawn } from "@open-insight/utils";
-import { Crypto, Effect, FileSystem, Path, Schema, type Scope } from "effect";
+import { Crypto, Effect, FileSystem, Option, Path, Schema, type Scope } from "effect";
 import { ChildProcess as CP } from "effect/unstable/process";
 import { Machine, type ExecOptions, type PortSpec, type ResourceSpec } from "smolmachines";
 
@@ -30,7 +30,6 @@ const initialState: SnapshotState = {
 };
 
 const metadataPath = "/open-insight/snapshot.json";
-const supportedBaseImages = new Set(["scratch", "alpine", "alpine:latest"]);
 
 const formatResources = (resources: Sandbox.ResourceLimits | null): ResourceSpec => {
   const spec: ResourceSpec = {};
@@ -116,15 +115,11 @@ export const make = Effect.fn("sandbox/provider/smolmachines")(
       machine: Machine,
       command: ReadonlyArray<string>,
       options: ExecOptions | undefined,
-      mapError: (cause: unknown) => Sandbox.SandboxError,
     ) =>
-      Effect.tryPromise({
-        try: async () => {
-          const result = await machine.exec(Array.from(command), options);
-          result.assertSuccess();
-          return result;
-        },
-        catch: mapError,
+      Effect.tryPromise(async () => {
+        const result = await machine.exec(Array.from(command), options);
+        result.assertSuccess();
+        return result;
       });
 
     const removeMachine = (machine: Machine) =>
@@ -156,53 +151,37 @@ export const make = Effect.fn("sandbox/provider/smolmachines")(
         Effect.catch(() => Effect.succeed(initialState)),
       );
 
-    const writeState = (
-      machine: Machine,
-      state: SnapshotState,
-      mapError: (cause: unknown) => Sandbox.SandboxError,
-    ) =>
+    const writeState = (machine: Machine, state: SnapshotState) =>
       Effect.gen(function* () {
-        yield* run(machine, ["mkdir", "-p", guestDirname(metadataPath)], undefined, mapError);
-        yield* Effect.tryPromise({
-          try: () => machine.writeFile(metadataPath, `${JSON.stringify(state)}\n`),
-          catch: mapError,
-        });
+        yield* run(machine, ["mkdir", "-p", guestDirname(metadataPath)], undefined);
+        yield* Effect.tryPromise(() =>
+          machine.writeFile(metadataPath, `${JSON.stringify(state)}\n`),
+        );
       });
 
     const upload = (
       machine: Machine,
       hostPath: string,
       sandboxPath: string,
-      mapError: (cause: unknown) => Sandbox.SandboxError,
-    ): Effect.Effect<void, Sandbox.SandboxError> =>
+    ): Effect.Effect<void, unknown> =>
       Effect.gen(function* () {
-        const info = yield* fs.stat(hostPath).pipe(Effect.mapError(mapError));
+        const info = yield* fs.stat(hostPath);
         if (info.type === "Directory") {
-          yield* run(machine, ["mkdir", "-p", sandboxPath], undefined, mapError).pipe(
-            Effect.asVoid,
-          );
+          yield* run(machine, ["mkdir", "-p", sandboxPath], undefined).pipe(Effect.asVoid);
 
-          const entries = yield* fs.readDirectory(hostPath).pipe(Effect.mapError(mapError));
+          const entries = yield* fs.readDirectory(hostPath);
           for (const entry of entries) {
-            yield* upload(
-              machine,
-              path.join(hostPath, entry),
-              guestJoin(sandboxPath, entry),
-              mapError,
-            );
+            yield* upload(machine, path.join(hostPath, entry), guestJoin(sandboxPath, entry));
           }
           return;
         }
 
-        yield* run(machine, ["mkdir", "-p", guestDirname(sandboxPath)], undefined, mapError).pipe(
+        yield* run(machine, ["mkdir", "-p", guestDirname(sandboxPath)], undefined).pipe(
           Effect.asVoid,
         );
 
-        const content = yield* fs.readFile(hostPath).pipe(Effect.mapError(mapError));
-        yield* Effect.tryPromise({
-          try: () => machine.writeFile(sandboxPath, content),
-          catch: mapError,
-        });
+        const content = yield* fs.readFile(hostPath);
+        yield* Effect.tryPromise(() => machine.writeFile(sandboxPath, content));
       });
 
     const applyInstructions = (
@@ -219,12 +198,9 @@ export const make = Effect.fn("sandbox/provider/smolmachines")(
           yield* Sandbox.Snapshot.Inst.Instruction.match(instruction, {
             Workdir: ({ path: workdir }) =>
               Effect.gen(function* () {
-                yield* run(
-                  machine,
-                  ["mkdir", "-p", workdir],
-                  undefined,
-                  Sandbox.SandboxError.snapshotBuild(snapshot),
-                ).pipe(Effect.asVoid);
+                yield* run(machine, ["mkdir", "-p", workdir], undefined).pipe(
+                  Effect.mapError(Sandbox.SandboxError.snapshotBuild(snapshot)),
+                );
                 nextState = { ...nextState, workdir };
               }),
             Env: ({ env }) =>
@@ -232,12 +208,9 @@ export const make = Effect.fn("sandbox/provider/smolmachines")(
                 nextState = { ...nextState, env: { ...nextState.env, ...env } };
               }),
             Run: ({ cmd }) =>
-              run(
-                machine,
-                ["sh", "-c", cmd],
-                makeExecOptions(undefined, nextState),
-                Sandbox.SandboxError.snapshotBuild(snapshot),
-              ).pipe(Effect.asVoid),
+              run(machine, ["sh", "-c", cmd], makeExecOptions(undefined, nextState)).pipe(
+                Effect.mapError(Sandbox.SandboxError.snapshotBuild(snapshot)),
+              ),
             Copy: ({ src, dest }) =>
               Effect.gen(function* () {
                 for (const source of src) {
@@ -246,11 +219,8 @@ export const make = Effect.fn("sandbox/provider/smolmachines")(
                     src.length > 1 || dest.endsWith("/")
                       ? guestJoin(dest, path.basename(source))
                       : dest;
-                  yield* upload(
-                    machine,
-                    hostPath,
-                    sandboxPath,
-                    Sandbox.SandboxError.snapshotBuild(snapshot),
+                  yield* upload(machine, hostPath, sandboxPath).pipe(
+                    Effect.mapError(Sandbox.SandboxError.snapshotBuild(snapshot)),
                   );
                 }
               }),
@@ -269,7 +239,9 @@ export const make = Effect.fn("sandbox/provider/smolmachines")(
           });
         }
 
-        yield* writeState(machine, nextState, Sandbox.SandboxError.snapshotBuild(snapshot));
+        yield* writeState(machine, nextState).pipe(
+          Effect.mapError(Sandbox.SandboxError.snapshotBuild(snapshot)),
+        );
         return nextState;
       });
 
@@ -279,10 +251,13 @@ export const make = Effect.fn("sandbox/provider/smolmachines")(
         return cached;
       }
 
-      const machine = yield* Effect.tryPromise({
-        try: () => Machine.connect(handle.name, { target: "local" }),
-        catch: Sandbox.SandboxError.snapshotUsage(Sandbox.Snapshot.fromImage(handle.name)),
-      });
+      const machine = yield* Effect.tryPromise(() =>
+        Machine.connect(handle.name, { target: "local" }),
+      ).pipe(
+        Effect.mapError(
+          Sandbox.SandboxError.snapshotUsage(Sandbox.Snapshot.fromImage(handle.name)),
+        ),
+      );
       const state = yield* readState(machine);
       const entry = { machine, state } satisfies SnapshotMachine;
       snapshotMachines.set(handle.name, entry);
@@ -310,17 +285,6 @@ export const make = Effect.fn("sandbox/provider/smolmachines")(
 
     const aquireSnapshot = Effect.fn(
       function* ({ snapshot, context, cache = true }) {
-        if (!supportedBaseImages.has(snapshot.image)) {
-          return yield* Effect.fail(
-            Sandbox.SandboxError.snapshotUnsupported(
-              "smolmachines",
-              snapshot,
-            )(
-              "The local smolmachines SDK does not expose persistent machine creation from arbitrary OCI images.",
-            ),
-          );
-        }
-
         const handle = yield* Sandbox.Snapshot.Handle.make(snapshot, { format: "pascal" }).pipe(
           Effect.provideService(Crypto.Crypto, crypto),
         );
@@ -330,33 +294,37 @@ export const make = Effect.fn("sandbox/provider/smolmachines")(
           catch: () => undefined,
         }).pipe(Effect.option);
 
-        if (existing._tag === "Some") {
-          const state = yield* readState(existing.value);
-          yield* registerMachine({ handle, machine: existing.value, state, cache });
-          return handle;
-        }
-
-        const machine = yield* Effect.tryPromise({
-          try: () =>
-            Machine.create({
-              name: handle.name,
-              forkable: true,
-              persistent: true,
-              resources: formatResources(null),
+        return yield* Option.match(existing, {
+          onSome: (machine) =>
+            Effect.gen(function* () {
+              const state = yield* readState(machine);
+              yield* registerMachine({ handle, machine, state, cache });
+              return handle;
             }),
-          catch: Sandbox.SandboxError.snapshotBuild(snapshot),
+          onNone: () =>
+            Effect.gen(function* () {
+              const machine = yield* Effect.tryPromise(() =>
+                Machine.create({
+                  name: handle.name,
+                  image: snapshot.image,
+                  forkable: true,
+                  persistent: true,
+                  resources: formatResources(null),
+                }),
+              ).pipe(Effect.mapError(Sandbox.SandboxError.snapshotBuild(snapshot)));
+
+              const state = yield* applyInstructions(
+                machine,
+                snapshot,
+                context,
+                snapshot.instructions,
+                initialState,
+              );
+
+              yield* registerMachine({ handle, machine, state, cache });
+              return handle;
+            }),
         });
-
-        const state = yield* applyInstructions(
-          machine,
-          snapshot,
-          context,
-          snapshot.instructions,
-          initialState,
-        );
-
-        yield* registerMachine({ handle, machine, state, cache });
-        return handle;
       },
       (effect, { snapshot }) =>
         effect.pipe(Effect.mapError(Sandbox.SandboxError.snapshotBuild(snapshot))),
@@ -385,21 +353,31 @@ export const make = Effect.fn("sandbox/provider/smolmachines")(
         catch: () => undefined,
       }).pipe(Effect.option);
 
-      if (persisted._tag === "Some") {
-        const state = yield* readState(persisted.value);
-        yield* registerMachine({ handle: derived, machine: persisted.value, state, cache });
-        return derived;
-      }
+      return yield* Option.match(persisted, {
+        onSome: (machine) =>
+          Effect.gen(function* () {
+            const state = yield* readState(machine);
+            yield* registerMachine({ handle: derived, machine, state, cache });
+            return derived;
+          }),
+        onNone: () =>
+          Effect.gen(function* () {
+            const snapshot = Sandbox.Snapshot.make({ image: handle.name, instructions });
+            const machine = yield* Effect.tryPromise(() => base.machine.fork(derived.name)).pipe(
+              Effect.mapError(Sandbox.SandboxError.snapshotBuild(snapshot)),
+            );
+            const state = yield* applyInstructions(
+              machine,
+              snapshot,
+              context,
+              instructions,
+              base.state,
+            );
 
-      const snapshot = Sandbox.Snapshot.make({ image: handle.name, instructions });
-      const machine = yield* Effect.tryPromise({
-        try: () => base.machine.fork(derived.name),
-        catch: Sandbox.SandboxError.snapshotBuild(snapshot),
+            yield* registerMachine({ handle: derived, machine, state, cache });
+            return derived;
+          }),
       });
-      const state = yield* applyInstructions(machine, snapshot, context, instructions, base.state);
-
-      yield* registerMachine({ handle: derived, machine, state, cache });
-      return derived;
     }) satisfies Sandbox.Provider["deriveSnapshot"];
 
     const runSandbox = Effect.fn(function* ({ handle, resources }) {
@@ -418,10 +396,9 @@ export const make = Effect.fn("sandbox/provider/smolmachines")(
         Effect.provideService(Crypto.Crypto, crypto),
         Effect.mapError(Sandbox.SandboxError.sandboxStart(handle.name)),
       );
-      const machine = yield* Effect.tryPromise({
-        try: () => base.machine.fork(name, ports),
-        catch: Sandbox.SandboxError.sandboxStart(handle.name),
-      });
+      const machine = yield* Effect.tryPromise(() => base.machine.fork(name, ports)).pipe(
+        Effect.mapError(Sandbox.SandboxError.sandboxStart(handle.name)),
+      );
 
       yield* Effect.addFinalizer(() => removeMachine(machine));
 
@@ -437,24 +414,24 @@ export const make = Effect.fn("sandbox/provider/smolmachines")(
         const options = makeExecOptions(command, base.state);
 
         if (input === undefined) {
-          const result = yield* run(machine, ["sh", "-c", bash], options, mapError);
+          const result = yield* run(machine, ["sh", "-c", bash], options).pipe(
+            Effect.mapError(mapError),
+          );
           return result.stdout;
         }
 
         const uuid = yield* crypto.randomUUIDv4.pipe(Effect.mapError(mapError));
         const stdinPath = `/tmp/open-insight-stdin-${uuid}`;
-        yield* Effect.tryPromise({
-          try: () => machine.writeFile(stdinPath, input),
-          catch: mapError,
-        });
-        const result = yield* run(
-          machine,
-          ["sh", "-c", `${bash} < ${stdinPath}`],
-          options,
-          mapError,
-        ).pipe(
+        yield* Effect.tryPromise(() => machine.writeFile(stdinPath, input)).pipe(
+          Effect.mapError(mapError),
+        );
+        const result = yield* run(machine, ["sh", "-c", `${bash} < ${stdinPath}`], options).pipe(
+          Effect.mapError(mapError),
           Effect.ensuring(
-            run(machine, ["rm", "-f", stdinPath], undefined, mapError).pipe(Effect.ignore),
+            run(machine, ["rm", "-f", stdinPath], undefined).pipe(
+              Effect.mapError(mapError),
+              Effect.ignore,
+            ),
           ),
         );
         return result.stdout;
@@ -479,10 +456,9 @@ export const make = Effect.fn("sandbox/provider/smolmachines")(
         }),
         download: Effect.fn(function* ({ sandboxPath, hostPath }) {
           const operation = `download ${sandboxPath} -> ${hostPath}`;
-          const content = yield* Effect.tryPromise({
-            try: () => machine.readFile(sandboxPath),
-            catch: Sandbox.SandboxError.sandboxExec({ name: handle.name, operation }),
-          });
+          const content = yield* Effect.tryPromise(() => machine.readFile(sandboxPath)).pipe(
+            Effect.mapError(Sandbox.SandboxError.sandboxExec({ name: handle.name, operation })),
+          );
           yield* fs
             .makeDirectory(path.dirname(hostPath), { recursive: true })
             .pipe(
@@ -491,43 +467,44 @@ export const make = Effect.fn("sandbox/provider/smolmachines")(
             );
         }),
         upload: Effect.fn(function* ({ sandboxPath, hostPath }) {
-          yield* upload(
-            machine,
-            hostPath,
-            sandboxPath,
-            Sandbox.SandboxError.sandboxExec({
-              name: handle.name,
-              operation: `upload ${hostPath} -> ${sandboxPath}`,
-            }),
+          yield* upload(machine, hostPath, sandboxPath).pipe(
+            Effect.mapError(
+              Sandbox.SandboxError.sandboxExec({
+                name: handle.name,
+                operation: `upload ${hostPath} -> ${sandboxPath}`,
+              }),
+            ),
           );
         }),
         readFile: Effect.fn(function* ({ sandboxPath }) {
-          const content = yield* Effect.tryPromise({
-            try: () => machine.readFile(sandboxPath),
-            catch: Sandbox.SandboxError.sandboxExec({
-              name: handle.name,
-              operation: `read ${sandboxPath}`,
-            }),
-          });
+          const content = yield* Effect.tryPromise(() => machine.readFile(sandboxPath)).pipe(
+            Effect.mapError(
+              Sandbox.SandboxError.sandboxExec({
+                name: handle.name,
+                operation: `read ${sandboxPath}`,
+              }),
+            ),
+          );
           return content.toString("utf8");
         }),
         writeFile: Effect.fn(function* ({ sandboxPath, content }) {
-          yield* run(
-            machine,
-            ["mkdir", "-p", guestDirname(sandboxPath)],
-            undefined,
-            Sandbox.SandboxError.sandboxExec({
-              name: handle.name,
-              operation: `mkdir -p ${guestDirname(sandboxPath)}`,
-            }),
-          ).pipe(Effect.asVoid);
-          yield* Effect.tryPromise({
-            try: () => machine.writeFile(sandboxPath, content),
-            catch: Sandbox.SandboxError.sandboxExec({
-              name: handle.name,
-              operation: `write ${sandboxPath}`,
-            }),
-          });
+          yield* run(machine, ["mkdir", "-p", guestDirname(sandboxPath)], undefined).pipe(
+            Effect.asVoid,
+            Effect.mapError(
+              Sandbox.SandboxError.sandboxExec({
+                name: handle.name,
+                operation: `mkdir -p ${guestDirname(sandboxPath)}`,
+              }),
+            ),
+          );
+          yield* Effect.tryPromise(() => machine.writeFile(sandboxPath, content)).pipe(
+            Effect.mapError(
+              Sandbox.SandboxError.sandboxExec({
+                name: handle.name,
+                operation: `write ${sandboxPath}`,
+              }),
+            ),
+          );
         }),
       }).pipe(Effect.provideService(Spawn.SpawnService, spawner));
     }) satisfies Sandbox.Provider["runSandbox"];

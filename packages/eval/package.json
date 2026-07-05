@@ -45,6 +45,8 @@
     "@effect/platform-node": "4.0.0-beta.91",
     "@effect/vitest": "catalog:",
     "@open-insight/core": "workspace:*",
+    "@opentelemetry/sdk-metrics": "catalog:",
+    "@opentelemetry/sdk-trace-node": "catalog:",
     "ai": "^7.0.0",
     "effect": "catalog:",
     "hyparquet": "catalog:",
