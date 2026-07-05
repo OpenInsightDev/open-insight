@@ -24,7 +24,7 @@
   "exports": {
     ".": "./src/export.ts",
     "./internal": "./src/index.ts",
-    "./utils/export": "./src/utils/export.ts",
+    "./utils": "./src/utils/export.ts",
     "./package.json": "./package.json"
   },
   "publishConfig": {
