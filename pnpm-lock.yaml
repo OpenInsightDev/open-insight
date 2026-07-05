@@ -450,7 +450,7 @@ importers:
         specifier: 'catalog:'
         version: 4.0.0-beta.91
       picomatch:
-        specifier: ^4.0.4
+        specifier: 'catalog:'
         version: 4.0.4
       semver:
         specifier: 'catalog:'
