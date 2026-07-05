@@ -16,3 +16,6 @@
 [submodule ".repos/verilog-eval"]
 	path = .repos/verilog-eval
 	url = https://github.com/NVlabs/verilog-eval.git
+[submodule ".repos/slime"]
+	path = .repos/slime
+	url = https://github.com/THUDM/slime.git
