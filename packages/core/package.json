@@ -31,7 +31,7 @@
     "exports": {
       ".": "./dist/index.mjs",
       "./internal": "./dist/internal.mjs",
-      "./utils/export": "./dist/utils/export.mjs",
+      "./utils": "./dist/utils.mjs",
       "./package.json": "./package.json"
     },
     "access": "public"

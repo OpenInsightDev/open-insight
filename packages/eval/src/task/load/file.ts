@@ -8,10 +8,10 @@ import type { Loader } from "./index.ts";
  * Discovers task modules from a directory.
  *
  * Each discovered script is treated as a task module:
- * - export its built task via default export
- * - be safe to load from any working directory
- *
- * Note: If the script contains any file system operations, e.g. `fs.readFileSync`, it must use `import.meta.dirname` or `import.meta.url` to resolve the absolute path of the task directory. Using relative paths will lead to unexpected results.
+ * - export its task via default export
+ * - be safe to load from any working directory.
+ * That is, if the script contains any file system operations, e.g. `fs.readFileSync`, the file path must be resolved using `import.meta.resolve(filePath)`.
+ * Using relative paths without resolving will lead to unexpected results.
  */
 export const fromDir = <T extends Task.Task>({
   dir,
@@ -25,9 +25,7 @@ export const fromDir = <T extends Task.Task>({
     const path = yield* Path.Path;
 
     const entries = yield* fs
-      .readDirectory(dir, {
-        recursive: true,
-      })
+      .readDirectory(dir, { recursive: true })
       .pipe(Effect.mapError(TaskError.load));
 
     const matcher = picomatch(glob);
@@ -36,14 +34,13 @@ export const fromDir = <T extends Task.Task>({
       .map((entry) => path.join(dir, entry));
 
     return yield* Effect.all(
-      taskFiles.map((taskFile) =>
-        Effect.gen(function* () {
-          const fileUrl = yield* path.toFileUrl(taskFile).pipe(Effect.mapError(TaskError.load));
-          const module = yield* Effect.tryPromise(() => import(fileUrl.href)).pipe(
+      taskFiles.map(
+        Effect.fn(function* (taskFile) {
+          const module = yield* Effect.tryPromise(() => import(taskFile)).pipe(
             Effect.mapError(TaskError.load),
           );
 
-          if (module.default === null) {
+          if (!module.default) {
             return yield* Effect.fail(
               TaskError.load(
                 new Error(
