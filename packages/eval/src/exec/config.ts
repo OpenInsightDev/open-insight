@@ -6,4 +6,8 @@ export type Config = Readonly<{
   readonly harness?: Harness.Config;
   readonly sandbox?: Sandbox.Config;
   readonly otel?: NodeSdk.Configuration;
+
+  readonly snapshotConcurrency?: number;
+  readonly taskConcurrency?: number;
+  readonly trailConcurrency?: number;
 }>;

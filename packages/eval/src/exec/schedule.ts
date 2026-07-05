@@ -90,7 +90,7 @@ export const run = Effect.fn("exec/schedule")(
       metrics: Option.Option<Metric.Metrics>;
       benchmark: Benchmark.Benchmark;
     }>,
-    { harness, sandbox }: Config,
+    config: Config,
   ): Effect.fn.Return<
     ExecResult,
     ExecError,
@@ -107,11 +107,12 @@ export const run = Effect.fn("exec/schedule")(
       );
     }
 
-    const { snapshotConcurrency = 32, trailConcurrency = 32 } = harness ?? {};
     const metricQueue = yield* Queue.bounded<Metric.Input, Cause.Done>(128);
     const eventQueue = yield* Queue.bounded<Event, Cause.Done>(128);
     const transport = yield* Effect.serviceOption(EventTransportService);
 
+    // TODO reasonable default config values
+    const { snapshotConcurrency = 32, trailConcurrency = 32 } = config;
     const snapshotSem = yield* Semaphore.make(snapshotConcurrency);
     const snapshotCountdown = yield* Countdown.make(benchmark.tasks.length);
     const trailSem = yield* Semaphore.make(trailConcurrency);
@@ -137,7 +138,7 @@ export const run = Effect.fn("exec/schedule")(
         });
         yield* Effect.logDebug("Preparing task schedule");
 
-        const trail = yield* createTrail({ task, metricQueue, eventQueue, config: sandbox })
+        const trail = yield* createTrail({ task, metricQueue, eventQueue, config })
           // snapshot building should also be limited to avoid overwhelming the sandbox provider
           .pipe((create) => snapshotSem.withPermit(create));
         yield* Effect.logDebug("Task snapshot is ready");

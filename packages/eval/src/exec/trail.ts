@@ -6,16 +6,17 @@ import { ExecError } from "./error.ts";
 import { Response } from "effect/unstable/ai";
 import { type Event, TaskStreamPartEvent } from "./event/index.ts";
 import { ChildProcessSpawner } from "effect/unstable/process";
+import type { Config } from "./config.ts";
 
 export const createTrail = Effect.fn("exec/createTrail")(
   function* ({
     task,
-    config: { cacheAgentSnapshot, cacheTaskSnapshot } = {},
+    config: { sandbox: { cacheAgentSnapshot, cacheTaskSnapshot } = {} } = {},
     metricQueue,
     eventQueue,
   }: {
     task: Task.Task;
-    config?: Sandbox.Config;
+    config?: Config;
     metricQueue: Queue.Enqueue<Metric.Input>;
     eventQueue: Queue.Enqueue<Event>;
   }): Effect.fn.Return<
