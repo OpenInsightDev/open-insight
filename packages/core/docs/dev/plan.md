@@ -6,9 +6,3 @@
 
 - **网络策略控制**：Harbor 的 `BaseEnvironment` 支持 `NetworkMode.PUBLIC / NO_NETWORK / ALLOWLIST`，并且能在运行时切换策略（`_phase_network_policies`）。当前 sandbox 只有容器级别的端口映射（`expose`），没有 egress 控制接口。
 - **Compose 多服务支持**：Harbor 通过 `service_exec`、`stop_service` 等方法支持 docker-compose 风格的多容器环境。当前 sandbox 是单容器模型。
-
-## 思路方向
-
-**不做**大的抽象层变化（不引入 BaseEnvironment 基类）。保持当前的组合风格：新功能做成可选的 Effect Service（类似 `CheckpointService`），不做进 `Provider` 的必需方法里。Harbor 的设计是很好的参考，但不用把它整层搬过来。
-
-顺序上先做网络策略控制，再做 compose。没有固定时间表，按实际需要推进。

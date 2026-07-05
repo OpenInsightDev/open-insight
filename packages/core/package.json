@@ -45,16 +45,14 @@
     "@agentclientprotocol/sdk": "^1.0.0",
     "@effect/ai-openai": "catalog:",
     "@effect/opentelemetry": "catalog:",
+    "@open-insight/utils": "workspace:*",
     "ai": "catalog:",
     "dockerfile-ast": "^0.7.1",
-    "effect": "catalog:",
-    "picomatch": "^4.0.4",
+    "picomatch": "catalog:",
     "semver": "catalog:"
   },
   "devDependencies": {
-    "@effect/platform-node": "4.0.0-beta.91",
     "@effect/vitest": "4.0.0-beta.91",
-    "@open-insight/utils": "workspace:*",
     "@types/node": "^25.6.2",
     "@types/picomatch": "^4.0.3",
     "@types/semver": "catalog:",
@@ -63,5 +61,9 @@
     "typescript": "^5",
     "vite-plus": "catalog:",
     "vitest": "catalog:"
+  },
+  "peerDependencies": {
+    "@effect/platform-node": "catalog:",
+    "effect": "catalog:"
   }
 }

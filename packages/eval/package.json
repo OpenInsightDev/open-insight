@@ -41,28 +41,30 @@
     "prepublishOnly": "vp run build"
   },
   "dependencies": {
-    "@effect/opentelemetry": "4.0.0-beta.93",
-    "@effect/platform-node": "4.0.0-beta.91",
+    "@effect/ai-openai": "catalog:",
+    "@effect/opentelemetry": "catalog:",
+    "@effect/platform-node": "catalog:",
     "@effect/vitest": "catalog:",
     "@open-insight/core": "workspace:*",
     "@opentelemetry/sdk-metrics": "catalog:",
     "@opentelemetry/sdk-trace-node": "catalog:",
-    "ai": "^7.0.0",
-    "effect": "catalog:",
+    "ai": "catalog:",
     "hyparquet": "catalog:",
     "immer": "catalog:",
-    "picomatch": "^4.0.4"
+    "picomatch": "catalog:"
   },
   "devDependencies": {
-    "@effect/ai-openai": "4.0.0-beta.92",
     "@open-insight/utils": "workspace:*",
     "@types/node": "^25.6.2",
-    "@types/picomatch": "^4.0.3",
+    "@types/picomatch": "catalog:",
     "@typescript/native-preview": "catalog:",
     "bumpp": "^11.1.0",
-    "pathe": "catalog:",
     "typescript": "^5",
     "vite-plus": "catalog:",
     "vitest": "catalog:"
-  }
+  },
+  "peerDependencies": {
+    "effect": "catalog:"
+  },
+  "optionalDependencies": {}
 }
