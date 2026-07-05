@@ -1,19 +1,16 @@
-import { Schema } from "effect";
+import { Effect, Schema } from "effect";
+import * as Task from "../index.ts";
+import type { Loader } from "./index.ts";
 
-export const withParquet = <T>({
-  filePath,
-  schema,
-}: {
-  filePath: string;
-  schema: Schema.Schema<T>;
-}) => {};
-
-export const withParquetDir = <T>({
+export const withParquetDir = <S>({
   dirPath,
   prefix,
   schema,
 }: {
   dirPath: string;
   prefix: string;
-  schema: Schema.Schema<T>;
-}) => {};
+  schema: Schema.Schema<S>;
+}) =>
+  Effect.fn(function* <T extends Task.Task>(
+    exec: ({ items }: { items: AsyncIterator<S> }) => Loader<T>,
+  ) {});
