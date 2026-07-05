@@ -1,7 +1,7 @@
 import * as Task from "../index.ts";
 import { ChildProcess } from "effect/unstable/process";
 import { Effect, FileSystem } from "effect";
-import { Spawn } from "@open-insight/utils";
+import { Spawn } from "@open-insight/core/utils";
 import type { Loader } from "./index.ts";
 import { TaskError } from "../error.ts";
 

@@ -1,5 +1,5 @@
 import { Sandbox } from "@open-insight/core";
-import { Spawn } from "@open-insight/utils";
+import { Spawn } from "@open-insight/core/utils";
 import { Crypto, Effect, FileSystem, Option, Path, Schema, type Scope } from "effect";
 import { ChildProcess as CP } from "effect/unstable/process";
 import { Machine, type ExecOptions, type PortSpec, type ResourceSpec } from "smolmachines";

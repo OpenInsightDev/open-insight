@@ -37,7 +37,6 @@
     "prepublishOnly": "vp run build"
   },
   "dependencies": {
-    "@open-insight/utils": "workspace:*",
     "effect": "catalog:"
   },
   "devDependencies": {

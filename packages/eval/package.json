@@ -54,7 +54,6 @@
     "picomatch": "catalog:"
   },
   "devDependencies": {
-    "@open-insight/utils": "workspace:*",
     "@types/node": "^25.6.2",
     "@types/picomatch": "catalog:",
     "@typescript/native-preview": "catalog:",

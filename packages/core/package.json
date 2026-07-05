@@ -24,12 +24,14 @@
   "exports": {
     ".": "./src/export.ts",
     "./internal": "./src/index.ts",
+    "./utils": "./src/utils/export.ts",
     "./package.json": "./package.json"
   },
   "publishConfig": {
     "exports": {
       ".": "./dist/index.mjs",
       "./internal": "./dist/internal.mjs",
+      "./utils/export": "./dist/utils/export.mjs",
       "./package.json": "./package.json"
     },
     "access": "public"
@@ -45,7 +47,6 @@
     "@agentclientprotocol/sdk": "^1.0.0",
     "@effect/ai-openai": "catalog:",
     "@effect/opentelemetry": "catalog:",
-    "@open-insight/utils": "workspace:*",
     "ai": "catalog:",
     "dockerfile-ast": "^0.7.1",
     "picomatch": "catalog:",

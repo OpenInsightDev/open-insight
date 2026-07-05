@@ -1,5 +1,5 @@
 import * as Sandbox from "@/sandbox/index.ts";
-import { Spawn } from "@open-insight/utils";
+import { Spawn } from "@/utils/index.ts";
 import { SandboxError } from "@/sandbox/error.ts";
 import * as Provider from "@/sandbox/provider/index.ts";
 import * as Snapshot from "@/sandbox/snapshot/index.ts";

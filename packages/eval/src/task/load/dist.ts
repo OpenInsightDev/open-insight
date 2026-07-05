@@ -1,7 +1,7 @@
 import { ChildProcess } from "effect/unstable/process";
 import { Crypto, Effect, Encoding, FileSystem, Schema } from "effect";
 import { HttpClient, HttpClientResponse } from "effect/unstable/http";
-import { Spawn } from "@open-insight/utils";
+import { Spawn } from "@open-insight/core/utils";
 import * as Task from "../index.ts";
 import type { Loader } from "./index.ts";
 

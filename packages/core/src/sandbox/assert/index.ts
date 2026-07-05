@@ -1,6 +1,6 @@
 import { Effect } from "effect";
 import { ChildProcess as CP } from "effect/unstable/process";
-import { Spawn } from "@open-insight/utils";
+import { Spawn } from "@/utils/index.ts";
 import { AssertionFailure, SandboxError } from "../error.ts";
 import type { Sandbox } from "../sandbox/index.ts";
 import { bashQuote } from "../utils.ts";

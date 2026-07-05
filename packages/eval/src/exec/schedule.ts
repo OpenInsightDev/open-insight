@@ -17,8 +17,8 @@ import * as Task from "../task/index.ts";
 import * as Metric from "@/metric/index.ts";
 import { createTrail } from "./trail.ts";
 import { ExecError } from "./error.ts";
-import { Countdown } from "@open-insight/utils";
 import { Agent, Sandbox } from "@open-insight/core/internal";
+import { Countdown } from "@open-insight/core/utils";
 import {
   type Event,
   InitEvent,

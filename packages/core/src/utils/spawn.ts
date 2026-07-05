@@ -68,7 +68,7 @@ export class SpawnService extends Context.Service<
       options?: { readonly includeStderr?: boolean | undefined },
     ): Effect.Effect<ReadonlyArray<string>, SpawnError>;
   }
->()("packages/utils/SpawnService") {
+>()("packages/core/utils/SpawnService") {
   static readonly layer = Layer.effect(
     SpawnService,
     Effect.gen(function* () {
