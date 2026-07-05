@@ -1,8 +1,54 @@
-import { Effect, FileSystem, Path } from "effect";
+import { Effect, FileSystem, Path, Predicate } from "effect";
 import * as Task from "../index.ts";
 import picomatch from "picomatch";
 import { TaskError } from "../error.ts";
 import type { Loader } from "./index.ts";
+
+const missingDefaultExport = (taskFile: string) =>
+  TaskError.load(
+    new Error(
+      `Loading task from file requires a default export, but the module at ${taskFile} does not export any.`,
+    ),
+  );
+
+const invalidDefaultExport = (taskFile: string) =>
+  TaskError.load(
+    new Error(
+      `Loading task from file requires a default export of type Task, but the module at ${taskFile} exports a value that is not a valid Task.`,
+    ),
+  );
+
+const hasTaskTypeId = <T extends Task.Task>(value: unknown): value is T =>
+  Predicate.hasProperty(value, Task.TypeId) && value[Task.TypeId] === Task.TypeId;
+
+const verifyTask = <T extends Task.Task>(taskFile: string, value: unknown) =>
+  hasTaskTypeId<T>(value) ? Effect.succeed(value) : Effect.fail(invalidDefaultExport(taskFile));
+
+const loadTaskFactory = <T extends Task.Task>(taskFile: string, factory: () => unknown) =>
+  Effect.acquireRelease(
+    Effect.gen(function* () {
+      const value = yield* Effect.tryPromise({
+        try: () => Promise.resolve(factory()),
+        catch: TaskError.load,
+      });
+      const task = yield* verifyTask<T>(taskFile, value);
+
+      if (!Predicate.hasProperty(task, Symbol.asyncDispose)) {
+        return yield* Effect.fail(invalidDefaultExport(taskFile));
+      }
+
+      const dispose = task[Symbol.asyncDispose];
+      if (typeof dispose !== "function") {
+        return yield* Effect.fail(invalidDefaultExport(taskFile));
+      }
+
+      return {
+        task,
+        dispose: (): Promise<unknown> => Promise.resolve(dispose.call(task)),
+      };
+    }),
+    ({ dispose }) => Effect.promise(dispose),
+  ).pipe(Effect.map(({ task }) => task));
 
 /**
  * Discovers task modules from a directory.
@@ -12,6 +58,34 @@ import type { Loader } from "./index.ts";
  * - be safe to load from any working directory.
  * That is, if the script contains any file system operations, e.g. `fs.readFileSync`, the file path must be resolved using `import.meta.resolve(filePath)`.
  * Using relative paths without resolving will lead to unexpected results.
+ *
+ * Supported export modes:
+ *
+ * ```ts
+ * import { Task } from "@open-insight/eval";
+ *
+ * export default Task.make({
+ *   name: "static task",
+ *   // ...
+ * });
+ * ```
+ *
+ * ```ts
+ * import { Task } from "@open-insight/eval";
+ *
+ * export default async function makeTask() {
+ *   const task = Task.make({
+ *     name: "scoped task",
+ *     // ...
+ *   });
+ *
+ *   return Object.defineProperty(task, Symbol.asyncDispose, {
+ *     value: async () => {
+ *       // Clean up resources acquired while creating the task.
+ *     },
+ *   });
+ * }
+ * ```
  */
 export const fromDir = <T extends Task.Task>({
   dir,
@@ -36,31 +110,21 @@ export const fromDir = <T extends Task.Task>({
     return yield* Effect.all(
       taskFiles.map(
         Effect.fn(function* (taskFile) {
-          const module = yield* Effect.tryPromise(() => import(taskFile)).pipe(
+          const module: unknown = yield* Effect.tryPromise(() => import(taskFile)).pipe(
             Effect.mapError(TaskError.load),
           );
 
-          if (!module.default) {
-            return yield* Effect.fail(
-              TaskError.load(
-                new Error(
-                  `Loading task from file requires a default export, but the module at ${taskFile} does not export any.`,
-                ),
-              ),
-            );
+          if (!Predicate.hasProperty(module, "default")) {
+            return yield* Effect.fail(missingDefaultExport(taskFile));
           }
 
-          if (module.default[Task.TypeId] !== Task.TypeId) {
-            return yield* Effect.fail(
-              TaskError.load(
-                new Error(
-                  `Loading task from file requires a default export of type Task, but the module at ${taskFile} exports a value that is not a valid Task.`,
-                ),
-              ),
-            );
+          const taskExport = module.default;
+
+          if (typeof taskExport === "function") {
+            return loadTaskFactory<T>(taskFile, () => taskExport());
           }
 
-          return Effect.succeed(module.default as T);
+          return Effect.succeed(yield* verifyTask<T>(taskFile, taskExport));
         }),
       ),
       { concurrency: "unbounded" },

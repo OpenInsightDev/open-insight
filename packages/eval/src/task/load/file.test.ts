@@ -2,6 +2,7 @@ import { NodeServices } from "@effect/platform-node";
 import { assert, describe, layer } from "@effect/vitest";
 import { Cause, Effect, Exit } from "effect";
 import { fileURLToPath } from "node:url";
+import * as factoryFixture from "./__fixtures__/file-loader/factory/index.ts";
 import { TaskError } from "../error.ts";
 import { fromDir } from "./file.ts";
 
@@ -58,6 +59,27 @@ describe("fromDir", () => {
         });
 
         assert.deepStrictEqual(tasks, []);
+      }),
+    );
+
+    it.effect("wraps default task factories as scoped async disposable tasks", () =>
+      Effect.gen(function* () {
+        factoryFixture.reset();
+
+        const tasks = yield* fromDir({
+          dir: fixtureDir("factory"),
+        });
+
+        assert.strictEqual(factoryFixture.calls, 0);
+
+        const loadedTasks = yield* Effect.scoped(Effect.all(tasks));
+
+        assert.deepStrictEqual(
+          loadedTasks.map((task) => task.name),
+          ["factory task"],
+        );
+        assert.strictEqual(factoryFixture.calls, 1);
+        assert.strictEqual(factoryFixture.disposed, 1);
       }),
     );
 
