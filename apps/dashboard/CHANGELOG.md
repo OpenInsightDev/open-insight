@@ -1,5 +1,13 @@
 # dashboard
 
+## 0.0.6
+
+### Patch Changes
+
+- pathc
+- Updated dependencies
+  - @open-insight/eval@0.0.10
+
 ## 0.0.5
 
 ### Patch Changes

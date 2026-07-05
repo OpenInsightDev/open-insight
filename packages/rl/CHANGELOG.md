@@ -1,5 +1,14 @@
 # @open-insight/rl
 
+## 0.0.10
+
+### Patch Changes
+
+- pathc
+- Updated dependencies
+  - @open-insight/core@0.0.10
+  - @open-insight/eval@0.0.10
+
 ## 0.0.9
 
 ### Patch Changes
