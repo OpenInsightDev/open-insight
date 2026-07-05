@@ -1,6 +1,6 @@
 {
   "name": "@open-insight/core",
-  "version": "0.0.13",
+  "version": "0.0.14",
   "description": "Core sandbox provider abstraction layer for Open Insight.",
   "homepage": "https://github.com/open-insight/open-insight#readme",
   "bugs": {

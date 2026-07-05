@@ -1,6 +1,6 @@
 {
   "name": "@open-insight/eval",
-  "version": "0.0.13",
+  "version": "0.0.14",
   "description": "Evaluator framework for Open Insight — benchmarks, tasks, evaluation harnesses.",
   "homepage": "https://github.com/OpenInsightDev/open-insight#readme",
   "bugs": {

@@ -1,6 +1,6 @@
 {
   "name": "@open-insight/harness-openai-agents",
-  "version": "0.0.13",
+  "version": "0.0.14",
   "description": "A starter for creating a TypeScript package.",
   "homepage": "https://github.com/author/library#readme",
   "bugs": {
