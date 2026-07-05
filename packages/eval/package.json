@@ -42,6 +42,7 @@
   },
   "dependencies": {
     "@effect/ai-openai": "catalog:",
+    "@effect/ai-openai-compat": "catalog:",
     "@effect/opentelemetry": "catalog:",
     "@effect/platform-node": "catalog:",
     "@effect/vitest": "catalog:",
@@ -50,6 +51,7 @@
     "@opentelemetry/sdk-logs": "catalog:",
     "@opentelemetry/sdk-metrics": "catalog:",
     "@opentelemetry/sdk-trace-node": "catalog:",
+    "@opentelemetry/sdk-trace-web": "catalog:",
     "ai": "catalog:",
     "hyparquet": "catalog:",
     "immer": "catalog:",
