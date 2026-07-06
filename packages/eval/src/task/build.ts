@@ -13,43 +13,48 @@ export class Metadata extends Schema.Class<Metadata>("TaskMetadata")({
   description: Schema.optional(Schema.String),
   keywords: Schema.optional(Schema.Array(Schema.String)),
   authors: Schema.optional(Schema.Array(Schema.String)),
-  extra: Schema.optional(Schema.Record(Schema.String, Schema.String)),
+  extra: Schema.optional(Schema.Record(Schema.String, Schema.Json)),
 }) {}
 
 export type Task<
-  G extends Grade.Grader = Grade.Grader,
-  Extra extends Record<string, string> = {},
+  G extends Schema.Struct.Fields = never,
+  Extra extends Schema.Struct.Fields = never,
 > = Metadata &
   Readonly<{
-    graders: Grade.Map<G>;
     prompt: ReadonlyArray<Prompt.UserMessage>;
-    context: Sandbox.Context.Context;
+    grader: Grade.Grader<G>;
     snapshot: Sandbox.Snapshot.Snapshot;
-
+    context: Sandbox.Context.Context;
     resources: Sandbox.ResourceLimits | null;
-    extra?: Extra; // override metadata.extra with typed def
+    extra: Extra | null; // override metadata.extra with typed def
   }> & {
     [TypeId]: TypeId;
     _G?: G;
     _Extra?: Extra;
   };
 
-export type GraderOf<T> = T extends Task<infer G> ? G : never;
-export type GradersOf<T> = T extends Task<infer G> ? Grade.Map<G> : never;
+export type GradeFieldsOf<T> = T extends Task<infer G, infer _> ? G : never;
+export type GradeResultOf<T> = T extends Task<infer G, infer _> ? Grade.Result<G> : never;
+export type ExtraFieldsOf<T> = T extends Task<infer _, infer Extra> ? Extra : never;
+export type ExtraOf<T> =
+  T extends Task<infer _, infer Extra> ? Schema.Schema.Type<Schema.Struct<Extra>> : never;
 
 export type Tasks<T extends Task = Task> = ReadonlyArray<Effect.Effect<T, TaskError, Scope.Scope>>;
 
 type Options<T extends Task> = Metadata &
   Readonly<{
     prompt: ReadonlyArray<Prompt.UserMessage>;
-    graders: Grade.Map<GraderOf<T>>;
-    context: Sandbox.Context.Context;
+    grader: Grade.Grader<GradeFieldsOf<T>>;
     snapshot: Sandbox.Snapshot.Snapshot;
+    context: Sandbox.Context.Context;
     resources?: Sandbox.ResourceLimits;
+    extra?: ExtraOf<T>;
   }>;
 
-export const make = <T extends Task>({ resources, ...rest }: Options<T>): Task<GraderOf<T>> => ({
-  [TypeId]: TypeId,
-  resources: resources ?? Sandbox.ResourceLimits.default,
-  ...rest,
-});
+export const make = <T extends Task>({ resources, extra, ...rest }: Options<T>): T =>
+  ({
+    [TypeId]: TypeId,
+    resources: resources ?? Sandbox.ResourceLimits.default,
+    extra: extra ?? null,
+    ...rest,
+  }) as T;

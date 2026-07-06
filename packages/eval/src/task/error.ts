@@ -5,7 +5,6 @@ export class TaskLoadError extends Schema.TaggedErrorClass<TaskLoadError>()("Tas
 }) {}
 
 export class GradeExecError extends Schema.TaggedErrorClass<GradeExecError>()("GradeError", {
-  name: Schema.String,
   cause: Schema.Defect(),
 }) {}
 
@@ -30,9 +29,9 @@ export class TaskError extends Schema.TaggedErrorClass<TaskError>()("TaskError",
       reason: new TaskLoadError({ cause }),
     });
 
-  static gradeExec = (name: string) => (cause: unknown) =>
+  static gradeExec = (cause: unknown) =>
     new TaskError({
-      reason: new GradeExecError({ name, cause }),
+      reason: new GradeExecError({ cause }),
     });
 
   static gradeResult = (cause: Schema.SchemaError) =>

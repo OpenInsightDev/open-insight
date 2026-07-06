@@ -17,7 +17,7 @@ export type Metrics<G extends Task.Grader = Task.Grader, TAM = TaskMetric.Metric
 
 export type Builder<G extends Task.Grader, TAM = never> = Effect.Effect<Metrics<G, TAM>>;
 
-export const init = <T extends Task.Task>(): Builder<Task.GraderOf<T>> =>
+export const init = <T extends Task.Task>(): Builder<Task.GradeResultOf<T>> =>
   Effect.succeed({
     trajectory: [],
     task: [],

@@ -1,14 +1,14 @@
 import { Benchmark, Metric, Task } from "@/export.ts";
-import { Config, Effect, pipe } from "effect";
+import { Config, Effect, pipe, Schema } from "effect";
 import { Agent, Exec, Harness, Sandbox } from "@open-insight/eval";
 import { OpenAiClient, OpenAiLanguageModel } from "@effect/ai-openai";
 import { LanguageModel } from "effect/unstable/ai";
 import { NodeHttpClient } from "@effect/platform-node";
 
-type VerilogEvalTask = Task.Task<Task.Grader<"simPass", boolean>>;
+type VerilogEvalTask = Task.Task<{ simPass: Schema.Boolean }, { category: Schema.String }>;
 
 const main = Effect.gen(function* () {
-  const tasks = Task.withGithub<VerilogEvalTask>("NVlabs/verilog-eval", {
+  const tasks = yield* Task.withGithub<VerilogEvalTask>("NVlabs/verilog-eval", {
     commit: "c498220d0a52248f8e3fdffe279075215bde2da6",
   })(async (repoPath) => {
     throw new Error(`Failed to load tasks from ${repoPath}`);
