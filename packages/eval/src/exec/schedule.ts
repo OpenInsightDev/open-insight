@@ -29,13 +29,13 @@ import {
 } from "./event/index.ts";
 import { range } from "effect/Array";
 import * as Benchmark from "@/benchmark/index.ts";
-import { ExecResult } from "./result.ts";
+import { Result } from "./result.ts";
 import { castDraft, produce } from "immer";
 import type { ChildProcessSpawner } from "effect/unstable/process";
 
 const updateTrailResult =
   ({ task, trailIndex, trajectory, delta }: Metric.Input) =>
-  (current: ExecResult): ExecResult =>
+  (current: Result): Result =>
     produce(current, (draft) => {
       const taskName = task.name;
       const taskResult = (draft.tasks[taskName] ??= {
@@ -53,7 +53,7 @@ const updateTrailResult =
 
 const updateMetricResult =
   (output: Metric.Output) =>
-  (current: ExecResult): ExecResult =>
+  (current: Result): Result =>
     produce(current, (draft) => {
       Match.value(output).pipe(
         Match.tag("BenchmarkOutput", ({ name, result }) => {
@@ -92,7 +92,7 @@ export const run = Effect.fn("exec/schedule")(
     }>,
     config: Config,
   ): Effect.fn.Return<
-    ExecResult,
+    Result,
     ExecError,
     | Agent.ProviderService
     | Sandbox.ProviderService
@@ -117,7 +117,7 @@ export const run = Effect.fn("exec/schedule")(
     const snapshotCountdown = yield* Countdown.make(benchmark.tasks.length);
     const trailSem = yield* Semaphore.make(trailConcurrency);
 
-    const result = yield* Ref.make<ExecResult>({
+    const result = yield* Ref.make<Result>({
       metrics: {},
       tasks: {},
     });

@@ -12,7 +12,7 @@ export class TaskResult extends Schema.Class<TaskResult>("TaskResult")({
   trails: Schema.Array(TrailResult),
 }) {}
 
-export class ExecResult extends Schema.Class<ExecResult>("ExecResult")({
+export class Result extends Schema.Class<Result>("ExecResult")({
   metrics: Schema.Record(Schema.String, Schema.Json),
   tasks: Schema.Record(Schema.String, TaskResult),
 }) {}

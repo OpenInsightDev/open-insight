@@ -4,6 +4,7 @@ import { Prompt, Response } from "effect/unstable/ai";
 import { type AgentError } from "./error.ts";
 import type { Prompt as Trajectory } from "effect/unstable/ai/Prompt";
 import { Snapshot } from "@/sandbox/index.ts";
+import type { Endpoint } from "./endpoint.ts";
 
 export type Agent = Readonly<{
   trajectory(): Effect.Effect<Trajectory, AgentError>;
@@ -19,7 +20,9 @@ export type SnapshotExtension = Readonly<{
 
 export type Provider = Readonly<{
   snapshotExtension: Option.Option<SnapshotExtension>;
-  runSession(options: Readonly<{ sandbox: Sandbox.Sandbox }>): Effect.Effect<Agent, AgentError>;
+  runSession(
+    options: Readonly<{ sandbox: Sandbox.Sandbox; endpoint: Endpoint }>,
+  ): Effect.Effect<Agent, AgentError>;
 }>;
 
 export class ProviderService extends Context.Service<ProviderService, Provider>()(

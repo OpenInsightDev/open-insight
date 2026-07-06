@@ -6,12 +6,12 @@ import { ExecError } from "./error.ts";
 import { type Config } from "./config.ts";
 import type * as _Core from "@open-insight/core";
 import { run as runSchedule } from "./schedule.ts";
-import type { ExecResult } from "./result.ts";
+import type { Result } from "./result.ts";
 
 export const run = Effect.fn(function* (
   { transport, benchmark, harness, trailCount, metrics }: Executor,
   config: Config = {},
-): Effect.fn.Return<ExecResult, ExecError> {
+): Effect.fn.Return<Result, ExecError> {
   let pipeline = runSchedule({ trailCount, metrics, benchmark }, config).pipe(
     Effect.provide(harness.layer),
     Effect.mapError(ExecError.init),
