@@ -51,6 +51,7 @@ catalog:
   '@opentelemetry/sdk-logs': ^0.220.0
   '@opentelemetry/sdk-trace-web': ^2.9.0
   '@effect/ai-openai-compat': 4.0.0-beta.93
+  '@effect/ai-anthropic': 4.0.0-beta.93
 overrides:
   vite: "catalog:"
   vitest: "catalog:"

@@ -45,6 +45,7 @@
   },
   "dependencies": {
     "@agentclientprotocol/sdk": "^1.0.0",
+    "@effect/ai-anthropic": "catalog:",
     "@effect/ai-openai": "catalog:",
     "@effect/opentelemetry": "catalog:",
     "ai": "catalog:",

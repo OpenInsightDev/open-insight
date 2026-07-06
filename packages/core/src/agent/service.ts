@@ -6,16 +6,18 @@ import type { Prompt as Trajectory } from "effect/unstable/ai/Prompt";
 import { Snapshot } from "@/sandbox/index.ts";
 import type { Endpoint } from "./endpoint.ts";
 
+export type StreamPart = Response.StreamPart<never>;
+
 export type Agent = Readonly<{
   trajectory(): Effect.Effect<Trajectory, AgentError>;
   prompt(options: {
     prompt: ReadonlyArray<Prompt.UserMessage>;
-  }): Effect.Effect<Stream.Stream<Response.StreamPart<any>, AgentError>>;
+  }): Stream.Stream<StreamPart, AgentError>;
 }>;
 
 export type SnapshotExtension = Readonly<{
   instructions: Snapshot.Instructions;
-  context: Sandbox.Context.Context;
+  context?: Sandbox.Context.Context;
 }>;
 
 export type Provider = Readonly<{
