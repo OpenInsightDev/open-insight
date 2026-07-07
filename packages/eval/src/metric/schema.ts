@@ -2,12 +2,9 @@ import type { Agent } from "@open-insight/core/internal";
 import * as Task from "../task/index.ts";
 import { Data, Schema } from "effect";
 
-export const GradeResultSchema = Task.Grade.ResultSchema;
-export type GradeResult = Schema.Schema.Type<typeof GradeResultSchema>;
-
 export type InputDelta = Data.TaggedEnum<{
   Messages: { messages: Array<Agent.Message> };
-  Grade: { result: GradeResult };
+  Grade: { result: Task.Grade.Result };
 }>;
 export const { Grade, Messages } = Data.taggedEnum<InputDelta>();
 
