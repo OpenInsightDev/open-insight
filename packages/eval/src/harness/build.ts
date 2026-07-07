@@ -5,33 +5,42 @@ import type { Config } from "./config.ts";
 
 export class Metadata extends Schema.Class<Metadata>("HarnessMetadata")({
   name: Schema.String,
-  description: Schema.optional(Schema.String),
+  description: Schema.NullOr(Schema.String),
 }) {}
 
-export type Harness = Metadata &
-  Readonly<{
-    config: Config;
-    layer: Layer.Layer<Agent.ProviderService | Sandbox.ProviderService>;
-  }>;
+export class Harness {
+  constructor(
+    public metadata: Metadata,
+    public config: Config,
+    public layer: Layer.Layer<Agent.ProviderService | Sandbox.ProviderService>,
+  ) {}
 
-type Options = Metadata &
-  Readonly<{
-    config?: Config;
-  }>;
+  get name(): string {
+    return this.metadata.name;
+  }
+}
 
 export const make = Effect.fn(function* ({
+  name,
   config,
-  ...metadata
-}: Options): Effect.fn.Return<Harness, never, Agent.ProviderService | Sandbox.ProviderService> {
+  description,
+}: {
+  name: string;
+  config?: Config;
+  description?: string;
+}): Effect.fn.Return<Harness, never, Agent.ProviderService | Sandbox.ProviderService> {
   const agent = yield* Agent.ProviderService;
   const sandbox = yield* Sandbox.ProviderService;
 
-  return {
-    ...metadata,
-    config: config ?? {},
-    layer: Layer.mergeAll(
+  return new Harness(
+    new Metadata({
+      name,
+      description: description ?? null,
+    }),
+    config ?? {},
+    Layer.mergeAll(
       Layer.succeed(Agent.ProviderService)(agent),
       Layer.succeed(Sandbox.ProviderService)(sandbox),
     ),
-  } satisfies Harness;
+  );
 });

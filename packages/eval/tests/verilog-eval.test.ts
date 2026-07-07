@@ -5,8 +5,7 @@ import { OpenAiClient, OpenAiLanguageModel } from "@effect/ai-openai";
 import { LanguageModel } from "effect/unstable/ai";
 import { NodeHttpClient } from "@effect/platform-node";
 
-export const makeTask = Task.make<{ simPass: boolean }, { category: string }>;
-export type VETask = ReturnType<typeof makeTask>;
+class VETask extends Task.Task<{ simPass: boolean }> {}
 
 const main = Effect.gen(function* () {
   const tasks = yield* Task.withGithub<VETask>("NVlabs/verilog-eval", {
@@ -20,7 +19,7 @@ const main = Effect.gen(function* () {
     tasks,
   });
 
-  const metrics = Metric.init().pipe(
+  const metrics = Metric.init<VETask>().pipe(
     Metric.withTask("passAt1", (grades) =>
       pipe(
         grades.map(({ simPass }) => simPass),
