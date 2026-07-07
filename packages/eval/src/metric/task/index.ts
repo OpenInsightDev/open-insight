@@ -5,43 +5,38 @@ import { MetricError } from "../error.ts";
 import { type Input, TaskOutput } from "../schema.ts";
 import type * as _Core from "@open-insight/core";
 
-export type ReduceFn<G extends Task.Grader, R> = (
-  prev: R,
-  input: Task.Grade.Result<G>,
-) => PromiseLike<R> | R;
+export type ReduceFn<G extends Task.Grade.Result, R> = (prev: R, input: G) => PromiseLike<R> | R;
 
-export type EachFn<G extends Task.Grader, R> = (input: Task.Grade.Result<G>) => PromiseLike<R> | R;
+export type EachFn<G extends Task.Grade.Result, R> = (input: G) => PromiseLike<R> | R;
 
-export type AllFn<G extends Task.Grader, R> = (
-  input: ReadonlyArray<Task.Grade.Result<G>>,
-) => PromiseLike<R> | R;
+export type AllFn<G extends Task.Grade.Result, R> = (input: ReadonlyArray<G>) => PromiseLike<R> | R;
 
-type ReduceExec<G extends Task.Grader = Task.Grader, R = unknown> = {
+type ReduceExec<G extends Task.Grade.Result = Task.Grade.Result, R = unknown> = {
   init: R;
-  exec: Bivariant<(prev: R, input: Task.Grade.Result<G>) => PromiseLike<R> | R>;
+  exec: Bivariant<ReduceFn<G, R>>;
 };
 
-type EachExec<G extends Task.Grader = Task.Grader, R = unknown> = {
+type EachExec<G extends Task.Grade.Result = Task.Grade.Result, R = unknown> = {
   exec: Bivariant<EachFn<G, R>>;
 };
 
-type AllExec<G extends Task.Grader = Task.Grader, R = unknown> = {
+type AllExec<G extends Task.Grade.Result = Task.Grade.Result, R = unknown> = {
   exec: Bivariant<AllFn<G, R>>;
 };
 
-export type Exec<G extends Task.Grader, R> = Data.TaggedEnum<{
+export type Exec<G extends Task.Grade.Result = Task.Grade.Result, R = unknown> = Data.TaggedEnum<{
   Reduce: ReduceExec<G, R>;
   Each: EachExec<G, R>;
   All: AllExec<G, R>;
 }>;
 
 export type Metric<
-  G extends Task.Grader = Task.Grader,
+  G extends Task.Grade.Result = Task.Grade.Result,
   N extends string = string,
   R = unknown,
 > = Readonly<{ name: N; exec: Exec<G, R> }>;
 
-export const reduce = <G extends Task.Grader, N extends string, R>(
+export const reduce = <G extends Task.Grade.Result, N extends string, R>(
   name: N,
   init: R,
   exec: ReduceFn<G, R>,
@@ -50,7 +45,7 @@ export const reduce = <G extends Task.Grader, N extends string, R>(
   exec: { _tag: "Reduce", init, exec },
 });
 
-export const each = <G extends Task.Grader, N extends string, R>(
+export const each = <G extends Task.Grade.Result, N extends string, R>(
   name: N,
   exec: EachFn<G, R>,
 ): Metric<G, N, R> => ({
@@ -58,7 +53,7 @@ export const each = <G extends Task.Grader, N extends string, R>(
   exec: { _tag: "Each", exec },
 });
 
-export const all = <G extends Task.Grader, N extends string, R>(
+export const all = <G extends Task.Grade.Result, N extends string, R>(
   name: N,
   exec: AllFn<G, R>,
 ): Metric<G, N, R> => ({
@@ -70,7 +65,7 @@ export type Result<M> = UnionToIntersection<
   M extends Metric<infer _, infer N, infer R> ? Record<N, R> : never
 >;
 
-const runExec = (name: string, exec: () => PromiseLike<unknown> | unknown) =>
+const runExec = (name: string, exec: () => unknown) =>
   Effect.tryPromise({
     try: async () => await exec(),
     catch: MetricError.exec({ name, type: "Task" }),
@@ -104,7 +99,7 @@ export const buildReduce = ({ name, exec }: { name: string; exec: ReduceExec }) 
 
     return TaskOutput.make({
       name,
-      task: task,
+      task: task.metadata,
       result: [result],
     });
   });
@@ -120,7 +115,7 @@ export const buildEach = ({ name, exec }: { name: string; exec: EachExec }) =>
 
     return TaskOutput.make({
       name,
-      task: task,
+      task: task.metadata,
       result: [result],
     });
   });
@@ -134,7 +129,7 @@ export const buildAll = ({
   exec: AllExec;
   trailCount: number;
 }) => {
-  const inputs: Array<Task.Grade.Result<Task.Grader>> = [];
+  const inputs: Array<Task.Grade.Result> = [];
 
   return Effect.fn(function* ({
     task,
@@ -153,7 +148,7 @@ export const buildAll = ({
 
     return TaskOutput.make({
       name,
-      task: task,
+      task: task.metadata,
       result: [result],
     });
   });

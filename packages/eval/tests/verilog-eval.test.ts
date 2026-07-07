@@ -5,7 +5,7 @@ import { OpenAiClient, OpenAiLanguageModel } from "@effect/ai-openai";
 import { LanguageModel } from "effect/unstable/ai";
 import { NodeHttpClient } from "@effect/platform-node";
 
-class VETask extends Task.Task<{ simPass: boolean }> {}
+class VETask extends Task.Task<{ simPass: boolean }, { category: string }> {}
 
 const main = Effect.gen(function* () {
   const tasks = yield* Task.withGithub<VETask>("NVlabs/verilog-eval", {
