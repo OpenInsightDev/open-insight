@@ -61,14 +61,12 @@ export const makeAgent = Effect.fn(function* ({
   return {
     trajectory: () => Ref.get(service.history),
     prompt: ({ prompt }) =>
-      Effect.succeed(
-        service
-          .streamText({ prompt, toolkit })
-          .pipe(
-            Stream.mapError(Agent.AgentError.stream),
-            Stream.provideService(LanguageModel.LanguageModel, llm),
-          ),
-      ),
+      service
+        .streamText({ prompt, toolkit })
+        .pipe(
+          Stream.mapError(Agent.AgentError.stream),
+          Stream.provideService(LanguageModel.LanguageModel, llm),
+        ),
   } satisfies Agent.Agent;
 });
 

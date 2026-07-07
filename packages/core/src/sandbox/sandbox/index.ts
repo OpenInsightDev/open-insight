@@ -94,10 +94,7 @@ export const make = Effect.fn(function* ({
             )
             .pipe(
               Effect.mapError((e) =>
-                SandboxError.sandboxExec({
-                  name: "host",
-                  operation: `download ${sandboxPath} -> ${hostPath}`,
-                })(e),
+                SandboxError.sandboxExec("host", `download ${sandboxPath} -> ${hostPath}`)(e),
               ),
             );
         })
@@ -106,14 +103,13 @@ export const make = Effect.fn(function* ({
   const uploadImpl: Sandbox["upload"] =
     upload === "rsync"
       ? Effect.fn(function* ({ sandboxPath, hostPath }) {
-          const content = yield* spawner.string(CP.make`cat ${hostPath}`).pipe(
-            Effect.mapError((e) =>
-              SandboxError.sandboxExec({
-                name: "host",
-                operation: `upload ${hostPath} -> ${sandboxPath}`,
-              })(e),
-            ),
-          );
+          const content = yield* spawner
+            .string(CP.make`cat ${hostPath}`)
+            .pipe(
+              Effect.mapError((e) =>
+                SandboxError.sandboxExec("host", `upload ${hostPath} -> ${sandboxPath}`)(e),
+              ),
+            );
           yield* $(CP.make`tee ${sandboxPath}`, content);
         })
       : upload;

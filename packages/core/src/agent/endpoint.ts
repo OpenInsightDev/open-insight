@@ -16,7 +16,7 @@ export class Endpoint extends Schema.Class<Endpoint>("Endpoint")({
     apiKey?: string;
   }) => {
     if (!apiKey) {
-      throw new Error("OPENAI_API_KEY environment variable is not set");
+      throw new Error("OPENAI_API_KEY is not set and environment variable is not available");
     }
     return new Endpoint({ model, baseUrl, apiKey: Redacted.make(apiKey), type: "openai" });
   };
@@ -31,7 +31,7 @@ export class Endpoint extends Schema.Class<Endpoint>("Endpoint")({
     apiKey?: string;
   }) => {
     if (!apiKey) {
-      throw new Error("ANTHROPIC_API_KEY environment variable is not set");
+      throw new Error("ANTHROPIC_API_KEY is not set and environment variable is not available");
     }
     return new Endpoint({ model, baseUrl, apiKey: Redacted.make(apiKey), type: "anthropic" });
   };
