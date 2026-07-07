@@ -3,3 +3,5 @@ export function assertNonNull<T>(val: T): asserts val is NonNullable<T> {
     throw new Error("Value cannot be null or undefined");
   }
 }
+
+export type EmptyRecord = Record<string, never>;

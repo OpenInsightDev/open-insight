@@ -3,6 +3,7 @@ import { Sandbox } from "@open-insight/core/internal";
 import { Effect, Schema, type Scope } from "effect";
 import { Prompt } from "effect/unstable/ai";
 import { TaskError } from "./error.ts";
+import type { EmptyRecord } from "@/utils/type.ts";
 
 export type ID = string;
 export type TypeId = "~open-insight/eval/task";
@@ -17,14 +18,14 @@ export class Metadata extends Schema.Class<Metadata>("TaskMetadata")({
 }) {}
 
 export type Task<
-  G extends Schema.Struct.Fields = never,
-  Extra extends Schema.Struct.Fields = never,
+  G extends Schema.Struct.Fields = EmptyRecord,
+  Extra extends Schema.Struct.Fields = EmptyRecord,
 > = Metadata &
   Readonly<{
     prompt: ReadonlyArray<Prompt.UserMessage>;
     grader: Grade.Grader<G>;
     snapshot: Sandbox.Snapshot.Snapshot;
-    context: Sandbox.Context.Context;
+    context: Sandbox.Snapshot.Context.Context;
     resources: Sandbox.ResourceLimits | null;
     extra: Extra | null; // override metadata.extra with typed def
   }> & {
@@ -46,7 +47,7 @@ type Options<T extends Task> = Metadata &
     prompt: ReadonlyArray<Prompt.UserMessage>;
     grader: Grade.Grader<GradeFieldsOf<T>>;
     snapshot: Sandbox.Snapshot.Snapshot;
-    context: Sandbox.Context.Context;
+    context: Sandbox.Snapshot.Context.Context;
     resources?: Sandbox.ResourceLimits;
     extra?: ExtraOf<T>;
   }>;
