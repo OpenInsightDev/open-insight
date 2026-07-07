@@ -17,7 +17,7 @@ import * as Task from "../task/index.ts";
 import * as Metric from "@/metric/index.ts";
 import { createTrail } from "./trail.ts";
 import { ExecError } from "./error.ts";
-import { Agent, Sandbox } from "@open-insight/core/internal";
+import { Agent, Sandbox } from "@open-insight/core";
 import { Countdown } from "@open-insight/core/utils";
 import {
   type Event,
@@ -85,10 +85,12 @@ export const run = Effect.fn("exec/schedule")(
       trailCount,
       metrics,
       benchmark,
+      endpoint,
     }: Readonly<{
       trailCount: number;
       metrics: Option.Option<Metric.Metrics>;
       benchmark: Benchmark.Benchmark;
+      endpoint: Agent.Endpoint;
     }>,
     config: Config,
   ): Effect.fn.Return<
@@ -138,7 +140,7 @@ export const run = Effect.fn("exec/schedule")(
         });
         yield* Effect.logDebug("Preparing task schedule");
 
-        const trail = yield* createTrail({ task, metricQueue, eventQueue, config })
+        const trail = yield* createTrail({ task, endpoint, metricQueue, eventQueue, config })
           // snapshot building should also be limited to avoid overwhelming the sandbox provider
           .pipe((create) => snapshotSem.withPermit(create));
         yield* Effect.logDebug("Task snapshot is ready");
@@ -228,7 +230,7 @@ export const run = Effect.fn("exec/schedule")(
       yield* offerEvent(
         InitEvent.make({
           bench: benchmark,
-          tasks: loadedTasks,
+          tasks: loadedTasks.map(({ metadata }) => metadata),
           metrics: Option.match(metrics, {
             onSome: (metrics) => metrics.metadata,
             onNone: () => [],

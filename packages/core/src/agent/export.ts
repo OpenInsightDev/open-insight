@@ -1,4 +1,5 @@
 export { AgentError } from "./error.ts";
+export { Endpoint } from "./endpoint.ts";
 export * from "./builtin/export.ts";
 export {
   AssistantMessage,

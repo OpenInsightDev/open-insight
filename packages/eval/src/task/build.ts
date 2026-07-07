@@ -25,7 +25,6 @@ export type Options<
     prompt: ReadonlyArray<Prompt.UserMessage>;
     grader: Grade.Grader<G>;
     snapshot: Sandbox.Snapshot.Snapshot;
-    context: Sandbox.Snapshot.Context.Context;
 
     description?: string;
     keywords?: ReadonlyArray<string>;
@@ -42,14 +41,12 @@ export class Task<G extends Schema.JsonObject = any, Extra extends Schema.JsonOb
   prompt: ReadonlyArray<Prompt.UserMessage>;
   grader: Grade.Grader<G>;
   snapshot: Sandbox.Snapshot.Snapshot;
-  context: Sandbox.Snapshot.Context.Context;
 
   constructor({
     name,
     prompt,
     grader,
     snapshot,
-    context,
     description,
     keywords,
     authors,
@@ -59,7 +56,6 @@ export class Task<G extends Schema.JsonObject = any, Extra extends Schema.JsonOb
     this.prompt = prompt;
     this.grader = grader;
     this.snapshot = snapshot;
-    this.context = context;
     this.metadata = Metadata.make({
       name,
       description: description ?? null,

@@ -9,10 +9,10 @@ import { run as runSchedule } from "./schedule.ts";
 import type { Result } from "./result.ts";
 
 export const run = Effect.fn(function* (
-  { transport, benchmark, harness, trailCount, metrics }: Executor,
+  { transport, benchmark, endpoint, harness, trailCount, metrics }: Executor,
   config: Config = {},
 ): Effect.fn.Return<Result, ExecError> {
-  let pipeline = runSchedule({ trailCount, metrics, benchmark }, config).pipe(
+  let pipeline = runSchedule({ trailCount, metrics, benchmark, endpoint }, config).pipe(
     Effect.provide(harness.layer),
     Effect.mapError(ExecError.init),
   );

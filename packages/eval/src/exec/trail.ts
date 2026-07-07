@@ -1,7 +1,7 @@
 import { Effect, FileSystem, Option, Path, Queue, Ref, Scope, Stream } from "effect";
 import * as Task from "../task/index.ts";
 import * as Metric from "../metric/index.ts";
-import { Agent, Sandbox } from "@open-insight/core/internal";
+import { Agent, Sandbox } from "@open-insight/core";
 import { ExecError } from "./error.ts";
 import { Response } from "effect/unstable/ai";
 import { type Event, TaskStreamPartEvent } from "./event/index.ts";
@@ -11,11 +11,13 @@ import type { Config } from "./config.ts";
 export const createTrail = Effect.fn("exec/createTrail")(
   function* ({
     task,
+    endpoint,
     config: { sandbox: { cacheAgentSnapshot, cacheTaskSnapshot } = {} } = {},
     metricQueue,
     eventQueue,
   }: {
     task: Task.Task;
+    endpoint: Agent.Endpoint;
     config?: Config;
     metricQueue: Queue.Enqueue<Metric.Input>;
     eventQueue: Queue.Enqueue<Event>;
@@ -29,7 +31,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
     | Path.Path
     | Scope.Scope
   > {
-    const { snapshot, context, resources, prompt, grader } = task;
+    const { snapshot, resources, prompt, grader } = task;
 
     yield* Effect.annotateCurrentSpan({
       taskName: task.name,
@@ -40,8 +42,8 @@ export const createTrail = Effect.fn("exec/createTrail")(
     const agentProvider = yield* Agent.ProviderService;
 
     const taskSnapshot = yield* sandboxProvider
-      .aquireSnapshot({ snapshot, context, cache: cacheTaskSnapshot })
-      .pipe(Effect.mapError(ExecError.taskInit({ task })));
+      .aquireSnapshot({ snapshot, cache: cacheTaskSnapshot })
+      .pipe(Effect.mapError(ExecError.taskInit({ task: task.metadata })));
 
     const agentSnapshot = yield* agentProvider.snapshotExtension.pipe(
       Option.match({
@@ -53,7 +55,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
               context: extendContext,
               cache: cacheAgentSnapshot,
             })
-            .pipe(Effect.mapError(ExecError.taskInit({ task }))),
+            .pipe(Effect.mapError(ExecError.taskInit({ task: task.metadata }))),
         onNone: () => Effect.succeed(taskSnapshot),
       }),
     );
@@ -73,15 +75,15 @@ export const createTrail = Effect.fn("exec/createTrail")(
 
         const sandbox = yield* sandboxProvider
           .runSandbox({ handle: agentSnapshot, resources })
-          .pipe(Effect.mapError(ExecError.taskExec({ task, trailIndex })));
+          .pipe(Effect.mapError(ExecError.taskExec({ task: task.metadata, trailIndex })));
 
         yield* Effect.logDebug("Sandbox is ready, Starting trail execution");
 
         const provider = yield* Agent.ProviderService;
-        const agent = yield* provider.runSession({ sandbox });
+        const agent = yield* provider.runSession({ sandbox, endpoint });
         yield* Effect.logDebug("Started agent session");
 
-        const stream = yield* agent.prompt({ prompt });
+        const stream = agent.prompt({ prompt });
         yield* Effect.logDebug("Attached prompt stream");
 
         const trajLength = yield* Ref.make(0);
@@ -146,7 +148,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
       (effect, trailIndex) =>
         effect.pipe(
           Effect.annotateLogs({ taskName: task.name, trailIndex }),
-          Effect.mapError(ExecError.taskExec({ task, trailIndex })),
+          Effect.mapError(ExecError.taskExec({ task: task.metadata, trailIndex })),
         ),
     );
 

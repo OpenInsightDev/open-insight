@@ -91,7 +91,7 @@ export class ExecError extends Schema.TaggedErrorClass<ExecError>()("ExecError",
     (cause: unknown) =>
       new ExecError({
         reason: new SnapshotError({
-          task,
+          task: task.metadata,
           snapshot: task.snapshot,
           cause,
         }),
