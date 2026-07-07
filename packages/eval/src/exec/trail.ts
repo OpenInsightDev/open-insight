@@ -29,7 +29,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
     | Path.Path
     | Scope.Scope
   > {
-    const { snapshot, context, resources, prompt, graders } = task;
+    const { snapshot, context, resources, prompt, grader } = task;
 
     yield* Effect.annotateCurrentSpan({
       taskName: task.name,
@@ -132,7 +132,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
         } satisfies Task.Grade.Context;
 
         yield* Effect.logDebug(`Starting graders`);
-        const gradeResults = yield* Task.Grade.run(graders)(ctx);
+        const gradeResults = yield* Task.Grade.run(grader)(ctx);
         yield* Effect.logDebug(`Completed graders`);
 
         yield* Queue.offer(metricQueue, {

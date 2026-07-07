@@ -129,16 +129,15 @@ const loadGitRepo = Effect.fn(function* (repoPath: string, repoURL: string, opti
 
 export const withGitRepo = <T extends Task.Task>(repoURL: string, options: Options = {}) =>
   Effect.fn(
-    function* (
-      exec: (repoPath: string) => Loader<T> | Promise<Loader<T>>,
-    ): Effect.fn.Return<Task.Tasks<T>, TaskError, FileSystem.FileSystem | Spawn.SpawnService> {
+    function* (exec: (repoPath: string) => Loader<T> | Promise<Loader<T>>) {
       const fs = yield* FileSystem.FileSystem;
 
-      const repoPath =
-        options.directory ??
-        (yield* fs.makeTempDirectoryScoped({
+      let repoPath = options.directory;
+      if (!repoPath) {
+        repoPath = yield* fs.makeTempDirectoryScoped({
           prefix: "open-insight-task-",
-        }));
+        });
+      }
 
       yield* loadGitRepo(repoPath, repoURL, options);
 
@@ -148,7 +147,8 @@ export const withGitRepo = <T extends Task.Task>(repoURL: string, options: Optio
       });
       return yield* loader;
     },
-    (effect) => effect.pipe(Effect.provide(Spawn.SpawnService.layer)),
+    (effect) =>
+      effect.pipe(Effect.mapError(TaskError.load), Effect.provide(Spawn.SpawnService.layer)),
   );
 
 export const withGithub = <T extends Task.Task>(id: string, options?: Options) =>

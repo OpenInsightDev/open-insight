@@ -3,7 +3,6 @@ import { Sandbox } from "@open-insight/core/internal";
 import { Effect, Schema, type Scope } from "effect";
 import { Prompt } from "effect/unstable/ai";
 import { TaskError } from "./error.ts";
-import type { EmptyRecord } from "@/utils/type.ts";
 
 export type ID = string;
 export type TypeId = "~open-insight/eval/task";
@@ -11,15 +10,15 @@ export const TypeId: TypeId = "~open-insight/eval/task";
 
 export class Metadata extends Schema.Class<Metadata>("TaskMetadata")({
   name: Schema.String,
-  description: Schema.optional(Schema.String),
-  keywords: Schema.optional(Schema.Array(Schema.String)),
-  authors: Schema.optional(Schema.Array(Schema.String)),
-  extra: Schema.optional(Schema.Record(Schema.String, Schema.Json)),
+  description: Schema.NullOr(Schema.String),
+  keywords: Schema.NullOr(Schema.Array(Schema.String)),
+  authors: Schema.NullOr(Schema.Array(Schema.String)),
+  extra: Schema.NullOr(Schema.Record(Schema.String, Schema.Json)),
 }) {}
 
 export type Task<
-  G extends Schema.Struct.Fields = EmptyRecord,
-  Extra extends Schema.Struct.Fields = EmptyRecord,
+  G extends Schema.JsonObject = any,
+  Extra extends Schema.JsonObject = any,
 > = Metadata &
   Readonly<{
     prompt: ReadonlyArray<Prompt.UserMessage>;
@@ -27,35 +26,43 @@ export type Task<
     snapshot: Sandbox.Snapshot.Snapshot;
     context: Sandbox.Snapshot.Context.Context;
     resources: Sandbox.ResourceLimits | null;
-    extra: Extra | null; // override metadata.extra with typed def
   }> & {
     [TypeId]: TypeId;
     _G?: G;
     _Extra?: Extra;
   };
 
-export type GradeFieldsOf<T> = T extends Task<infer G, infer _> ? G : never;
-export type GradeResultOf<T> = T extends Task<infer G, infer _> ? Grade.Result<G> : never;
-export type ExtraFieldsOf<T> = T extends Task<infer _, infer Extra> ? Extra : never;
-export type ExtraOf<T> =
-  T extends Task<infer _, infer Extra> ? Schema.Schema.Type<Schema.Struct<Extra>> : never;
+export type ExtraOf<T> = T extends Task<infer _G, infer Extra> ? Extra : never;
+export type GradeResultOf<T> = T extends Task<infer G, infer _Extra> ? G : never;
 
 export type Tasks<T extends Task = Task> = ReadonlyArray<Effect.Effect<T, TaskError, Scope.Scope>>;
 
-type Options<T extends Task> = Metadata &
-  Readonly<{
-    prompt: ReadonlyArray<Prompt.UserMessage>;
-    grader: Grade.Grader<GradeFieldsOf<T>>;
-    snapshot: Sandbox.Snapshot.Snapshot;
-    context: Sandbox.Snapshot.Context.Context;
-    resources?: Sandbox.ResourceLimits;
-    extra?: ExtraOf<T>;
-  }>;
+type Options<T extends Task = Task> = Readonly<{
+  name: string;
+  description?: string;
+  keywords?: ReadonlyArray<string>;
+  authors?: ReadonlyArray<string>;
+  extra?: ExtraOf<T>;
 
-export const make = <T extends Task>({ resources, extra, ...rest }: Options<T>): T =>
-  ({
-    [TypeId]: TypeId,
-    resources: resources ?? Sandbox.ResourceLimits.default,
-    extra: extra ?? null,
-    ...rest,
-  }) as T;
+  prompt: ReadonlyArray<Prompt.UserMessage>;
+  grader: Grade.Grader<GradeResultOf<T>>;
+  snapshot: Sandbox.Snapshot.Snapshot;
+  context: Sandbox.Snapshot.Context.Context;
+  resources?: Sandbox.ResourceLimits;
+}>;
+
+export const make = <G extends Schema.JsonObject = any, Extra extends Schema.JsonObject = any>({
+  resources,
+  extra,
+  ...rest
+}: Options<Task<G, Extra>>): Task<G, Extra> => ({
+  [TypeId]: TypeId,
+  authors: rest.authors ?? null,
+  keywords: rest.keywords ?? null,
+  description: rest.description ?? null,
+  extra: extra ?? null,
+  resources: resources ?? Sandbox.ResourceLimits.default,
+  ...rest,
+  // HACK: TypeScript do not support `Exact` type
+  // we assume no one would add extra fields to the T
+});

@@ -10,7 +10,7 @@ export type Executor<T extends Task.Task = Task.Task> = Readonly<{
   benchmark: Benchmark.Benchmark;
   harness: Harness.Harness;
   trailCount: number;
-  metrics: Option.Option<Metric.Metrics<Task.GraderOf<T>>>;
+  metrics: Option.Option<Metric.Metrics<Task.GradeFieldsOf<T>>>;
   transport: Option.Option<Layer.Layer<EventTransportService, ExecError>>;
 }> & { _T?: T };
 
@@ -18,7 +18,7 @@ type Options<T extends Task.Task> = Readonly<{
   benchmark: Benchmark.Benchmark;
   harness: Harness.Harness;
   trailCount?: number;
-  metrics?: Metric.Metrics<Task.GraderOf<T>>;
+  metrics?: Metric.Metrics<Task.GradeFieldsOf<T>>;
 }>;
 
 export const make = Effect.fn(function* <T extends Task.Task>({

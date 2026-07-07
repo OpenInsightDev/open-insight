@@ -5,3 +5,5 @@ export function assertNonNull<T>(val: T): asserts val is NonNullable<T> {
 }
 
 export type EmptyRecord = Record<string, never>;
+
+export type Exact<A, B> = A extends B ? (B extends A ? A : never) : never;

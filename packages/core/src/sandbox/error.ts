@@ -109,12 +109,8 @@ export type SandboxErrorReason = Schema.Schema.Type<typeof SandboxErrorReason>;
 export class SandboxError extends Schema.TaggedErrorClass<SandboxError>()("SandboxError", {
   reason: SandboxErrorReason,
 }) {
-  static mapUnknownError = (mapper: (cause: unknown) => SandboxErrorReason) => (cause: unknown) => {
-    if (cause instanceof SandboxError) {
-      return cause;
-    }
-    return new SandboxError({ reason: mapper(cause) });
-  };
+  static mapUnknownError = (mapper: (cause: unknown) => SandboxErrorReason) => (cause: unknown) =>
+    cause instanceof SandboxError ? cause : new SandboxError({ reason: mapper(cause) });
 
   static provider = (name: string) =>
     this.mapUnknownError((cause) => ProviderNotAvailable.make({ name, cause }));

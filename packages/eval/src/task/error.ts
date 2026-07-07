@@ -20,22 +20,17 @@ export const TaskErrorReason = Schema.Union([
   GradeExecError,
   InvalidGradeResultError,
 ]);
+export type TaskErrorReason = Schema.Schema.Type<typeof TaskErrorReason>;
 
 export class TaskError extends Schema.TaggedErrorClass<TaskError>()("TaskError", {
   reason: TaskErrorReason,
 }) {
-  static load = (cause: unknown) =>
-    new TaskError({
-      reason: new TaskLoadError({ cause }),
-    });
+  static mapUnknownError = (mapper: (cause: unknown) => TaskErrorReason) => (cause: unknown) =>
+    cause instanceof TaskError ? cause : new TaskError({ reason: mapper(cause) });
 
-  static gradeExec = (cause: unknown) =>
-    new TaskError({
-      reason: new GradeExecError({ cause }),
-    });
+  static load = this.mapUnknownError((cause) => new TaskLoadError({ cause }));
 
-  static gradeResult = (cause: Schema.SchemaError) =>
-    new TaskError({
-      reason: new InvalidGradeResultError({ cause }),
-    });
+  static gradeExec = this.mapUnknownError((cause) => new GradeExecError({ cause }));
+
+  static gradeResult = this.mapUnknownError((cause) => new InvalidGradeResultError({ cause }));
 }
