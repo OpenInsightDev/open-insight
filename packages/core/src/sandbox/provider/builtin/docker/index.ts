@@ -56,21 +56,21 @@ export const make = Effect.fn("sandbox/provider/docker")(
     const fs = yield* FileSystem.FileSystem;
 
     const imageExists = Effect.fn(function* (handle: Snapshot.Handle.Handle) {
-      return yield* spawner.string(CP.make`image inspect ${handle.name}`.pipe(runtime)).pipe(
+      const inspect = CP.make`image inspect ${handle.name}`.pipe(runtime);
+      return yield* spawner.success(inspect).pipe(
         Effect.as(true),
         Effect.catch(() => Effect.succeed(false)),
       );
     });
 
     const removeImage = Effect.fn(function* (handle: Snapshot.Handle.Handle) {
-      yield* spawner.string(CP.make`rmi ${handle.name}`.pipe(runtime)).pipe(Effect.ignore);
+      const rmi = CP.make`rmi ${handle.name}`.pipe(runtime);
+      yield* spawner.string(rmi).pipe(Effect.ignore);
     });
 
     const aquireSnapshot = Effect.fn(
-      function* ({ snapshot, context, cache }) {
-        const handle = yield* Snapshot.Handle.make(snapshot).pipe(
-          Effect.provideService(Crypto.Crypto, crypto),
-        );
+      function* ({ snapshot, cache }) {
+        const handle = yield* Snapshot.Handle.make(snapshot);
 
         if (yield* imageExists(handle)) {
           return handle;
@@ -81,14 +81,14 @@ export const make = Effect.fn("sandbox/provider/docker")(
           suffix: ".Containerfile",
         });
 
-        const command = CP.make`build -f ${containerfilePath} -t ${handle.name} ${context}`.pipe(
-          runtime,
-        );
-
         const containerfile = yield* Snapshot.encode(snapshot);
         yield* fs.writeFileString(containerfilePath, containerfile);
 
-        yield* spawner.string(command);
+        const build =
+          CP.make`build -f ${containerfilePath} -t ${handle.name} ${snapshot.context}`.pipe(
+            runtime,
+          );
+        yield* spawner.success(build);
 
         if (!cache) {
           yield* Effect.addFinalizer(() => removeImage(handle));
@@ -96,158 +96,177 @@ export const make = Effect.fn("sandbox/provider/docker")(
 
         return handle;
       },
-      (effect, { snapshot }) => effect.pipe(Effect.mapError(SandboxError.snapshotBuild(snapshot))),
+      (effect, { snapshot }) =>
+        effect.pipe(
+          Effect.provideService(Crypto.Crypto, crypto),
+          Effect.mapError(SandboxError.snapshotBuild(snapshot)),
+        ),
     ) satisfies Provider.Provider["aquireSnapshot"];
 
-    const deriveSnapshot = Effect.fn(function* ({ handle, context, instructions, cache }) {
-      const derived = yield* Snapshot.Handle.derive({ handle, instructions }).pipe(
-        Effect.provideService(Crypto.Crypto, crypto),
-        Effect.mapError(SandboxError.snapshotBuild(Snapshot.fromImage(handle.name))),
-      );
+    const deriveSnapshot = Effect.fn(
+      function* ({ handle, context, instructions, cache }) {
+        const derived = yield* Snapshot.Handle.derive({ handle, instructions });
+        if (yield* imageExists(derived)) {
+          return derived;
+        }
 
-      if (yield* imageExists(derived)) {
-        return derived;
-      }
+        const containerfile = yield* Snapshot.encode({
+          image: handle.name,
+          instructions,
+        });
 
-      const snapshot = Snapshot.Snapshot.make({ image: handle.name, instructions });
-      const mapBuildError = Effect.mapError(SandboxError.snapshotBuild(snapshot));
-
-      const containerfilePath = yield* fs
-        .makeTempFile({
+        const containerfilePath = yield* fs.makeTempFile({
           prefix: "open-insight-",
           suffix: ".Containerfile",
-        })
-        .pipe(mapBuildError);
+        });
+        yield* fs.writeFileString(containerfilePath, containerfile);
 
-      const command = CP.make`build -f ${containerfilePath} -t ${derived.name} ${context}`.pipe(
-        runtime,
-      );
+        const build = CP.make`build -f ${containerfilePath} -t ${derived.name} ${context}`.pipe(
+          runtime,
+        );
+        yield* spawner.success(build);
 
-      const containerfile = yield* Snapshot.encode(snapshot).pipe(mapBuildError);
-      yield* fs.writeFileString(containerfilePath, containerfile).pipe(mapBuildError);
-
-      yield* spawner.string(command).pipe(mapBuildError);
-
-      if (!cache) {
-        yield* Effect.addFinalizer(() => removeImage(derived));
-      }
-
-      return derived;
-    }) satisfies Provider.Provider["deriveSnapshot"];
-
-    const runSandbox = Effect.fn(function* ({ handle, resources }) {
-      const name = yield* Sandbox.makeName().pipe(
-        Effect.provideService(Crypto.Crypto, crypto),
-        Effect.mapError(SandboxError.sandboxStart(handle.name)),
-      );
-
-      const portMappingArgs = portMappings.flatMap((mapping) => [
-        "-p",
-        `${mapping.hostPort}:${mapping.sandboxPort}`,
-      ]);
-
-      const run = CP.make("run", [
-        "-it",
-        "--rm",
-        "--detach",
-        "--name",
-        name,
-        ...portMappingArgs,
-        ...formatResources(resources),
-        handle.name,
-        "sleep",
-        "infinity",
-      ]).pipe(runtime);
-
-      yield* spawner.string(run).pipe(Effect.mapError(SandboxError.sandboxStart(name)));
-
-      yield* Effect.addFinalizer(() =>
-        spawner.string(CP.make`rm --force ${name}`.pipe(runtime)).pipe(Effect.ignore),
-      );
-
-      const makeExecCommand = (command: CP.StandardCommand, input?: string) => {
-        const args: string[] = [];
-        if (input !== undefined) {
-          args.push("-i");
+        if (!cache) {
+          yield* Effect.addFinalizer(() => removeImage(derived));
         }
 
-        for (const [key, value] of Object.entries(command.options.env ?? {})) {
-          if (value !== undefined) {
-            args.push("-e", `${key}=${value}`);
-          }
-        }
+        return derived;
+      },
+      (effect, { handle, instructions }) =>
+        effect.pipe(
+          Effect.provideService(Crypto.Crypto, crypto),
+          Effect.mapError(SandboxError.snapshotDerive(handle.name, instructions)),
+        ),
+    ) satisfies Provider.Provider["deriveSnapshot"];
 
-        if (command.options.cwd !== undefined) {
-          args.push("-w", command.options.cwd);
-        }
+    const runSandbox = Effect.fn(
+      function* ({ handle, resources }) {
+        const name = yield* Sandbox.makeName().pipe(
+          Effect.mapError(SandboxError.sandboxStart(handle.name)),
+        );
 
-        args.push(name, "sh", "-c", Sandbox.formatBash(command));
+        const portMappingArgs = portMappings.flatMap((mapping) => [
+          "-p",
+          `${mapping.hostPort}:${mapping.sandboxPort}`,
+        ]);
 
-        const options =
-          input === undefined
-            ? {}
-            : ({
-                stdin: {
-                  stream: Stream.make(input).pipe(Stream.encodeText),
-                },
-              } satisfies CP.CommandOptions);
+        const run = CP.make("run", [
+          "-it",
+          "--rm",
+          "--detach",
+          "--name",
+          name,
+          ...portMappingArgs,
+          ...formatResources(resources),
+          handle.name,
+          "sleep",
+          "infinity",
+        ]).pipe(runtime);
+        yield* spawner.success(run).pipe(Effect.mapError(SandboxError.sandboxStart(name)));
 
-        return CP.make("exec", args, options).pipe(runtime);
-      };
+        yield* Effect.addFinalizer(() =>
+          spawner.success(CP.make`rm --force ${name}`.pipe(runtime)).pipe(Effect.ignore),
+        );
 
-      return yield* Sandbox.make({
-        $(cmd: CP.StandardCommand, input?: string) {
-          const bash = Sandbox.formatBash(cmd);
-          const execCommand = makeExecCommand(cmd, input);
-          return spawner
-            .string(execCommand)
-            .pipe(
-              Effect.mapError(SandboxError.sandboxExec({ name: handle.name, operation: bash })),
-            );
-        },
-        expose: Effect.fn(function* ({ sandboxPort, hostPort }) {
-          const matchesMapping = portMappings.some(
-            (mapping) => mapping.sandboxPort === sandboxPort && mapping.hostPort === hostPort,
-          );
-
-          if (!matchesMapping) {
-            return yield* Effect.fail(
-              SandboxError.sandboxExpose({ name: handle.name, sandboxPort, hostPort })(
-                "Expected port mapping cannot be exposed because it was not specified in the configuration. Containers cannot exposing arbitrary ports that were not mapped when the container was created.",
-              ),
-            );
+        const makeExecCommand = (command: CP.StandardCommand, input?: string) => {
+          const args: string[] = [];
+          if (input !== undefined) {
+            args.push("-i");
           }
 
-          return { hostUrl: `http://localhost:${hostPort}` };
-        }),
-        download: Effect.fn(function* ({ sandboxPath, hostPath }) {
-          const from = `${name}:${sandboxPath}`;
-          const command = CP.make`cp ${from} ${hostPath}`;
-          yield* spawner.string(command.pipe(runtime)).pipe(
-            Effect.mapError(
-              SandboxError.sandboxExec({
-                name: handle.name,
-                operation: Sandbox.formatBash(command),
-              }),
-            ),
-          );
-        }),
-        upload: Effect.fn(function* ({ sandboxPath, hostPath }) {
-          const to = `${name}:${sandboxPath}`;
-          const command = CP.make`cp ${hostPath} ${to}`;
-          yield* spawner.string(command.pipe(runtime)).pipe(
-            Effect.mapError(
-              SandboxError.sandboxExec({
-                name: handle.name,
-                operation: Sandbox.formatBash(command),
-              }),
-            ),
-          );
-        }),
-        readFile: "cat",
-        writeFile: "tee",
-      }).pipe(Effect.provideService(Spawn.SpawnService, spawner));
-    }) satisfies Provider.Provider["runSandbox"];
+          for (const [key, value] of Object.entries(command.options.env ?? {})) {
+            if (value !== undefined) {
+              args.push("-e", `${key}=${value}`);
+            }
+          }
+
+          if (command.options.cwd !== undefined) {
+            args.push("-w", command.options.cwd);
+          }
+
+          args.push(name, "sh", "-c", Sandbox.formatBash(command));
+
+          const options =
+            input === undefined
+              ? {}
+              : ({
+                  stdin: {
+                    stream: Stream.make(input).pipe(Stream.encodeText),
+                  },
+                } satisfies CP.CommandOptions);
+
+          return CP.make("exec", args, options).pipe(runtime);
+        };
+
+        return yield* Sandbox.make({
+          $(cmd: CP.StandardCommand, input?: string) {
+            const bash = Sandbox.formatBash(cmd);
+            const execCommand = makeExecCommand(cmd, input);
+            return spawner
+              .string(execCommand)
+              .pipe(Effect.mapError(SandboxError.sandboxExec(handle.name, bash)));
+          },
+          expose: Effect.fn(function* ({ sandboxPort, hostPort }) {
+            const matchesMapping = portMappings.some(
+              (mapping) => mapping.sandboxPort === sandboxPort && mapping.hostPort === hostPort,
+            );
+
+            if (!matchesMapping) {
+              return yield* Effect.fail(
+                SandboxError.sandboxExpose(
+                  handle.name,
+                  sandboxPort,
+                  hostPort,
+                )(
+                  new Error(
+                    "Expected port mapping cannot be exposed because it was not specified in the configuration. Containers cannot exposing arbitrary ports that were not mapped when the container was created.",
+                  ),
+                ),
+              );
+            }
+
+            return { hostUrl: `http://localhost:${hostPort}` };
+          }),
+          download: Effect.fn(function* ({ sandboxPath, hostPath }) {
+            const command = CP.make`cp ${name}:${sandboxPath} ${hostPath}`;
+            yield* spawner
+              .success(command.pipe(runtime))
+              .pipe(
+                Effect.mapError(SandboxError.sandboxExec(handle.name, Sandbox.formatBash(command))),
+              );
+          }),
+          upload: Effect.fn(function* ({ sandboxPath, hostPath }) {
+            const command = CP.make`cp ${hostPath} ${name}:${sandboxPath}`;
+            yield* spawner
+              .success(command.pipe(runtime))
+              .pipe(
+                Effect.mapError(SandboxError.sandboxExec(handle.name, Sandbox.formatBash(command))),
+              );
+          }),
+          readFile: Effect.fn(function* ({ sandboxPath }) {
+            const command = makeExecCommand(CP.make`cat ${sandboxPath}`).pipe(runtime);
+            return yield* spawner
+              .string(command)
+              .pipe(
+                Effect.mapError(SandboxError.sandboxExec(handle.name, Sandbox.formatBash(command))),
+              );
+          }),
+          writeFile: Effect.fn(function* ({ sandboxPath, content }) {
+            const command = makeExecCommand(CP.make`tee ${sandboxPath}`, content).pipe(runtime);
+            yield* spawner
+              .success(command)
+              .pipe(
+                Effect.mapError(SandboxError.sandboxExec(handle.name, Sandbox.formatBash(command))),
+              );
+          }),
+        });
+      },
+      (effect) =>
+        effect.pipe(
+          Effect.provideService(Spawn.SpawnService, spawner),
+          Effect.provideService(Crypto.Crypto, crypto),
+        ),
+    ) satisfies Provider.Provider["runSandbox"];
 
     return {
       aquireSnapshot,

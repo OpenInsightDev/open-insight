@@ -1,7 +1,7 @@
 import { assert, it } from "@effect/vitest";
 import { Effect } from "effect";
-import { Snapshot } from "./build.ts";
 import { decode, encode } from "./decode.ts";
+import * as Image from "./image.ts";
 import { Instruction } from "./inst.ts";
 
 const assertDecodeFails = (containerfile: string, message: string) =>
@@ -29,6 +29,7 @@ ENTRYPOINT ["deno"]
 `);
 
     assert.strictEqual(snapshot.image, "denoland/deno:alpine");
+    assert.isFalse("context" in snapshot);
     assert.deepStrictEqual(snapshot.instructions, [
       { _tag: "Workdir", path: "/workspace" },
       { _tag: "User", user: "deno:deno" },
@@ -44,16 +45,14 @@ ENTRYPOINT ["deno"]
 
 it.effect("encodes snapshots to deterministic Containerfile text", () =>
   Effect.gen(function* () {
-    const containerfile = yield* encode(
-      Snapshot.make({
-        image: "node:22-alpine",
-        instructions: [
-          Instruction.make({ _tag: "Env", env: { ZED: "last", ALPHA: "first" } }),
-          Instruction.make({ _tag: "Copy", src: ["package.json", "src"], dest: "/app/" }),
-          Instruction.make({ _tag: "Cmd", cmd: ["node", "src/index.js"] }),
-        ],
-      }),
-    );
+    const containerfile = yield* encode({
+      image: Image.make("node:22-alpine"),
+      instructions: [
+        Instruction.make({ _tag: "Env", env: { ZED: "last", ALPHA: "first" } }),
+        Instruction.make({ _tag: "Copy", src: ["package.json", "src"], dest: "/app/" }),
+        Instruction.make({ _tag: "Cmd", cmd: ["node", "src/index.js"] }),
+      ],
+    });
 
     assert.strictEqual(
       containerfile,
@@ -82,17 +81,17 @@ it.effect.each([
   {
     name: "unsupported instruction",
     containerfile: "FROM alpine\nADD . /app\n",
-    message: "ADD instruction is not supported by Snapshot",
+    message: "ADD instruction is not supported by ParsedContainerfile",
   },
   {
     name: "RUN flags",
     containerfile: "FROM alpine\nRUN --mount=type=cache echo ok\n",
-    message: "RUN flags are not supported by Snapshot",
+    message: "RUN flags are not supported by ParsedContainerfile",
   },
   {
     name: "COPY flags",
     containerfile: "FROM alpine\nCOPY --chown=node:node package.json /app/\n",
-    message: "COPY flags are not supported by Snapshot",
+    message: "COPY flags are not supported by ParsedContainerfile",
   },
   {
     name: "shell-form CMD",

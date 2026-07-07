@@ -10,8 +10,9 @@ import {
   Workdir,
 } from "dockerfile-ast";
 import { Effect, Option, Schema, SchemaGetter, SchemaIssue } from "effect";
-import { Instruction } from "./inst.ts";
-import { Snapshot } from "./schema.ts";
+import { Instruction, Instructions } from "./inst.ts";
+import { ParsedContainerfile } from "./build.ts";
+import * as Image from "./image.ts";
 
 const encodeInstruction = (instruction: Instruction): string =>
   Instruction.match(instruction, {
@@ -54,7 +55,7 @@ const requireNoFlags = Effect.fn("containerfile/requireNoFlags")(function* (
     return yield* Effect.fail(
       invalidContainerfile(
         containerfile,
-        `${instruction.getKeyword()} flags are not supported by Snapshot`,
+        `${instruction.getKeyword()} flags are not supported by ParsedContainerfile`,
       ),
     );
   }
@@ -169,7 +170,7 @@ const decodeInstruction = Effect.fn("containerfile/decodeInstruction")(function*
   return yield* Effect.fail(
     invalidContainerfile(
       containerfile,
-      `${instruction.getKeyword()} instruction is not supported by Snapshot`,
+      `${instruction.getKeyword()} instruction is not supported by ParsedContainerfile`,
     ),
   );
 });
@@ -206,11 +207,11 @@ const decodeContainerfile = Effect.fn("containerfile")(function* (containerfile:
     instructions.push(yield* decodeInstruction(containerfile, instruction));
   }
 
-  return Snapshot.make({ image, instructions });
+  return { image: Image.make(image), instructions };
 });
 
 export const Containerfile = Schema.String.pipe(
-  Schema.decodeTo(Snapshot, {
+  Schema.decodeTo(ParsedContainerfile, {
     decode: SchemaGetter.transformOrFail(decodeContainerfile),
     encode: SchemaGetter.transform(({ image, instructions }) => {
       const lines = [`FROM ${image}`, ...instructions.map(encodeInstruction)];
@@ -219,8 +220,16 @@ export const Containerfile = Schema.String.pipe(
   }),
 );
 
-export const encode = (snapshot: Snapshot) => Schema.encodeEffect(Containerfile)(snapshot);
-export const encodeSync = (snapshot: Snapshot) => Schema.encodeSync(Containerfile)(snapshot);
+export const encode = (containerfile: { image: string; instructions: Instructions }) =>
+  Schema.encodeEffect(Containerfile)({
+    image: Image.make(containerfile.image),
+    instructions: containerfile.instructions,
+  });
+export const encodeSync = (containerfile: { image: string; instructions: Instructions }) =>
+  Schema.encodeSync(Containerfile)({
+    image: Image.make(containerfile.image),
+    instructions: containerfile.instructions,
+  });
 
 export const decode = (containerfile: string) => Schema.decodeEffect(Containerfile)(containerfile);
 export const decodeSync = (containerfile: string) =>

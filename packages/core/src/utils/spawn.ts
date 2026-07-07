@@ -41,12 +41,21 @@ export class SpawnError extends Data.TaggedError("SpawnError")<{
     });
 }
 
+export interface Options {
+  readonly throwOnNonZeroExit?: boolean;
+}
+
 export class SpawnService extends Context.Service<
   SpawnService,
   {
-    spawn(command: Command): Effect.Effect<ChildProcessHandle, SpawnError, Scope.Scope>;
+    spawn(
+      command: Command,
+      options?: Options,
+    ): Effect.Effect<ChildProcessHandle, SpawnError, Scope.Scope>;
 
-    exitCode(command: Command): Effect.Effect<ExitCode, SpawnError>;
+    exitCode(command: Command): Effect.Effect<ExitCode, PlatformError.PlatformError>;
+
+    success(command: Command): Effect.Effect<void, SpawnError>;
 
     streamString(
       command: Command,
@@ -69,7 +78,7 @@ export class SpawnService extends Context.Service<
     ): Effect.Effect<ReadonlyArray<string>, SpawnError>;
   }
 >()("packages/core/utils/SpawnService") {
-  static readonly layer = Layer.effect(
+  static readonly layer: Layer.Layer<SpawnService, never, ChildProcessSpawner> = Layer.effect(
     SpawnService,
     Effect.gen(function* () {
       const spawner = yield* ChildProcessSpawner;
@@ -77,13 +86,16 @@ export class SpawnService extends Context.Service<
       const streamText = (stream: Stream.Stream<Uint8Array, PlatformError.PlatformError>) =>
         Stream.mkString(Stream.decodeText(stream));
 
-      const spawn: SpawnService["Service"]["spawn"] = Effect.fn(function* (command: Command) {
+      const spawn: SpawnService["Service"]["spawn"] = Effect.fn(function* (
+        command: Command,
+        options?: Options,
+      ) {
         const handle = yield* spawner.spawn(command).pipe(Effect.mapError(SpawnError.platform));
 
         const exitCode = yield* handle.exitCode.pipe(Effect.mapError(SpawnError.platform));
 
-        if (exitCode !== 0) {
-          const output = yield* Effect.all(
+        if (exitCode !== 0 && options?.throwOnNonZeroExit !== false) {
+          const { stdout, stderr } = yield* Effect.all(
             {
               stdout: streamText(handle.stdout),
               stderr: streamText(handle.stderr),
@@ -91,7 +103,7 @@ export class SpawnService extends Context.Service<
             { concurrency: "unbounded" },
           ).pipe(Effect.mapError(SpawnError.platform));
 
-          return yield* SpawnError.exit({ exitCode, ...output });
+          return yield* SpawnError.exit({ exitCode, stdout, stderr });
         }
 
         return handle;
@@ -116,10 +128,13 @@ export class SpawnService extends Context.Service<
       ) => Stream.splitLines(streamString(command, options));
 
       const exitCode: SpawnService["Service"]["exitCode"] = (command: Command) =>
-        spawn(command).pipe(
-          Effect.scoped,
-          Effect.flatMap((handle) => handle.exitCode.pipe(Effect.mapError(SpawnError.platform))),
-        );
+        Effect.gen(function* () {
+          const handle = yield* spawner.spawn(command);
+          return yield* handle.exitCode;
+        }).pipe(Effect.scoped);
+
+      const success: SpawnService["Service"]["success"] = (command: Command) =>
+        spawn(command).pipe(Effect.scoped, Effect.asVoid);
 
       const string: SpawnService["Service"]["string"] = (
         command: Command,
@@ -134,6 +149,7 @@ export class SpawnService extends Context.Service<
       return {
         spawn,
         exitCode,
+        success,
         streamString,
         streamLines,
         lines,
