@@ -11,13 +11,11 @@ import type { Config } from "./config.ts";
 export const createTrail = Effect.fn("exec/createTrail")(
   function* ({
     task,
-    endpoint,
     config: { sandbox: { cacheAgentSnapshot, cacheTaskSnapshot } = {} } = {},
     metricQueue,
     eventQueue,
   }: {
     task: Task.Task;
-    endpoint: Agent.Endpoint;
     config?: Config;
     metricQueue: Queue.Enqueue<Metric.Input>;
     eventQueue: Queue.Enqueue<Event>;
@@ -80,7 +78,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
         yield* Effect.logDebug("Sandbox is ready, Starting trail execution");
 
         const provider = yield* Agent.ProviderService;
-        const agent = yield* provider.runSession({ sandbox, endpoint });
+        const agent = yield* provider.runSession({ sandbox });
         yield* Effect.logDebug("Started agent session");
 
         const stream = agent.prompt({ prompt });

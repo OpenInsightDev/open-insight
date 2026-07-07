@@ -85,12 +85,10 @@ export const run = Effect.fn("exec/schedule")(
       trailCount,
       metrics,
       benchmark,
-      endpoint,
     }: Readonly<{
       trailCount: number;
       metrics: Option.Option<Metric.Metrics>;
       benchmark: Benchmark.Benchmark;
-      endpoint: Agent.Endpoint;
     }>,
     config: Config,
   ): Effect.fn.Return<
@@ -140,7 +138,7 @@ export const run = Effect.fn("exec/schedule")(
         });
         yield* Effect.logDebug("Preparing task schedule");
 
-        const trail = yield* createTrail({ task, endpoint, metricQueue, eventQueue, config })
+        const trail = yield* createTrail({ task, metricQueue, eventQueue, config })
           // snapshot building should also be limited to avoid overwhelming the sandbox provider
           .pipe((create) => snapshotSem.withPermit(create));
         yield* Effect.logDebug("Task snapshot is ready");

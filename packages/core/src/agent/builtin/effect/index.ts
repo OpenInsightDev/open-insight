@@ -8,35 +8,6 @@ import { OpenAiClient, OpenAiLanguageModel } from "@effect/ai-openai";
 import { AnthropicClient, AnthropicLanguageModel } from "@effect/ai-anthropic";
 import { NodeHttpClient } from "@effect/platform-node";
 
-const makeLLM = ({
-  model,
-  endpoint,
-}: {
-  model: string;
-  endpoint: Endpoint;
-}): Effect.Effect<LanguageModel.Service> =>
-  Match.value(endpoint)
-    .pipe(
-      Match.when({ type: "openai" }, ({ baseUrl, apiKey }) =>
-        Effect.gen(function* () {
-          const client = yield* OpenAiClient.make({ apiKey, apiUrl: baseUrl });
-          return yield* OpenAiLanguageModel.make({ model }).pipe(
-            Effect.provideService(OpenAiClient.OpenAiClient, client),
-          );
-        }),
-      ),
-      Match.when({ type: "anthropic" }, ({ baseUrl, apiKey }) =>
-        Effect.gen(function* () {
-          const client = yield* AnthropicClient.make({ apiKey, apiUrl: baseUrl });
-          return yield* AnthropicLanguageModel.make({ model }).pipe(
-            Effect.provideService(AnthropicClient.AnthropicClient, client),
-          );
-        }),
-      ),
-      Match.exhaustive,
-    )
-    .pipe(Effect.provide(NodeHttpClient.layerUndici));
-
 export const makeAgent = Effect.fn(function* ({
   sandbox,
   endpoint,
@@ -74,8 +45,8 @@ export const make = Effect.fn(function* ({
   const llm = yield* LanguageModel.LanguageModel;
 
   const runSession = Effect.fn(
-    function* ({ sandbox, endpoint }) {
-      return yield* makeAgent({ sandbox, endpoint, model, chat, toolkit });
+    function* ({ sandbox }) {
+      return yield* makeAgent({ sandbox, chat, toolkit });
     },
     (effect) => effect.pipe(Effect.provideService(LanguageModel.LanguageModel, llm)),
   ) satisfies Agent.Provider["runSession"];
