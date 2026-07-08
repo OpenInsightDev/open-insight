@@ -11,7 +11,7 @@ import {
 } from "dockerfile-ast";
 import { Effect, Option, Schema, SchemaGetter, SchemaIssue } from "effect";
 import { Instruction, Instructions } from "./inst.ts";
-import { ParsedContainerfile } from "./build.ts";
+import { ParsedContainerfile } from "./schema.ts";
 import type { InvalidValue } from "effect/SchemaIssue";
 import type { SchemaError } from "effect/Schema";
 

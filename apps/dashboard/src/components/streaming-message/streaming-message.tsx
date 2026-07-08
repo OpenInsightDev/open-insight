@@ -156,6 +156,16 @@ const segmentPartCountLabel = (segment: StreamingMessageSegment): string =>
 const segmentFirstPartIndex = (segment: StreamingMessageSegment): number =>
   segment.partIndexes[0] ?? 0;
 
+const messageHeaderClassName = "justify-between gap-3 px-0";
+const messageTitleClassName =
+  "inline-flex min-w-0 items-center gap-1.5 text-foreground [&_svg]:shrink-0";
+const messageHeaderMetaClassName = "inline-flex shrink-0 items-center gap-1.5 [&_svg]:shrink-0";
+const markerWrapClassName = "inline-flex flex-wrap items-center gap-1.5";
+const preClassName =
+  "m-0 max-h-[180px] overflow-auto rounded border border-border bg-muted p-2 font-mono text-xs leading-[1.55] whitespace-pre-wrap text-foreground [overflow-wrap:anywhere]";
+const placeholderClassName = "text-muted-foreground";
+const messageFooterClassName = "px-0";
+
 function StatusBadge({ status }: { status: StreamingSegmentStatus }) {
   return (
     <Badge variant={statusBadgeVariant(status)}>
@@ -175,7 +185,7 @@ function StreamingAttachmentList({
   }
 
   return (
-    <AttachmentGroup className="streaming-message-attachment-group">
+    <AttachmentGroup className="max-w-full">
       {attachments.map((attachment) => (
         <Attachment key={attachment.id} size="sm" state="done">
           <AttachmentMedia>
@@ -197,7 +207,7 @@ function StreamingSourceList({ sources }: { sources: ReadonlyArray<StreamingSour
   }
 
   return (
-    <AttachmentGroup className="streaming-message-attachment-group">
+    <AttachmentGroup className="max-w-full">
       {sources.map((source) => {
         const description =
           source.sourceType === "url"
@@ -230,7 +240,7 @@ function StreamingToolsMarker({ tools }: { tools: ReadonlyArray<StreamingToolSeg
       <MarkerIcon>
         <WrenchIcon />
       </MarkerIcon>
-      <MarkerContent className="streaming-message-marker-content">
+      <MarkerContent className={markerWrapClassName}>
         {tools.map((tool) => (
           <Badge key={tool.id} variant={statusBadgeVariant(tool.status)}>
             {tool.name.length > 0 ? tool.name : tool.id}
@@ -253,7 +263,9 @@ function StreamingReasoningMarker({ reasoning }: { reasoning: string }) {
       <MarkerIcon>
         <BrainIcon />
       </MarkerIcon>
-      <MarkerContent className="streaming-message-reasoning">{reasoning}</MarkerContent>
+      <MarkerContent className="max-w-[76ch] whitespace-pre-wrap text-muted-foreground [overflow-wrap:anywhere]">
+        {reasoning}
+      </MarkerContent>
     </Marker>
   );
 }
@@ -272,7 +284,7 @@ function StreamingErrorsMarker({
       <MarkerIcon>
         <CircleAlertIcon />
       </MarkerIcon>
-      <MarkerContent className="streaming-message-marker-content">
+      <MarkerContent className={markerWrapClassName}>
         {errors.map((error) => (
           <Badge key={error.id} variant="destructive">
             {formatStreamingValue(error.error)}
@@ -285,9 +297,9 @@ function StreamingErrorsMarker({
 
 function StreamingJsonBlock({ value, label }: { value: unknown; label: string }) {
   return (
-    <div className="streaming-message-json-group">
-      <span>{label}</span>
-      <pre>{formatStreamingValue(value)}</pre>
+    <div className="grid min-w-0 gap-1">
+      <span className="text-[11px] font-semibold text-muted-foreground uppercase">{label}</span>
+      <pre className={preClassName}>{formatStreamingValue(value)}</pre>
     </div>
   );
 }
@@ -299,9 +311,9 @@ function StreamingToolDetails({ segment }: { segment: StreamingToolSegment }) {
 
   return (
     <Bubble variant={segment.status === "failed" ? "destructive" : "outline"} align="start">
-      <BubbleContent className="streaming-message-debug-bubble">
-        <div className="streaming-message-debug-stack">
-          <div className="streaming-message-debug-meta">
+      <BubbleContent className="w-[min(100%,76ch)]">
+        <div className="flex min-w-0 flex-col gap-2.5">
+          <div className="flex min-w-0 flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
             <span>{segment.providerExecuted ? "Provider executed" : "Framework executed"}</span>
             <span>{segment.id}</span>
           </div>
@@ -326,12 +338,7 @@ function StreamingToolDetails({ segment }: { segment: StreamingToolSegment }) {
             />
           ) : null}
           {!hasParamsText && !hasStructuredParams && !hasResult ? (
-            <span
-              className={cn(
-                "streaming-message-placeholder",
-                segment.status === "streaming" && "shimmer",
-              )}
-            >
+            <span className={cn(placeholderClassName, segment.status === "streaming" && "shimmer")}>
               Waiting for tool parameters
             </span>
           ) : null}
@@ -353,8 +360,8 @@ function StreamingTextDetails({
       <BubbleContent>
         <pre
           className={cn(
-            "streaming-message-pre",
-            isEmpty && "streaming-message-placeholder",
+            preClassName,
+            isEmpty && placeholderClassName,
             isEmpty && segment.status === "streaming" && "shimmer",
           )}
         >
@@ -380,7 +387,7 @@ function StreamingDebugSegmentBody({ segment }: { segment: StreamingMessageSegme
       return (
         <Bubble variant="destructive" align="start">
           <BubbleContent>
-            <pre className="streaming-message-pre">{formatStreamingValue(segment.error)}</pre>
+            <pre className={preClassName}>{formatStreamingValue(segment.error)}</pre>
           </BubbleContent>
         </Bubble>
       );
@@ -399,18 +406,18 @@ function StreamingDebugSegmentView({
   return (
     <Message align="start" data-kind={segment.kind} data-state={status}>
       <MessageContent>
-        <MessageHeader className="streaming-message-header">
-          <span className="streaming-message-title">
+        <MessageHeader className={messageHeaderClassName}>
+          <span className={messageTitleClassName}>
             <StreamingSegmentIcon segment={segment} />
             {segmentTitle(segment)}
           </span>
-          <span className="streaming-message-header-meta">
+          <span className={messageHeaderMetaClassName}>
             <StatusBadge status={status} />
             <span>{segmentPartCountLabel(segment)}</span>
           </span>
         </MessageHeader>
         <StreamingDebugSegmentBody segment={segment} />
-        <MessageFooter className="streaming-message-footer">
+        <MessageFooter className={messageFooterClassName}>
           {footer ?? summarizeStreamingSegment(segment)}
         </MessageFooter>
       </MessageContent>
@@ -439,12 +446,12 @@ function StreamingMessagePrimary({
   return (
     <Message align="start" data-state={message.status}>
       <MessageContent>
-        <MessageHeader className="streaming-message-header">
-          <span className="streaming-message-title">
+        <MessageHeader className={messageHeaderClassName}>
+          <span className={messageTitleClassName}>
             <MessageSquareTextIcon />
             Assistant
           </span>
-          <span className="streaming-message-header-meta">
+          <span className={messageHeaderMetaClassName}>
             <StatusBadge status={message.status} />
             <span>{partCountLabel(message.partCount)}</span>
           </span>
@@ -453,8 +460,8 @@ function StreamingMessagePrimary({
           <BubbleContent>
             <div
               className={cn(
-                "streaming-message-body",
-                !hasText && "streaming-message-placeholder",
+                "max-w-[76ch] whitespace-pre-wrap text-foreground [overflow-wrap:anywhere]",
+                !hasText && placeholderClassName,
                 !hasText && message.status === "streaming" && "shimmer",
               )}
             >
@@ -467,7 +474,7 @@ function StreamingMessagePrimary({
         <StreamingSourceList sources={message.sources} />
         <StreamingToolsMarker tools={message.tools} />
         <StreamingErrorsMarker errors={message.errors} />
-        <MessageFooter className="streaming-message-footer">
+        <MessageFooter className={messageFooterClassName}>
           {footer ?? statusLabel(message.status)}
         </MessageFooter>
       </MessageContent>
@@ -478,9 +485,9 @@ function StreamingMessagePrimary({
 function StreamingMessageScrollerPanel({ children }: { children: React.ReactNode }) {
   return (
     <MessageScrollerProvider autoScroll>
-      <MessageScroller className="streaming-message-scroller">
+      <MessageScroller className="min-h-0 flex-1">
         <MessageScrollerViewport>
-          <MessageScrollerContent className="streaming-message-scroller-content">
+          <MessageScrollerContent className="gap-5 px-0.5 pt-3.5 pb-5">
             {children}
           </MessageScrollerContent>
         </MessageScrollerViewport>
@@ -501,13 +508,13 @@ function StreamingMessageStream({
 
   return (
     <div
-      data-slot="streaming-message-stream"
+      data-slot="message-stream"
       data-state={model.message.status}
-      className={cn("streaming-message-stream", className)}
+      className={cn("flex min-h-0 min-w-0 flex-col", className)}
       {...props}
     >
-      <Tabs defaultValue="message" className="streaming-message-tabs">
-        <div className="streaming-message-tabs-header">
+      <Tabs defaultValue="message" className="min-h-0 flex-1">
+        <div className="flex min-w-0 items-center justify-between gap-3">
           <TabsList variant="line">
             <TabsTrigger value="message">
               <MessageSquareTextIcon data-icon="inline-start" />
@@ -522,17 +529,17 @@ function StreamingMessageStream({
             {statusLabel(model.message.status)}
           </Badge>
         </div>
-        <TabsContent value="message" className="streaming-message-tab">
+        <TabsContent value="message" className="min-h-0">
           <StreamingMessageScrollerPanel>
-            <MessageScrollerItem messageId="streaming-message-primary" scrollAnchor>
+            <MessageScrollerItem messageId="message-primary" scrollAnchor>
               <StreamingMessagePrimary model={model} emptyLabel={emptyLabel} footer={footer} />
             </MessageScrollerItem>
           </StreamingMessageScrollerPanel>
         </TabsContent>
-        <TabsContent value="debug" className="streaming-message-tab">
+        <TabsContent value="debug" className="min-h-0">
           <StreamingMessageScrollerPanel>
             {model.debugSegments.length === 0 ? (
-              <MessageScrollerItem messageId="streaming-message-debug-empty">
+              <MessageScrollerItem messageId="message-debug-empty">
                 <Marker variant="separator">
                   <MarkerContent>{emptyLabel}</MarkerContent>
                 </Marker>
@@ -541,7 +548,7 @@ function StreamingMessageStream({
               model.debugSegments.map((segment) => (
                 <MessageScrollerItem
                   key={`${segment.kind}-${segment.id}-${segmentFirstPartIndex(segment)}`}
-                  messageId={`streaming-message-debug-${segment.kind}-${segment.id}-${segmentFirstPartIndex(segment)}`}
+                  messageId={`message-debug-${segment.kind}-${segment.id}-${segmentFirstPartIndex(segment)}`}
                   scrollAnchor={segment.kind === "text"}
                 >
                   <StreamingDebugSegmentView segment={segment} footer={footer} />

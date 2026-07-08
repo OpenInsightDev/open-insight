@@ -27,7 +27,6 @@ import {
   ZAxis,
 } from "recharts";
 import { ActivityIcon, DownloadIcon, FileTextIcon } from "lucide-react";
-import "./App.css";
 import {
   Attachment,
   AttachmentAction,
@@ -70,6 +69,7 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs.tsx";
 import { TooltipProvider } from "@/components/ui/tooltip.tsx";
 import { StreamingMessageStream } from "@/components/streaming-message/index.ts";
+import { cn } from "@/lib/utils.ts";
 import {
   selectBenchmarkTasks,
   selectTaskTrails,
@@ -90,6 +90,29 @@ type MetricEntry = {
   name: string;
   metric: MetricResult;
 };
+
+const labelTextClass =
+  "text-xs font-medium leading-tight tracking-normal text-muted-foreground uppercase";
+const titleTextClass =
+  "m-0 text-[15px] font-semibold leading-tight tracking-normal text-foreground";
+const emptyTextClass = "m-0 text-[13px] text-muted-foreground";
+const preBlockClass =
+  "m-0 max-h-[180px] overflow-auto rounded-sm border bg-muted p-2.5 font-mono text-xs leading-relaxed whitespace-pre-wrap text-foreground [overflow-wrap:anywhere]";
+const chartVisualClass = "h-[238px] min-h-[238px] w-full aspect-auto";
+const gaugeChartClass = "h-[168px] min-h-[168px] w-full aspect-auto";
+
+const taskButtonClass = (active: boolean) =>
+  cn(
+    "grid w-full cursor-pointer grid-cols-[minmax(0,1fr)_auto] gap-x-2.5 gap-y-0.5 border-0 border-b bg-transparent px-4 py-3.5 text-left text-foreground/75 hover:bg-muted hover:text-foreground max-[1180px]:inline-grid max-[1180px]:w-[min(280px,100%)] max-[1180px]:border-r",
+    active && "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground",
+  );
+const taskStatusClass = "col-start-2 row-start-1 row-span-2 self-center";
+
+const trailButtonClass = (active: boolean) =>
+  cn(
+    "min-h-[38px] cursor-pointer border bg-transparent px-3 text-[13px] tracking-normal text-foreground/75 hover:bg-muted hover:text-foreground",
+    active && "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground",
+  );
 
 const dateTimeFormat = new Intl.DateTimeFormat(undefined, {
   month: "short",
@@ -819,7 +842,7 @@ function App() {
 
   return (
     <TooltipProvider>
-      <main className="dashboard-shell">
+      <main className="mx-auto min-h-svh w-full max-w-[1440px] bg-background text-left text-sm leading-normal text-foreground">
         <DashboardHeader benchmark={benchmark} eventCount={128} lastEventAt={mockUpdatedAt} />
 
         <Tabs
@@ -834,9 +857,9 @@ function App() {
               setActiveTab(nextValue);
             }
           }}
-          className="dashboard-section-tabs"
+          className="border-b px-8 max-[820px]:px-4"
         >
-          <TabsList className="dashboard-tabs-list" variant="line" aria-label="Dashboard sections">
+          <TabsList className="min-h-[42px]" variant="line" aria-label="Dashboard sections">
             <TabsTrigger value="tasks">Tasks</TabsTrigger>
             <TabsTrigger value="charts">Charts</TabsTrigger>
             <TabsTrigger value="agent">Agent Stream</TabsTrigger>
@@ -864,7 +887,7 @@ function App() {
             onSelectTrail={setActiveTrailIndex}
           />
         ) : (
-          <section className="tasks-layout">
+          <section className="grid min-h-[calc(100svh-146px)] grid-cols-[260px_minmax(0,1fr)] max-[1180px]:grid-cols-1">
             <TaskRail
               benchmark={benchmark}
               tasks={tasks}
@@ -874,7 +897,7 @@ function App() {
                 setActiveTrailIndex(undefined);
               }}
             />
-            <section className="task-workspace">
+            <section className="grid content-start gap-3 p-3.5 max-[820px]:p-3">
               <TaskStats task={task} />
               <TrailPanel
                 benchmarkName={benchmark.name}
@@ -905,15 +928,22 @@ function DashboardHeader({
   const title = metadata?.name ?? benchmark?.name ?? "Benchmark";
 
   return (
-    <header className="dashboard-header">
-      <div className="title-block">
-        <p className="eyebrow">Benchmark</p>
-        <h1>{title}</h1>
+    <header className="grid grid-cols-[minmax(0,1fr)_auto] gap-[18px] border-b px-8 pt-6 pb-[18px] max-[820px]:grid-cols-1 max-[820px]:px-4 max-[820px]:pb-4">
+      <div className="min-w-0">
+        <p className={labelTextClass}>Benchmark</p>
+        <h1 className="mt-1 mb-0 text-[34px] leading-none font-medium tracking-normal text-foreground">
+          {title}
+        </h1>
         {metadata?.description !== undefined ? (
-          <p className="benchmark-description">{metadata.description}</p>
+          <p className="mt-2 max-w-[820px] text-sm text-foreground/80">{metadata.description}</p>
         ) : null}
       </div>
-      <div className="header-meta">
+      <div
+        className={cn(
+          labelTextClass,
+          "flex items-start justify-end gap-2.5 text-right whitespace-nowrap max-[820px]:flex-wrap max-[820px]:justify-start max-[820px]:text-left",
+        )}
+      >
         <StatusPill status={benchmark?.status ?? "idle"} />
         <span>{eventCount} events</span>
         <span>Last {formatTimestamp(lastEventAt)}</span>
@@ -944,11 +974,11 @@ function AgentStreamTab({
   onSelectTrail: (trailIndex: number) => void;
 }) {
   return (
-    <section className="agent-stream-page">
-      <aside className="agent-stream-sidebar" aria-label="Agent stream controls">
+    <section className="grid grid-cols-[280px_minmax(0,1fr)] gap-4 px-8 pt-[18px] pb-8 max-[1180px]:grid-cols-1 max-[820px]:px-4">
+      <aside className="grid min-w-0 content-start gap-4" aria-label="Agent stream controls">
         <Panel title="Stream Source" aside={<StatusPill status={benchmark.status} compact />}>
-          <div className="agent-selector-group">
-            <div className="rail-heading agent-rail-heading">
+          <div className="grid min-w-0 overflow-hidden rounded-sm border">
+            <div className={cn(labelTextClass, "flex justify-between border-b px-3 py-2.5")}>
               <span>Tasks</span>
               <span>{tasks.length}</span>
             </div>
@@ -956,32 +986,34 @@ function AgentStreamTab({
               <button
                 type="button"
                 key={item.name}
-                className={item.name === activeTaskName ? "task-tab is-active" : "task-tab"}
+                className={taskButtonClass(item.name === activeTaskName)}
                 onClick={() => onSelectTask(item.name)}
               >
-                <span className="task-name">{item.metadata?.name ?? item.name}</span>
-                <span className="task-subline">
+                <span className="min-w-0 truncate text-sm font-semibold text-inherit">
+                  {item.metadata?.name ?? item.name}
+                </span>
+                <span className={cn(labelTextClass, "col-start-1 normal-case")}>
                   {item.progress.completedTrails}/{item.progress.observedTrails} trails
                 </span>
-                <StatusPill status={item.status} compact />
+                <StatusPill status={item.status} compact className={taskStatusClass} />
               </button>
             ))}
           </div>
 
-          <div className="agent-selector-group">
-            <div className="rail-heading agent-rail-heading">
+          <div className="grid min-w-0 overflow-hidden rounded-sm border">
+            <div className={cn(labelTextClass, "flex justify-between border-b px-3 py-2.5")}>
               <span>Trails</span>
               <span>{trails.length}</span>
             </div>
-            <div className="trail-tabs agent-trail-tabs" aria-label="Agent stream trails">
+            <div className="flex flex-wrap gap-0 p-2.5" aria-label="Agent stream trails">
               {trails.length === 0 ? (
-                <p className="empty-inline">No trails</p>
+                <p className={emptyTextClass}>No trails</p>
               ) : (
                 trails.map((item) => (
                   <button
                     type="button"
                     key={item.index}
-                    className={item.index === activeTrailIndex ? "is-active" : undefined}
+                    className={trailButtonClass(item.index === activeTrailIndex)}
                     onClick={() => onSelectTrail(item.index)}
                   >
                     #{item.index}
@@ -993,15 +1025,15 @@ function AgentStreamTab({
         </Panel>
       </aside>
 
-      <div className="agent-stream-main">
+      <div className="grid min-w-0 content-start gap-4">
         <Panel
           title="Agent Message Visual"
           aside={<Badge variant="secondary">shadcn primitives</Badge>}
         >
           <MessageScrollerProvider autoScroll>
-            <MessageScroller className="agent-example-scroller">
+            <MessageScroller className="h-[min(72svh,760px)] min-h-[620px] border-0 bg-background">
               <MessageScrollerViewport>
-                <MessageScrollerContent className="agent-message-content">
+                <MessageScrollerContent className="gap-7 px-[min(8vw,96px)] pt-[42px] pb-[54px]">
                   <MessageScrollerItem messageId="marker-intro">
                     <Marker variant="separator">
                       <MarkerContent>Today</MarkerContent>
@@ -1038,7 +1070,7 @@ function AgentStreamTab({
           aside={trail === undefined ? undefined : <StatusPill status={trail.status} compact />}
         >
           {trail === undefined || task === undefined ? (
-            <p className="empty-inline">No trail selected</p>
+            <p className={emptyTextClass}>No trail selected</p>
           ) : (
             <TrailStreamPreview task={task} trail={trail} />
           )}
@@ -1053,8 +1085,11 @@ function AgentExampleRow({ message }: { message: AgentExampleMessage }) {
 
   if (message.role === "status") {
     return (
-      <Marker variant="separator" className="agent-status-marker">
-        <MarkerContent>
+      <Marker
+        variant="separator"
+        className="mx-auto mt-6 max-w-[min(100%,1120px)] text-lg text-muted-foreground"
+      >
+        <MarkerContent className="flex-none pr-2 text-left">
           {message.title} {message.body}
         </MarkerContent>
       </Marker>
@@ -1062,17 +1097,22 @@ function AgentExampleRow({ message }: { message: AgentExampleMessage }) {
   }
 
   return (
-    <Message align={align} className={message.role === "agent" ? "agent-message-row" : undefined}>
+    <Message
+      align={align}
+      className={cn(message.role === "agent" && "mx-auto max-w-[min(100%,1120px)]")}
+    >
       <MessageContent>
         {message.role === "agent" ? (
           <AgentResponseBody message={message} />
         ) : (
-          <Bubble variant="secondary" align={align} className="agent-user-bubble">
-            <BubbleContent>{message.body}</BubbleContent>
+          <Bubble variant="secondary" align={align} className="max-w-[min(74ch,78%)]">
+            <BubbleContent className="rounded-[20px] px-[18px] py-3.5 text-[17px] leading-relaxed text-foreground">
+              {message.body}
+            </BubbleContent>
           </Bubble>
         )}
         {message.attachments === undefined ? null : (
-          <AttachmentGroup className="agent-attachment-group">
+          <AttachmentGroup className="max-w-[76ch] pt-0.5">
             {message.attachments.map((attachment) => (
               <Attachment key={attachment.title} state={attachment.state}>
                 <AttachmentMedia variant="icon">
@@ -1098,7 +1138,7 @@ function AgentExampleRow({ message }: { message: AgentExampleMessage }) {
 
 function AgentResponseBody({ message }: { message: AgentExampleMessage }) {
   return (
-    <div className="agent-response-body">
+    <div className="grid max-w-[76ch] gap-4 text-lg leading-[1.72] text-pretty text-foreground [&_ul]:m-0 [&_ul]:grid [&_ul]:gap-2.5 [&_ul]:pl-[22px] [&_li>ul]:mt-2">
       <p>{message.body}</p>
       <p>主要变化：</p>
       <ul>
@@ -1129,16 +1169,24 @@ function AgentResponseBody({ message }: { message: AgentExampleMessage }) {
 }
 
 function FileToken({ children }: { children: ReactNode }) {
-  return <span className="agent-file-token">{children}</span>;
+  return (
+    <span className="inline-flex items-center gap-1.5 font-semibold text-primary before:inline-grid before:size-[18px] before:place-items-center before:rounded-sm before:bg-primary before:text-[9px] before:leading-none before:font-bold before:text-primary-foreground before:content-['TS']">
+      {children}
+    </span>
+  );
 }
 
 function CodeToken({ children }: { children: ReactNode }) {
-  return <code className="agent-code-token">{children}</code>;
+  return (
+    <code className="inline rounded-md bg-muted px-[7px] py-0.5 text-[0.92em] leading-[inherit] text-foreground align-baseline">
+      {children}
+    </code>
+  );
 }
 
 function TrailStreamPreview({ task, trail }: { task: TaskNode; trail: TrailNode }) {
   return (
-    <div className="agent-trail-preview">
+    <div className="grid gap-3">
       <Marker variant="separator">
         <MarkerContent>
           {task.metadata?.name ?? task.name} / trail #{trail.index}
@@ -1147,7 +1195,7 @@ function TrailStreamPreview({ task, trail }: { task: TaskNode; trail: TrailNode 
       <StreamingMessageStream
         parts={trail.streamParts}
         footer={formatTimestamp(trail.lastEventAt)}
-        className="agent-trail-stream"
+        className="h-[360px] min-h-[320px] rounded-lg border bg-card"
       />
     </div>
   );
@@ -1158,7 +1206,7 @@ function BenchmarkStats({ benchmark }: { benchmark: BenchmarkNode }) {
   const metadata = benchmark.metadata;
 
   return (
-    <section className="benchmark-grid">
+    <section className="grid grid-cols-2 gap-4 px-8 pt-4 pb-8 max-[1180px]:grid-cols-1 max-[820px]:px-4">
       <Panel title="Progress">
         <StatGrid items={progressItems(benchmark.progress)} />
       </Panel>
@@ -1168,14 +1216,14 @@ function BenchmarkStats({ benchmark }: { benchmark: BenchmarkNode }) {
       </Panel>
 
       <Panel title="Metric Registry">
-        <div className="registry-grid">
+        <div className="grid grid-cols-3 gap-3 max-[820px]:grid-cols-1">
           {metricScopes.map((scope) => (
-            <div className="registry-column" key={scope}>
-              <h3>{scope}</h3>
+            <div className="min-w-0 rounded-sm border p-3" key={scope}>
+              <h3 className={cn(titleTextClass, "mb-2.5")}>{scope}</h3>
               {benchmark.metricNamesByScope[scope].length === 0 ? (
-                <p className="muted">none</p>
+                <p className={emptyTextClass}>none</p>
               ) : (
-                <ul className="plain-list">
+                <ul className="m-0 grid list-none gap-1.5 p-0 text-[13px] text-foreground">
                   {benchmark.metricNamesByScope[scope].map((name) => (
                     <li key={name}>{name}</li>
                   ))}
@@ -1187,7 +1235,7 @@ function BenchmarkStats({ benchmark }: { benchmark: BenchmarkNode }) {
       </Panel>
 
       <Panel title="Metadata">
-        <dl className="metadata-list">
+        <dl className="m-0 grid gap-2">
           <KeyValue label="Name" value={metadata?.name ?? benchmark.name} />
           <KeyValue label="Homepage" value={metadata?.homepage} />
           <KeyValue label="Registry" value={metadata?.registry} />
@@ -1213,26 +1261,31 @@ function TaskRail({
   onSelectTask: (taskName: string) => void;
 }) {
   return (
-    <aside className="task-rail" aria-label="Tasks">
-      <div className="rail-heading">
+    <aside
+      className="border-r bg-muted/50 max-[1180px]:border-r-0 max-[1180px]:border-b"
+      aria-label="Tasks"
+    >
+      <div className={cn(labelTextClass, "flex justify-between border-b px-4 py-3.5")}>
         <span>Tasks</span>
         <span>{benchmark.progress.totalTasks}</span>
       </div>
       {tasks.length === 0 ? (
-        <p className="empty-inline">No tasks</p>
+        <p className={cn(emptyTextClass, "p-4")}>No tasks</p>
       ) : (
         tasks.map((task) => (
           <button
             type="button"
             key={task.name}
-            className={task.name === activeTaskName ? "task-tab is-active" : "task-tab"}
+            className={taskButtonClass(task.name === activeTaskName)}
             onClick={() => onSelectTask(task.name)}
           >
-            <span className="task-name">{task.metadata?.name ?? task.name}</span>
-            <span className="task-subline">
+            <span className="min-w-0 truncate text-sm font-semibold text-inherit">
+              {task.metadata?.name ?? task.name}
+            </span>
+            <span className={cn(labelTextClass, "col-start-1 normal-case")}>
               {task.progress.completedTrails}/{task.progress.observedTrails} trails
             </span>
-            <StatusPill status={task.status} compact />
+            <StatusPill status={task.status} compact className={taskStatusClass} />
           </button>
         ))
       )}
@@ -1244,20 +1297,20 @@ function TaskStats({ task }: { task: TaskNode | undefined }) {
   if (task === undefined) {
     return (
       <Panel title="Task Stats">
-        <p className="empty-inline">No task selected</p>
+        <p className={emptyTextClass}>No task selected</p>
       </Panel>
     );
   }
 
   return (
     <Panel title="Task Stats" aside={<StatusPill status={task.status} />}>
-      <div className="task-stats-grid">
-        <div className="task-main-column">
+      <div className="grid grid-cols-[minmax(0,1.6fr)_minmax(320px,0.8fr)] items-start gap-4 max-[1180px]:grid-cols-1">
+        <div className="grid min-w-0 gap-3">
           <StatGrid items={taskProgressItems(task)} />
           <MetricGrid metrics={metricEntries(task.metrics)} emptyLabel="No task metrics yet" />
         </div>
-        <div className="task-metadata">
-          <dl className="metadata-list">
+        <div className="grid content-start items-start gap-3 border p-2.5">
+          <dl className="m-0 grid gap-2">
             <KeyValue label="Name" value={task.metadata?.name ?? task.name} />
             <KeyValue label="Keywords" value={task.metadata?.keywords?.join(", ")} />
             <KeyValue label="Authors" value={task.metadata?.authors?.join(", ")} />
@@ -1265,7 +1318,9 @@ function TaskStats({ task }: { task: TaskNode | undefined }) {
             <KeyValue label="Finished" value={formatTimestamp(task.finishedAt)} />
           </dl>
           {task.metadata?.description !== undefined ? (
-            <p className="task-description">{task.metadata.description}</p>
+            <p className="text-[13px] leading-normal text-foreground/80">
+              {task.metadata.description}
+            </p>
           ) : null}
         </div>
       </div>
@@ -1293,15 +1348,15 @@ function TrailPanel({
       title="Trail"
       aside={trail === undefined ? undefined : <StatusPill status={trail.status} />}
     >
-      <div className="trail-tabs" aria-label="Trails">
+      <div className="-mx-3.5 -mt-3.5 flex flex-wrap gap-0 border-b p-3.5" aria-label="Trails">
         {trails.length === 0 ? (
-          <p className="empty-inline">No trails</p>
+          <p className={emptyTextClass}>No trails</p>
         ) : (
           trails.map((item) => (
             <button
               type="button"
               key={item.index}
-              className={item.index === activeTrailIndex ? "is-active" : undefined}
+              className={trailButtonClass(item.index === activeTrailIndex)}
               onClick={() => onSelectTrail(item.index)}
             >
               #{item.index}
@@ -1311,13 +1366,13 @@ function TrailPanel({
       </div>
 
       {trail === undefined ? (
-        <p className="empty-inline">No trail selected</p>
+        <p className={emptyTextClass}>No trail selected</p>
       ) : (
-        <div className="trail-grid">
-          <section className="trail-metrics">
-            <div className="section-heading">
-              <h3>Metrics</h3>
-              <span>{metricEntries(trail.metrics).length}</span>
+        <div className="grid grid-cols-[minmax(320px,0.78fr)_minmax(0,1.22fr)] gap-4 max-[1180px]:grid-cols-1">
+          <section className="grid min-w-0 content-start gap-3">
+            <div className="flex items-center justify-between gap-3">
+              <h3 className={titleTextClass}>Metrics</h3>
+              <span className={labelTextClass}>{metricEntries(trail.metrics).length}</span>
             </div>
             <MetricGrid
               metrics={metricEntries(trail.metrics)}
@@ -1327,10 +1382,10 @@ function TrailPanel({
             <TrailUsage trail={trail} />
           </section>
 
-          <section className="message-panel">
-            <div className="section-heading">
-              <h3>Agent Workflow</h3>
-              <span>
+          <section className="grid min-w-0 content-start gap-3">
+            <div className="flex items-center justify-between gap-3">
+              <h3 className={titleTextClass}>Agent Workflow</h3>
+              <span className={labelTextClass}>
                 {benchmarkName} / {taskName ?? "task"} / #{trail.index}
               </span>
             </div>
@@ -1348,10 +1403,12 @@ function TrailUsage({ trail }: { trail: TrailNode }) {
   }
 
   return (
-    <div className="usage-grid">
-      {trail.usage === undefined ? null : <pre className="json-box">{formatJson(trail.usage)}</pre>}
+    <div className="grid gap-2.5">
+      {trail.usage === undefined ? null : (
+        <pre className={preBlockClass}>{formatJson(trail.usage)}</pre>
+      )}
       {trail.error === undefined ? null : (
-        <pre className="json-box error-box">{formatJson(trail.error)}</pre>
+        <pre className={cn(preBlockClass, "border-destructive")}>{formatJson(trail.error)}</pre>
       )}
     </div>
   );
@@ -1362,31 +1419,33 @@ function MessageFlow({ trail }: { trail: TrailNode }) {
     <StreamingMessageStream
       parts={trail.streamParts}
       footer={formatTimestamp(trail.lastEventAt)}
-      className="message-flow"
+      className="h-[430px] min-h-[280px]"
     />
   );
 }
 
 function ChartGallery() {
   return (
-    <section className="chart-gallery">
-      <div className="chart-gallery-header">
+    <section className="grid gap-4 px-8 pt-[18px] pb-8 max-[820px]:px-4">
+      <div className="flex items-end justify-between gap-[18px] max-[820px]:flex-col max-[820px]:items-start">
         <div>
-          <h2>Metric Chart Types</h2>
-          <p>
+          <h2 className="m-0 text-xl leading-tight font-semibold tracking-normal text-foreground">
+            Metric Chart Types
+          </h2>
+          <p className="mt-1.5 max-w-[700px] text-[13px] leading-normal text-muted-foreground">
             Mock metric outputs rendered from every chart type exposed by the eval metric schema.
           </p>
         </div>
         <Badge variant="secondary">{Object.keys(chartTypeCoverage).length} chart types</Badge>
       </div>
 
-      <div className="chart-card-grid">
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(330px,1fr))] items-stretch gap-3.5 max-[820px]:grid-cols-1">
         <ChartShowcaseCard
           type="Bar"
           title="Task Score"
           description="Single category-value metric shape for task-level comparisons."
         >
-          <ChartContainer config={baseChartConfig} className="chart-visual">
+          <ChartContainer config={baseChartConfig} className={chartVisualClass}>
             <BarChart accessibilityLayer data={barData} margin={{ left: 0, right: 8 }}>
               <CartesianGrid vertical={false} />
               <XAxis dataKey="category" tickLine={false} axisLine={false} />
@@ -1402,7 +1461,7 @@ function ChartGallery() {
           title="Baseline vs Current"
           description="Category, group, and value mapped into grouped metric bars."
         >
-          <ChartContainer config={groupedBarConfig} className="chart-visual">
+          <ChartContainer config={groupedBarConfig} className={chartVisualClass}>
             <BarChart accessibilityLayer data={groupedBarData} margin={{ left: 0, right: 8 }}>
               <CartesianGrid vertical={false} />
               <XAxis dataKey="category" tickLine={false} axisLine={false} />
@@ -1421,7 +1480,7 @@ function ChartGallery() {
           title="Run State Share"
           description="Name-value metric distribution for benchmark state."
         >
-          <ChartContainer config={baseChartConfig} className="chart-visual">
+          <ChartContainer config={baseChartConfig} className={chartVisualClass}>
             <PieChart accessibilityLayer>
               <ChartTooltip content={<ChartTooltipContent hideLabel />} />
               <Pie
@@ -1445,7 +1504,7 @@ function ChartGallery() {
           title="Score Trend"
           description="String x-axis and numeric y-axis across a running benchmark window."
         >
-          <ChartContainer config={baseChartConfig} className="chart-visual">
+          <ChartContainer config={baseChartConfig} className={chartVisualClass}>
             <LineChart accessibilityLayer data={lineData} margin={{ left: 0, right: 12 }}>
               <CartesianGrid vertical={false} />
               <XAxis dataKey="x" tickLine={false} axisLine={false} />
@@ -1467,7 +1526,7 @@ function ChartGallery() {
           title="Multi-signal Series"
           description="Series, x, and y values pivoted into aligned metric traces."
         >
-          <ChartContainer config={seriesConfig} className="chart-visual">
+          <ChartContainer config={seriesConfig} className={chartVisualClass}>
             <LineChart accessibilityLayer data={seriesData} margin={{ left: 0, right: 12 }}>
               <CartesianGrid vertical={false} />
               <XAxis dataKey="x" tickLine={false} axisLine={false} />
@@ -1486,7 +1545,7 @@ function ChartGallery() {
           title="Latency vs Accuracy"
           description="Numeric x/y values with optional size and label metadata."
         >
-          <ChartContainer config={baseChartConfig} className="chart-visual">
+          <ChartContainer config={baseChartConfig} className={chartVisualClass}>
             <ScatterChart accessibilityLayer margin={{ left: 0, right: 14, top: 10 }}>
               <CartesianGrid />
               <XAxis dataKey="x" name="Latency" unit="ms" tickLine={false} axisLine={false} />
@@ -1510,7 +1569,7 @@ function ChartGallery() {
           title="Capability Profile"
           description="Category, metric, and value projected around one benchmark profile."
         >
-          <ChartContainer config={baseChartConfig} className="chart-visual">
+          <ChartContainer config={baseChartConfig} className={chartVisualClass}>
             <RadarChart accessibilityLayer data={radarData}>
               <PolarGrid />
               <PolarAngleAxis dataKey="category" />
@@ -1531,7 +1590,7 @@ function ChartGallery() {
           title="Task x Signal Density"
           description="Heatmap schema rendered as a Recharts bubble matrix."
         >
-          <ChartContainer config={baseChartConfig} className="chart-visual">
+          <ChartContainer config={baseChartConfig} className={chartVisualClass}>
             <ScatterChart accessibilityLayer margin={{ left: 4, right: 16, top: 12, bottom: 4 }}>
               <CartesianGrid />
               <XAxis dataKey="x" type="number" domain={[0.5, 4.5]} tickLine={false} />
@@ -1548,7 +1607,7 @@ function ChartGallery() {
           title="Evidence Volume"
           description="Name-value leaves grouped by benchmark evidence categories."
         >
-          <ChartContainer config={baseChartConfig} className="chart-visual">
+          <ChartContainer config={baseChartConfig} className={chartVisualClass}>
             <Treemap
               data={treemapData}
               dataKey="value"
@@ -1565,7 +1624,7 @@ function ChartGallery() {
           title="Execution Flow"
           description="Source, target, and value links across benchmark run states."
         >
-          <ChartContainer config={baseChartConfig} className="chart-visual">
+          <ChartContainer config={baseChartConfig} className={chartVisualClass}>
             <Sankey
               data={sankeyData}
               dataKey="value"
@@ -1583,7 +1642,7 @@ function ChartGallery() {
           title="Evaluation Funnel"
           description="Name-value funnel from loaded tasks to passing outcomes."
         >
-          <ChartContainer config={baseChartConfig} className="chart-visual">
+          <ChartContainer config={baseChartConfig} className={chartVisualClass}>
             <FunnelChart accessibilityLayer>
               <ChartTooltip content={<ChartTooltipContent />} />
               <Funnel data={funnelData} dataKey="value" nameKey="name" isAnimationActive>
@@ -1598,7 +1657,7 @@ function ChartGallery() {
           title="Signal Terms"
           description="Text and value represented as weighted labeled bubbles."
         >
-          <ChartContainer config={baseChartConfig} className="chart-visual">
+          <ChartContainer config={baseChartConfig} className={chartVisualClass}>
             <ScatterChart accessibilityLayer margin={{ left: 8, right: 8, top: 8, bottom: 8 }}>
               <XAxis dataKey="x" type="number" domain={[0, 100]} hide />
               <YAxis dataKey="y" type="number" domain={[0, 100]} hide />
@@ -1616,7 +1675,7 @@ function ChartGallery() {
           title="Score Distribution"
           description="Label and value samples summarized into interquartile ranges."
         >
-          <ChartContainer config={baseChartConfig} className="chart-visual">
+          <ChartContainer config={baseChartConfig} className={chartVisualClass}>
             <ComposedChart accessibilityLayer data={boxPlotData} margin={{ left: 0, right: 12 }}>
               <CartesianGrid vertical={false} />
               <XAxis dataKey="label" tickLine={false} axisLine={false} />
@@ -1640,7 +1699,7 @@ function ChartGallery() {
           title="Run Score Movement"
           description="Time and value samples rendered as ranged open-close bars."
         >
-          <ChartContainer config={baseChartConfig} className="chart-visual">
+          <ChartContainer config={baseChartConfig} className={chartVisualClass}>
             <ComposedChart
               accessibilityLayer
               data={candlestickData}
@@ -1663,7 +1722,7 @@ function ChartGallery() {
           title="Overall Score"
           description="Name and value rendered as a compact benchmark gauge."
         >
-          <ChartContainer config={baseChartConfig} className="chart-visual gauge-visual">
+          <ChartContainer config={baseChartConfig} className={gaugeChartClass}>
             <PieChart accessibilityLayer>
               <Pie
                 data={gaugeData}
@@ -1681,9 +1740,9 @@ function ChartGallery() {
               </Pie>
             </PieChart>
           </ChartContainer>
-          <div className="gauge-readout">
-            <strong>74%</strong>
-            <span>weighted benchmark score</span>
+          <div className="pointer-events-none mt-[-52px] grid justify-items-center gap-0.5 pb-2">
+            <strong className="text-3xl leading-none font-semibold text-foreground">74%</strong>
+            <span className="text-xs text-muted-foreground">weighted benchmark score</span>
           </div>
         </ChartShowcaseCard>
 
@@ -1693,9 +1752,11 @@ function ChartGallery() {
           description="Arbitrary JSON content shown beside summary evidence."
           footer="Content is intentionally not coerced into numeric axes."
         >
-          <div className="content-chart">
-            <pre>{formatJson(contentValue)}</pre>
-            <div className="content-evidence">
+          <div className="grid min-h-[238px] content-start gap-3">
+            <pre className={cn(preBlockClass, "min-h-[174px] p-3 leading-normal")}>
+              {formatJson(contentValue)}
+            </pre>
+            <div className="flex flex-wrap gap-2">
               <Badge variant="outline">official-source</Badge>
               <Badge variant="outline">tool-log</Badge>
               <Badge variant="outline">trajectory</Badge>
@@ -1721,7 +1782,7 @@ function ChartShowcaseCard({
   children: ReactNode;
 }) {
   return (
-    <Card className="chart-card" size="sm">
+    <Card className="min-w-0 rounded-lg" size="sm">
       <CardHeader>
         <CardTitle>{title}</CardTitle>
         <CardDescription>{description}</CardDescription>
@@ -1729,9 +1790,9 @@ function ChartShowcaseCard({
           <Badge variant="outline">{type}</Badge>
         </CardAction>
       </CardHeader>
-      <CardContent className="chart-card-content">{children}</CardContent>
+      <CardContent className="grid min-w-0 content-start gap-2">{children}</CardContent>
       {footer === undefined ? null : (
-        <CardFooter className="chart-card-footer">{footer}</CardFooter>
+        <CardFooter className="text-xs text-muted-foreground">{footer}</CardFooter>
       )}
     </Card>
   );
@@ -1747,22 +1808,34 @@ function MetricGrid({
   compact?: boolean;
 }) {
   if (metrics.length === 0) {
-    return <p className="empty-inline">{emptyLabel}</p>;
+    return <p className={emptyTextClass}>{emptyLabel}</p>;
   }
 
   return (
-    <div className={compact ? "metric-grid compact" : "metric-grid"}>
+    <div
+      className={cn(
+        "grid gap-2.5 max-[820px]:grid-cols-1",
+        compact
+          ? "grid-cols-[repeat(2,minmax(140px,1fr))]"
+          : "grid-cols-[repeat(4,minmax(150px,1fr))]",
+      )}
+    >
       {metrics.map(({ name, metric }) => (
-        <article className="metric-card" key={name}>
-          <div className="metric-topline">
-            <span>{metric.metadata?.name ?? name}</span>
-            <span>{metric.metadata?.variant ?? "Metric"}</span>
+        <article className="grid min-w-0 gap-2.5 rounded-sm border p-3" key={name}>
+          <div className={cn(labelTextClass, "flex min-w-0 justify-between gap-2.5 normal-case")}>
+            <span className="truncate">{metric.metadata?.name ?? name}</span>
+            <span className="truncate">{metric.metadata?.variant ?? "Metric"}</span>
           </div>
-          <strong>{formatMetricValue(metric.value)}</strong>
-          <div className="mini-chart" aria-hidden="true">
-            <span style={{ width: metricBarWidth(metric.value) }} />
+          <strong className="text-xl leading-tight font-semibold text-foreground [overflow-wrap:anywhere]">
+            {formatMetricValue(metric.value)}
+          </strong>
+          <div className="h-7 border bg-muted" aria-hidden="true">
+            <span
+              className="block h-full bg-foreground"
+              style={{ width: metricBarWidth(metric.value) }}
+            />
           </div>
-          <time>{formatTimestamp(metric.updatedAt)}</time>
+          <time className={labelTextClass}>{formatTimestamp(metric.updatedAt)}</time>
         </article>
       ))}
     </div>
@@ -1771,11 +1844,16 @@ function MetricGrid({
 
 function StatGrid({ items }: { items: Array<{ label: string; value: number }> }) {
   return (
-    <div className="stat-grid">
+    <div className="grid grid-cols-[repeat(6,minmax(92px,1fr))] border border-r-0 border-b-0 max-[820px]:grid-cols-1">
       {items.map((item) => (
-        <div className="stat-cell" key={item.label}>
-          <span>{item.label}</span>
-          <strong>{item.value}</strong>
+        <div
+          className="grid min-h-14 content-between gap-2 border-r border-b p-2.5"
+          key={item.label}
+        >
+          <span className={labelTextClass}>{item.label}</span>
+          <strong className="text-[22px] leading-none font-semibold text-foreground">
+            {item.value}
+          </strong>
         </div>
       ))}
     </div>
@@ -1792,12 +1870,12 @@ function Panel({
   children: ReactNode;
 }) {
   return (
-    <section className="panel">
-      <div className="panel-header">
-        <h2>{title}</h2>
+    <section className="min-w-0 self-start rounded-sm border bg-background">
+      <div className="flex min-h-11 items-center justify-between gap-4 border-b px-4">
+        <h2 className={titleTextClass}>{title}</h2>
         {aside}
       </div>
-      <div className="panel-body">{children}</div>
+      <div className="grid content-start gap-3 p-3.5">{children}</div>
     </section>
   );
 }
@@ -1808,20 +1886,34 @@ function KeyValue({ label, value }: { label: string; value: string | undefined }
   }
 
   return (
-    <div>
-      <dt>{label}</dt>
-      <dd>{value}</dd>
+    <div className="grid grid-cols-[86px_minmax(0,1fr)] items-baseline gap-3">
+      <dt className={labelTextClass}>{label}</dt>
+      <dd className="m-0 text-[13px] leading-snug text-foreground [overflow-wrap:anywhere]">
+        {value}
+      </dd>
     </div>
   );
 }
 
-function StatusPill({ status, compact = false }: { status: RunStatus; compact?: boolean }) {
+function StatusPill({
+  status,
+  compact = false,
+  className,
+}: {
+  status: RunStatus;
+  compact?: boolean;
+  className?: string;
+}) {
+  const variant =
+    status === "failed" ? "destructive" : status === "running" ? "default" : "outline";
+
   return (
-    <span
-      className={compact ? `status-pill compact status-${status}` : `status-pill status-${status}`}
+    <Badge
+      variant={variant}
+      className={cn("uppercase", compact && "h-5 px-1.5 text-[10px]", className)}
     >
       {status}
-    </span>
+    </Badge>
   );
 }
 

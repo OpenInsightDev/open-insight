@@ -29,7 +29,7 @@ const formatResources = (resources: Sandbox.Resources | null): Array<string> => 
     resourceArgs.push("--memory", `${memoryMiB}m`);
   }
 
-  if (!Sandbox.isUnlimited(numGPUs)) {
+  if (!Sandbox.isUnlimited(numGPUs) && numGPUs > 0) {
     resourceArgs.push("--gpus", `count=${numGPUs}`);
   }
 
@@ -243,13 +243,13 @@ export const make = Effect.fn("sandbox/provider/docker")(
               .pipe(Effect.mapError(Sandbox.Error.sandboxExec(handle.name, Bash.format(command))));
           }),
           readFile: Effect.fn(function* ({ sandboxPath }) {
-            const command = makeExecCommand(CP.make`cat ${sandboxPath}`).pipe(runtime);
+            const command = makeExecCommand(CP.make`cat ${sandboxPath}`);
             return yield* spawner
               .string(command)
               .pipe(Effect.mapError(Sandbox.Error.sandboxExec(handle.name, Bash.format(command))));
           }),
           writeFile: Effect.fn(function* ({ sandboxPath, content }) {
-            const command = makeExecCommand(CP.make`tee ${sandboxPath}`, content).pipe(runtime);
+            const command = makeExecCommand(CP.make`tee ${sandboxPath}`, content);
             yield* spawner
               .success(command)
               .pipe(Effect.mapError(Sandbox.Error.sandboxExec(handle.name, Bash.format(command))));

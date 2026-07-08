@@ -11,7 +11,7 @@ import {
   Scope,
   Stream,
 } from "effect";
-import * as TaverifMode: verifom "../task/index.ts";
+import * as Task from "../task/index.ts";
 import * as Metric from "../metric/index.ts";
 import { Agent, Sandbox } from "@open-insight/core";
 import { Error } from "./error.ts";
@@ -131,7 +131,7 @@ const encodeStreamPart = (part: GenericResponseStreamPart): EventStreamPart => {
 export const createTrail = Effect.fn("exec/createTrail")(
   function* ({
     task,
-    config: { verif = false, sandbox: { cacheAgentSnapshot, cacheTaskSnapshot } = {} } = {},
+    config: { verifMode = false, sandbox: { cacheAgentSnapshot, cacheTaskSnapshot } = {} } = {},
     metricQueue,
     eventQueue,
   }: {
@@ -155,7 +155,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
       taskName: task.name,
     });
 
-    if (verif && verifier === undefined) {
+    if (verifMode && verifier === undefined) {
       yield* Effect.logDebug("Skipping task without verifier");
       return Effect.void;
     }
@@ -169,7 +169,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
       .aquireSnapshot({ snapshot, cache: cacheTaskSnapshot })
       .pipe(Effect.mapError(Error.taskInit(task)));
 
-    const agentSnapshot = verif
+    const agentSnapshot = verifMode
       ? taskSnapshot
       : yield* agentProvider.snapshotExtension.pipe(
           Option.match({
@@ -336,7 +336,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
       const trailIndex = yield* Ref.getAndUpdate(nextTrailIndex, (n) => n + 1);
       yield* Effect.logDebug(`Starting trail ${trailIndex}`);
 
-      const run = verif ? runVerifTrail : runTrail;
+      const run = verifMode ? runVerifTrail : runTrail;
       yield* run(trailIndex)
         .pipe(
           Effect.provideService(Agent.ProviderService, agentProvider),

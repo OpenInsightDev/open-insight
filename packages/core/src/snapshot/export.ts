@@ -2,6 +2,7 @@ export { Snapshot, extend, hash, make, fromContainerfile, parseContainerfile } f
 export { decode, encode } from "./decode.ts";
 export * from "./error.ts";
 
+export * as Image from "./image.ts";
 export * as Handle from "./handle.ts";
 
 export * as Inst from "./inst.ts";
