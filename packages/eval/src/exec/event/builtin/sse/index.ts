@@ -28,14 +28,14 @@ export const make = Effect.fn(function* ({
 }: Readonly<{
   baseUrl?: string;
   endpoint?: string;
-}>): Effect.fn.Return<EventTransport, Error, HttpClient.HttpClient> {
+}> = {}): Effect.fn.Return<EventTransport, Error, HttpClient.HttpClient> {
   const client = yield* HttpClient.HttpClient;
 
   return {
     send: Effect.fn(function* ({ stream }) {
       const url = joinUrl(baseUrl, endpoint);
       const body = HttpBody.stream(
-        eventStream(stream).pipe(Stream.mapError(Error.eventTransport({ transport }))),
+        eventStream(stream).pipe(Stream.mapError(Error.eventTransport(transport))),
         "text/event-stream; charset=utf-8",
       );
 
@@ -43,7 +43,7 @@ export const make = Effect.fn(function* ({
         .post(url, { body })
         .pipe(
           Effect.flatMap(HttpClientResponse.filterStatusOk),
-          Effect.mapError(Error.eventTransportInit({ transport, url })),
+          Effect.mapError(Error.eventTransportInit(transport, url)),
         );
     }),
   } satisfies EventTransport;
