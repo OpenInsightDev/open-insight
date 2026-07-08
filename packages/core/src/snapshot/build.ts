@@ -1,5 +1,4 @@
 import { Crypto, Effect, Encoding } from "effect";
-import * as Context from "./context.ts";
 import { FileSystem, Path } from "effect";
 import { Instructions } from "./inst.ts";
 import { Schema } from "effect";
@@ -36,7 +35,7 @@ export class Snapshot extends Schema.Class<Snapshot>("Snapshot")({
    *
    * Must be a absolute directory path on the host machine.
    */
-  context: Context.Context,
+  context: Schema.String,
 }) {}
 
 /**
@@ -72,13 +71,13 @@ export const fromContainerfile = Effect.fn(function* ({
   context,
 }: {
   filePath: string;
-  context?: Context.Context;
+  context?: string;
 }) {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
 
   filePath = path.resolve(filePath);
-  context ??= Context.fromDir(path.dirname(filePath));
+  context ??= path.dirname(filePath);
 
   const content = yield* fs.readFileString(filePath);
   const parsed = yield* decode(content);
@@ -90,12 +89,12 @@ export const fromContainerfile = Effect.fn(function* ({
  */
 export const make = ({
   image,
-  context = Context.DontCare,
+  context = "/tmp",
   instructions = [],
 }: {
   image: string;
   context?: string;
   instructions?: Instructions;
-}) => Snapshot.make({ image: Image.make(image), context: Context.fromDir(context), instructions });
+}) => Snapshot.make({ image: Image.make(image), context, instructions });
 
 export const Scratch = make({ image: Image.make("scratch") });

@@ -12,7 +12,7 @@ import {
 import { Effect, Option, Schema, SchemaGetter, SchemaIssue } from "effect";
 import { Instruction, Instructions } from "./inst.ts";
 import { ParsedContainerfile } from "./build.ts";
-import * as Image from "./image.ts";
+import type { InvalidValue } from "effect/SchemaIssue";
 
 const encodeInstruction = (instruction: Instruction): string =>
   Instruction.match(instruction, {
@@ -175,7 +175,9 @@ const decodeInstruction = Effect.fn("containerfile/decodeInstruction")(function*
   );
 });
 
-const decodeContainerfile = Effect.fn("containerfile")(function* (containerfile: string) {
+const decodeContainerfile = Effect.fn("containerfile")(function* (
+  containerfile: string,
+): Effect.fn.Return<ParsedContainerfile, InvalidValue> {
   const dockerfile = yield* Effect.try({
     try: () => DockerfileParser.parse(containerfile),
     catch: (cause) =>
@@ -207,7 +209,10 @@ const decodeContainerfile = Effect.fn("containerfile")(function* (containerfile:
     instructions.push(yield* decodeInstruction(containerfile, instruction));
   }
 
-  return { image: Image.make(image), instructions };
+  return Schema.decodeUnknownSync(ParsedContainerfile)({
+    image,
+    instructions,
+  });
 });
 
 export const Containerfile = Schema.String.pipe(
@@ -221,13 +226,13 @@ export const Containerfile = Schema.String.pipe(
 );
 
 export const encode = (containerfile: { image: string; instructions: Instructions }) =>
-  Schema.encodeEffect(Containerfile)({
-    image: Image.make(containerfile.image),
+  Schema.encodeUnknownEffect(Containerfile)({
+    image: containerfile.image,
     instructions: containerfile.instructions,
   });
 export const encodeSync = (containerfile: { image: string; instructions: Instructions }) =>
-  Schema.encodeSync(Containerfile)({
-    image: Image.make(containerfile.image),
+  Schema.encodeUnknownSync(Containerfile)({
+    image: containerfile.image,
     instructions: containerfile.instructions,
   });
 

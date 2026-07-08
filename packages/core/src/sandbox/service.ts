@@ -28,7 +28,7 @@ export type Provider = Readonly<{
     options: Readonly<{
       handle: Snapshot.Handle.Handle;
       instructions: Snapshot.Instructions;
-      context: Snapshot.Context.Context;
+      context: string;
       cache?: boolean;
     }>,
   ): Effect.Effect<Snapshot.Handle.Handle, Error, Scope.Scope>;

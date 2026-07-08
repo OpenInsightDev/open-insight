@@ -16,7 +16,7 @@ export type Agent = Readonly<{
 
 export type SnapshotExtension = Readonly<{
   instructions: Snapshot.Instructions;
-  context?: Snapshot.Context.Context;
+  context?: string;
 }>;
 
 export type Provider = Readonly<{

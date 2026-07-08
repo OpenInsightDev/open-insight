@@ -50,7 +50,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
             .deriveSnapshot({
               handle: taskSnapshot,
               instructions,
-              context: extendContext,
+              context: extendContext ?? snapshot.context,
               cache: cacheAgentSnapshot,
             })
             .pipe(Effect.mapError(ExecError.taskInit({ task: task.metadata }))),
