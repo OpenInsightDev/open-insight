@@ -3,7 +3,7 @@ import { Config, Effect, pipe } from "effect";
 import { Agent, Exec, Harness, Sandbox } from "@open-insight/eval";
 import { OpenAiClient, OpenAiLanguageModel } from "@effect/ai-openai";
 import { LanguageModel } from "effect/unstable/ai";
-import { NodeHttpClient } from "@effect/platform-node";
+import { NodeHttpClient, NodeServices } from "@effect/platform-node";
 
 class VETask extends Task.Task<{ simPass: boolean }, { category: string }> {}
 

@@ -1,32 +1,6 @@
 import { Schema } from "effect";
 import { Assertion } from "./assert/schema.ts";
-import { Snapshot } from "../snapshot/index.ts";
-import { Instruction, Instructions } from "../snapshot/inst.ts";
-
-export class SnapshotBuildError extends Schema.TaggedErrorClass<SnapshotBuildError>()(
-  "SnapshotBuildError",
-  {
-    snapshot: Snapshot,
-    cause: Schema.Defect(),
-  },
-) {}
-
-export class SnapshotDeriveError extends Schema.TaggedErrorClass<SnapshotDeriveError>()(
-  "SnapshotDeriveError",
-  {
-    name: Schema.String,
-    instructions: Instructions,
-    cause: Schema.Defect(),
-  },
-) {}
-
-export class SnapshotUseError extends Schema.TaggedErrorClass<SnapshotUseError>()(
-  "SnapshotUseError",
-  {
-    name: Schema.String,
-    cause: Schema.Defect(),
-  },
-) {}
+import * as Snapshot from "../snapshot/index.ts";
 
 export class ProviderNotAvailable extends Schema.TaggedErrorClass<ProviderNotAvailable>()(
   "ProviderNotAvailable",
@@ -63,24 +37,6 @@ export class SandboxExposeError extends Schema.TaggedErrorClass<SandboxExposeErr
   },
 ) {}
 
-export class SnapshotUnsupportedError extends Schema.TaggedErrorClass<SnapshotUnsupportedError>()(
-  "SnapshotUnsupportedError",
-  {
-    name: Schema.String,
-    snapshot: Snapshot,
-    cause: Schema.Defect(),
-  },
-) {}
-
-export class InstructionUnsupportedError extends Schema.TaggedErrorClass<InstructionUnsupportedError>()(
-  "InstructionUnsupportedError",
-  {
-    name: Schema.String,
-    snapshot: Snapshot,
-    instruction: Instruction,
-  },
-) {}
-
 export class AssertionFailure extends Schema.Class<AssertionFailure>("AssertionFailure")({
   assertion: Assertion,
   message: Schema.String,
@@ -93,15 +49,11 @@ export class AssertionError extends Schema.TaggedErrorClass<AssertionError>()("A
 }) {}
 
 export const ErrorReason = Schema.Union([
-  SnapshotBuildError,
-  SnapshotDeriveError,
-  SnapshotUseError,
+  Snapshot.Error,
   ProviderNotAvailable,
   SandboxStartError,
   SandboxExecError,
   SandboxExposeError,
-  SnapshotUnsupportedError,
-  InstructionUnsupportedError,
   AssertionError,
 ]);
 export type ErrorReason = Schema.Schema.Type<typeof ErrorReason>;
@@ -115,22 +67,8 @@ export class Error extends Schema.TaggedErrorClass<Error>()("SandboxError", {
   static provider = (name: string) =>
     this.mapUnknownError((cause) => ProviderNotAvailable.make({ name, cause }));
 
-  static snapshotBuild = (snapshot: Snapshot) =>
-    this.mapUnknownError((cause) => SnapshotBuildError.make({ snapshot, cause }));
-
-  static snapshotDerive = (name: string, instructions: Instructions) =>
-    this.mapUnknownError((cause) => SnapshotDeriveError.make({ name, instructions, cause }));
-
-  static snapshotUsage = (name: string) =>
-    this.mapUnknownError((cause) => SnapshotUseError.make({ name, cause }));
-
-  static snapshotUnsupported = (name: string, snapshot: Snapshot) =>
-    this.mapUnknownError((cause) => SnapshotUnsupportedError.make({ name, snapshot, cause }));
-
-  static instructionUnsupported = (name: string, snapshot: Snapshot, instruction: Instruction) =>
-    this.make({
-      reason: InstructionUnsupportedError.make({ name, snapshot, instruction }),
-    });
+  static snapshot = (mapper: (cause: unknown) => Snapshot.Error) =>
+    this.mapUnknownError((cause) => (cause instanceof Snapshot.Error ? cause : mapper(cause)));
 
   static sandboxStart = (name: string) =>
     this.mapUnknownError((cause) => SandboxStartError.make({ name, cause }));

@@ -102,7 +102,7 @@ export const make = Effect.fn("sandbox/provider/docker")(
       (effect, { snapshot }) =>
         effect.pipe(
           Effect.provideService(Crypto.Crypto, crypto),
-          Effect.mapError(Sandbox.Error.snapshotBuild(snapshot)),
+          Effect.mapError(Sandbox.Error.snapshot(Snapshot.Error.build(snapshot))),
         ),
     ) satisfies Sandbox.Provider["aquireSnapshot"];
 
@@ -138,7 +138,7 @@ export const make = Effect.fn("sandbox/provider/docker")(
       (effect, { handle, instructions }) =>
         effect.pipe(
           Effect.provideService(Crypto.Crypto, crypto),
-          Effect.mapError(Sandbox.Error.snapshotDerive(handle.name, instructions)),
+          Effect.mapError(Sandbox.Error.snapshot(Snapshot.Error.derive(handle.name, instructions))),
         ),
     ) satisfies Sandbox.Provider["deriveSnapshot"];
 
