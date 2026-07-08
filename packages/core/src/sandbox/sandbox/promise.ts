@@ -1,7 +1,33 @@
 import { Effect, FiberSet } from "effect";
 import { ChildProcess as CP } from "effect/unstable/process";
-import type { Error } from "../error.ts";
-import type { Sandbox } from "./index.ts";
+import { Bash } from "../../utils/index.ts";
+import type { Sandbox, CmdHandle } from "./index.ts";
+
+type ShellTemplateValue = string | number | boolean;
+type ShellTemplateExpression = ShellTemplateValue | ReadonlyArray<ShellTemplateValue>;
+
+const isTemplateStringsArray = (
+  value: TemplateStringsArray | CP.CommandOptions,
+): value is TemplateStringsArray => Array.isArray(value);
+
+const shellInterpolate = (value: ShellTemplateExpression): string =>
+  Array.isArray(value)
+    ? value.map((item) => Bash.quote(String(item))).join(" ")
+    : Bash.quote(String(value));
+
+const makeShellCommand = (
+  strings: TemplateStringsArray,
+  values: ReadonlyArray<ShellTemplateExpression>,
+  options: CP.CommandOptions = {},
+) => {
+  let script = strings[0] ?? "";
+  for (const [index, value] of values.entries()) {
+    script += shellInterpolate(value);
+    script += strings[index + 1] ?? "";
+  }
+
+  return CP.make("sh", ["-c", script], options);
+};
 
 export type SandboxPromise = Readonly<{
   $: {
@@ -17,7 +43,7 @@ export type SandboxPromise = Readonly<{
       cwd?: string;
       env?: Record<string, string>;
     }>,
-  ): Promise<{ stdout: string; stderr: string }>;
+  ): Promise<CmdHandle>;
   readFile(options: Readonly<{ sandboxPath: string }>): Promise<string>;
   writeFile(options: Readonly<{ sandboxPath: string; content: string }>): Promise<void>;
   download(options: Readonly<{ sandboxPath: string; hostPath: string }>): Promise<void>;
@@ -28,24 +54,44 @@ export type SandboxPromise = Readonly<{
 }>;
 
 export const asPromise = Effect.fn(function* (sandbox: Sandbox) {
-  const runPromise = yield* FiberSet.makeRuntimePromise<never, unknown, Error>();
+  const runPromise = yield* FiberSet.makeRuntimePromise();
 
-  // TODO use /bin/sh '$SHELL' -c '...' to run commands
-  const $ = ((first: TemplateStringsArray | CP.CommandOptions, ...values: any[]) => {
-    if (Array.isArray(first) && "raw" in first) {
-      return runPromise(sandbox.$(CP.make(first, ...values)));
+  const runShell = async (
+    strings: TemplateStringsArray,
+    values: ReadonlyArray<ShellTemplateExpression>,
+    options?: CP.CommandOptions,
+  ) => {
+    const handle = await runPromise(sandbox.cmd(makeShellCommand(strings, values, options)));
+    return handle.stdout ?? "";
+  };
+
+  function $(
+    strings: TemplateStringsArray,
+    ...values: ReadonlyArray<ShellTemplateExpression>
+  ): Promise<string>;
+  function $(
+    options: CP.CommandOptions,
+  ): (
+    strings: TemplateStringsArray,
+    ...values: ReadonlyArray<ShellTemplateExpression>
+  ) => Promise<string>;
+  function $(
+    first: TemplateStringsArray | CP.CommandOptions,
+    ...values: ReadonlyArray<ShellTemplateExpression>
+  ) {
+    if (isTemplateStringsArray(first)) {
+      return runShell(first, values);
     }
-    const commandMaker = CP.make(first as CP.CommandOptions);
-    return (strings: TemplateStringsArray, ...vals: any[]) =>
-      runPromise(sandbox.$(commandMaker(strings, ...vals)));
-  }) as SandboxPromise["$"];
 
-  const cmd: SandboxPromise["cmd"] = (options) =>
-    runPromise(
-      sandbox.$(
-        CP.make(options.command, options.args ?? [], { cwd: options.cwd, env: options.env }),
-      ),
-    ).then((stdout) => ({ stdout, stderr: "" }));
+    const options = first;
+    return (
+      strings: TemplateStringsArray,
+      ...innerValues: ReadonlyArray<ShellTemplateExpression>
+    ) => runShell(strings, innerValues, options);
+  }
+
+  const cmd: SandboxPromise["cmd"] = ({ command, args, cwd, env }) =>
+    runPromise(sandbox.cmd(CP.make(command, args ?? [], { cwd, env })));
 
   const readFile: SandboxPromise["readFile"] = (options) => runPromise(sandbox.readFile(options));
 

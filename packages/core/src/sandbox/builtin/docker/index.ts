@@ -171,25 +171,28 @@ export const make = Effect.fn("sandbox/provider/docker")(
           spawner.success(CP.make`rm --force ${name}`.pipe(runtime)).pipe(Effect.ignore),
         );
 
-        const makeExecCommand = (command: CP.StandardCommand, input?: string) => {
-          const args: string[] = [];
+        const makeExecCommand = (
+          { options: { env, cwd }, command, args }: CP.StandardCommand,
+          input?: string,
+        ) => {
+          const execArgs: string[] = [];
           if (input !== undefined) {
-            args.push("-i");
+            execArgs.push("-i");
           }
 
-          for (const [key, value] of Object.entries(command.options.env ?? {})) {
+          for (const [key, value] of Object.entries(env ?? {})) {
             if (value !== undefined) {
-              args.push("-e", `${key}=${value}`);
+              execArgs.push("-e", `${key}=${value}`);
             }
           }
 
-          if (command.options.cwd !== undefined) {
-            args.push("-w", command.options.cwd);
+          if (cwd !== undefined) {
+            execArgs.push("-w", cwd);
           }
 
-          args.push(name, "sh", "-c", Bash.format(command));
+          execArgs.push(name, command, ...args);
 
-          const options =
+          const execOptions =
             input === undefined
               ? {}
               : ({
@@ -198,17 +201,31 @@ export const make = Effect.fn("sandbox/provider/docker")(
                   },
                 } satisfies CP.CommandOptions);
 
-          return CP.make("exec", args, options).pipe(runtime);
+          return CP.make("exec", execArgs, execOptions).pipe(runtime);
         };
 
-        return yield* Sandbox.make({
-          $(cmd: CP.StandardCommand, input?: string) {
-            const bash = Bash.format(cmd);
-            const execCommand = makeExecCommand(cmd, input);
-            return spawner
-              .string(execCommand)
-              .pipe(Effect.mapError(Sandbox.Error.sandboxExec(handle.name, bash)));
-          },
+        return {
+          cmd: Effect.fn(
+            function* (cmd: CP.StandardCommand, input?: string) {
+              const execCommand = makeExecCommand(cmd, input);
+              const handle = yield* spawner.spawn(execCommand);
+
+              const decoder = new TextDecoder();
+              const stdoutBytes = yield* Stream.mkUint8Array(handle.stdout);
+              const stdout = decoder.decode(stdoutBytes);
+
+              const stderrBytes = yield* Stream.mkUint8Array(handle.stderr);
+              const stderr = decoder.decode(stderrBytes);
+
+              const exitCode = yield* handle.exitCode;
+
+              return { stdout, stderr, exitCode };
+            },
+            (effect, cmd) =>
+              effect
+                .pipe(Effect.scoped)
+                .pipe(Effect.mapError(Sandbox.Error.sandboxExec(name, Bash.format(cmd)))),
+          ),
           expose: Effect.fn(function* ({ sandboxPort, hostPort }) {
             const matchesMapping = portMappings.some(
               (mapping) => mapping.sandboxPort === sandboxPort && mapping.hostPort === hostPort,
@@ -254,7 +271,7 @@ export const make = Effect.fn("sandbox/provider/docker")(
               .success(command)
               .pipe(Effect.mapError(Sandbox.Error.sandboxExec(handle.name, Bash.format(command))));
           }),
-        });
+        } satisfies Sandbox.Sandbox;
       },
       (effect) =>
         effect.pipe(

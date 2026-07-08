@@ -71,11 +71,11 @@ describe("Docker sandbox provider", () => {
             }),
           });
 
-          assert.strictEqual((yield* sandbox.$(CP.make`cat /snapshot-marker`)).trim(), "base");
-          assert.strictEqual((yield* sandbox.$(CP.make`cat /derived-marker`)).trim(), "derived");
-          assert.strictEqual((yield* sandbox.$(CP.make({ cwd: "/tmp" })`pwd`)).trim(), "/tmp");
+          assert.strictEqual((yield* sandbox.cmd(CP.make`cat /snapshot-marker`)).trim(), "base");
+          assert.strictEqual((yield* sandbox.cmd(CP.make`cat /derived-marker`)).trim(), "derived");
+          assert.strictEqual((yield* sandbox.cmd(CP.make({ cwd: "/tmp" })`pwd`)).trim(), "/tmp");
           assert.strictEqual(
-            (yield* sandbox.$(
+            (yield* sandbox.cmd(
               CP.make({ env: { TEST_VALUE: "from-env" } })`printenv TEST_VALUE`,
             )).trim(),
             "from-env",

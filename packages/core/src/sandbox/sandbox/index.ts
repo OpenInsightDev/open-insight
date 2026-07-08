@@ -1,6 +1,5 @@
-import { Crypto, Effect, Match, Stream } from "effect";
+import { Crypto, Effect } from "effect";
 import { ChildProcess as CP } from "effect/unstable/process";
-import { Spawn } from "#/utils/index.ts";
 import { Error } from "../error.ts";
 
 export const SANDBOX_NAME = "open-insight-sandbox";
@@ -11,8 +10,14 @@ export const makeName = Effect.fn(function* () {
   return `${SANDBOX_NAME}-${id}`;
 });
 
+export type CmdHandle = Readonly<{
+  stdout?: string;
+  stderr?: string;
+  exitCode: number;
+}>;
+
 export type Sandbox = Readonly<{
-  $(process: CP.Command): Effect.Effect<string, Error>;
+  cmd(process: CP.Command): Effect.Effect<CmdHandle, Error>;
   readFile(options: Readonly<{ sandboxPath: string }>): Effect.Effect<string, Error>;
   writeFile(
     options: Readonly<{ sandboxPath: string; content: string }>,
@@ -26,100 +31,98 @@ export type Sandbox = Readonly<{
   ): Effect.Effect<{ hostUrl: string }, Error>;
 }>;
 
-export type MakeSandboxOptions = Readonly<{
-  $(process: CP.StandardCommand, stdin?: string): Effect.Effect<string, Error>;
-  expose: Sandbox["expose"];
+// export type MakeSandboxOptions = Readonly<{
+//   cmd(process: CP.StandardCommand, stdin?: string): Effect.Effect<string, Error>;
+//   expose: Sandbox["expose"];
 
-  download: Sandbox["download"] | "rsync";
-  upload: Sandbox["upload"] | "rsync";
-  readFile: Sandbox["readFile"] | "cat";
-  writeFile: Sandbox["writeFile"] | "tee";
-}>;
+//   download: Sandbox["download"] | "rsync";
+//   upload: Sandbox["upload"] | "rsync";
+//   readFile: Sandbox["readFile"] | "cat";
+//   writeFile: Sandbox["writeFile"] | "tee";
+// }>;
 
-export const make = Effect.fn(function* ({
-  $: sandbox$,
-  expose,
-  download,
-  upload,
-  readFile,
-  writeFile,
-}: MakeSandboxOptions): Effect.fn.Return<Sandbox, Error, Spawn.SpawnService> {
-  const spawner = yield* Spawn.SpawnService;
+// export const make = Effect.fn(function* ({
+//   cmd: sandbox$,
+//   expose,
+//   download,
+//   upload,
+//   readFile,
+//   writeFile,
+// }: MakeSandboxOptions): Effect.fn.Return<Sandbox, Error, Spawn.SpawnService> {
+//   const spawner = yield* Spawn.SpawnService;
 
-  // TODO supports Assertions
+//   const $ = Effect.fn(function* (
+//     command: CP.Command,
+//     input?: string,
+//   ): Effect.fn.Return<string, Error> {
+//     return yield* Match.value(command).pipe(
+//       Match.tag("StandardCommand", (cmd) => sandbox$(cmd, input)),
+//       Match.tag("PipedCommand", (cmd) =>
+//         Effect.gen(function* () {
+//           const output = yield* $(cmd.left, input);
+//           return yield* $(cmd.right, output);
+//         }),
+//       ),
+//       Match.exhaustive,
+//     );
+//   });
 
-  const $ = Effect.fn(function* (
-    command: CP.Command,
-    input?: string,
-  ): Effect.fn.Return<string, Error> {
-    return yield* Match.value(command).pipe(
-      Match.tag("StandardCommand", (cmd) => sandbox$(cmd, input)),
-      Match.tag("PipedCommand", (cmd) =>
-        Effect.gen(function* () {
-          const output = yield* $(cmd.left, input);
-          return yield* $(cmd.right, output);
-        }),
-      ),
-      Match.exhaustive,
-    );
-  });
+//   const readFileImpl: Sandbox["readFile"] =
+//     readFile === "cat"
+//       ? Effect.fn(function* ({ sandboxPath }) {
+//           return yield* $(CP.make`cat ${sandboxPath}`);
+//         })
+//       : readFile;
 
-  const readFileImpl: Sandbox["readFile"] =
-    readFile === "cat"
-      ? Effect.fn(function* ({ sandboxPath }) {
-          return yield* $(CP.make`cat ${sandboxPath}`);
-        })
-      : readFile;
+//   const writeFileImpl: Sandbox["writeFile"] =
+//     writeFile === "tee"
+//       ? Effect.fn(function* ({ sandboxPath, content }) {
+//           yield* $(CP.make`tee ${sandboxPath}`, content);
+//         })
+//       : writeFile;
 
-  const writeFileImpl: Sandbox["writeFile"] =
-    writeFile === "tee"
-      ? Effect.fn(function* ({ sandboxPath, content }) {
-          yield* $(CP.make`tee ${sandboxPath}`, content);
-        })
-      : writeFile;
+//   const downloadImpl: Sandbox["download"] =
+//     download === "rsync"
+//       ? Effect.fn(function* ({ sandboxPath, hostPath }) {
+//           const content = yield* $(CP.make`cat ${sandboxPath}`);
+//           yield* spawner
+//             .string(
+//               CP.make("tee", [hostPath], {
+//                 stdin: {
+//                   stream: Stream.make(content).pipe(Stream.encodeText),
+//                 },
+//               } satisfies CP.CommandOptions),
+//             )
+//             .pipe(
+//               Effect.mapError((e) =>
+//                 Error.sandboxExec("host", `download ${sandboxPath} -> ${hostPath}`)(e),
+//               ),
+//             );
+//         })
+//       : download;
 
-  const downloadImpl: Sandbox["download"] =
-    download === "rsync"
-      ? Effect.fn(function* ({ sandboxPath, hostPath }) {
-          const content = yield* $(CP.make`cat ${sandboxPath}`);
-          yield* spawner
-            .string(
-              CP.make("tee", [hostPath], {
-                stdin: {
-                  stream: Stream.make(content).pipe(Stream.encodeText),
-                },
-              } satisfies CP.CommandOptions),
-            )
-            .pipe(
-              Effect.mapError((e) =>
-                Error.sandboxExec("host", `download ${sandboxPath} -> ${hostPath}`)(e),
-              ),
-            );
-        })
-      : download;
+//   const uploadImpl: Sandbox["upload"] =
+//     upload === "rsync"
+//       ? Effect.fn(function* ({ sandboxPath, hostPath }) {
+//           const content = yield* spawner
+//             .string(CP.make`cat ${hostPath}`)
+//             .pipe(
+//               Effect.mapError((e) =>
+//                 Error.sandboxExec("host", `upload ${hostPath} -> ${sandboxPath}`)(e),
+//               ),
+//             );
+//           yield* $(CP.make`tee ${sandboxPath}`, content);
+//         })
+//       : upload;
 
-  const uploadImpl: Sandbox["upload"] =
-    upload === "rsync"
-      ? Effect.fn(function* ({ sandboxPath, hostPath }) {
-          const content = yield* spawner
-            .string(CP.make`cat ${hostPath}`)
-            .pipe(
-              Effect.mapError((e) =>
-                Error.sandboxExec("host", `upload ${hostPath} -> ${sandboxPath}`)(e),
-              ),
-            );
-          yield* $(CP.make`tee ${sandboxPath}`, content);
-        })
-      : upload;
-
-  return {
-    $,
-    readFile: readFileImpl,
-    writeFile: writeFileImpl,
-    download: downloadImpl,
-    upload: uploadImpl,
-    expose,
-  } satisfies Sandbox;
-});
+//   return {
+//     cmd: $,
+//     readFile: readFileImpl,
+//     writeFile: writeFileImpl,
+//     download: downloadImpl,
+//     upload: uploadImpl,
+//     expose,
+//   } satisfies Sandbox;
+// });
 
 export * from "./promise.ts";
