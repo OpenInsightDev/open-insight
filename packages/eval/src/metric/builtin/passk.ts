@@ -8,5 +8,6 @@ export const passAtK =
 export const passPowerK =
   (k: number) =>
   (passes: boolean[]): number => {
-    throw new Error("not implemented");
+    const top = passes.slice(0, k);
+    return top.length === 0 ? 0 : top.filter((p) => p).length / top.length;
   };

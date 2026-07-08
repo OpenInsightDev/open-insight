@@ -130,12 +130,15 @@ export const buildAll = ({
 }) => {
   const inputs: Inputs = {};
 
-  return Effect.fn(function* (input: Input): Effect.fn.Return<BenchOutput | null, MetricError> {
+  return Effect.fn(function* ({
+    task,
+    input,
+  }: Input): Effect.fn.Return<BenchOutput | null, MetricError> {
     if (Object.keys(inputs).length >= taskCount) {
       return null;
     }
 
-    inputs[input.task] = input.input;
+    inputs[task] = input;
     if (Object.keys(inputs).length < taskCount) {
       return null;
     }

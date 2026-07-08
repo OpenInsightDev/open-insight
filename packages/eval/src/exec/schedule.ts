@@ -266,7 +266,8 @@ export const run = Effect.fn("exec/schedule")(
       .pipe(Effect.ensuring(Queue.end(metricQueue)))
       .pipe(Effect.andThen(Fiber.join(metricsFiber)))
       .pipe(Effect.ensuring(Queue.end(eventQueue)))
-      .pipe(Effect.andThen(Fiber.join(transportFiber)));
+      // shutdown eval when transport failed
+      .pipe(Effect.raceFirst(Fiber.join(transportFiber)));
 
     yield* Effect.logDebug("Scheduled all tasks");
 

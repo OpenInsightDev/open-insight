@@ -91,6 +91,18 @@ const runBenchmark = Effect.fn("runBenchmark")(function* () {
         Metric.passAtK(3),
       ),
     ),
+    Metric.withBenchmark("avgPassAt1", (tasks) =>
+      pipe(
+        Object.values(tasks).map(({ passAt1 }) => passAt1),
+        Metric.mean,
+      ),
+    ),
+    Metric.withBenchmark("avgPassAt3", (tasks) =>
+      pipe(
+        Object.values(tasks).map(({ passAt3 }) => passAt3),
+        Metric.mean,
+      ),
+    ),
   );
 
   const client = yield* OpenAiClient.make({}).pipe(Effect.provide(NodeHttpClient.layerUndici));

@@ -1,4 +1,4 @@
-import { Cause, Deferred, Effect, pipe, Queue, Scope, Stream } from "effect";
+import { Cause, Effect, pipe, Queue, Scope, Stream } from "effect";
 import * as TaskMetric from "./task/index.ts";
 import * as BenchMetric from "./bench/index.ts";
 import * as TrajMetric from "./traj/index.ts";
@@ -8,15 +8,15 @@ import type { Metrics } from "./build.ts";
 import type * as _Core from "@open-insight/core";
 
 type InputStream<E, R> = Stream.Stream<Input, E, R>;
-type OutputQueue = Queue.Queue<Output, MetricError | Cause.Done>;
+type OutputQueue<E = never> = Queue.Queue<Output, E | MetricError | Cause.Done>;
 type OutputStream<E = never> = Stream.Stream<Output, E | MetricError>;
 
-export const buildTrajMetricConsumer = ({
+export const buildTrajMetricConsumer = <E = never>({
   metrics: metricVariants,
   queue,
 }: {
   metrics: ReadonlyArray<TrajMetric.Metric>;
-  queue: OutputQueue;
+  queue: OutputQueue<E>;
 }) => {
   const metrics = metricVariants.map(TrajMetric.build);
 
@@ -45,14 +45,14 @@ export const buildTrajMetricConsumer = ({
   });
 };
 
-export const buildTaskMetricConsumer = ({
+export const buildTaskMetricConsumer = <E = never>({
   metrics: metricVariants,
   trailCount,
   queue,
 }: {
   metrics: ReadonlyArray<TaskMetric.Metric>;
   trailCount: number;
-  queue: OutputQueue;
+  queue: OutputQueue<E>;
 }) => {
   const metrics = metricVariants.map((metric) => TaskMetric.build({ metric, trailCount }));
 
@@ -79,14 +79,14 @@ export const buildTaskMetricConsumer = ({
   });
 };
 
-export const buildBenchMetricConsumer = ({
+export const buildBenchMetricConsumer = <E = never>({
   metrics: metricVariants,
   taskCount,
   queue,
 }: {
   metrics: ReadonlyArray<BenchMetric.Metric>;
   taskCount: number;
-  queue: OutputQueue;
+  queue: OutputQueue<E>;
 }) => {
   const metrics = metricVariants.map((metric) => BenchMetric.build({ metric, taskCount }));
 
@@ -127,7 +127,7 @@ export const transform = ({
       inputStream: InputStream<E, R>,
     ): Effect.fn.Return<OutputStream<E>, E | MetricError, R | Scope.Scope> {
       const benchQueue = yield* Queue.bounded<BenchMetric.Input, MetricError | Cause.Done>(128);
-      const outputQueue = yield* Queue.bounded<Output, MetricError | Cause.Done>(128);
+      const outputQueue = yield* Queue.bounded<Output, E | MetricError | Cause.Done>(128);
 
       const consumeTrajMetrics = buildTrajMetricConsumer({
         metrics: metrics.trajectory,
@@ -175,27 +175,11 @@ export const transform = ({
         .pipe(Stream.tap(consumeBenchMetrics, { concurrency: "unbounded" }))
         .pipe(Stream.runDrain);
 
-      const errorDeferred = yield* Deferred.make<never, MetricError>();
-
       yield* Effect.all([trajRun, taskRun, benchRun], { concurrency: "unbounded" })
-        .pipe(
-          Effect.match({
-            onSuccess: () => Effect.void,
-            onFailure: (error: any) => {
-              if (error._tag === "MetricError") {
-                return Deferred.fail(errorDeferred, error);
-              }
-              return Effect.void;
-            },
-          }),
-        )
-        .pipe(Effect.ensuring(Queue.end(outputQueue)))
-        .pipe(Effect.ignore)
+        .pipe(Queue.into(outputQueue))
         .pipe(Effect.forkScoped);
 
-      return Stream.fromQueue(outputQueue).pipe(
-        Stream.race(Stream.fromEffect(Deferred.await(errorDeferred))),
-      );
+      return Stream.fromQueue(outputQueue);
     },
     (effect) => effect.pipe(Stream.unwrap),
   );
