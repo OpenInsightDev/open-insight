@@ -1,5 +1,5 @@
-import type { Event as EvalEvent } from "@open-insight/eval";
-import type { Response } from "effect/unstable/ai";
+import type { Exec } from "@open-insight/eval";
+import type { StreamingMessagePartEncoded } from "@/components/streaming-message/index.ts";
 import { del, get, set } from "idb-keyval";
 import { produce, type Draft } from "immer";
 import { create } from "zustand";
@@ -33,7 +33,9 @@ export interface MetricMetadata {
   variant: MetricVariant;
 }
 
-export type StreamPart = Response.StreamPart<Record<string, never>>;
+type EvalEvent = Exec.Event;
+
+export type StreamPart = StreamingMessagePartEncoded;
 export type TrailUsage = Extract<StreamPart, { type: "finish" }>["usage"];
 
 type ScheduleOp = "start" | "stop" | "pause";
@@ -116,9 +118,7 @@ export type MetricNamesByScope = {
 export interface TrailNode {
   index: number;
   status: RunStatus;
-  streamParts: Array<unknown>;
-  textPreview: string;
-  reasoningPreview: string;
+  streamParts: Array<StreamPart>;
   metrics: MetricResultByName;
   usage?: TrailUsage;
   error?: unknown;
@@ -281,8 +281,6 @@ const makeTrailNode = (index: number, timestamp: number): TrailNode => ({
   index,
   status: "idle",
   streamParts: [],
-  textPreview: "",
-  reasoningPreview: "",
   metrics: {},
   lastEventAt: timestamp,
 });
@@ -582,12 +580,6 @@ const applyMetricsStreamEvent = (
 
 const applyStreamPart = (trail: TrailDraft, part: StreamPart, timestamp: number): void => {
   switch (part.type) {
-    case "text-delta":
-      trail.textPreview += part.delta;
-      return;
-    case "reasoning-delta":
-      trail.reasoningPreview += part.delta;
-      return;
     case "finish":
       trail.usage = part.usage;
       if (part.reason === "error") {

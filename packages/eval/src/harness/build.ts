@@ -22,12 +22,12 @@ export class Harness {
 
 export const make = Effect.fn(function* ({
   name,
-  config,
   description,
+  config,
 }: {
   name: string;
-  config?: Config;
   description?: string;
+  config?: Config;
 }): Effect.fn.Return<Harness, never, Agent.ProviderService | Sandbox.ProviderService> {
   const agent = yield* Agent.ProviderService;
   const sandbox = yield* Sandbox.ProviderService;

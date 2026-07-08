@@ -7,6 +7,7 @@ export {
 export type {
   StreamingMessageModel,
   StreamingMessagePart,
+  StreamingMessagePartEncoded,
   StreamingMessageSegment,
   StreamingSegmentStatus,
 } from "./streaming-message.tsx";

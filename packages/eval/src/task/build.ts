@@ -80,6 +80,8 @@ export class Task<G extends Schema.JsonObject = any, Extra extends Schema.JsonOb
   get extra(): Extra | null {
     return this.metadata.extra as Extra | null;
   }
+
+  [Symbol.dispose](): void {}
 }
 
 export type ExtraOf<T> = T extends Task<infer _G, infer Extra> ? Extra : never;

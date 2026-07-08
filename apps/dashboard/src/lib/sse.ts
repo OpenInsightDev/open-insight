@@ -1,4 +1,4 @@
-import { Exec, type Event as EvalEvent } from "@open-insight/eval";
+import { Exec } from "@open-insight/eval";
 import { Effect, Queue, Schema, Scope, Stream } from "effect";
 import { Sse } from "effect/unstable/encoding";
 
@@ -7,6 +7,8 @@ interface RawSseMessage {
   readonly event: string;
   readonly data: unknown;
 }
+
+type EvalEvent = Exec.Event;
 
 export interface SseMessage<A> {
   readonly id: string | undefined;

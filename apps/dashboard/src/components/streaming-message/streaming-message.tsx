@@ -42,6 +42,7 @@ import {
   type StreamingAttachmentSegment,
   type StreamingMessageModel,
   type StreamingMessagePart,
+  type StreamingMessagePartEncoded,
   type StreamingMessageSegment,
   type StreamingSegmentStatus,
   type StreamingSourceSegment,
@@ -86,16 +87,16 @@ const statusBadgeVariant = (
 function StreamingStatusIcon({ status }: { status: StreamingSegmentStatus }) {
   switch (status) {
     case "streaming":
-      return <LoaderCircleIcon />;
+      return <LoaderCircleIcon data-icon="inline-start" />;
     case "failed":
-      return <CircleAlertIcon />;
+      return <CircleAlertIcon data-icon="inline-start" />;
     case "approval-required":
-      return <ShieldQuestionIcon />;
+      return <ShieldQuestionIcon data-icon="inline-start" />;
     case "preliminary":
     case "ready":
-      return <Clock3Icon />;
+      return <Clock3Icon data-icon="inline-start" />;
     case "complete":
-      return <CheckCircle2Icon />;
+      return <CheckCircle2Icon data-icon="inline-start" />;
   }
 }
 
@@ -205,7 +206,9 @@ function StreamingSourceList({ sources }: { sources: ReadonlyArray<StreamingSour
 
         return (
           <Attachment key={source.id} size="sm" state="done">
-            <AttachmentMedia>{source.sourceType === "url" ? <LinkIcon /> : <FileTextIcon />}</AttachmentMedia>
+            <AttachmentMedia>
+              {source.sourceType === "url" ? <LinkIcon /> : <FileTextIcon />}
+            </AttachmentMedia>
             <AttachmentContent>
               <AttachmentTitle>{source.title}</AttachmentTitle>
               <AttachmentDescription>{description}</AttachmentDescription>
@@ -310,13 +313,25 @@ function StreamingToolDetails({ segment }: { segment: StreamingToolSegment }) {
               <MarkerContent>Approval required: {segment.approvalId}</MarkerContent>
             </Marker>
           )}
-          {hasParamsText ? <StreamingJsonBlock label="Streaming params" value={segment.paramsText} /> : null}
-          {hasStructuredParams ? <StreamingJsonBlock label="Params" value={segment.params} /> : null}
+          {hasParamsText ? (
+            <StreamingJsonBlock label="Streaming params" value={segment.paramsText} />
+          ) : null}
+          {hasStructuredParams ? (
+            <StreamingJsonBlock label="Params" value={segment.params} />
+          ) : null}
           {hasResult ? (
-            <StreamingJsonBlock label={segment.isFailure ? "Failure" : "Result"} value={segment.result} />
+            <StreamingJsonBlock
+              label={segment.isFailure ? "Failure" : "Result"}
+              value={segment.result}
+            />
           ) : null}
           {!hasParamsText && !hasStructuredParams && !hasResult ? (
-            <span className={cn("streaming-message-placeholder", segment.status === "streaming" && "shimmer")}>
+            <span
+              className={cn(
+                "streaming-message-placeholder",
+                segment.status === "streaming" && "shimmer",
+              )}
+            >
               Waiting for tool parameters
             </span>
           ) : null}
@@ -336,7 +351,13 @@ function StreamingTextDetails({
   return (
     <Bubble variant={segment.kind === "reasoning" ? "ghost" : "outline"} align="start">
       <BubbleContent>
-        <pre className={cn("streaming-message-pre", isEmpty && "streaming-message-placeholder", isEmpty && segment.status === "streaming" && "shimmer")}>
+        <pre
+          className={cn(
+            "streaming-message-pre",
+            isEmpty && "streaming-message-placeholder",
+            isEmpty && segment.status === "streaming" && "shimmer",
+          )}
+        >
           {isEmpty ? "Waiting for stream delta" : segment.text}
         </pre>
       </BubbleContent>
@@ -534,10 +555,16 @@ function StreamingMessageStream({
   );
 }
 
-export { StreamingMessageStream, buildStreamingMessageModel, formatStreamingValue, summarizeStreamingSegment };
+export {
+  StreamingMessageStream,
+  buildStreamingMessageModel,
+  formatStreamingValue,
+  summarizeStreamingSegment,
+};
 export type {
   StreamingMessageModel,
   StreamingMessagePart,
+  StreamingMessagePartEncoded,
   StreamingMessageSegment,
   StreamingSegmentStatus,
 };

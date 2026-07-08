@@ -11,5 +11,5 @@ export type Config = Readonly<{
   readonly taskConcurrency?: number;
   readonly trailConcurrency?: number;
 
-  readonly verif?: boolean;
+  readonly verifMode?: boolean;
 }>;

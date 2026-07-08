@@ -106,7 +106,7 @@ export const run = Effect.fn("exec/schedule")(
     const transport = yield* Effect.serviceOption(EventTransportService);
 
     // TODO reasonable default config values
-    const { snapshotConcurrency = 32, trailConcurrency = 32, verif } = config;
+    const { snapshotConcurrency = 32, trailConcurrency = 32, verifMode: verif } = config;
     const snapshotSem = yield* Semaphore.make(snapshotConcurrency);
     const snapshotCountdown = yield* Countdown.make(benchmark.tasks.length);
     const trailSem = yield* Semaphore.make(trailConcurrency);

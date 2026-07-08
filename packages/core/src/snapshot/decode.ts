@@ -13,6 +13,7 @@ import { Effect, Option, Schema, SchemaGetter, SchemaIssue } from "effect";
 import { Instruction, Instructions } from "./inst.ts";
 import { ParsedContainerfile } from "./build.ts";
 import type { InvalidValue } from "effect/SchemaIssue";
+import type { SchemaError } from "effect/Schema";
 
 const encodeInstruction = (instruction: Instruction): string =>
   Instruction.match(instruction, {
@@ -224,18 +225,23 @@ export const Containerfile = Schema.String.pipe(
     }),
   }),
 );
+export type Containerfile = Schema.Schema.Type<typeof Containerfile>;
 
-export const encode = (containerfile: { image: string; instructions: Instructions }) =>
+export const encode = (containerfile: {
+  image: string;
+  instructions: Instructions;
+}): Effect.Effect<string, SchemaError> =>
   Schema.encodeUnknownEffect(Containerfile)({
     image: containerfile.image,
     instructions: containerfile.instructions,
   });
-export const encodeSync = (containerfile: { image: string; instructions: Instructions }) =>
+export const encodeSync = (containerfile: { image: string; instructions: Instructions }): string =>
   Schema.encodeUnknownSync(Containerfile)({
     image: containerfile.image,
     instructions: containerfile.instructions,
   });
 
-export const decode = (containerfile: string) => Schema.decodeEffect(Containerfile)(containerfile);
-export const decodeSync = (containerfile: string) =>
+export const decode = (containerfile: string): Effect.Effect<Containerfile, SchemaError> =>
+  Schema.decodeEffect(Containerfile)(containerfile);
+export const decodeSync = (containerfile: string): Containerfile =>
   Schema.decodeSync(Containerfile)(containerfile);

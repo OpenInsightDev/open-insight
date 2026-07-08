@@ -2,7 +2,7 @@ import { Crypto, Effect, Encoding } from "effect";
 import { FileSystem, Path } from "effect";
 import { Instructions } from "./inst.ts";
 import { Schema } from "effect";
-import { decode } from "./decode.ts";
+import { decode, decodeSync } from "./decode.ts";
 
 const Image = Schema.String.pipe(Schema.brand("Image"));
 type Image = Schema.Schema.Type<typeof Image>;
@@ -83,6 +83,14 @@ export const fromContainerfile = Effect.fn(function* ({
   const parsed = yield* decode(content);
   return Snapshot.make({ ...parsed, context });
 });
+
+export const parseContainerfile = (
+  content: string,
+  { context = "/tmp" }: { context?: string } = {},
+) => {
+  const parsed = decodeSync(content);
+  return Snapshot.make({ ...parsed, context });
+};
 
 /**
  * Create a snapshot from an OCI image reference.

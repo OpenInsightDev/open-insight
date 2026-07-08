@@ -1,7 +1,157 @@
 import type { Response, Tool } from "effect/unstable/ai";
 
+interface StreamingPartBase {
+  metadata?: Record<string, unknown>;
+}
+
+interface StreamingTextStartPart extends StreamingPartBase {
+  type: "text-start";
+  id: string;
+}
+
+interface StreamingTextDeltaPart extends StreamingPartBase {
+  type: "text-delta";
+  id: string;
+  delta: string;
+}
+
+interface StreamingTextEndPart extends StreamingPartBase {
+  type: "text-end";
+  id: string;
+}
+
+interface StreamingReasoningStartPart extends StreamingPartBase {
+  type: "reasoning-start";
+  id: string;
+}
+
+interface StreamingReasoningDeltaPart extends StreamingPartBase {
+  type: "reasoning-delta";
+  id: string;
+  delta: string;
+}
+
+interface StreamingReasoningEndPart extends StreamingPartBase {
+  type: "reasoning-end";
+  id: string;
+}
+
+interface StreamingToolParamsStartPart extends StreamingPartBase {
+  type: "tool-params-start";
+  id: string;
+  name: string;
+  providerExecuted?: boolean;
+}
+
+interface StreamingToolParamsDeltaPart extends StreamingPartBase {
+  type: "tool-params-delta";
+  id: string;
+  delta: string;
+}
+
+interface StreamingToolParamsEndPart extends StreamingPartBase {
+  type: "tool-params-end";
+  id: string;
+}
+
+interface StreamingToolCallPart extends StreamingPartBase {
+  type: "tool-call";
+  id: string;
+  name: string;
+  params: unknown;
+  providerExecuted?: boolean;
+}
+
+interface StreamingToolResultPart extends StreamingPartBase {
+  type: "tool-result";
+  id: string;
+  name: string;
+  result: unknown;
+  encodedResult?: unknown;
+  isFailure: boolean;
+  providerExecuted?: boolean;
+  preliminary?: boolean;
+}
+
+interface StreamingToolApprovalRequestPart extends StreamingPartBase {
+  type: "tool-approval-request";
+  approvalId: string;
+  toolCallId: string;
+}
+
+interface StreamingFilePart extends StreamingPartBase {
+  type: "file";
+  mediaType: string;
+  data: unknown;
+}
+
+interface StreamingDocumentSourcePart extends StreamingPartBase {
+  type: "source";
+  sourceType: "document";
+  id: string;
+  title: string;
+  mediaType: string;
+  fileName?: string;
+}
+
+interface StreamingUrlSourcePart extends StreamingPartBase {
+  type: "source";
+  sourceType: "url";
+  id: string;
+  title: string;
+  url: string;
+}
+
+interface StreamingResponseMetadataPart extends StreamingPartBase {
+  type: "response-metadata";
+  id?: string;
+  modelId?: string;
+  timestamp?: unknown;
+  request?: unknown;
+}
+
+interface StreamingFinishPart extends StreamingPartBase {
+  type: "finish";
+  reason:
+    | "stop"
+    | "length"
+    | "content-filter"
+    | "tool-calls"
+    | "error"
+    | "pause"
+    | "other"
+    | "unknown";
+  usage?: unknown;
+  response?: unknown;
+}
+
+interface StreamingErrorPart extends StreamingPartBase {
+  type: "error";
+  error: unknown;
+}
+
+export type StreamingMessagePartEncoded =
+  | StreamingTextStartPart
+  | StreamingTextDeltaPart
+  | StreamingTextEndPart
+  | StreamingReasoningStartPart
+  | StreamingReasoningDeltaPart
+  | StreamingReasoningEndPart
+  | StreamingToolParamsStartPart
+  | StreamingToolParamsDeltaPart
+  | StreamingToolParamsEndPart
+  | StreamingToolCallPart
+  | StreamingToolResultPart
+  | StreamingToolApprovalRequestPart
+  | StreamingFilePart
+  | StreamingDocumentSourcePart
+  | StreamingUrlSourcePart
+  | StreamingResponseMetadataPart
+  | StreamingFinishPart
+  | StreamingErrorPart;
+
 export type StreamingMessagePart =
-  | Response.StreamPartEncoded
+  | StreamingMessagePartEncoded
   | Response.StreamPart<Record<string, Tool.Any>>;
 
 export type StreamingSegmentStatus =
@@ -122,8 +272,7 @@ const byteLengthOf = (value: unknown): number => {
   return 0;
 };
 
-const urlString = (value: string | URL): string =>
-  typeof value === "string" ? value : value.href;
+const urlString = (value: string | URL): string => (typeof value === "string" ? value : value.href);
 
 const ensureTextSegment = (
   segments: Array<StreamingMessageSegment>,
@@ -512,10 +661,6 @@ export const buildStreamingMessageModel = (
     debugSegments: segments,
   };
 };
-
-export const buildStreamingMessageSegments = (
-  parts: ReadonlyArray<StreamingMessagePart>,
-): Array<StreamingMessageSegment> => buildStreamingMessageModel(parts).debugSegments;
 
 export const formatStreamingValue = (value: unknown): string => {
   if (value === undefined) {

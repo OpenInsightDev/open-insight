@@ -58,7 +58,7 @@ import {
   type ChartConfig,
 } from "@/components/ui/chart.tsx";
 import { Marker, MarkerContent, MarkerIcon } from "@/components/ui/marker.tsx";
-import { Message, MessageContent, MessageFooter, MessageHeader } from "@/components/ui/message.tsx";
+import { Message, MessageContent } from "@/components/ui/message.tsx";
 import {
   MessageScroller,
   MessageScrollerButton,
@@ -83,7 +83,7 @@ import {
   type TrailNode,
 } from "./store";
 
-type ChartType = Metric.Type;
+type ChartType = Metric.Chart.Type;
 type DashboardTab = "tasks" | "charts" | "benchmark" | "agent";
 
 type MetricEntry = {
@@ -106,6 +106,20 @@ const percentFormat = new Intl.NumberFormat(undefined, {
   maximumFractionDigits: 1,
   style: "percent",
 });
+
+const mockUsage = {
+  inputTokens: {
+    uncached: undefined,
+    total: undefined,
+    cacheRead: undefined,
+    cacheWrite: undefined,
+  },
+  outputTokens: {
+    total: undefined,
+    text: undefined,
+    reasoning: undefined,
+  },
+};
 
 const metricScopes: ReadonlyArray<MetricScope> = ["Benchmark", "Task", "Trajectory"];
 
@@ -190,15 +204,17 @@ const mockBenchmark: BenchmarkNode = {
           status: "completed",
           streamParts: [
             {
+              id: "web-research-0-reasoning",
               type: "reasoning-delta",
               delta: "Identify primary sources and freshness requirements.",
             },
-            { type: "text-delta", delta: "Found official docs and two release notes." },
-            { type: "finish", reason: "stop" },
+            {
+              id: "web-research-0-text",
+              type: "text-delta",
+              delta: "Found official docs and two release notes.",
+            },
+            { type: "finish", reason: "stop", usage: mockUsage },
           ],
-          textPreview:
-            "Found official docs and two release notes. The recommended answer cites the primary source first, then adds release-note context.",
-          reasoningPreview: "Identify primary sources and freshness requirements.",
           metrics: {
             accuracy: {
               metadata: mockBenchmarkMetrics[4],
@@ -224,11 +240,17 @@ const mockBenchmark: BenchmarkNode = {
           index: 1,
           status: "running",
           streamParts: [
-            { type: "reasoning-delta", delta: "Check whether the policy changed recently." },
-            { type: "text-delta", delta: "Reading the latest changelog and comparing dates." },
+            {
+              id: "web-research-1-reasoning",
+              type: "reasoning-delta",
+              delta: "Check whether the policy changed recently.",
+            },
+            {
+              id: "web-research-1-text",
+              type: "text-delta",
+              delta: "Reading the latest changelog and comparing dates.",
+            },
           ],
-          textPreview: "Reading the latest changelog and comparing dates.",
-          reasoningPreview: "Check whether the policy changed recently.",
           metrics: {
             accuracy: {
               metadata: mockBenchmarkMetrics[4],
@@ -283,12 +305,18 @@ const mockBenchmark: BenchmarkNode = {
           index: 0,
           status: "completed",
           streamParts: [
-            { type: "reasoning-delta", delta: "Read store types and existing app shell." },
-            { type: "text-delta", delta: "Implemented the dashboard layout and ran checks." },
-            { type: "finish", reason: "stop" },
+            {
+              id: "code-patch-0-reasoning",
+              type: "reasoning-delta",
+              delta: "Read store types and existing app shell.",
+            },
+            {
+              id: "code-patch-0-text",
+              type: "text-delta",
+              delta: "Implemented the dashboard layout and ran checks.",
+            },
+            { type: "finish", reason: "stop", usage: mockUsage },
           ],
-          textPreview: "Implemented the dashboard layout and ran checks.",
-          reasoningPreview: "Read store types and existing app shell.",
           metrics: {
             accuracy: {
               metadata: mockBenchmarkMetrics[4],
@@ -345,11 +373,13 @@ const mockBenchmark: BenchmarkNode = {
           index: 0,
           status: "failed",
           streamParts: [
-            { type: "reasoning-delta", delta: "Reproduce the failure from the report." },
+            {
+              id: "bug-triage-0-reasoning",
+              type: "reasoning-delta",
+              delta: "Reproduce the failure from the report.",
+            },
             { type: "error", error: "Fixture timed out before the failing state was captured." },
           ],
-          textPreview: "",
-          reasoningPreview: "Reproduce the failure from the report.",
           metrics: {
             accuracy: {
               metadata: mockBenchmarkMetrics[4],
@@ -1108,48 +1138,18 @@ function CodeToken({ children }: { children: ReactNode }) {
 
 function TrailStreamPreview({ task, trail }: { task: TaskNode; trail: TrailNode }) {
   return (
-    <MessageScrollerProvider autoScroll>
-      <MessageScroller className="agent-trail-scroller">
-        <MessageScrollerViewport>
-          <MessageScrollerContent className="agent-message-content">
-            <MessageScrollerItem messageId={`${task.name}-${trail.index}-marker`}>
-              <Marker variant="separator">
-                <MarkerContent>
-                  {task.metadata?.name ?? task.name} / trail #{trail.index}
-                </MarkerContent>
-              </Marker>
-            </MessageScrollerItem>
-
-            {trail.reasoningPreview.length > 0 ? (
-              <MessageScrollerItem messageId={`${task.name}-${trail.index}-reasoning`}>
-                <Message align="start" className="agent-message-row">
-                  <MessageContent>
-                    <MessageHeader>Reasoning preview</MessageHeader>
-                    <div className="agent-stream-text">{trail.reasoningPreview}</div>
-                    <MessageFooter>{formatTimestamp(trail.lastEventAt)}</MessageFooter>
-                  </MessageContent>
-                </Message>
-              </MessageScrollerItem>
-            ) : null}
-
-            {buildStreamingMessageSegments(trail.streamParts).map((segment) => (
-              <MessageScrollerItem
-                key={`${segment.kind}-${segment.id}`}
-                messageId={`${task.name}-${trail.index}-${segment.kind}-${segment.id}`}
-                scrollAnchor={segment.kind === "text"}
-              >
-                <StreamingMessageSegmentView
-                  segment={segment}
-                  footer={formatTimestamp(trail.lastEventAt)}
-                  className="agent-message-row"
-                />
-              </MessageScrollerItem>
-            ))}
-          </MessageScrollerContent>
-        </MessageScrollerViewport>
-        <MessageScrollerButton />
-      </MessageScroller>
-    </MessageScrollerProvider>
+    <div className="agent-trail-preview">
+      <Marker variant="separator">
+        <MarkerContent>
+          {task.metadata?.name ?? task.name} / trail #{trail.index}
+        </MarkerContent>
+      </Marker>
+      <StreamingMessageStream
+        parts={trail.streamParts}
+        footer={formatTimestamp(trail.lastEventAt)}
+        className="agent-trail-stream"
+      />
+    </div>
   );
 }
 

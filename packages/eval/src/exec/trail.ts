@@ -1,12 +1,132 @@
-import { Effect, Equal, FileSystem, Option, Path, Queue, Ref, Scope, Stream } from "effect";
-import * as Task from "../task/index.ts";
+import { Buffer } from "node:buffer";
+import {
+  DateTime,
+  Effect,
+  Equal,
+  FileSystem,
+  Option,
+  Path,
+  Queue,
+  Ref,
+  Scope,
+  Stream,
+} from "effect";
+import * as TaverifMode: verifom "../task/index.ts";
 import * as Metric from "../metric/index.ts";
 import { Agent, Sandbox } from "@open-insight/core";
 import { Error } from "./error.ts";
-import { Response } from "effect/unstable/ai";
-import { type Event, TaskStreamPartEvent } from "./event/index.ts";
+import { Response, type Tool } from "effect/unstable/ai";
+import {
+  type Event,
+  type StreamPart as EventStreamPart,
+  TaskStreamPartEvent,
+} from "./event/index.ts";
 import { ChildProcessSpawner } from "effect/unstable/process";
 import type { Config } from "./config.ts";
+
+type GenericResponseStreamPart = Response.StreamPart<Record<string, Tool.Any>>;
+
+const encodeStreamPart = (part: GenericResponseStreamPart): EventStreamPart => {
+  switch (part.type) {
+    case "text-start":
+      return { type: part.type, id: part.id, metadata: part.metadata };
+    case "text-delta":
+      return { type: part.type, id: part.id, delta: part.delta, metadata: part.metadata };
+    case "text-end":
+      return { type: part.type, id: part.id, metadata: part.metadata };
+    case "reasoning-start":
+      return { type: part.type, id: part.id, metadata: part.metadata };
+    case "reasoning-delta":
+      return { type: part.type, id: part.id, delta: part.delta, metadata: part.metadata };
+    case "reasoning-end":
+      return { type: part.type, id: part.id, metadata: part.metadata };
+    case "tool-params-start":
+      return {
+        type: part.type,
+        id: part.id,
+        name: part.name,
+        providerExecuted: part.providerExecuted,
+        metadata: part.metadata,
+      };
+    case "tool-params-delta":
+      return { type: part.type, id: part.id, delta: part.delta, metadata: part.metadata };
+    case "tool-params-end":
+      return { type: part.type, id: part.id, metadata: part.metadata };
+    case "tool-call":
+      return {
+        type: part.type,
+        id: part.id,
+        name: part.name,
+        params: part.params,
+        providerExecuted: part.providerExecuted,
+        metadata: part.metadata,
+      };
+    case "tool-result":
+      return {
+        type: part.type,
+        id: part.id,
+        name: part.name,
+        result: part.encodedResult,
+        isFailure: part.isFailure,
+        providerExecuted: part.providerExecuted,
+        preliminary: part.preliminary,
+        metadata: part.metadata,
+      };
+    case "tool-approval-request":
+      return {
+        type: part.type,
+        approvalId: part.approvalId,
+        toolCallId: part.toolCallId,
+        metadata: part.metadata,
+      };
+    case "file":
+      return {
+        type: part.type,
+        mediaType: part.mediaType,
+        data: Buffer.from(part.data).toString("base64"),
+        metadata: part.metadata,
+      };
+    case "source":
+      if (part.sourceType === "document") {
+        return {
+          type: part.type,
+          sourceType: part.sourceType,
+          id: part.id,
+          title: part.title,
+          mediaType: part.mediaType,
+          fileName: part.fileName,
+          metadata: part.metadata,
+        };
+      }
+      return {
+        type: part.type,
+        sourceType: part.sourceType,
+        id: part.id,
+        title: part.title,
+        url: part.url.href,
+        metadata: part.metadata,
+      };
+    case "response-metadata":
+      return {
+        type: part.type,
+        id: part.id,
+        modelId: part.modelId,
+        timestamp: part.timestamp === undefined ? undefined : DateTime.formatIso(part.timestamp),
+        request: part.request,
+        metadata: part.metadata,
+      };
+    case "finish":
+      return {
+        type: part.type,
+        reason: part.reason,
+        usage: part.usage,
+        response: part.response,
+        metadata: part.metadata,
+      };
+    case "error":
+      return { type: part.type, error: part.error, metadata: part.metadata };
+  }
+};
 
 export const createTrail = Effect.fn("exec/createTrail")(
   function* ({
@@ -95,14 +215,14 @@ export const createTrail = Effect.fn("exec/createTrail")(
         const trajLength = yield* Ref.make(0);
 
         const tapDelta = Effect.fn("exec/runTrail/tapDelta")(function* (
-          part: Response.StreamPart<any>,
+          part: GenericResponseStreamPart,
         ) {
           yield* Queue.offer(
             eventQueue,
             TaskStreamPartEvent.make({
               bench: task.name,
               task: task.name,
-              parts: [part],
+              parts: [encodeStreamPart(part)],
               trailIndex,
             }),
           );

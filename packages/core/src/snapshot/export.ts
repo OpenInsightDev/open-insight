@@ -1,4 +1,4 @@
-export { Snapshot, extend, hash, make, fromContainerfile } from "./build.ts";
+export { Snapshot, extend, hash, make, fromContainerfile, parseContainerfile } from "./build.ts";
 export { decode, encode } from "./decode.ts";
 export * from "./error.ts";
 
