@@ -4,7 +4,7 @@ import { DevTools } from "effect/unstable/devtools";
 import { Agent, Exec, Harness, Sandbox } from "@open-insight/eval";
 import { OpenAiClient, OpenAiLanguageModel } from "@effect/ai-openai";
 import { LanguageModel, Prompt } from "effect/unstable/ai";
-import { NodeHttpClient, NodeServices } from "@effect/platform-node";
+import { NodeHttpClient } from "@effect/platform-node";
 import * as fs from "fs/promises";
 import * as path from "node:path";
 import { assert, it } from "@effect/vitest";
@@ -24,8 +24,8 @@ async function* loadTasks(repoPath: string): AsyncIterable<VETask> {
   const promptFiles = files.filter((file) => file.endsWith(promptSuffix)).sort();
 
   const snapshot = Snapshot.parseContainerfile(
-    `FROM alpine:latest
-    RUN apk add --no-cache iverilog`,
+    `FROM ubuntu:latest
+     RUN apt-get update && apt-get install -y iverilog && rm -rf /var/lib/apt/lists/*`,
   );
 
   for (const promptFile of promptFiles) {
@@ -70,11 +70,8 @@ async function* loadTasks(repoPath: string): AsyncIterable<VETask> {
 }
 
 const runBenchmark = Effect.fn("runBenchmark")(function* () {
-  // const tasks = yield* Task.withGithub<VETask>("NVlabs/verilog-eval", {
-  //   commit: "c498220d0a52248f8e3fdffe279075215bde2da6",
-  // })((repoPath) => Task.Load.fromAsyncIter(loadTasks(repoPath))).pipe(Task.Load.randomSelect(2));
   const repoPath = path.resolve("./.repos/verilog-eval");
-  const tasks = yield* Task.Load.fromAsyncIter(loadTasks(repoPath)).pipe(Task.Load.randomSelect(2));
+  const tasks = yield* Task.Load.fromAsyncIter(loadTasks(repoPath)).pipe(Task.Load.select(4));
 
   const benchmark = yield* Benchmark.make({
     name: "verilog-eval",
@@ -121,7 +118,7 @@ const runBenchmark = Effect.fn("runBenchmark")(function* () {
     benchmark,
     harness,
     metrics: harnessMetrics,
-    trailCount: 1,
+    trailCount: 3,
   });
 
   const result = yield* Exec.run(exec, {
@@ -150,10 +147,9 @@ const main = Effect.gen(function* () {
   );
 })
   .pipe(Effect.scoped)
-  .pipe(Effect.provide(NodeServices.layer))
   .pipe(Effect.provide(DevTools.layer()));
 
 it("verilog-eval benchmark should pass", async () => {
-  const result = await Effect.runPromise(main);
+  const result = await Exec.runPromise(main);
   assert.isTrue(result !== null);
 }, 100000);

@@ -26,10 +26,10 @@ export const run = Effect.fn(function* (
     pipeline = pipeline.pipe(Effect.provide(NodeSdk.layer(() => otelConfig)));
   }
 
-  return yield* pipeline
-    .pipe(Effect.provide(NodeServices.layer), Effect.provide(NodeHttpClient.layerUndici))
-    .pipe(Effect.scoped);
+  return yield* pipeline.pipe(Effect.scoped).pipe(Effect.provide(NodeServices.layer));
 });
 
-export const runPromise = async <E>(executor: Effect.Effect<Executor, E>, config?: Config) =>
-  Effect.runPromise(executor.pipe(Effect.flatMap((executor) => run(executor, config))));
+export const runPromise = async <E>(main: Effect.Effect<Result, E, NodeServices.NodeServices>) =>
+  Effect.runPromise(
+    main.pipe(Effect.provide(NodeServices.layer), Effect.provide(NodeHttpClient.layerUndici)),
+  );
