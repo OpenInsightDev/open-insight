@@ -1,16 +1,17 @@
 import { Effect, Schema } from "effect";
 
-const NonNegativeNumber = Schema.Number.check(Schema.isGreaterThanOrEqualTo(0));
-const NonNegativeInt = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0));
-
 /**
  * Marker schema used to represent that a resource should not be practically limited.
  */
 export const Unlimited = Schema.Literal("unlimited").pipe(Schema.brand("Unlimited"));
 export type Unlimited = Schema.Schema.Type<typeof Unlimited>;
 export const isUnlimited = Schema.is(Unlimited);
-const UnlimitedNumber = Schema.Union([NonNegativeNumber, Unlimited]);
-const UnlimitedInt = Schema.Union([NonNegativeInt, Unlimited]);
+
+const UnlimitedNumber = Schema.Union([
+  Schema.Number.check(Schema.isGreaterThanOrEqualTo(0)),
+  Unlimited,
+]);
+const UnlimitedInt = Schema.Union([Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)), Unlimited]);
 
 export class Resources extends Schema.Class<Resources>("Resources")({
   /**

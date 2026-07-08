@@ -35,13 +35,11 @@ export type Provider = Readonly<{
 
   /**
    * Run a sandbox with the given snapshot handle.
-   *
-   * @argument resources - Resource limits for the sandbox. If not provided, the sandbox will run with default resource limits.
    */
   runSandbox(
     options: Readonly<{
       handle: Snapshot.Handle.Handle;
-      resources: Resources | null;
+      resources: Resources;
     }>,
   ): Effect.Effect<Sandbox, Error, Scope.Scope>;
 }>;
