@@ -1,4 +1,4 @@
-import * as Task from "@/task/index.ts";
+import * as Task from "#/task/index.ts";
 import { Cause, Effect, FileSystem, Path } from "effect";
 
 export type Options = Readonly<{}>;

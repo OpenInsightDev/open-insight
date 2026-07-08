@@ -1,4 +1,4 @@
-import { Benchmark, Metric, Task } from "@/export.ts";
+import { Benchmark, Metric, Task } from "#/export.ts";
 import { Config, Effect, pipe } from "effect";
 import { Agent, Exec, Harness, Sandbox } from "@open-insight/eval";
 import { OpenAiClient, OpenAiLanguageModel } from "@effect/ai-openai";
@@ -64,7 +64,7 @@ const main = Effect.gen(function* () {
 
   const result = yield* Exec.run(exec);
   return result;
-});
+}).pipe(Effect.provide(NodeServices.layer), Effect.scoped);
 
 try {
   const result = await main.pipe(Effect.runPromise);

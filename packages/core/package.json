@@ -12,6 +12,9 @@
     "url": "git+https://github.com/open-insight/open-insight.git",
     "directory": "packages/core"
   },
+  "imports": {
+    "#/*": "./src/*"
+  },
   "files": [
     "dist/**/*.mjs",
     "dist/**/*.mjs.map",

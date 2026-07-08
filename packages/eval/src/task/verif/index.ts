@@ -1,5 +1,5 @@
 import type { Agent, Sandbox } from "@open-insight/core/internal";
-import type { Bivariant } from "@/utils/variant.ts";
+import type { Bivariant } from "#/utils/variant.ts";
 import type * as Grade from "../grade/index.ts";
 
 export type Verifier<G extends Grade.Result = Grade.Result> = Readonly<{

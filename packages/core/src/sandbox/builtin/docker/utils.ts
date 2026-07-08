@@ -1,5 +1,5 @@
 import { Effect, Option } from "effect";
-import { Spawn } from "@/utils/index.ts";
+import { Spawn } from "#/utils/index.ts";
 import { ChildProcess } from "effect/unstable/process";
 
 export const makeRuntime = Effect.fn(function* () {

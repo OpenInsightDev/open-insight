@@ -1,7 +1,7 @@
 import { Chat, LanguageModel, Response, Toolkit } from "effect/unstable/ai";
 import { Effect, Option, Ref, Stream } from "effect";
-import * as Agent from "@/agent/index.ts";
-import * as Sandbox from "@/sandbox/index.ts";
+import * as Agent from "#/agent/index.ts";
+import * as Sandbox from "#/sandbox/index.ts";
 
 const randomText = Effect.fn(function* () {
   return yield* Effect.sync(() => crypto.randomUUID().replaceAll("-", ""));

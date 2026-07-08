@@ -1,9 +1,9 @@
 import { Schema, Stream } from "effect";
 import { Response, Toolkit } from "effect/unstable/ai";
 import type { Error } from "../error.ts";
-import * as Metric from "@/metric/index.ts";
-import * as Task from "@/task/index.ts";
-import * as Bench from "@/benchmark/index.ts";
+import * as Metric from "#/metric/index.ts";
+import * as Task from "#/task/index.ts";
+import * as Bench from "#/benchmark/index.ts";
 
 export class InitEvent extends Schema.TaggedClass<InitEvent>()("InitEvent", {
   bench: Bench.Metadata,

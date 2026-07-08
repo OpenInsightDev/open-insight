@@ -1,5 +1,5 @@
 import { Schema } from "effect";
-import * as Metric from "@/metric/index.ts";
+import * as Metric from "#/metric/index.ts";
 import * as Task from "../task/index.ts";
 import { Snapshot } from "@open-insight/core/internal";
 

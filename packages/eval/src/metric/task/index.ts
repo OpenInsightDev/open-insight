@@ -1,6 +1,6 @@
 import { type Data, Effect, Match, Schema } from "effect";
-import type * as Task from "@/task/index.ts";
-import type { Bivariant, UnionToIntersection } from "@/utils/variant.ts";
+import type * as Task from "#/task/index.ts";
+import type { Bivariant, UnionToIntersection } from "#/utils/variant.ts";
 import { MetricError } from "../error.ts";
 import { type Input, TaskOutput } from "../schema.ts";
 import type * as _Core from "@open-insight/core";

@@ -1,6 +1,6 @@
-import * as Sandbox from "@/sandbox/export.ts";
-import * as Snapshot from "@/snapshot/export.ts";
-import { Spawn, Bash } from "@/utils/index.ts";
+import * as Sandbox from "#/sandbox/export.ts";
+import * as Snapshot from "#/snapshot/export.ts";
+import { Spawn, Bash } from "#/utils/index.ts";
 import { Crypto, Effect, FileSystem, Stream } from "effect";
 import { ChildProcess as CP } from "effect/unstable/process";
 import { makeRuntime } from "./utils.ts";

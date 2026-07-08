@@ -13,8 +13,8 @@ import {
   Stream,
 } from "effect";
 import type { Config } from "./config.ts";
-import * as Task from "@/task/index.ts";
-import * as Metric from "@/metric/index.ts";
+import * as Task from "#/task/index.ts";
+import * as Metric from "#/metric/index.ts";
 import { createTrail } from "./trail.ts";
 import { Error } from "./error.ts";
 import { Agent, Sandbox } from "@open-insight/core";
@@ -28,7 +28,7 @@ import {
   EventTransportService,
 } from "./event/index.ts";
 import { range } from "effect/Array";
-import * as Benchmark from "@/benchmark/index.ts";
+import * as Benchmark from "#/benchmark/index.ts";
 import { Result } from "./result.ts";
 import { castDraft, produce } from "immer";
 import type { ChildProcessSpawner } from "effect/unstable/process";

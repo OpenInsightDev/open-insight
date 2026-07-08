@@ -1,5 +1,5 @@
 import type { Agent, Sandbox } from "@open-insight/core/internal";
-import type { Bivariant } from "@/utils/variant.ts";
+import type { Bivariant } from "#/utils/variant.ts";
 import { Effect, Schema } from "effect";
 import { TaskError } from "../error.ts";
 

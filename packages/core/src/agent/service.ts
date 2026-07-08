@@ -1,5 +1,5 @@
-import * as Sandbox from "@/sandbox/index.ts";
-import * as Snapshot from "@/snapshot/index.ts";
+import * as Sandbox from "#/sandbox/index.ts";
+import * as Snapshot from "#/snapshot/index.ts";
 import { Context, Effect, Option, Stream } from "effect";
 import { Prompt, Response } from "effect/unstable/ai";
 import { type AgentError } from "./error.ts";

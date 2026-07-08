@@ -1,8 +1,8 @@
 import { Chat, LanguageModel, Toolkit } from "effect/unstable/ai";
 import { Effect, Option, Ref, Stream } from "effect";
-import * as Agent from "@/agent/index.ts";
-import { AgentError } from "@/agent/error.ts";
-import * as Sandbox from "@/sandbox/index.ts";
+import * as Agent from "#/agent/index.ts";
+import { AgentError } from "#/agent/error.ts";
+import * as Sandbox from "#/sandbox/index.ts";
 
 export const makeAgent = Effect.fn(function* ({
   sandbox,

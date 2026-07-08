@@ -1,7 +1,7 @@
-import type * as Benchmark from "@/benchmark/index.ts";
-import type * as Harness from "@/harness/index.ts";
-import type * as Metric from "@/metric/index.ts";
-import type * as Task from "@/task/index.ts";
+import type * as Benchmark from "#/benchmark/index.ts";
+import type * as Harness from "#/harness/index.ts";
+import type * as Metric from "#/metric/index.ts";
+import type * as Task from "#/task/index.ts";
 import { Effect, Layer, Option } from "effect";
 import { Error } from "./error.ts";
 import { EventTransportService } from "./event/index.ts";

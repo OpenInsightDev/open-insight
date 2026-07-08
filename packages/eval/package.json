@@ -12,6 +12,9 @@
     "url": "git+https://github.com/OpenInsightDev/open-insight.git",
     "directory": "packages/eval"
   },
+  "imports": {
+    "#/*": "./src/*"
+  },
   "files": [
     "dist/**/*.mjs",
     "dist/**/*.mjs.map",
