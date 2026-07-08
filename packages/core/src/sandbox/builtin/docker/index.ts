@@ -5,6 +5,8 @@ import { Crypto, Effect, FileSystem, Stream } from "effect";
 import { ChildProcess as CP } from "effect/unstable/process";
 import { makeRuntime } from "./utils.ts";
 
+const dockerOptions = { detached: false } satisfies CP.CommandOptions;
+
 export type PortMapping = Readonly<{
   sandboxPort: number;
   hostPort: number;
@@ -59,7 +61,7 @@ export const make = Effect.fn("sandbox/provider/docker")(
     const fs = yield* FileSystem.FileSystem;
 
     const imageExists = Effect.fn(function* (handle: Snapshot.Handle.Handle) {
-      const inspect = CP.make`image inspect ${handle.name}`.pipe(runtime);
+      const inspect = CP.make(dockerOptions)`image inspect ${handle.name}`.pipe(runtime);
       return yield* spawner.success(inspect).pipe(
         Effect.as(true),
         Effect.catch(() => Effect.succeed(false)),
@@ -67,7 +69,7 @@ export const make = Effect.fn("sandbox/provider/docker")(
     });
 
     const removeImage = Effect.fn(function* (handle: Snapshot.Handle.Handle) {
-      const rmi = CP.make`rmi ${handle.name}`.pipe(runtime);
+      const rmi = CP.make(dockerOptions)`rmi ${handle.name}`.pipe(runtime);
       yield* spawner.string(rmi).pipe(Effect.ignore);
     });
 
@@ -87,10 +89,11 @@ export const make = Effect.fn("sandbox/provider/docker")(
         const containerfile = yield* Snapshot.encode(snapshot);
         yield* fs.writeFileString(containerfilePath, containerfile);
 
-        const build =
-          CP.make`build -f ${containerfilePath} -t ${handle.name} ${snapshot.context}`.pipe(
-            runtime,
-          );
+        const build = CP.make(
+          "build",
+          ["-f", containerfilePath, "-t", handle.name, snapshot.context],
+          dockerOptions,
+        ).pipe(runtime);
         yield* spawner.success(build);
 
         if (!cache) {
@@ -124,9 +127,11 @@ export const make = Effect.fn("sandbox/provider/docker")(
         });
         yield* fs.writeFileString(containerfilePath, containerfile);
 
-        const build = CP.make`build -f ${containerfilePath} -t ${derived.name} ${context}`.pipe(
-          runtime,
-        );
+        const build = CP.make(
+          "build",
+          ["-f", containerfilePath, "-t", derived.name, context],
+          dockerOptions,
+        ).pipe(runtime);
         yield* spawner.success(build);
 
         if (!cache) {
@@ -153,22 +158,49 @@ export const make = Effect.fn("sandbox/provider/docker")(
           `${mapping.hostPort}:${mapping.sandboxPort}`,
         ]);
 
-        const run = CP.make("run", [
-          "-it",
-          "--rm",
-          "--detach",
-          "--name",
-          name,
-          ...portMappingArgs,
-          ...formatResources(resources),
-          handle.name,
-          "sleep",
-          "infinity",
-        ]).pipe(runtime);
-        yield* spawner.success(run).pipe(Effect.mapError(Sandbox.Error.sandboxStart(name)));
+        const run = CP.make(
+          "run",
+          [
+            "--rm",
+            "--detach",
+            "--name",
+            name,
+            ...portMappingArgs,
+            ...formatResources(resources),
+            handle.name,
+            "sleep",
+            "infinity",
+          ],
+          dockerOptions,
+        ).pipe(runtime);
+        yield* spawner
+          .success(run)
+          .pipe(Effect.timeout("30 seconds"))
+          .pipe(Effect.mapError(Sandbox.Error.sandboxStart(name)));
+
+        const running = CP.make(
+          "inspect",
+          ["--format", "{{.State.Running}}", name],
+          dockerOptions,
+        ).pipe(runtime);
+        const isRunning = yield* spawner
+          .string(running)
+          .pipe(Effect.timeout("30 seconds"))
+          .pipe(Effect.map((output) => output.trim() === "true"))
+          .pipe(Effect.mapError(Sandbox.Error.sandboxStart(name)));
+
+        if (!isRunning) {
+          return yield* Effect.fail(
+            Sandbox.Error.sandboxStart(name)(
+              new Error("Docker container was created but did not reach running state"),
+            ),
+          );
+        }
 
         yield* Effect.addFinalizer(() =>
-          spawner.success(CP.make`rm --force ${name}`.pipe(runtime)).pipe(Effect.ignore),
+          spawner
+            .success(CP.make(dockerOptions)`rm --force ${name}`.pipe(runtime))
+            .pipe(Effect.ignore),
         );
 
         const makeExecCommand = (
@@ -194,8 +226,9 @@ export const make = Effect.fn("sandbox/provider/docker")(
 
           const execOptions =
             input === undefined
-              ? {}
+              ? dockerOptions
               : ({
+                  ...dockerOptions,
                   stdin: {
                     stream: Stream.make(input).pipe(Stream.encodeText),
                   },
@@ -248,15 +281,17 @@ export const make = Effect.fn("sandbox/provider/docker")(
             return { hostUrl: `http://localhost:${hostPort}` };
           }),
           download: Effect.fn(function* ({ sandboxPath, hostPath }) {
-            const command = CP.make`cp ${name}:${sandboxPath} ${hostPath}`;
+            const command = CP.make(dockerOptions)`cp ${name}:${sandboxPath} ${hostPath}`;
             yield* spawner
               .success(command.pipe(runtime))
+              .pipe(Effect.timeout("30 seconds"))
               .pipe(Effect.mapError(Sandbox.Error.sandboxExec(handle.name, Bash.format(command))));
           }),
           upload: Effect.fn(function* ({ sandboxPath, hostPath }) {
-            const command = CP.make`cp ${hostPath} ${name}:${sandboxPath}`;
+            const command = CP.make(dockerOptions)`cp ${hostPath} ${name}:${sandboxPath}`;
             yield* spawner
               .success(command.pipe(runtime))
+              .pipe(Effect.timeout("30 seconds"))
               .pipe(Effect.mapError(Sandbox.Error.sandboxExec(handle.name, Bash.format(command))));
           }),
           readFile: Effect.fn(function* ({ sandboxPath }) {

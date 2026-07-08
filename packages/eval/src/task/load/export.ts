@@ -8,6 +8,9 @@ export {
   withGitRepo,
   withGithub,
   withHuggingface,
+  skip,
+  select,
+  randomSelect,
   type Loader,
   type Tasks,
 } from "./index.ts";

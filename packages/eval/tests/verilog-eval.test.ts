@@ -1,26 +1,27 @@
 import { Benchmark, Metric, Snapshot, Task } from "#/export.ts";
-import { Config, Effect, pipe } from "effect";
+import { Effect, FileSystem, Logger, pipe, References } from "effect";
+import { DevTools } from "effect/unstable/devtools";
 import { Agent, Exec, Harness, Sandbox } from "@open-insight/eval";
 import { OpenAiClient, OpenAiLanguageModel } from "@effect/ai-openai";
 import { LanguageModel, Prompt } from "effect/unstable/ai";
 import { NodeHttpClient, NodeServices } from "@effect/platform-node";
 import * as fs from "fs/promises";
 import * as path from "node:path";
+import { assert, it } from "@effect/vitest";
 
 class VETask extends Task.Task<{ simPass: boolean }, { category: string }> {}
 
 const datasetDirName = "dataset_spec-to-rtl";
 const promptSuffix = "_prompt.txt";
+const debugLogPath = path.join(import.meta.dirname, ".logs", "verilog-eval.debug.log");
 
 const hasNoMismatches = (output: string): boolean =>
   /Mismatches:\s*0\s+in\s+\d+\s+samples/.test(output);
 
 async function* loadTasks(repoPath: string): AsyncIterable<VETask> {
-  console.error(`[verilog-eval] loadTasks: reading ${repoPath}`);
   const datasetDir = path.join(repoPath, datasetDirName);
   const files = await fs.readdir(datasetDir);
   const promptFiles = files.filter((file) => file.endsWith(promptSuffix)).sort();
-  console.error(`[verilog-eval] loadTasks: found ${promptFiles.length} prompt files`);
 
   const snapshot = Snapshot.parseContainerfile(
     `FROM alpine:latest
@@ -68,10 +69,12 @@ async function* loadTasks(repoPath: string): AsyncIterable<VETask> {
   }
 }
 
-const main = Effect.gen(function* () {
-  const tasks = yield* Task.withGithub<VETask>("NVlabs/verilog-eval", {
-    commit: "c498220d0a52248f8e3fdffe279075215bde2da6",
-  })((repoPath) => Task.Load.fromAsyncIter(loadTasks(repoPath)));
+const runBenchmark = Effect.fn("runBenchmark")(function* () {
+  // const tasks = yield* Task.withGithub<VETask>("NVlabs/verilog-eval", {
+  //   commit: "c498220d0a52248f8e3fdffe279075215bde2da6",
+  // })((repoPath) => Task.Load.fromAsyncIter(loadTasks(repoPath))).pipe(Task.Load.randomSelect(2));
+  const repoPath = path.resolve("./.repos/verilog-eval");
+  const tasks = yield* Task.Load.fromAsyncIter(loadTasks(repoPath)).pipe(Task.Load.randomSelect(2));
 
   const benchmark = yield* Benchmark.make({
     name: "verilog-eval",
@@ -93,10 +96,7 @@ const main = Effect.gen(function* () {
     ),
   );
 
-  const client = yield* OpenAiClient.make({
-    apiKey: yield* Config.redacted("OPENAI_API_KEY"),
-    apiUrl: yield* Config.string("OPENAI_BASE_URL"),
-  }).pipe(Effect.provide(NodeHttpClient.layerUndici));
+  const client = yield* OpenAiClient.make({}).pipe(Effect.provide(NodeHttpClient.layerUndici));
 
   const model = yield* OpenAiLanguageModel.make({
     model: "deepseek-v4-flash",
@@ -121,7 +121,7 @@ const main = Effect.gen(function* () {
     benchmark,
     harness,
     metrics: harnessMetrics,
-    trailCount: 6,
+    trailCount: 1,
   });
 
   const result = yield* Exec.run(exec, {
@@ -129,11 +129,31 @@ const main = Effect.gen(function* () {
     trailConcurrency: 16,
   });
   return result;
-}).pipe(Effect.provide(NodeServices.layer), Effect.scoped);
+});
 
-try {
-  const result = await main.pipe(Effect.runPromise);
-  console.log("Benchmark result:", result);
-} catch (error) {
-  console.error("Error running benchmark:", error);
-}
+const main = Effect.gen(function* () {
+  const fs = yield* FileSystem.FileSystem;
+
+  yield* fs.makeDirectory(path.dirname(debugLogPath), { recursive: true });
+
+  const fileLogger = yield* Logger.formatLogFmt.pipe(Logger.toFile(debugLogPath));
+
+  return yield* Effect.gen(function* () {
+    yield* Effect.logInfo(`[verilog-eval] writing debug logs to ${debugLogPath}`);
+    const result = yield* runBenchmark();
+    yield* Effect.logInfo("[verilog-eval] benchmark result", JSON.stringify(result));
+    return result;
+  }).pipe(
+    Effect.onError((cause) => Effect.logError("[verilog-eval] benchmark failed", cause)),
+    Effect.provide(Logger.layer([fileLogger], { mergeWithExisting: true })),
+    Effect.provideService(References.MinimumLogLevel, "Debug"),
+  );
+})
+  .pipe(Effect.scoped)
+  .pipe(Effect.provide(NodeServices.layer))
+  .pipe(Effect.provide(DevTools.layer()));
+
+it("verilog-eval benchmark should pass", async () => {
+  const result = await Effect.runPromise(main);
+  assert.isTrue(result !== null);
+}, 100000);

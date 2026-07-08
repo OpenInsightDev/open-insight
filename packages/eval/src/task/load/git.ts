@@ -46,7 +46,7 @@ const loadGitRepo = Effect.fn(function* (repoPath: string, repoURL: string, opti
   const spawner = yield* Spawn.SpawnService;
 
   const run = (args: ReadonlyArray<string>) =>
-    spawner.exitCode(ChildProcess.make("git", ["-C", repoPath, ...args]));
+    spawner.success(ChildProcess.make("git", ["-C", repoPath, ...args]));
 
   const git = (args: ReadonlyArray<string>) =>
     spawner
@@ -120,7 +120,7 @@ const loadGitRepo = Effect.fn(function* (repoPath: string, repoURL: string, opti
     yield* fs.remove(repoPath, { recursive: true, force: true });
   }
 
-  yield* spawner.exitCode(ChildProcess.make("git", cloneArgs(repoURL, repoPath, options)));
+  yield* spawner.success(ChildProcess.make("git", cloneArgs(repoURL, repoPath, options)));
 
   if (options.commit) {
     yield* run(["checkout", options.commit]);
@@ -134,9 +134,13 @@ export const withGitRepo = <T extends Task.Task>(repoURL: string, options: Optio
 
       let repoPath = options.directory;
       if (!repoPath) {
-        repoPath = yield* fs.makeTempDirectoryScoped({
+        const tempRepoPath = yield* fs.makeTempDirectory({
           prefix: "open-insight-task-",
         });
+        yield* Effect.addFinalizer(() =>
+          fs.remove(tempRepoPath, { recursive: true, force: true }).pipe(Effect.ignore),
+        );
+        repoPath = tempRepoPath;
       }
 
       yield* loadGitRepo(repoPath, repoURL, options);

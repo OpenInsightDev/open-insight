@@ -1,5 +1,5 @@
 export {
-  Error as ExecError,
+  Error,
   make,
   run,
   runPromise,

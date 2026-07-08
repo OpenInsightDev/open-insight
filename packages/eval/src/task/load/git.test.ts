@@ -191,5 +191,19 @@ describe("withGitRepo", () => {
         yield* assertRepo(first.target, { remote: second.remote, commit: second.main });
       }),
     );
+
+    it.effect("ignores temporary cleanup errors when clone fails", () =>
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const root = yield* fs.makeTempDirectoryScoped({ prefix: "open-insight-git-test-" });
+
+        const error = yield* withGitRepo(`${root}/missing.git`)(() => Effect.succeed([])).pipe(
+          Effect.flip,
+        );
+
+        assert.strictEqual(error._tag, "TaskError");
+        assert.strictEqual(error.reason._tag, "TaskLoadError");
+      }),
+    );
   });
 });

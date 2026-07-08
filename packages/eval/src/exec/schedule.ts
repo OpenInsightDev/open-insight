@@ -280,7 +280,6 @@ export const run = Effect.fn("exec/schedule")(
   (effect, { benchmark }) =>
     effect.pipe(
       Effect.scoped,
-      Effect.awaitAllChildren,
       Effect.annotateLogs({
         benchmark: benchmark.name,
       }),
