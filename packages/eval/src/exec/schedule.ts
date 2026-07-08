@@ -106,7 +106,7 @@ export const run = Effect.fn("exec/schedule")(
     const transport = yield* Effect.serviceOption(EventTransportService);
 
     // TODO reasonable default config values
-    const { snapshotConcurrency = 32, trailConcurrency = 32, verifMode: verif } = config;
+    const { snapshotConcurrency = 32, trailConcurrency = 32 } = config;
     const snapshotSem = yield* Semaphore.make(snapshotConcurrency);
     const snapshotCountdown = yield* Countdown.make(benchmark.tasks.length);
     const trailSem = yield* Semaphore.make(trailConcurrency);
@@ -153,11 +153,6 @@ export const run = Effect.fn("exec/schedule")(
         );
 
         const fibers: Array<Fiber.Fiber<void, Error>> = [];
-
-        if (verif) {
-          yield* Effect.logDebug("Running single verification trail");
-          trailCount = 1;
-        }
         for (const trailIndex of range(0, trailCount - 1)) {
           yield* Effect.logDebug(`Forking trail ${trailIndex}`);
           const fiber = yield* trail

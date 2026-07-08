@@ -129,15 +129,17 @@ export const buildAll = ({
   exec: AllExec;
   trailCount: number;
 }) => {
-  const inputs: Array<Task.Grade.Result> = [];
+  const taskMap = new Map<string, Array<Task.Grade.Result>>();
 
   return Effect.fn(function* ({
     task,
     delta,
   }: Input): Effect.fn.Return<TaskOutput | null, MetricError> {
-    if (delta._tag !== "Grade" || inputs.length >= trailCount) {
+    if (delta._tag !== "Grade") {
       return null;
     }
+
+    const inputs = taskMap.getOrInsert(task.name, []);
 
     inputs.push(delta.result);
     if (inputs.length < trailCount) {

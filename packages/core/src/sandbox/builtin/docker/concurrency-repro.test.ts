@@ -23,36 +23,38 @@ RUN apk add --no-cache iverilog`,
 
 describe("Docker sandbox provider concurrency repro", () => {
   layer(DockerTestLayer)((it) => {
-    it.effect("runs many sandboxes and commands without hanging", () =>
-      Effect.gen(function* () {
-        const provider = yield* make({});
-        const handle = yield* provider.aquireSnapshot({ snapshot, cache: true });
+    it.effect(
+      "runs many sandboxes and commands without hanging",
+      () =>
+        Effect.gen(function* () {
+          const provider = yield* make({});
+          const handle = yield* provider.aquireSnapshot({ snapshot, cache: true });
 
-        const results = yield* Effect.all(
-          Array.from({ length: 32 }, (_, index) =>
-            Effect.gen(function* () {
-              const sandbox = yield* provider.runSandbox({
-                handle,
-                resources: Sandbox.Resources.make({
-                  numCPUs: 1,
-                  memoryMiB: 128,
-                  network: false,
-                }),
-              });
+          const results = yield* Effect.all(
+            Array.from({ length: 32 }, (_, index) =>
+              Effect.gen(function* () {
+                const sandbox = yield* provider.runSandbox({
+                  handle,
+                  resources: Sandbox.Resources.make({
+                    numCPUs: 1,
+                    memoryMiB: 128,
+                    network: false,
+                  }),
+                });
 
-              const result = yield* sandbox.cmd(CP.make`sh -c ${`printf sandbox-${index}`}`);
-              return result;
-            }).pipe(Effect.timeout("5 seconds")),
-          ),
-          { concurrency: "unbounded" },
-        );
+                const result = yield* sandbox.cmd(CP.make`sh -c ${`printf sandbox-${index}`}`);
+                return result;
+              }).pipe(Effect.timeout("5 seconds")),
+            ),
+            { concurrency: "unbounded" },
+          );
 
-        assert.strictEqual(results.length, 32);
-        for (const [index, result] of results.entries()) {
-          assert.strictEqual(result.exitCode, 0);
-          assert.strictEqual(result.stdout, `sandbox-${index}`);
-        }
-      }).pipe(Effect.scoped, Effect.timeout("25 seconds")),
+          assert.strictEqual(results.length, 32);
+          for (const [index, result] of results.entries()) {
+            assert.strictEqual(result.exitCode, 0);
+            assert.strictEqual(result.stdout, `sandbox-${index}`);
+          }
+        }).pipe(Effect.scoped, Effect.timeout("25 seconds")),
       30_000,
     );
 
@@ -137,9 +139,9 @@ describe("Docker sandbox provider concurrency repro", () => {
               "  wire y;",
               "  TopModule dut(.a(a), .y(y));",
               "  initial begin",
-              "    a = 0; #1; if (y !== 0) begin $display(\"Mismatches: 1 in 2 samples\"); $finish; end",
-              "    a = 1; #1; if (y !== 1) begin $display(\"Mismatches: 1 in 2 samples\"); $finish; end",
-              "    $display(\"Mismatches: 0 in 2 samples\");",
+              '    a = 0; #1; if (y !== 0) begin $display("Mismatches: 1 in 2 samples"); $finish; end',
+              '    a = 1; #1; if (y !== 1) begin $display("Mismatches: 1 in 2 samples"); $finish; end',
+              '    $display("Mismatches: 0 in 2 samples");',
               "    $finish;",
               "  end",
               "endmodule",

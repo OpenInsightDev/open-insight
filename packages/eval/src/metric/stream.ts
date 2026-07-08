@@ -1,4 +1,4 @@
-import { Cause, Effect, pipe, Queue, Scope, Stream } from "effect";
+import { Cause, Deferred, Effect, pipe, Queue, Scope, Stream } from "effect";
 import * as TaskMetric from "./task/index.ts";
 import * as BenchMetric from "./bench/index.ts";
 import * as TrajMetric from "./traj/index.ts";
@@ -175,11 +175,27 @@ export const transform = ({
         .pipe(Stream.tap(consumeBenchMetrics, { concurrency: "unbounded" }))
         .pipe(Stream.runDrain);
 
-      yield* Effect.all([trajRun, taskRun, benchRun], { concurrency: "unbounded" })
-        .pipe(Effect.ensuring(Queue.end(outputQueue)))
-        .pipe(Effect.forkChild);
+      const errorDeferred = yield* Deferred.make<never, MetricError>();
 
-      return Stream.fromQueue(outputQueue);
+      yield* Effect.all([trajRun, taskRun, benchRun], { concurrency: "unbounded" })
+        .pipe(
+          Effect.match({
+            onSuccess: () => Effect.void,
+            onFailure: (error: any) => {
+              if (error._tag === "MetricError") {
+                return Deferred.fail(errorDeferred, error);
+              }
+              return Effect.void;
+            },
+          }),
+        )
+        .pipe(Effect.ensuring(Queue.end(outputQueue)))
+        .pipe(Effect.ignore)
+        .pipe(Effect.forkScoped);
+
+      return Stream.fromQueue(outputQueue).pipe(
+        Stream.race(Stream.fromEffect(Deferred.await(errorDeferred))),
+      );
     },
     (effect) => effect.pipe(Stream.unwrap),
   );
