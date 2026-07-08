@@ -1,5 +1,5 @@
 import { Context, Effect, type Scope } from "effect";
-import type { SandboxError } from "../error.ts";
+import type { Error } from "../error.ts";
 import type { ResourceLimits } from "../resource.ts";
 import type { Sandbox } from "../sandbox/index.ts";
 import * as Snapshot from "../snapshot/index.ts";
@@ -17,7 +17,7 @@ export type Provider = Readonly<{
       snapshot: Snapshot.Snapshot;
       cache?: boolean;
     }>,
-  ): Effect.Effect<Snapshot.Handle.Handle, SandboxError, Scope.Scope>;
+  ): Effect.Effect<Snapshot.Handle.Handle, Error, Scope.Scope>;
 
   /**
    * Derive a new snapshot handle from an existing handle with a set of instructions.
@@ -31,7 +31,7 @@ export type Provider = Readonly<{
       context: Snapshot.Context.Context;
       cache?: boolean;
     }>,
-  ): Effect.Effect<Snapshot.Handle.Handle, SandboxError, Scope.Scope>;
+  ): Effect.Effect<Snapshot.Handle.Handle, Error, Scope.Scope>;
 
   /**
    * Run a sandbox with the given snapshot handle.
@@ -43,7 +43,7 @@ export type Provider = Readonly<{
       handle: Snapshot.Handle.Handle;
       resources: ResourceLimits | null;
     }>,
-  ): Effect.Effect<Sandbox, SandboxError, Scope.Scope>;
+  ): Effect.Effect<Sandbox, Error, Scope.Scope>;
 }>;
 
 export class ProviderService extends Context.Service<ProviderService, Provider>()(

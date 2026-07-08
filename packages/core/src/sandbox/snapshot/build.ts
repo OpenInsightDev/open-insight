@@ -2,12 +2,21 @@ import { Crypto, Effect, Encoding } from "effect";
 import * as Context from "./context.ts";
 import { FileSystem, Path } from "effect";
 import { Instructions } from "./inst.ts";
-import * as Image from "./image.ts";
 import { Schema } from "effect";
 import { decode } from "./decode.ts";
 
+export const Image = Schema.String.pipe(Schema.brand("Image"));
+export type Image = Schema.Schema.Type<typeof Image>;
+
+const OciImageReference =
+  /^(?:(?<domain>[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)+)(?::(?<port>\d+))?\/)?(?<repository>[a-z0-9]+(?:(?:[._]|__|[-]*)[a-z0-9]+)*(?:\/[a-z0-9]+(?:(?:[._]|__|[-]*)[a-z0-9]+)*)*)(?::(?<tag>[a-zA-Z0-9_][a-zA-Z0-9._-]{0,127}))?(?:@(?<digest>[a-zA-Z0-9-_]+:[a-fA-F0-9]{32,}))?$/;
+
+export const ImageFromString = Schema.String.check(
+  Schema.isPattern(OciImageReference, { expected: "a valid OCI image reference" }),
+).pipe(Schema.decodeTo(Image));
+
 export const parsedContainerfileFields = {
-  image: Image.Image,
+  image: ImageFromString,
   instructions: Instructions,
 };
 export const ParsedContainerfile = Schema.Struct(parsedContainerfileFields);

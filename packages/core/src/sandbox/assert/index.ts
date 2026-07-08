@@ -1,9 +1,8 @@
 import { Effect } from "effect";
 import { ChildProcess as CP } from "effect/unstable/process";
-import { Spawn } from "@/utils/index.ts";
-import { AssertionFailure, SandboxError } from "../error.ts";
+import { Bash, Spawn } from "@/utils/index.ts";
+import { AssertionFailure, Error } from "../error.ts";
 import type { Sandbox } from "../sandbox/index.ts";
-import { bashQuote } from "../utils.ts";
 import { type Assert, Assertion, AssertSchema } from "./schema.ts";
 import semver from "semver";
 
@@ -23,7 +22,7 @@ const defaultOptions = {
 const shell = (command: string) => CP.make("sh", ["-c", command]);
 
 const commandValue = (command: CP.StandardCommand) =>
-  [command.command, ...command.args].map(bashQuote).join(" ");
+  [command.command, ...command.args].map(Bash.quote).join(" ");
 
 const findExitFailure = (cause: unknown): ExitFailure | undefined => {
   if (cause instanceof Spawn.SpawnError && cause.reason._tag === "SpawnExitCodeError") {
@@ -42,7 +41,7 @@ const fromCommandFailure = ({
   message,
 }: {
   assertion: Assertion;
-  cause: SandboxError;
+  cause: Error;
   message: string;
 }) => {
   const failure =
@@ -128,7 +127,7 @@ export const check = Effect.fn(function* (
       return;
     }
     case "Program": {
-      const command = `command -v ${bashQuote(assertion.program)}`;
+      const command = `command -v ${Bash.quote(assertion.program)}`;
       yield* runString(sandbox, command, assertion).pipe(
         Effect.mapError((error) =>
           AssertionFailure.make({
@@ -140,7 +139,7 @@ export const check = Effect.fn(function* (
       return;
     }
     case "Version": {
-      const versionCommand = `command -v ${bashQuote(assertion.command)}`;
+      const versionCommand = `command -v ${Bash.quote(assertion.command)}`;
       const versionOutput = yield* runString(sandbox, versionCommand, assertion).pipe(
         Effect.mapError((error) =>
           AssertionFailure.make({
@@ -174,7 +173,7 @@ export const check = Effect.fn(function* (
       return;
     }
     case "Env": {
-      const command = `printenv ${bashQuote(assertion.name)}`;
+      const command = `printenv ${Bash.quote(assertion.name)}`;
       const actual = yield* runString(sandbox, command, assertion).pipe(
         Effect.mapError((error) =>
           AssertionFailure.make({
@@ -197,7 +196,7 @@ export const check = Effect.fn(function* (
       return;
     }
     case "Exists": {
-      const command = `test -e ${bashQuote(assertion.path)}`;
+      const command = `test -e ${Bash.quote(assertion.path)}`;
       yield* runString(sandbox, command, assertion).pipe(
         Effect.mapError((error) =>
           AssertionFailure.make({
@@ -215,11 +214,11 @@ export const assert = Effect.fn(function* (
   sandbox: Sandbox,
   assertions: Iterable<Assertion>,
   options: AssertOptions = defaultOptions,
-): Effect.fn.Return<void, SandboxError> {
+): Effect.fn.Return<void, Error> {
   yield* Effect.validate(assertions, (assertion) => check(sandbox, assertion), {
     concurrency: options.concurrency ?? defaultOptions.concurrency,
     discard: true,
-  }).pipe(Effect.mapError(SandboxError.assert));
+  }).pipe(Effect.mapError(Error.assert));
 });
 
 export const command = (strings: TemplateStringsArray, ...values: Array<string>): Assertion =>

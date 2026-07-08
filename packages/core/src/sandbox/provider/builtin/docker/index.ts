@@ -1,6 +1,5 @@
 import * as Sandbox from "@/sandbox/index.ts";
-import { Spawn } from "@/utils/index.ts";
-import { SandboxError } from "@/sandbox/error.ts";
+import { Spawn, Bash } from "@/utils/index.ts";
 import * as Provider from "@/sandbox/provider/index.ts";
 import * as Snapshot from "@/sandbox/snapshot/index.ts";
 import { Crypto, Effect, FileSystem, Stream } from "effect";
@@ -46,10 +45,10 @@ export const make = Effect.fn("sandbox/provider/docker")(
     portMappings = [],
   }: MakeOptions): Effect.fn.Return<
     Provider.Provider,
-    SandboxError,
+    Sandbox.Error,
     Crypto.Crypto | FileSystem.FileSystem | Spawn.SpawnService
   > {
-    const runtime = yield* makeRuntime().pipe(Effect.mapError(SandboxError.provider("docker")));
+    const runtime = yield* makeRuntime().pipe(Effect.mapError(Sandbox.Error.provider("docker")));
 
     const crypto = yield* Crypto.Crypto;
     const spawner = yield* Spawn.SpawnService;
@@ -99,7 +98,7 @@ export const make = Effect.fn("sandbox/provider/docker")(
       (effect, { snapshot }) =>
         effect.pipe(
           Effect.provideService(Crypto.Crypto, crypto),
-          Effect.mapError(SandboxError.snapshotBuild(snapshot)),
+          Effect.mapError(Sandbox.Error.snapshotBuild(snapshot)),
         ),
     ) satisfies Provider.Provider["aquireSnapshot"];
 
@@ -135,14 +134,14 @@ export const make = Effect.fn("sandbox/provider/docker")(
       (effect, { handle, instructions }) =>
         effect.pipe(
           Effect.provideService(Crypto.Crypto, crypto),
-          Effect.mapError(SandboxError.snapshotDerive(handle.name, instructions)),
+          Effect.mapError(Sandbox.Error.snapshotDerive(handle.name, instructions)),
         ),
     ) satisfies Provider.Provider["deriveSnapshot"];
 
     const runSandbox = Effect.fn(
       function* ({ handle, resources }) {
         const name = yield* Sandbox.makeName().pipe(
-          Effect.mapError(SandboxError.sandboxStart(handle.name)),
+          Effect.mapError(Sandbox.Error.sandboxStart(handle.name)),
         );
 
         const portMappingArgs = portMappings.flatMap((mapping) => [
@@ -162,7 +161,7 @@ export const make = Effect.fn("sandbox/provider/docker")(
           "sleep",
           "infinity",
         ]).pipe(runtime);
-        yield* spawner.success(run).pipe(Effect.mapError(SandboxError.sandboxStart(name)));
+        yield* spawner.success(run).pipe(Effect.mapError(Sandbox.Error.sandboxStart(name)));
 
         yield* Effect.addFinalizer(() =>
           spawner.success(CP.make`rm --force ${name}`.pipe(runtime)).pipe(Effect.ignore),
@@ -184,7 +183,7 @@ export const make = Effect.fn("sandbox/provider/docker")(
             args.push("-w", command.options.cwd);
           }
 
-          args.push(name, "sh", "-c", Sandbox.formatBash(command));
+          args.push(name, "sh", "-c", Bash.format(command));
 
           const options =
             input === undefined
@@ -200,11 +199,11 @@ export const make = Effect.fn("sandbox/provider/docker")(
 
         return yield* Sandbox.make({
           $(cmd: CP.StandardCommand, input?: string) {
-            const bash = Sandbox.formatBash(cmd);
+            const bash = Bash.format(cmd);
             const execCommand = makeExecCommand(cmd, input);
             return spawner
               .string(execCommand)
-              .pipe(Effect.mapError(SandboxError.sandboxExec(handle.name, bash)));
+              .pipe(Effect.mapError(Sandbox.Error.sandboxExec(handle.name, bash)));
           },
           expose: Effect.fn(function* ({ sandboxPort, hostPort }) {
             const matchesMapping = portMappings.some(
@@ -213,7 +212,7 @@ export const make = Effect.fn("sandbox/provider/docker")(
 
             if (!matchesMapping) {
               return yield* Effect.fail(
-                SandboxError.sandboxExpose(
+                Sandbox.Error.sandboxExpose(
                   handle.name,
                   sandboxPort,
                   hostPort,
@@ -231,33 +230,25 @@ export const make = Effect.fn("sandbox/provider/docker")(
             const command = CP.make`cp ${name}:${sandboxPath} ${hostPath}`;
             yield* spawner
               .success(command.pipe(runtime))
-              .pipe(
-                Effect.mapError(SandboxError.sandboxExec(handle.name, Sandbox.formatBash(command))),
-              );
+              .pipe(Effect.mapError(Sandbox.Error.sandboxExec(handle.name, Bash.format(command))));
           }),
           upload: Effect.fn(function* ({ sandboxPath, hostPath }) {
             const command = CP.make`cp ${hostPath} ${name}:${sandboxPath}`;
             yield* spawner
               .success(command.pipe(runtime))
-              .pipe(
-                Effect.mapError(SandboxError.sandboxExec(handle.name, Sandbox.formatBash(command))),
-              );
+              .pipe(Effect.mapError(Sandbox.Error.sandboxExec(handle.name, Bash.format(command))));
           }),
           readFile: Effect.fn(function* ({ sandboxPath }) {
             const command = makeExecCommand(CP.make`cat ${sandboxPath}`).pipe(runtime);
             return yield* spawner
               .string(command)
-              .pipe(
-                Effect.mapError(SandboxError.sandboxExec(handle.name, Sandbox.formatBash(command))),
-              );
+              .pipe(Effect.mapError(Sandbox.Error.sandboxExec(handle.name, Bash.format(command))));
           }),
           writeFile: Effect.fn(function* ({ sandboxPath, content }) {
             const command = makeExecCommand(CP.make`tee ${sandboxPath}`, content).pipe(runtime);
             yield* spawner
               .success(command)
-              .pipe(
-                Effect.mapError(SandboxError.sandboxExec(handle.name, Sandbox.formatBash(command))),
-              );
+              .pipe(Effect.mapError(Sandbox.Error.sandboxExec(handle.name, Bash.format(command))));
           }),
         });
       },

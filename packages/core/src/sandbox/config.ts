@@ -1,13 +1,6 @@
-export type Config = Readonly<{
-  /**
-   * Whether to cache the task snapshot after built.
-   * If not, the task snapshot will be rebuilt every time the task is scheduled to run.
-   */
-  cacheTaskSnapshot?: boolean;
+import { Schema } from "effect";
 
-  /**
-   * Whether to cache the snapshot with agent specific environment.
-   * If not, the snapshot will be rebuilt every time the agent is started.
-   */
-  cacheAgentSnapshot?: boolean;
-}>;
+export class Config extends Schema.Class<Config>("SandboxConfig")({
+  cacheTaskSnapshot: Schema.optional(Schema.Boolean),
+  cacheAgentSnapshot: Schema.optional(Schema.Boolean),
+}) {}

@@ -1,7 +1,7 @@
 import { Crypto, Effect, Match, Stream } from "effect";
 import { ChildProcess as CP } from "effect/unstable/process";
 import { Spawn } from "@/utils/index.ts";
-import { SandboxError } from "../error.ts";
+import { Error } from "../error.ts";
 
 export const SANDBOX_NAME = "open-insight-sandbox";
 
@@ -12,24 +12,22 @@ export const makeName = Effect.fn(function* () {
 });
 
 export type Sandbox = Readonly<{
-  $(process: CP.Command): Effect.Effect<string, SandboxError>;
-  readFile(options: Readonly<{ sandboxPath: string }>): Effect.Effect<string, SandboxError>;
+  $(process: CP.Command): Effect.Effect<string, Error>;
+  readFile(options: Readonly<{ sandboxPath: string }>): Effect.Effect<string, Error>;
   writeFile(
     options: Readonly<{ sandboxPath: string; content: string }>,
-  ): Effect.Effect<void, SandboxError>;
+  ): Effect.Effect<void, Error>;
   download(
     options: Readonly<{ sandboxPath: string; hostPath: string }>,
-  ): Effect.Effect<void, SandboxError>;
-  upload(
-    options: Readonly<{ sandboxPath: string; hostPath: string }>,
-  ): Effect.Effect<void, SandboxError>;
+  ): Effect.Effect<void, Error>;
+  upload(options: Readonly<{ sandboxPath: string; hostPath: string }>): Effect.Effect<void, Error>;
   expose(
     options: Readonly<{ sandboxPort: number; hostPort: number }>,
-  ): Effect.Effect<{ hostUrl: string }, SandboxError>;
+  ): Effect.Effect<{ hostUrl: string }, Error>;
 }>;
 
 export type MakeSandboxOptions = Readonly<{
-  $(process: CP.StandardCommand, stdin?: string): Effect.Effect<string, SandboxError>;
+  $(process: CP.StandardCommand, stdin?: string): Effect.Effect<string, Error>;
   expose: Sandbox["expose"];
 
   download: Sandbox["download"] | "rsync";
@@ -45,7 +43,7 @@ export const make = Effect.fn(function* ({
   upload,
   readFile,
   writeFile,
-}: MakeSandboxOptions): Effect.fn.Return<Sandbox, SandboxError, Spawn.SpawnService> {
+}: MakeSandboxOptions): Effect.fn.Return<Sandbox, Error, Spawn.SpawnService> {
   const spawner = yield* Spawn.SpawnService;
 
   // TODO supports Assertions
@@ -53,7 +51,7 @@ export const make = Effect.fn(function* ({
   const $ = Effect.fn(function* (
     command: CP.Command,
     input?: string,
-  ): Effect.fn.Return<string, SandboxError> {
+  ): Effect.fn.Return<string, Error> {
     return yield* Match.value(command).pipe(
       Match.tag("StandardCommand", (cmd) => sandbox$(cmd, input)),
       Match.tag("PipedCommand", (cmd) =>
@@ -94,7 +92,7 @@ export const make = Effect.fn(function* ({
             )
             .pipe(
               Effect.mapError((e) =>
-                SandboxError.sandboxExec("host", `download ${sandboxPath} -> ${hostPath}`)(e),
+                Error.sandboxExec("host", `download ${sandboxPath} -> ${hostPath}`)(e),
               ),
             );
         })
@@ -107,7 +105,7 @@ export const make = Effect.fn(function* ({
             .string(CP.make`cat ${hostPath}`)
             .pipe(
               Effect.mapError((e) =>
-                SandboxError.sandboxExec("host", `upload ${hostPath} -> ${sandboxPath}`)(e),
+                Error.sandboxExec("host", `upload ${hostPath} -> ${sandboxPath}`)(e),
               ),
             );
           yield* $(CP.make`tee ${sandboxPath}`, content);

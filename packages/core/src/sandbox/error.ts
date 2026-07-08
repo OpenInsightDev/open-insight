@@ -92,7 +92,7 @@ export class AssertionError extends Schema.TaggedErrorClass<AssertionError>()("A
   failures: Schema.Array(AssertionFailure),
 }) {}
 
-export const SandboxErrorReason = Schema.Union([
+export const ErrorReason = Schema.Union([
   SnapshotBuildError,
   SnapshotDeriveError,
   SnapshotUseError,
@@ -104,13 +104,13 @@ export const SandboxErrorReason = Schema.Union([
   InstructionUnsupportedError,
   AssertionError,
 ]);
-export type SandboxErrorReason = Schema.Schema.Type<typeof SandboxErrorReason>;
+export type ErrorReason = Schema.Schema.Type<typeof ErrorReason>;
 
-export class SandboxError extends Schema.TaggedErrorClass<SandboxError>()("SandboxError", {
-  reason: SandboxErrorReason,
+export class Error extends Schema.TaggedErrorClass<Error>()("SandboxError", {
+  reason: ErrorReason,
 }) {
-  static mapUnknownError = (mapper: (cause: unknown) => SandboxErrorReason) => (cause: unknown) =>
-    cause instanceof SandboxError ? cause : new SandboxError({ reason: mapper(cause) });
+  static mapUnknownError = (mapper: (cause: unknown) => ErrorReason) => (cause: unknown) =>
+    cause instanceof Error ? cause : new Error({ reason: mapper(cause) });
 
   static provider = (name: string) =>
     this.mapUnknownError((cause) => ProviderNotAvailable.make({ name, cause }));
@@ -142,11 +142,4 @@ export class SandboxError extends Schema.TaggedErrorClass<SandboxError>()("Sandb
     this.mapUnknownError((cause) =>
       SandboxExposeError.make({ name, sandboxPort, hostPort, cause }),
     );
-
-  static assert = (failures: ReadonlyArray<AssertionFailure>) =>
-    this.make({
-      reason: AssertionError.make({
-        failures: Array.from(failures),
-      }),
-    });
 }
