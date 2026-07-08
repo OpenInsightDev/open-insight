@@ -21,28 +21,35 @@ import {
   AttachmentTitle,
 } from "@/components/ui/attachment.tsx";
 import { Badge } from "@/components/ui/badge.tsx";
+import { Bubble, BubbleContent } from "@/components/ui/bubble.tsx";
+import { Marker, MarkerContent, MarkerIcon } from "@/components/ui/marker.tsx";
+import { Message, MessageContent, MessageFooter, MessageHeader } from "@/components/ui/message.tsx";
 import {
-  Message,
-  MessageContent,
-  MessageFooter,
-  MessageGroup,
-  MessageHeader,
-} from "@/components/ui/message.tsx";
+  MessageScroller,
+  MessageScrollerButton,
+  MessageScrollerContent,
+  MessageScrollerItem,
+  MessageScrollerProvider,
+  MessageScrollerViewport,
+} from "@/components/ui/message-scroller.tsx";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs.tsx";
 import { cn } from "@/lib/utils.ts";
 
 import {
-  buildStreamingMessageSegments,
+  buildStreamingMessageModel,
   formatStreamingValue,
   summarizeStreamingSegment,
+  type StreamingAttachmentSegment,
+  type StreamingMessageModel,
   type StreamingMessagePart,
-  type StreamingMessagePartInput,
-  type StreamingKnownMessagePart,
   type StreamingMessageSegment,
   type StreamingSegmentStatus,
+  type StreamingSourceSegment,
+  type StreamingToolSegment,
 } from "./stream-parts.ts";
 
 type StreamingMessageStreamProps = React.ComponentProps<"div"> & {
-  parts: ReadonlyArray<StreamingMessagePartInput>;
+  parts: ReadonlyArray<StreamingMessagePart>;
   emptyLabel?: string;
   footer?: React.ReactNode;
 };
@@ -64,24 +71,32 @@ const statusLabel = (status: StreamingSegmentStatus): string => {
   }
 };
 
-function StreamingStatusIcon({ status }: { status: StreamingSegmentStatus }) {
-  if (status === "streaming") {
-    return <LoaderCircleIcon className="streaming-message-spin" />;
-  }
-
+const statusBadgeVariant = (
+  status: StreamingSegmentStatus,
+): "destructive" | "outline" | "secondary" => {
   if (status === "failed") {
-    return <CircleAlertIcon />;
+    return "destructive";
   }
-
-  if (status === "approval-required") {
-    return <ShieldQuestionIcon />;
+  if (status === "complete") {
+    return "secondary";
   }
+  return "outline";
+};
 
-  if (status === "preliminary") {
-    return <Clock3Icon />;
+function StreamingStatusIcon({ status }: { status: StreamingSegmentStatus }) {
+  switch (status) {
+    case "streaming":
+      return <LoaderCircleIcon />;
+    case "failed":
+      return <CircleAlertIcon />;
+    case "approval-required":
+      return <ShieldQuestionIcon />;
+    case "preliminary":
+    case "ready":
+      return <Clock3Icon />;
+    case "complete":
+      return <CheckCircle2Icon />;
   }
-
-  return <CheckCircle2Icon />;
 }
 
 function StreamingSegmentIcon({ segment }: { segment: StreamingMessageSegment }) {
@@ -126,51 +141,142 @@ const segmentStatus = (segment: StreamingMessageSegment): StreamingSegmentStatus
       return segment.status;
     case "error":
       return "failed";
-    default:
+    case "attachment":
+    case "source":
       return "complete";
   }
 };
 
-const partCountLabel = (segment: StreamingMessageSegment): string =>
-  `${segment.partIndexes.length} part${segment.partIndexes.length === 1 ? "" : "s"}`;
+const partCountLabel = (count: number): string => `${count} part${count === 1 ? "" : "s"}`;
 
-function StreamingSegmentHeader({ segment }: { segment: StreamingMessageSegment }) {
-  const status = segmentStatus(segment);
+const segmentPartCountLabel = (segment: StreamingMessageSegment): string =>
+  partCountLabel(segment.partIndexes.length);
 
+const segmentFirstPartIndex = (segment: StreamingMessageSegment): number =>
+  segment.partIndexes[0] ?? 0;
+
+function StatusBadge({ status }: { status: StreamingSegmentStatus }) {
   return (
-    <MessageHeader className="streaming-message-header">
-      <span className="streaming-message-title">
-        <StreamingSegmentIcon segment={segment} />
-        {segmentTitle(segment)}
-      </span>
-      <span className="streaming-message-header-meta">
-        <Badge variant={status === "failed" ? "destructive" : "outline"}>
-          <StreamingStatusIcon status={status} />
-          {statusLabel(status)}
-        </Badge>
-        <span>{partCountLabel(segment)}</span>
-      </span>
-    </MessageHeader>
+    <Badge variant={statusBadgeVariant(status)}>
+      <StreamingStatusIcon status={status} />
+      {statusLabel(status)}
+    </Badge>
   );
 }
 
-function StreamingTextBody({
-  segment,
+function StreamingAttachmentList({
+  attachments,
 }: {
-  segment: Extract<StreamingMessageSegment, { kind: "text" | "reasoning" }>;
+  attachments: ReadonlyArray<StreamingAttachmentSegment>;
 }) {
-  const isEmpty = segment.text.length === 0;
+  if (attachments.length === 0) {
+    return null;
+  }
 
   return (
-    <div
-      data-slot="streaming-message-text"
-      data-kind={segment.kind}
-      data-state={segment.status}
-      className={cn("streaming-message-text", isEmpty && "is-empty")}
-    >
-      {isEmpty ? "Waiting for stream delta" : segment.text}
-      {segment.status === "streaming" ? <span className="streaming-message-cursor" /> : null}
-    </div>
+    <AttachmentGroup className="streaming-message-attachment-group">
+      {attachments.map((attachment) => (
+        <Attachment key={attachment.id} size="sm" state="done">
+          <AttachmentMedia>
+            <FileTextIcon />
+          </AttachmentMedia>
+          <AttachmentContent>
+            <AttachmentTitle>{attachment.mediaType}</AttachmentTitle>
+            <AttachmentDescription>{attachment.byteLength} bytes</AttachmentDescription>
+          </AttachmentContent>
+        </Attachment>
+      ))}
+    </AttachmentGroup>
+  );
+}
+
+function StreamingSourceList({ sources }: { sources: ReadonlyArray<StreamingSourceSegment> }) {
+  if (sources.length === 0) {
+    return null;
+  }
+
+  return (
+    <AttachmentGroup className="streaming-message-attachment-group">
+      {sources.map((source) => {
+        const description =
+          source.sourceType === "url"
+            ? source.url
+            : `${source.mediaType}${source.fileName === undefined ? "" : ` · ${source.fileName}`}`;
+
+        return (
+          <Attachment key={source.id} size="sm" state="done">
+            <AttachmentMedia>{source.sourceType === "url" ? <LinkIcon /> : <FileTextIcon />}</AttachmentMedia>
+            <AttachmentContent>
+              <AttachmentTitle>{source.title}</AttachmentTitle>
+              <AttachmentDescription>{description}</AttachmentDescription>
+            </AttachmentContent>
+          </Attachment>
+        );
+      })}
+    </AttachmentGroup>
+  );
+}
+
+function StreamingToolsMarker({ tools }: { tools: ReadonlyArray<StreamingToolSegment> }) {
+  if (tools.length === 0) {
+    return null;
+  }
+
+  return (
+    <Marker>
+      <MarkerIcon>
+        <WrenchIcon />
+      </MarkerIcon>
+      <MarkerContent className="streaming-message-marker-content">
+        {tools.map((tool) => (
+          <Badge key={tool.id} variant={statusBadgeVariant(tool.status)}>
+            {tool.name.length > 0 ? tool.name : tool.id}
+            {" · "}
+            {statusLabel(tool.status)}
+          </Badge>
+        ))}
+      </MarkerContent>
+    </Marker>
+  );
+}
+
+function StreamingReasoningMarker({ reasoning }: { reasoning: string }) {
+  if (reasoning.length === 0) {
+    return null;
+  }
+
+  return (
+    <Marker>
+      <MarkerIcon>
+        <BrainIcon />
+      </MarkerIcon>
+      <MarkerContent className="streaming-message-reasoning">{reasoning}</MarkerContent>
+    </Marker>
+  );
+}
+
+function StreamingErrorsMarker({
+  errors,
+}: {
+  errors: ReadonlyArray<Extract<StreamingMessageSegment, { kind: "error" }>>;
+}) {
+  if (errors.length === 0) {
+    return null;
+  }
+
+  return (
+    <Marker>
+      <MarkerIcon>
+        <CircleAlertIcon />
+      </MarkerIcon>
+      <MarkerContent className="streaming-message-marker-content">
+        {errors.map((error) => (
+          <Badge key={error.id} variant="destructive">
+            {formatStreamingValue(error.error)}
+          </Badge>
+        ))}
+      </MarkerContent>
+    </Marker>
   );
 }
 
@@ -183,137 +289,183 @@ function StreamingJsonBlock({ value, label }: { value: unknown; label: string })
   );
 }
 
-function StreamingToolBody({
-  segment,
-}: {
-  segment: Extract<StreamingMessageSegment, { kind: "tool" }>;
-}) {
+function StreamingToolDetails({ segment }: { segment: StreamingToolSegment }) {
   const hasParamsText = segment.paramsText.length > 0;
   const hasStructuredParams = segment.params !== undefined;
   const hasResult = segment.result !== undefined;
 
   return (
-    <div className="streaming-message-tool">
-      <div className="streaming-message-tool-meta">
-        <span>{segment.providerExecuted ? "Provider executed" : "Framework executed"}</span>
-        <span>{segment.id}</span>
-      </div>
-      {segment.approvalId === undefined ? null : (
-        <div className="streaming-message-approval">
-          Approval required: <code>{segment.approvalId}</code>
+    <Bubble variant={segment.status === "failed" ? "destructive" : "outline"} align="start">
+      <BubbleContent className="streaming-message-debug-bubble">
+        <div className="streaming-message-debug-stack">
+          <div className="streaming-message-debug-meta">
+            <span>{segment.providerExecuted ? "Provider executed" : "Framework executed"}</span>
+            <span>{segment.id}</span>
+          </div>
+          {segment.approvalId === undefined ? null : (
+            <Marker>
+              <MarkerIcon>
+                <ShieldQuestionIcon />
+              </MarkerIcon>
+              <MarkerContent>Approval required: {segment.approvalId}</MarkerContent>
+            </Marker>
+          )}
+          {hasParamsText ? <StreamingJsonBlock label="Streaming params" value={segment.paramsText} /> : null}
+          {hasStructuredParams ? <StreamingJsonBlock label="Params" value={segment.params} /> : null}
+          {hasResult ? (
+            <StreamingJsonBlock label={segment.isFailure ? "Failure" : "Result"} value={segment.result} />
+          ) : null}
+          {!hasParamsText && !hasStructuredParams && !hasResult ? (
+            <span className={cn("streaming-message-placeholder", segment.status === "streaming" && "shimmer")}>
+              Waiting for tool parameters
+            </span>
+          ) : null}
         </div>
-      )}
-      {hasParamsText ? (
-        <StreamingJsonBlock label="Streaming params" value={segment.paramsText} />
-      ) : null}
-      {hasStructuredParams ? <StreamingJsonBlock label="Params" value={segment.params} /> : null}
-      {hasResult ? (
-        <StreamingJsonBlock
-          label={segment.isFailure ? "Failure" : "Result"}
-          value={segment.result}
-        />
-      ) : null}
-      {!hasParamsText && !hasStructuredParams && !hasResult ? (
-        <p className="streaming-message-placeholder">Waiting for tool parameters</p>
-      ) : null}
-    </div>
+      </BubbleContent>
+    </Bubble>
   );
 }
 
-function StreamingAttachmentBody({
+function StreamingTextDetails({
   segment,
 }: {
-  segment: Extract<StreamingMessageSegment, { kind: "attachment" }>;
+  segment: Extract<StreamingMessageSegment, { kind: "text" | "reasoning" }>;
 }) {
-  return (
-    <AttachmentGroup className="streaming-message-attachment-group">
-      <Attachment size="sm" state="done">
-        <AttachmentMedia>
-          <FileTextIcon />
-        </AttachmentMedia>
-        <AttachmentContent>
-          <AttachmentTitle>{segment.mediaType}</AttachmentTitle>
-          <AttachmentDescription>{segment.byteLength} bytes</AttachmentDescription>
-        </AttachmentContent>
-      </Attachment>
-    </AttachmentGroup>
-  );
-}
-
-function StreamingSourceBody({
-  segment,
-}: {
-  segment: Extract<StreamingMessageSegment, { kind: "source" }>;
-}) {
-  const description =
-    segment.sourceType === "url"
-      ? segment.url
-      : `${segment.mediaType}${segment.fileName === undefined ? "" : ` · ${segment.fileName}`}`;
+  const isEmpty = segment.text.length === 0;
 
   return (
-    <AttachmentGroup className="streaming-message-attachment-group">
-      <Attachment size="sm" state="done">
-        <AttachmentMedia>
-          {segment.sourceType === "url" ? <LinkIcon /> : <FileTextIcon />}
-        </AttachmentMedia>
-        <AttachmentContent>
-          <AttachmentTitle>{segment.title}</AttachmentTitle>
-          <AttachmentDescription>{description}</AttachmentDescription>
-        </AttachmentContent>
-      </Attachment>
-    </AttachmentGroup>
+    <Bubble variant={segment.kind === "reasoning" ? "ghost" : "outline"} align="start">
+      <BubbleContent>
+        <pre className={cn("streaming-message-pre", isEmpty && "streaming-message-placeholder", isEmpty && segment.status === "streaming" && "shimmer")}>
+          {isEmpty ? "Waiting for stream delta" : segment.text}
+        </pre>
+      </BubbleContent>
+    </Bubble>
   );
 }
 
-function StreamingErrorBody({
-  segment,
-}: {
-  segment: Extract<StreamingMessageSegment, { kind: "error" }>;
-}) {
-  return <pre className="streaming-message-error">{formatStreamingValue(segment.error)}</pre>;
-}
-
-function StreamingSegmentBody({ segment }: { segment: StreamingMessageSegment }) {
+function StreamingDebugSegmentBody({ segment }: { segment: StreamingMessageSegment }) {
   switch (segment.kind) {
     case "text":
     case "reasoning":
-      return <StreamingTextBody segment={segment} />;
+      return <StreamingTextDetails segment={segment} />;
     case "tool":
-      return <StreamingToolBody segment={segment} />;
+      return <StreamingToolDetails segment={segment} />;
     case "attachment":
-      return <StreamingAttachmentBody segment={segment} />;
+      return <StreamingAttachmentList attachments={[segment]} />;
     case "source":
-      return <StreamingSourceBody segment={segment} />;
+      return <StreamingSourceList sources={[segment]} />;
     case "error":
-      return <StreamingErrorBody segment={segment} />;
+      return (
+        <Bubble variant="destructive" align="start">
+          <BubbleContent>
+            <pre className="streaming-message-pre">{formatStreamingValue(segment.error)}</pre>
+          </BubbleContent>
+        </Bubble>
+      );
   }
 }
 
-function StreamingMessageSegmentView({
+function StreamingDebugSegmentView({
   segment,
   footer,
-  className,
 }: {
   segment: StreamingMessageSegment;
   footer?: React.ReactNode;
-  className?: string;
 }) {
+  const status = segmentStatus(segment);
+
   return (
-    <Message
-      align="start"
-      data-slot="streaming-message-segment"
-      data-kind={segment.kind}
-      data-state={segmentStatus(segment)}
-      className={cn("streaming-message-segment", className)}
-    >
+    <Message align="start" data-kind={segment.kind} data-state={status}>
       <MessageContent>
-        <StreamingSegmentHeader segment={segment} />
-        <StreamingSegmentBody segment={segment} />
+        <MessageHeader className="streaming-message-header">
+          <span className="streaming-message-title">
+            <StreamingSegmentIcon segment={segment} />
+            {segmentTitle(segment)}
+          </span>
+          <span className="streaming-message-header-meta">
+            <StatusBadge status={status} />
+            <span>{segmentPartCountLabel(segment)}</span>
+          </span>
+        </MessageHeader>
+        <StreamingDebugSegmentBody segment={segment} />
         <MessageFooter className="streaming-message-footer">
           {footer ?? summarizeStreamingSegment(segment)}
         </MessageFooter>
       </MessageContent>
     </Message>
+  );
+}
+
+function StreamingMessagePrimary({
+  model,
+  emptyLabel,
+  footer,
+}: {
+  model: StreamingMessageModel;
+  emptyLabel: string;
+  footer?: React.ReactNode;
+}) {
+  const message = model.message;
+  const hasText = message.text.length > 0;
+  const placeholder =
+    message.partCount === 0
+      ? emptyLabel
+      : message.status === "streaming"
+        ? "Waiting for assistant response"
+        : "No assistant text";
+
+  return (
+    <Message align="start" data-state={message.status}>
+      <MessageContent>
+        <MessageHeader className="streaming-message-header">
+          <span className="streaming-message-title">
+            <MessageSquareTextIcon />
+            Assistant
+          </span>
+          <span className="streaming-message-header-meta">
+            <StatusBadge status={message.status} />
+            <span>{partCountLabel(message.partCount)}</span>
+          </span>
+        </MessageHeader>
+        <Bubble variant={message.status === "failed" ? "destructive" : "muted"} align="start">
+          <BubbleContent>
+            <div
+              className={cn(
+                "streaming-message-body",
+                !hasText && "streaming-message-placeholder",
+                !hasText && message.status === "streaming" && "shimmer",
+              )}
+            >
+              {hasText ? message.text : placeholder}
+            </div>
+          </BubbleContent>
+        </Bubble>
+        <StreamingReasoningMarker reasoning={message.reasoning} />
+        <StreamingAttachmentList attachments={message.attachments} />
+        <StreamingSourceList sources={message.sources} />
+        <StreamingToolsMarker tools={message.tools} />
+        <StreamingErrorsMarker errors={message.errors} />
+        <MessageFooter className="streaming-message-footer">
+          {footer ?? statusLabel(message.status)}
+        </MessageFooter>
+      </MessageContent>
+    </Message>
+  );
+}
+
+function StreamingMessageScrollerPanel({ children }: { children: React.ReactNode }) {
+  return (
+    <MessageScrollerProvider autoScroll>
+      <MessageScroller className="streaming-message-scroller">
+        <MessageScrollerViewport>
+          <MessageScrollerContent className="streaming-message-scroller-content">
+            {children}
+          </MessageScrollerContent>
+        </MessageScrollerViewport>
+        <MessageScrollerButton />
+      </MessageScroller>
+    </MessageScrollerProvider>
   );
 }
 
@@ -324,39 +476,68 @@ function StreamingMessageStream({
   className,
   ...props
 }: StreamingMessageStreamProps) {
-  const segments = React.useMemo(() => buildStreamingMessageSegments(parts), [parts]);
+  const model = React.useMemo(() => buildStreamingMessageModel(parts), [parts]);
 
   return (
-    <MessageGroup
+    <div
       data-slot="streaming-message-stream"
+      data-state={model.message.status}
       className={cn("streaming-message-stream", className)}
       {...props}
     >
-      {segments.length === 0 ? (
-        <p className="streaming-message-empty">{emptyLabel}</p>
-      ) : (
-        segments.map((segment) => (
-          <StreamingMessageSegmentView
-            key={`${segment.kind}-${segment.id}`}
-            segment={segment}
-            footer={footer}
-          />
-        ))
-      )}
-    </MessageGroup>
+      <Tabs defaultValue="message" className="streaming-message-tabs">
+        <div className="streaming-message-tabs-header">
+          <TabsList variant="line">
+            <TabsTrigger value="message">
+              <MessageSquareTextIcon data-icon="inline-start" />
+              Message
+            </TabsTrigger>
+            <TabsTrigger value="debug">
+              <WrenchIcon data-icon="inline-start" />
+              Debug
+            </TabsTrigger>
+          </TabsList>
+          <Badge variant={statusBadgeVariant(model.message.status)}>
+            {statusLabel(model.message.status)}
+          </Badge>
+        </div>
+        <TabsContent value="message" className="streaming-message-tab">
+          <StreamingMessageScrollerPanel>
+            <MessageScrollerItem messageId="streaming-message-primary" scrollAnchor>
+              <StreamingMessagePrimary model={model} emptyLabel={emptyLabel} footer={footer} />
+            </MessageScrollerItem>
+          </StreamingMessageScrollerPanel>
+        </TabsContent>
+        <TabsContent value="debug" className="streaming-message-tab">
+          <StreamingMessageScrollerPanel>
+            {model.debugSegments.length === 0 ? (
+              <MessageScrollerItem messageId="streaming-message-debug-empty">
+                <Marker variant="separator">
+                  <MarkerContent>{emptyLabel}</MarkerContent>
+                </Marker>
+              </MessageScrollerItem>
+            ) : (
+              model.debugSegments.map((segment) => (
+                <MessageScrollerItem
+                  key={`${segment.kind}-${segment.id}-${segmentFirstPartIndex(segment)}`}
+                  messageId={`streaming-message-debug-${segment.kind}-${segment.id}-${segmentFirstPartIndex(segment)}`}
+                  scrollAnchor={segment.kind === "text"}
+                >
+                  <StreamingDebugSegmentView segment={segment} footer={footer} />
+                </MessageScrollerItem>
+              ))
+            )}
+          </StreamingMessageScrollerPanel>
+        </TabsContent>
+      </Tabs>
+    </div>
   );
 }
 
-export {
-  StreamingMessageSegmentView,
-  StreamingMessageStream,
-  buildStreamingMessageSegments,
-  formatStreamingValue,
-  summarizeStreamingSegment,
-};
+export { StreamingMessageStream, buildStreamingMessageModel, formatStreamingValue, summarizeStreamingSegment };
 export type {
-  StreamingKnownMessagePart,
+  StreamingMessageModel,
   StreamingMessagePart,
-  StreamingMessagePartInput,
   StreamingMessageSegment,
+  StreamingSegmentStatus,
 };

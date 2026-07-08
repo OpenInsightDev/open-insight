@@ -1,8 +1,8 @@
 import type { Response, Tool } from "effect/unstable/ai";
 
-export type StreamingMessagePart = Response.StreamPart<Record<string, Tool.Any>>;
-export type StreamingKnownMessagePart = StreamingMessagePart | Response.StreamPartEncoded;
-export type StreamingMessagePartInput = unknown;
+export type StreamingMessagePart =
+  | Response.StreamPartEncoded
+  | Response.StreamPart<Record<string, Tool.Any>>;
 
 export type StreamingSegmentStatus =
   | "streaming"
@@ -78,28 +78,30 @@ export type StreamingMessageSegment =
   | StreamingSourceSegment
   | StreamingErrorSegment;
 
+export interface StreamingMessageView {
+  id: string;
+  text: string;
+  reasoning: string;
+  status: StreamingSegmentStatus;
+  partCount: number;
+  tools: Array<StreamingToolSegment>;
+  attachments: Array<StreamingAttachmentSegment>;
+  sources: Array<StreamingSourceSegment>;
+  errors: Array<StreamingErrorSegment>;
+}
+
+export interface StreamingMessageModel {
+  message: StreamingMessageView;
+  debugSegments: Array<StreamingMessageSegment>;
+}
+
 type MutableTextSegment = StreamingTextSegment;
 type MutableToolSegment = StreamingToolSegment;
 
 const fallbackId = (type: string, index: number): string => `${type}-${index}`;
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null;
-
-const stringField = (record: Record<string, unknown>, key: string): string | undefined => {
-  const value = record[key];
-  return typeof value === "string" ? value : undefined;
-};
-
-const booleanField = (record: Record<string, unknown>, key: string): boolean | undefined => {
-  const value = record[key];
-  return typeof value === "boolean" ? value : undefined;
-};
-
-const streamId = (record: Record<string, unknown>, fallback: string): string =>
-  stringField(record, "id") ?? fallback;
-
-const streamName = (record: Record<string, unknown>): string => stringField(record, "name") ?? "";
+const fallbackString = (value: string, fallback: string): string =>
+  value.length > 0 ? value : fallback;
 
 const byteLengthOf = (value: unknown): number => {
   if (value instanceof Uint8Array) {
@@ -110,7 +112,7 @@ const byteLengthOf = (value: unknown): number => {
     return value.length;
   }
 
-  if (isRecord(value)) {
+  if (typeof value === "object" && value !== null && "byteLength" in value) {
     const byteLength = value.byteLength;
     if (typeof byteLength === "number" && Number.isFinite(byteLength)) {
       return byteLength;
@@ -120,17 +122,8 @@ const byteLengthOf = (value: unknown): number => {
   return 0;
 };
 
-const urlString = (value: unknown): string => {
-  if (typeof value === "string") {
-    return value;
-  }
-
-  if (value instanceof URL) {
-    return value.href;
-  }
-
-  return "unknown url";
-};
+const urlString = (value: string | URL): string =>
+  typeof value === "string" ? value : value.href;
 
 const ensureTextSegment = (
   segments: Array<StreamingMessageSegment>,
@@ -185,37 +178,111 @@ const ensureToolSegment = (
   return segment;
 };
 
-export const buildStreamingMessageSegments = (
-  parts: ReadonlyArray<StreamingMessagePartInput>,
-): Array<StreamingMessageSegment> => {
+const segmentStatus = (segment: StreamingMessageSegment): StreamingSegmentStatus => {
+  switch (segment.kind) {
+    case "text":
+    case "reasoning":
+    case "tool":
+      return segment.status;
+    case "error":
+      return "failed";
+    case "attachment":
+    case "source":
+      return "complete";
+  }
+};
+
+const messageStatus = (
+  segments: ReadonlyArray<StreamingMessageSegment>,
+  sawFinish: boolean,
+): StreamingSegmentStatus => {
+  if (segments.some((segment) => segmentStatus(segment) === "failed")) {
+    return "failed";
+  }
+
+  if (segments.some((segment) => segmentStatus(segment) === "approval-required")) {
+    return "approval-required";
+  }
+
+  if (segments.some((segment) => segmentStatus(segment) === "streaming")) {
+    return "streaming";
+  }
+
+  if (segments.some((segment) => segmentStatus(segment) === "preliminary")) {
+    return "preliminary";
+  }
+
+  if (segments.some((segment) => segmentStatus(segment) === "ready")) {
+    return "ready";
+  }
+
+  return sawFinish || segments.length > 0 ? "complete" : "ready";
+};
+
+const joinSegmentText = (segments: ReadonlyArray<StreamingTextSegment>): string =>
+  segments
+    .map((segment) => segment.text.trim())
+    .filter((text) => text.length > 0)
+    .join("\n\n");
+
+const toolResultEncodedValue = (part: Extract<StreamingMessagePart, { type: "tool-result" }>) =>
+  "encodedResult" in part ? part.encodedResult : undefined;
+
+export const buildStreamingMessageModel = (
+  parts: ReadonlyArray<StreamingMessagePart>,
+): StreamingMessageModel => {
   const segments: Array<StreamingMessageSegment> = [];
+  const textSegments: Array<MutableTextSegment> = [];
+  const reasoningSegments: Array<MutableTextSegment> = [];
+  const toolSegments: Array<MutableToolSegment> = [];
+  const attachmentSegments: Array<StreamingAttachmentSegment> = [];
+  const sourceSegments: Array<StreamingSourceSegment> = [];
+  const errorSegments: Array<StreamingErrorSegment> = [];
   const textById = new Map<string, MutableTextSegment>();
   const reasoningById = new Map<string, MutableTextSegment>();
   const toolById = new Map<string, MutableToolSegment>();
   let sawFinish = false;
 
   parts.forEach((part, index) => {
-    if (!isRecord(part)) {
-      return;
-    }
-
-    const type = stringField(part, "type");
-
-    switch (type) {
+    switch (part.type) {
       case "text-start": {
-        const segment = ensureTextSegment(segments, textById, "text", streamId(part, "text"));
+        const segment = ensureTextSegment(
+          segments,
+          textById,
+          "text",
+          fallbackString(part.id, fallbackId("text", index)),
+        );
+        if (!textSegments.includes(segment)) {
+          textSegments.push(segment);
+        }
         segment.partIndexes.push(index);
         segment.status = "streaming";
         return;
       }
       case "text-delta": {
-        const segment = ensureTextSegment(segments, textById, "text", streamId(part, "text"));
-        segment.text += stringField(part, "delta") ?? "";
+        const segment = ensureTextSegment(
+          segments,
+          textById,
+          "text",
+          fallbackString(part.id, fallbackId("text", index)),
+        );
+        if (!textSegments.includes(segment)) {
+          textSegments.push(segment);
+        }
+        segment.text += part.delta;
         segment.partIndexes.push(index);
         return;
       }
       case "text-end": {
-        const segment = ensureTextSegment(segments, textById, "text", streamId(part, "text"));
+        const segment = ensureTextSegment(
+          segments,
+          textById,
+          "text",
+          fallbackString(part.id, fallbackId("text", index)),
+        );
+        if (!textSegments.includes(segment)) {
+          textSegments.push(segment);
+        }
         segment.partIndexes.push(index);
         segment.status = "complete";
         return;
@@ -225,8 +292,11 @@ export const buildStreamingMessageSegments = (
           segments,
           reasoningById,
           "reasoning",
-          streamId(part, "reasoning"),
+          fallbackString(part.id, fallbackId("reasoning", index)),
         );
+        if (!reasoningSegments.includes(segment)) {
+          reasoningSegments.push(segment);
+        }
         segment.partIndexes.push(index);
         segment.status = "streaming";
         return;
@@ -236,9 +306,12 @@ export const buildStreamingMessageSegments = (
           segments,
           reasoningById,
           "reasoning",
-          streamId(part, "reasoning"),
+          fallbackString(part.id, fallbackId("reasoning", index)),
         );
-        segment.text += stringField(part, "delta") ?? "";
+        if (!reasoningSegments.includes(segment)) {
+          reasoningSegments.push(segment);
+        }
+        segment.text += part.delta;
         segment.partIndexes.push(index);
         return;
       }
@@ -247,8 +320,11 @@ export const buildStreamingMessageSegments = (
           segments,
           reasoningById,
           "reasoning",
-          streamId(part, "reasoning"),
+          fallbackString(part.id, fallbackId("reasoning", index)),
         );
+        if (!reasoningSegments.includes(segment)) {
+          reasoningSegments.push(segment);
+        }
         segment.partIndexes.push(index);
         segment.status = "complete";
         return;
@@ -257,10 +333,13 @@ export const buildStreamingMessageSegments = (
         const segment = ensureToolSegment(
           segments,
           toolById,
-          streamId(part, fallbackId("tool", index)),
-          streamName(part),
-          booleanField(part, "providerExecuted") ?? false,
+          fallbackString(part.id, fallbackId("tool", index)),
+          part.name,
+          part.providerExecuted ?? false,
         );
+        if (!toolSegments.includes(segment)) {
+          toolSegments.push(segment);
+        }
         segment.status = "streaming";
         segment.partIndexes.push(index);
         return;
@@ -269,11 +348,14 @@ export const buildStreamingMessageSegments = (
         const segment = ensureToolSegment(
           segments,
           toolById,
-          streamId(part, fallbackId("tool", index)),
+          fallbackString(part.id, fallbackId("tool", index)),
           "",
           false,
         );
-        segment.paramsText += stringField(part, "delta") ?? "";
+        if (!toolSegments.includes(segment)) {
+          toolSegments.push(segment);
+        }
+        segment.paramsText += part.delta;
         segment.partIndexes.push(index);
         return;
       }
@@ -281,10 +363,13 @@ export const buildStreamingMessageSegments = (
         const segment = ensureToolSegment(
           segments,
           toolById,
-          streamId(part, fallbackId("tool", index)),
+          fallbackString(part.id, fallbackId("tool", index)),
           "",
           false,
         );
+        if (!toolSegments.includes(segment)) {
+          toolSegments.push(segment);
+        }
         segment.status = "ready";
         segment.partIndexes.push(index);
         return;
@@ -293,10 +378,13 @@ export const buildStreamingMessageSegments = (
         const segment = ensureToolSegment(
           segments,
           toolById,
-          streamId(part, fallbackId("tool", index)),
-          streamName(part),
-          booleanField(part, "providerExecuted") ?? false,
+          fallbackString(part.id, fallbackId("tool", index)),
+          part.name,
+          part.providerExecuted ?? false,
         );
+        if (!toolSegments.includes(segment)) {
+          toolSegments.push(segment);
+        }
         segment.params = part.params;
         segment.status = "ready";
         segment.partIndexes.push(index);
@@ -306,18 +394,17 @@ export const buildStreamingMessageSegments = (
         const segment = ensureToolSegment(
           segments,
           toolById,
-          streamId(part, fallbackId("tool", index)),
-          streamName(part),
-          booleanField(part, "providerExecuted") ?? false,
+          fallbackString(part.id, fallbackId("tool", index)),
+          part.name,
+          part.providerExecuted ?? false,
         );
+        if (!toolSegments.includes(segment)) {
+          toolSegments.push(segment);
+        }
         segment.result = part.result;
-        segment.encodedResult = part.encodedResult;
-        segment.isFailure = booleanField(part, "isFailure") ?? false;
-        segment.status = segment.isFailure
-          ? "failed"
-          : booleanField(part, "preliminary") === true
-            ? "preliminary"
-            : "complete";
+        segment.encodedResult = toolResultEncodedValue(part);
+        segment.isFailure = part.isFailure;
+        segment.status = part.isFailure ? "failed" : part.preliminary ? "preliminary" : "complete";
         segment.partIndexes.push(index);
         return;
       }
@@ -325,83 +412,110 @@ export const buildStreamingMessageSegments = (
         const segment = ensureToolSegment(
           segments,
           toolById,
-          stringField(part, "toolCallId") ?? fallbackId("tool", index),
+          fallbackString(part.toolCallId, fallbackId("tool", index)),
           "",
           false,
         );
-        segment.approvalId = stringField(part, "approvalId");
+        if (!toolSegments.includes(segment)) {
+          toolSegments.push(segment);
+        }
+        segment.approvalId = part.approvalId;
         segment.status = "approval-required";
         segment.partIndexes.push(index);
         return;
       }
-      case "file":
-        segments.push({
+      case "file": {
+        const segment: StreamingAttachmentSegment = {
           kind: "attachment",
           id: fallbackId("file", index),
-          mediaType: stringField(part, "mediaType") ?? "application/octet-stream",
+          mediaType: part.mediaType,
           byteLength: byteLengthOf(part.data),
           partIndexes: [index],
-        });
+        };
+        attachmentSegments.push(segment);
+        segments.push(segment);
         return;
-      case "source":
-        if (stringField(part, "sourceType") === "document") {
-          segments.push({
-            kind: "source",
-            sourceType: "document",
-            id: streamId(part, fallbackId("source", index)),
-            title: stringField(part, "title") ?? "Document source",
-            mediaType: stringField(part, "mediaType") ?? "application/octet-stream",
-            fileName: stringField(part, "fileName"),
-            partIndexes: [index],
-          });
-          return;
-        }
-
-        segments.push({
-          kind: "source",
-          sourceType: "url",
-          id: streamId(part, fallbackId("source", index)),
-          title: stringField(part, "title") ?? "URL source",
-          url: urlString(part.url),
-          partIndexes: [index],
-        });
+      }
+      case "source": {
+        const segment: StreamingSourceSegment =
+          part.sourceType === "document"
+            ? {
+                kind: "source",
+                sourceType: "document",
+                id: fallbackString(part.id, fallbackId("source", index)),
+                title: part.title,
+                mediaType: part.mediaType,
+                fileName: part.fileName,
+                partIndexes: [index],
+              }
+            : {
+                kind: "source",
+                sourceType: "url",
+                id: fallbackString(part.id, fallbackId("source", index)),
+                title: part.title,
+                url: urlString(part.url),
+                partIndexes: [index],
+              };
+        sourceSegments.push(segment);
+        segments.push(segment);
         return;
+      }
       case "response-metadata":
         return;
       case "finish":
         sawFinish = true;
         return;
-      case "error":
-        segments.push({
+      case "error": {
+        const segment: StreamingErrorSegment = {
           kind: "error",
           id: fallbackId("error", index),
           error: part.error,
           partIndexes: [index],
-        });
+        };
+        errorSegments.push(segment);
+        segments.push(segment);
         return;
+      }
     }
   });
 
   if (sawFinish) {
-    for (const segment of textById.values()) {
+    for (const segment of textSegments) {
       if (segment.status === "streaming") {
         segment.status = "complete";
       }
     }
-    for (const segment of reasoningById.values()) {
+    for (const segment of reasoningSegments) {
       if (segment.status === "streaming") {
         segment.status = "complete";
       }
     }
-    for (const segment of toolById.values()) {
+    for (const segment of toolSegments) {
       if (segment.status === "streaming") {
         segment.status = "ready";
       }
     }
   }
 
-  return segments;
+  return {
+    message: {
+      id: "assistant",
+      text: joinSegmentText(textSegments),
+      reasoning: joinSegmentText(reasoningSegments),
+      status: messageStatus(segments, sawFinish),
+      partCount: parts.length,
+      tools: toolSegments,
+      attachments: attachmentSegments,
+      sources: sourceSegments,
+      errors: errorSegments,
+    },
+    debugSegments: segments,
+  };
 };
+
+export const buildStreamingMessageSegments = (
+  parts: ReadonlyArray<StreamingMessagePart>,
+): Array<StreamingMessageSegment> => buildStreamingMessageModel(parts).debugSegments;
 
 export const formatStreamingValue = (value: unknown): string => {
   if (value === undefined) {
@@ -416,8 +530,12 @@ export const formatStreamingValue = (value: unknown): string => {
     return String(value);
   }
 
-  const serialized = JSON.stringify(value, null, 2);
-  return serialized ?? "[unserializable]";
+  try {
+    const serialized = JSON.stringify(value, null, 2);
+    return serialized ?? "[unserializable]";
+  } catch {
+    return "[unserializable]";
+  }
 };
 
 export const summarizeStreamingSegment = (segment: StreamingMessageSegment): string => {

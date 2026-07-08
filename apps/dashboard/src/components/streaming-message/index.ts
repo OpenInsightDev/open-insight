@@ -1,13 +1,12 @@
 export {
-  StreamingMessageSegmentView,
   StreamingMessageStream,
-  buildStreamingMessageSegments,
+  buildStreamingMessageModel,
   formatStreamingValue,
   summarizeStreamingSegment,
 } from "./streaming-message.tsx";
 export type {
-  StreamingKnownMessagePart,
+  StreamingMessageModel,
   StreamingMessagePart,
-  StreamingMessagePartInput,
   StreamingMessageSegment,
+  StreamingSegmentStatus,
 } from "./streaming-message.tsx";

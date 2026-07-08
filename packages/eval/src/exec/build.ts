@@ -26,7 +26,7 @@ export const make = Effect.fn(function* <T extends Task.Task>({
   harness,
   trailCount = 1,
   metrics,
-}: Options<T>): Effect.fn.Return<Executor<T>, never, EventTransportService> {
+}: Options<T>): Effect.fn.Return<Executor<T>, never> {
   const transport = yield* Effect.serviceOption(EventTransportService);
 
   return {

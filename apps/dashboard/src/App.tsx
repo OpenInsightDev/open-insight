@@ -69,11 +69,7 @@ import {
 } from "@/components/ui/message-scroller.tsx";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs.tsx";
 import { TooltipProvider } from "@/components/ui/tooltip.tsx";
-import {
-  StreamingMessageSegmentView,
-  StreamingMessageStream,
-  buildStreamingMessageSegments,
-} from "@/components/streaming-message/index.ts";
+import { StreamingMessageStream } from "@/components/streaming-message/index.ts";
 import {
   selectBenchmarkTasks,
   selectTaskTrails,
