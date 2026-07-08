@@ -1,5 +1,5 @@
 import type * as Grade from "./grade/index.ts";
-import { Sandbox } from "@open-insight/core/internal";
+import { Sandbox, Snapshot } from "@open-insight/core/internal";
 import { Effect, Schema, type Scope } from "effect";
 import { Prompt } from "effect/unstable/ai";
 import { TaskError } from "./error.ts";
@@ -24,7 +24,7 @@ export type Options<
     name: string;
     prompt: ReadonlyArray<Prompt.UserMessage>;
     grader: Grade.Grader<G>;
-    snapshot: Sandbox.Snapshot.Snapshot;
+    snapshot: Snapshot.Snapshot;
 
     description?: string;
     keywords?: ReadonlyArray<string>;
@@ -40,7 +40,7 @@ export class Task<G extends Schema.JsonObject = any, Extra extends Schema.JsonOb
   resources: Sandbox.ResourceLimits | null;
   prompt: ReadonlyArray<Prompt.UserMessage>;
   grader: Grade.Grader<G>;
-  snapshot: Sandbox.Snapshot.Snapshot;
+  snapshot: Snapshot.Snapshot;
 
   constructor({
     name,

@@ -1,7 +1,6 @@
-import * as Sandbox from "@/sandbox/index.ts";
+import * as Sandbox from "@/sandbox/export.ts";
+import * as Snapshot from "@/snapshot/export.ts";
 import { Spawn, Bash } from "@/utils/index.ts";
-import * as Provider from "@/sandbox/provider/index.ts";
-import * as Snapshot from "@/sandbox/snapshot/index.ts";
 import { Crypto, Effect, FileSystem, Stream } from "effect";
 import { ChildProcess as CP } from "effect/unstable/process";
 import { makeRuntime } from "./utils.ts";
@@ -44,7 +43,7 @@ export const make = Effect.fn("sandbox/provider/docker")(
   function* ({
     portMappings = [],
   }: MakeOptions): Effect.fn.Return<
-    Provider.Provider,
+    Sandbox.Provider,
     Sandbox.Error,
     Crypto.Crypto | FileSystem.FileSystem | Spawn.SpawnService
   > {
@@ -100,7 +99,7 @@ export const make = Effect.fn("sandbox/provider/docker")(
           Effect.provideService(Crypto.Crypto, crypto),
           Effect.mapError(Sandbox.Error.snapshotBuild(snapshot)),
         ),
-    ) satisfies Provider.Provider["aquireSnapshot"];
+    ) satisfies Sandbox.Provider["aquireSnapshot"];
 
     const deriveSnapshot = Effect.fn(
       function* ({ handle, context, instructions, cache }) {
@@ -136,7 +135,7 @@ export const make = Effect.fn("sandbox/provider/docker")(
           Effect.provideService(Crypto.Crypto, crypto),
           Effect.mapError(Sandbox.Error.snapshotDerive(handle.name, instructions)),
         ),
-    ) satisfies Provider.Provider["deriveSnapshot"];
+    ) satisfies Sandbox.Provider["deriveSnapshot"];
 
     const runSandbox = Effect.fn(
       function* ({ handle, resources }) {
@@ -257,13 +256,13 @@ export const make = Effect.fn("sandbox/provider/docker")(
           Effect.provideService(Spawn.SpawnService, spawner),
           Effect.provideService(Crypto.Crypto, crypto),
         ),
-    ) satisfies Provider.Provider["runSandbox"];
+    ) satisfies Sandbox.Provider["runSandbox"];
 
     return {
       aquireSnapshot,
       deriveSnapshot,
       runSandbox,
-    } satisfies Provider.Provider;
+    } satisfies Sandbox.Provider;
   },
   (effect) => effect.pipe(Effect.provide(Spawn.SpawnService.layer)),
 );

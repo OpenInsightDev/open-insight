@@ -1,9 +1,9 @@
 import * as Sandbox from "@/sandbox/index.ts";
+import * as Snapshot from "@/snapshot/index.ts";
 import { Context, Effect, Option, Stream } from "effect";
 import { Prompt, Response } from "effect/unstable/ai";
 import { type AgentError } from "./error.ts";
 import type { Prompt as Trajectory } from "effect/unstable/ai/Prompt";
-import { Snapshot } from "@/sandbox/index.ts";
 
 export type StreamPart = Response.StreamPart<never>;
 
@@ -16,7 +16,7 @@ export type Agent = Readonly<{
 
 export type SnapshotExtension = Readonly<{
   instructions: Snapshot.Instructions;
-  context?: Sandbox.Snapshot.Context.Context;
+  context?: Snapshot.Context.Context;
 }>;
 
 export type Provider = Readonly<{

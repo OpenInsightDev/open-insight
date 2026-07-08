@@ -1,7 +1,7 @@
 import { Schema } from "effect";
 import { Assertion } from "./assert/schema.ts";
-import { Snapshot } from "./snapshot/index.ts";
-import { Instruction, Instructions } from "./snapshot/inst.ts";
+import { Snapshot } from "../snapshot/index.ts";
+import { Instruction, Instructions } from "../snapshot/inst.ts";
 
 export class SnapshotBuildError extends Schema.TaggedErrorClass<SnapshotBuildError>()(
   "SnapshotBuildError",

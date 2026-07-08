@@ -1,8 +1,8 @@
 import { Context, Effect, type Scope } from "effect";
-import type { Error } from "../error.ts";
-import type { ResourceLimits } from "../resource.ts";
-import type { Sandbox } from "../sandbox/index.ts";
-import * as Snapshot from "../snapshot/index.ts";
+import type { Error } from "./error.ts";
+import type { ResourceLimits } from "./resource.ts";
+import type { Sandbox } from "./sandbox/index.ts";
+import * as Snapshot from "@/snapshot/index.ts";
 
 export type Provider = Readonly<{
   /**
