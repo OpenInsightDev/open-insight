@@ -100,7 +100,7 @@ export const buildReduce = ({ name, exec }: { name: string; exec: ReduceExec }) 
     return TaskOutput.make({
       name,
       task: task.metadata,
-      result: [result],
+      result: result,
     });
   });
 };
@@ -116,7 +116,7 @@ export const buildEach = ({ name, exec }: { name: string; exec: EachExec }) =>
     return TaskOutput.make({
       name,
       task: task.metadata,
-      result: [result],
+      result: result,
     });
   });
 
@@ -151,7 +151,7 @@ export const buildAll = ({
     return TaskOutput.make({
       name,
       task: task.metadata,
-      result: [result],
+      result: result,
     });
   });
 };
