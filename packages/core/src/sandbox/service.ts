@@ -1,6 +1,6 @@
 import { Context, Effect, type Scope } from "effect";
 import type { Error } from "./error.ts";
-import type { ResourceLimits } from "./resource.ts";
+import type { Resources } from "./resource.ts";
 import type { Sandbox } from "./sandbox/index.ts";
 import * as Snapshot from "@/snapshot/index.ts";
 
@@ -41,7 +41,7 @@ export type Provider = Readonly<{
   runSandbox(
     options: Readonly<{
       handle: Snapshot.Handle.Handle;
-      resources: ResourceLimits | null;
+      resources: Resources | null;
     }>,
   ): Effect.Effect<Sandbox, Error, Scope.Scope>;
 }>;

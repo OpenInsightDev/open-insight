@@ -14,28 +14,33 @@ export type MakeOptions = Readonly<{
   portMappings?: Array<PortMapping>;
 }>;
 
-const formatResources = (resources: Sandbox.ResourceLimits | null): Array<string> => {
+const formatResources = (resources: Sandbox.Resources | null): Array<string> => {
   if (!resources) {
     return [];
   }
 
-  const { numCPUs, memoryMiB, numGPUs, storageMiB } = resources;
+  const { numCPUs, memoryMiB, numGPUs, storageMiB, network } = resources;
   const resourceArgs: Array<string> = [];
-  if (numCPUs !== undefined) {
+  if (!Sandbox.isUnlimited(numCPUs)) {
     resourceArgs.push("--cpus", `${numCPUs}`);
   }
 
-  if (memoryMiB !== undefined) {
+  if (!Sandbox.isUnlimited(memoryMiB)) {
     resourceArgs.push("--memory", `${memoryMiB}m`);
   }
 
-  if (numGPUs !== undefined && numGPUs > 0) {
+  if (!Sandbox.isUnlimited(numGPUs)) {
     resourceArgs.push("--gpus", `count=${numGPUs}`);
   }
 
-  if (storageMiB !== undefined) {
+  if (!Sandbox.isUnlimited(storageMiB)) {
     resourceArgs.push("--storage-opt", `size=${storageMiB}m`);
   }
+
+  if (!network) {
+    resourceArgs.push("--network", "none");
+  }
+
   return resourceArgs;
 };
 
