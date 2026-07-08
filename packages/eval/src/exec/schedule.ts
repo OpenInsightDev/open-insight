@@ -13,7 +13,7 @@ import {
   Stream,
 } from "effect";
 import type { Config } from "./config.ts";
-import * as Task from "../task/index.ts";
+import * as Task from "@/task/index.ts";
 import * as Metric from "@/metric/index.ts";
 import { createTrail } from "./trail.ts";
 import { Error } from "./error.ts";
@@ -101,18 +101,12 @@ export const run = Effect.fn("exec/schedule")(
     | Path.Path
     | Scope.Scope
   > {
-    if (!Number.isInteger(trailCount) || trailCount <= 0) {
-      return yield* Effect.fail(
-        Error.init(new Error(`trailCount must be a positive integer, got ${trailCount}`)),
-      );
-    }
-
     const metricQueue = yield* Queue.bounded<Metric.Input, Cause.Done>(128);
     const eventQueue = yield* Queue.bounded<Event, Cause.Done>(128);
     const transport = yield* Effect.serviceOption(EventTransportService);
 
     // TODO reasonable default config values
-    const { snapshotConcurrency = 32, trailConcurrency = 32 } = config;
+    const { snapshotConcurrency = 32, trailConcurrency = 32, verif } = config;
     const snapshotSem = yield* Semaphore.make(snapshotConcurrency);
     const snapshotCountdown = yield* Countdown.make(benchmark.tasks.length);
     const trailSem = yield* Semaphore.make(trailConcurrency);
@@ -160,6 +154,10 @@ export const run = Effect.fn("exec/schedule")(
 
         const fibers: Array<Fiber.Fiber<void, Error>> = [];
 
+        if (verif) {
+          yield* Effect.logDebug("Running single verification trail");
+          trailCount = 1;
+        }
         for (const trailIndex of range(0, trailCount - 1)) {
           yield* Effect.logDebug(`Forking trail ${trailIndex}`);
           const fiber = yield* trail
@@ -197,7 +195,11 @@ export const run = Effect.fn("exec/schedule")(
         metricStream
           .pipe(
             Stream.tap((input) => Ref.update(result, updateTrailResult(input))),
-            Metric.transform({ metrics, trailCount, taskCount: benchmark.tasks.length }),
+            Metric.transform({
+              metrics,
+              trailCount,
+              taskCount: benchmark.tasks.length,
+            }),
             Stream.tap((output) => Ref.update(result, updateMetricResult(output))),
             Stream.tap((output) =>
               offerEvent(MetricsStreamEvent.make({ bench: benchmark.name, output })),

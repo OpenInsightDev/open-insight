@@ -24,6 +24,14 @@ export class TaskExecError extends Schema.TaggedErrorClass<TaskExecError>()("Tas
   cause: Schema.Defect(),
 }) {}
 
+export class TaskVerifExecError extends Schema.TaggedErrorClass<TaskVerifExecError>()(
+  "TaskVerifExecError",
+  {
+    task: Task.Metadata,
+    cause: Schema.Defect(),
+  },
+) {}
+
 export class TaskVerifFailed extends Schema.TaggedErrorClass<TaskVerifFailed>()("TaskVerifFailed", {
   task: Task.Metadata,
   expected: Task.Grade.Result,
@@ -63,6 +71,7 @@ export const ErrorReason = Schema.Union([
   TaskInitError,
   TaskExecError,
   TaskVerifFailed,
+  TaskVerifExecError,
   Metric.MetricError,
 ]);
 export type ErrorReason = Schema.Schema.Type<typeof ErrorReason>;
@@ -70,74 +79,38 @@ export type ErrorReason = Schema.Schema.Type<typeof ErrorReason>;
 export class Error extends Schema.TaggedErrorClass<Error>()("ExecError", {
   reason: ErrorReason,
 }) {
-  static init = (cause: unknown) => new Error({ reason: new InitError({ cause }) });
+  static mapUnknownError = (mapper: (cause: unknown) => ErrorReason) => (cause: unknown) =>
+    cause instanceof Error ? cause : new Error({ reason: mapper(cause) });
 
-  static taskLoad = (cause: unknown) => new Error({ reason: new TaskLoadError({ cause }) });
+  static init = this.mapUnknownError((cause) => new InitError({ cause }));
 
-  static eventTransportInit =
-    ({ transport, url }: { transport: string; url: string }) =>
-    (cause: unknown) =>
-      this.make({
-        reason: EventTransportInitError.make({
-          transport,
-          url,
-          cause,
-        }),
-      });
+  static taskLoad = this.mapUnknownError((cause) => new TaskLoadError({ cause }));
 
-  static eventTransport =
-    ({ transport }: { transport: string }) =>
-    (cause: unknown) =>
-      this.make({
-        reason: EventTransportError.make({
-          transport,
-          cause,
-        }),
-      });
+  static eventTransportInit = (transport: string, url: string) =>
+    this.mapUnknownError((cause) => new EventTransportInitError({ transport, url, cause }));
 
-  static snapshot =
-    ({ task }: { task: Task.Task }) =>
-    (cause: unknown) =>
-      new Error({
-        reason: new SnapshotError({
-          task: task.metadata,
-          snapshot: task.snapshot,
-          cause,
-        }),
-      });
+  static eventTransport = (transport: string) =>
+    this.mapUnknownError((cause) => new EventTransportError({ transport, cause }));
 
-  static taskInit =
-    ({ task }: { task: Task.Metadata }) =>
-    (cause: unknown) =>
-      new Error({
-        reason: new TaskInitError({
-          task,
-          cause,
-        }),
-      });
+  static snapshot = (task: Task.Task) =>
+    this.mapUnknownError(
+      (cause) => new SnapshotError({ task: task.metadata, snapshot: task.snapshot, cause }),
+    );
 
-  static taskExec =
-    ({ task, trailIndex }: { task: Task.Metadata; trailIndex: number }) =>
-    (cause: unknown) =>
-      new Error({
-        reason: new TaskExecError({
-          task,
-          trailIndex,
-          cause,
-        }),
-      });
+  static taskInit = (task: Task.Task) =>
+    this.mapUnknownError((cause) => new TaskInitError({ task: task.metadata, cause }));
 
-  static taskVerif =
-    (task: Task.Metadata, expected: Task.Grade.Result, actual: Task.Grade.Result) =>
-    (cause: unknown) =>
-      new Error({
-        reason: new TaskVerifFailed({
-          task,
-          expected,
-          actual,
-          cause,
-        }),
-      });
+  static taskExec = (task: Task.Task, trailIndex: number) =>
+    this.mapUnknownError((cause) => new TaskExecError({ task: task.metadata, trailIndex, cause }));
+
+  static taskVerif = (
+    task: Task.Metadata,
+    expected: Task.Grade.Result,
+    actual: Task.Grade.Result,
+  ) => this.mapUnknownError((cause) => new TaskVerifFailed({ task, expected, actual, cause }));
+
+  static taskVerifExec = (task: Task.Task) =>
+    this.mapUnknownError((cause) => new TaskVerifExecError({ task: task.metadata, cause }));
 
   static metric = (cause: Metric.MetricError) => new Error({ reason: cause });
 }

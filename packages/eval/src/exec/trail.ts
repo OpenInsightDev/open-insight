@@ -1,4 +1,4 @@
-import { Effect, FileSystem, Option, Path, Queue, Ref, Scope, Stream } from "effect";
+import { Effect, Equal, FileSystem, Option, Path, Queue, Ref, Scope, Stream } from "effect";
 import * as Task from "../task/index.ts";
 import * as Metric from "../metric/index.ts";
 import { Agent, Sandbox } from "@open-insight/core";
@@ -11,7 +11,7 @@ import type { Config } from "./config.ts";
 export const createTrail = Effect.fn("exec/createTrail")(
   function* ({
     task,
-    config: { sandbox: { cacheAgentSnapshot, cacheTaskSnapshot } = {} } = {},
+    config: { verif = false, sandbox: { cacheAgentSnapshot, cacheTaskSnapshot } = {} } = {},
     metricQueue,
     eventQueue,
   }: {
@@ -29,11 +29,17 @@ export const createTrail = Effect.fn("exec/createTrail")(
     | Path.Path
     | Scope.Scope
   > {
-    const { snapshot, resources, prompt, grader } = task;
+    const { snapshot, resources, prompt, grader, verifier } = task;
 
     yield* Effect.annotateCurrentSpan({
       taskName: task.name,
     });
+
+    if (verif && verifier === undefined) {
+      yield* Effect.logDebug("Skipping task without verifier");
+      return Effect.void;
+    }
+
     yield* Effect.logDebug("Preparing derived snapshot");
 
     const sandboxProvider = yield* Sandbox.ProviderService;
@@ -41,22 +47,24 @@ export const createTrail = Effect.fn("exec/createTrail")(
 
     const taskSnapshot = yield* sandboxProvider
       .aquireSnapshot({ snapshot, cache: cacheTaskSnapshot })
-      .pipe(Effect.mapError(Error.taskInit({ task: task.metadata })));
+      .pipe(Effect.mapError(Error.taskInit(task)));
 
-    const agentSnapshot = yield* agentProvider.snapshotExtension.pipe(
-      Option.match({
-        onSome: ({ instructions, context: extendContext }) =>
-          sandboxProvider
-            .deriveSnapshot({
-              handle: taskSnapshot,
-              instructions,
-              context: extendContext ?? snapshot.context,
-              cache: cacheAgentSnapshot,
-            })
-            .pipe(Effect.mapError(Error.taskInit({ task: task.metadata }))),
-        onNone: () => Effect.succeed(taskSnapshot),
-      }),
-    );
+    const agentSnapshot = verif
+      ? taskSnapshot
+      : yield* agentProvider.snapshotExtension.pipe(
+          Option.match({
+            onSome: ({ instructions, context: extendContext }) =>
+              sandboxProvider
+                .deriveSnapshot({
+                  handle: taskSnapshot,
+                  instructions,
+                  context: extendContext ?? snapshot.context,
+                  cache: cacheAgentSnapshot,
+                })
+                .pipe(Effect.mapError(Error.taskInit(task))),
+            onNone: () => Effect.succeed(taskSnapshot),
+          }),
+        );
 
     yield* Effect.logDebug("Prepared derived snapshot");
 
@@ -73,7 +81,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
 
         const sandbox = yield* sandboxProvider
           .runSandbox({ handle: agentSnapshot, resources })
-          .pipe(Effect.mapError(Error.taskExec({ task: task.metadata, trailIndex })));
+          .pipe(Effect.mapError(Error.taskExec(task, trailIndex)));
 
         yield* Effect.logDebug("Sandbox is ready, Starting trail execution");
 
@@ -146,15 +154,70 @@ export const createTrail = Effect.fn("exec/createTrail")(
       (effect, trailIndex) =>
         effect.pipe(
           Effect.annotateLogs({ taskName: task.name, trailIndex }),
-          Effect.mapError(Error.taskExec({ task: task.metadata, trailIndex })),
+          Effect.mapError(Error.taskExec(task, trailIndex)),
         ),
+    );
+
+    const runVerifTrail = Effect.fn(
+      function* (trailIndex: number) {
+        if (verifier === undefined) {
+          return;
+        }
+
+        yield* Effect.annotateCurrentSpan({
+          taskName: task.name,
+          trailIndex,
+        });
+
+        yield* Effect.logDebug("Starting sandbox for verifier");
+        const sandbox = yield* sandboxProvider
+          .runSandbox({ handle: taskSnapshot, resources })
+          .pipe(Effect.mapError(Error.taskExec(task, trailIndex)));
+
+        yield* Effect.logDebug("Running verifier");
+        const trajectory = yield* Effect.tryPromise({
+          try: () => verifier.exec(Sandbox.asPromise(sandbox)),
+          catch: Error.taskExec(task, trailIndex),
+        }).pipe(Effect.mapError(Error.taskVerifExec(task)));
+
+        yield* Effect.logDebug("Starting verifier");
+        const gradeResults = yield* Task.Grade.run(grader)({
+          trajectory,
+          ...Sandbox.asPromise(sandbox),
+        });
+        yield* Effect.logDebug("Completed verifier");
+
+        if (!Equal.equals(gradeResults, verifier.expected)) {
+          return yield* Effect.fail(
+            Error.taskVerif(
+              task.metadata,
+              verifier.expected,
+              gradeResults,
+            )(new globalThis.Error("Verifier result did not match expected result")),
+          );
+        }
+
+        yield* Queue.offer(metricQueue, {
+          task,
+          trailIndex,
+          trajectory,
+          delta: Metric.Grade({ result: gradeResults }),
+        });
+        yield* Effect.logDebug("Published verifier grade metric delta");
+      },
+      (effect, trailIndex) =>
+        effect
+          .pipe(Effect.mapError(Error.taskExec(task, trailIndex)))
+          .pipe(Effect.annotateLogs({ taskName: task.name, trailIndex })),
     );
 
     const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
     return Effect.gen(function* () {
       const trailIndex = yield* Ref.getAndUpdate(nextTrailIndex, (n) => n + 1);
       yield* Effect.logDebug(`Starting trail ${trailIndex}`);
-      yield* runTrail(trailIndex)
+
+      const run = verif ? runVerifTrail : runTrail;
+      yield* run(trailIndex)
         .pipe(
           Effect.provideService(Agent.ProviderService, agentProvider),
           Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner),

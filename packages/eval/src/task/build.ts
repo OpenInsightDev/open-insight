@@ -44,12 +44,14 @@ export class Task<G extends Schema.JsonObject = any, Extra extends Schema.JsonOb
   resources: Sandbox.Resources;
   prompt: ReadonlyArray<Prompt.UserMessage>;
   grader: Grade.Grader<G>;
+  verifier?: Verif.Verifier<G>;
   snapshot: Snapshot.Snapshot;
 
   constructor({
     name,
     prompt,
     grader,
+    verifier,
     snapshot,
     description,
     keywords,
@@ -59,6 +61,7 @@ export class Task<G extends Schema.JsonObject = any, Extra extends Schema.JsonOb
   }: Options<G, Extra>) {
     this.prompt = prompt;
     this.grader = grader;
+    this.verifier = verifier;
     this.snapshot = snapshot;
     this.metadata = Metadata.make({
       name,
