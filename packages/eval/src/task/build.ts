@@ -41,7 +41,7 @@ export class Task<G extends Schema.JsonObject = any, Extra extends Schema.JsonOb
   static readonly TypeId: TypeId = TypeId;
 
   metadata: Metadata;
-  resources: Sandbox.Resources | null;
+  resources: Sandbox.Resources;
   prompt: ReadonlyArray<Prompt.UserMessage>;
   grader: Grade.Grader<G>;
   snapshot: Snapshot.Snapshot;
@@ -67,7 +67,7 @@ export class Task<G extends Schema.JsonObject = any, Extra extends Schema.JsonOb
       authors: authors ?? null,
       extra: extra ?? null,
     });
-    this.resources = resources ?? Sandbox.Resources.default;
+    this.resources = resources ?? new Sandbox.Resources();
   }
 
   get name(): string {

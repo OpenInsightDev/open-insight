@@ -72,9 +72,4 @@ export class Resources extends Schema.Class<Resources>("Resources")({
    * Defaults to `600`.
    */
   runTimeoutSec: UnlimitedInt.pipe(Schema.withConstructorDefault(Effect.succeed(600))),
-}) {
-  /**
-   * Default resource limits for a sandbox.
-   */
-  static default = this.make({});
-}
+}) {}
