@@ -1,4 +1,5 @@
 import type * as Grade from "./grade/index.ts";
+import * as Verif from "./verif/index.ts";
 import { Sandbox, Snapshot } from "@open-insight/core/internal";
 import { Effect, Schema, type Scope } from "effect";
 import { Prompt } from "effect/unstable/ai";
@@ -24,20 +25,23 @@ export type Options<
     name: string;
     prompt: ReadonlyArray<Prompt.UserMessage>;
     grader: Grade.Grader<G>;
+    verifier?: Verif.Verifier<G>;
     snapshot: Snapshot.Snapshot;
 
     description?: string;
     keywords?: ReadonlyArray<string>;
     authors?: ReadonlyArray<string>;
-    resources?: Sandbox.ResourceLimits;
-  } & ([Extra] extends [never] ? { extra?: never } : { extra: Extra })
+    resources?: Sandbox.Resources;
+  } &
+    // if extra not specified, we don't require it to be present
+    ([Extra] extends [never] ? { extra?: never } : { extra: Extra })
 >;
 
 export class Task<G extends Schema.JsonObject = any, Extra extends Schema.JsonObject = any> {
   static readonly TypeId: TypeId = TypeId;
 
   metadata: Metadata;
-  resources: Sandbox.ResourceLimits | null;
+  resources: Sandbox.Resources | null;
   prompt: ReadonlyArray<Prompt.UserMessage>;
   grader: Grade.Grader<G>;
   snapshot: Snapshot.Snapshot;
@@ -63,7 +67,7 @@ export class Task<G extends Schema.JsonObject = any, Extra extends Schema.JsonOb
       authors: authors ?? null,
       extra: extra ?? null,
     });
-    this.resources = resources ?? Sandbox.ResourceLimits.default;
+    this.resources = resources ?? Sandbox.Resources.default;
   }
 
   get name(): string {

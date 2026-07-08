@@ -10,4 +10,6 @@ export type Config = Readonly<{
   readonly snapshotConcurrency?: number;
   readonly taskConcurrency?: number;
   readonly trailConcurrency?: number;
+
+  readonly verif?: boolean;
 }>;

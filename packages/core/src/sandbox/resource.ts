@@ -12,7 +12,7 @@ export const isUnlimited = Schema.is(Unlimited);
 const UnlimitedNumber = Schema.Union([NonNegativeNumber, Unlimited]);
 const UnlimitedInt = Schema.Union([NonNegativeInt, Unlimited]);
 
-export class Resources extends Schema.Class<Resources>("ResourceLimits")({
+export class Resources extends Schema.Class<Resources>("Resources")({
   /**
    * The number of CPUs allocated to the sandbox.
    *
