@@ -1,5 +1,11 @@
 # @open-insight/core
 
+## 0.0.16
+
+### Patch Changes
+
+- patch
+
 ## 0.0.15
 
 ### Patch Changes
