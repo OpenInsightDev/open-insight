@@ -20,12 +20,6 @@ export const Instruction = Schema.TaggedUnion({
     src: Schema.Array(Schema.String),
     dest: Schema.String,
   },
-  Cmd: {
-    cmd: Schema.Array(Schema.String),
-  },
-  Entrypoint: {
-    cmd: Schema.Array(Schema.String),
-  },
 });
 export type Instruction = Schema.Schema.Type<typeof Instruction>;
 
@@ -47,11 +41,6 @@ export const env = (env: Record<string, string>): Instruction =>
 
 export const copy = (src: string[], dest: string): Instruction =>
   Instruction.make({ _tag: "Copy", src, dest });
-
-export const cmd = (cmd: string[]): Instruction => Instruction.make({ _tag: "Cmd", cmd });
-
-export const entrypoint = (cmd: string[]): Instruction =>
-  Instruction.make({ _tag: "Entrypoint", cmd });
 
 export const Instructions = Schema.Array(Instruction);
 export type Instructions = Schema.Schema.Type<typeof Instructions>;

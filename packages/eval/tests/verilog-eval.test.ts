@@ -9,14 +9,14 @@ import * as fs from "fs/promises";
 import * as path from "node:path";
 import { assert, it } from "@effect/vitest";
 
-class VETask extends Task.Task<{ simPass: boolean }, { category: string }> {}
-
 const datasetDirName = "dataset_spec-to-rtl";
 const promptSuffix = "_prompt.txt";
 const debugLogPath = path.join(import.meta.dirname, ".logs", "verilog-eval.debug.log");
 
 const hasNoMismatches = (output: string): boolean =>
   /Mismatches:\s*0\s+in\s+\d+\s+samples/.test(output);
+
+class VETask extends Task.Task<{ simPass: boolean }, { category: string }> {}
 
 async function* loadTasks(repoPath: string): AsyncIterable<VETask> {
   const datasetDir = path.join(repoPath, datasetDirName);
