@@ -254,9 +254,10 @@ export const createTrail = Effect.fn("exec/createTrail")(
           `Prompt stream completed with ${trajectory.content.length} trajectory message(s)`,
         );
 
+        const sandboxPromise = yield* Sandbox.asPromise(sandbox);
         const ctx = {
           trajectory,
-          ...Sandbox.asPromise(sandbox),
+          ...sandboxPromise,
         } satisfies Task.Grade.Context;
 
         yield* Effect.logDebug(`Starting graders`);
@@ -295,15 +296,16 @@ export const createTrail = Effect.fn("exec/createTrail")(
           .pipe(Effect.mapError(Error.taskExec(task, trailIndex)));
 
         yield* Effect.logDebug("Running verifier");
+        const sandboxPromise = yield* Sandbox.asPromise(sandbox);
         const trajectory = yield* Effect.tryPromise({
-          try: () => verifier.exec(Sandbox.asPromise(sandbox)),
+          try: () => verifier.exec(sandboxPromise),
           catch: Error.taskExec(task, trailIndex),
         }).pipe(Effect.mapError(Error.taskVerifExec(task)));
 
         yield* Effect.logDebug("Starting verifier");
         const gradeResults = yield* Task.Grade.run(grader)({
           trajectory,
-          ...Sandbox.asPromise(sandbox),
+          ...sandboxPromise,
         });
         yield* Effect.logDebug("Completed verifier");
 

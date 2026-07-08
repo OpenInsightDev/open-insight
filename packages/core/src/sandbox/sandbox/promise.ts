@@ -1,5 +1,6 @@
-import { Effect } from "effect";
+import { Effect, FiberSet } from "effect";
 import { ChildProcess as CP } from "effect/unstable/process";
+import type { Error } from "../error.ts";
 import type { Sandbox } from "./index.ts";
 
 export type SandboxPromise = Readonly<{
@@ -26,35 +27,36 @@ export type SandboxPromise = Readonly<{
   ): Promise<{ hostUrl: string }>;
 }>;
 
-export const asPromise = (sandbox: Sandbox): SandboxPromise => {
+export const asPromise = Effect.fn(function* (sandbox: Sandbox) {
+  const runPromise = yield* FiberSet.makeRuntimePromise<never, unknown, Error>();
+
+  // TODO use /bin/sh '$SHELL' -c '...' to run commands
   const $ = ((first: TemplateStringsArray | CP.CommandOptions, ...values: any[]) => {
     if (Array.isArray(first) && "raw" in first) {
-      return Effect.runPromise(sandbox.$(CP.make(first, ...values)));
+      return runPromise(sandbox.$(CP.make(first, ...values)));
     }
     const commandMaker = CP.make(first as CP.CommandOptions);
     return (strings: TemplateStringsArray, ...vals: any[]) =>
-      Effect.runPromise(sandbox.$(commandMaker(strings, ...vals)));
+      runPromise(sandbox.$(commandMaker(strings, ...vals)));
   }) as SandboxPromise["$"];
 
   const cmd: SandboxPromise["cmd"] = (options) =>
-    Effect.runPromise(
+    runPromise(
       sandbox.$(
         CP.make(options.command, options.args ?? [], { cwd: options.cwd, env: options.env }),
       ),
     ).then((stdout) => ({ stdout, stderr: "" }));
 
-  const readFile: SandboxPromise["readFile"] = (options) =>
-    Effect.runPromise(sandbox.readFile(options));
+  const readFile: SandboxPromise["readFile"] = (options) => runPromise(sandbox.readFile(options));
 
   const writeFile: SandboxPromise["writeFile"] = (options) =>
-    Effect.runPromise(sandbox.writeFile(options));
+    runPromise(sandbox.writeFile(options));
 
-  const download: SandboxPromise["download"] = (options) =>
-    Effect.runPromise(sandbox.download(options));
+  const download: SandboxPromise["download"] = (options) => runPromise(sandbox.download(options));
 
-  const upload: SandboxPromise["upload"] = (options) => Effect.runPromise(sandbox.upload(options));
+  const upload: SandboxPromise["upload"] = (options) => runPromise(sandbox.upload(options));
 
-  const expose: SandboxPromise["expose"] = (options) => Effect.runPromise(sandbox.expose(options));
+  const expose: SandboxPromise["expose"] = (options) => runPromise(sandbox.expose(options));
 
   return {
     $,
@@ -65,4 +67,4 @@ export const asPromise = (sandbox: Sandbox): SandboxPromise => {
     upload,
     expose,
   } satisfies SandboxPromise;
-};
+});
