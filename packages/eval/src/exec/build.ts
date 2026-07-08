@@ -3,7 +3,7 @@ import type * as Harness from "@/harness/index.ts";
 import type * as Metric from "@/metric/index.ts";
 import type * as Task from "@/task/index.ts";
 import { Effect, Layer, Option } from "effect";
-import { ExecError } from "./error.ts";
+import { Error } from "./error.ts";
 import { EventTransportService } from "./event/index.ts";
 
 export type Executor<T extends Task.Task = Task.Task> = Readonly<{
@@ -11,7 +11,7 @@ export type Executor<T extends Task.Task = Task.Task> = Readonly<{
   harness: Harness.Harness;
   trailCount: number;
   metrics: Option.Option<Metric.Metrics<Task.GradeResultOf<T>>>;
-  transport: Option.Option<Layer.Layer<EventTransportService, ExecError>>;
+  transport: Option.Option<Layer.Layer<EventTransportService, Error>>;
 }> & { _T?: T };
 
 type Options<T extends Task.Task> = Readonly<{

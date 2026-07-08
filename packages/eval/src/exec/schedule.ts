@@ -16,7 +16,7 @@ import type { Config } from "./config.ts";
 import * as Task from "../task/index.ts";
 import * as Metric from "@/metric/index.ts";
 import { createTrail } from "./trail.ts";
-import { ExecError } from "./error.ts";
+import { Error } from "./error.ts";
 import { Agent, Sandbox } from "@open-insight/core";
 import { Countdown } from "@open-insight/core/utils";
 import {
@@ -93,7 +93,7 @@ export const run = Effect.fn("exec/schedule")(
     config: Config,
   ): Effect.fn.Return<
     Result,
-    ExecError,
+    Error,
     | Agent.ProviderService
     | Sandbox.ProviderService
     | FileSystem.FileSystem
@@ -103,7 +103,7 @@ export const run = Effect.fn("exec/schedule")(
   > {
     if (!Number.isInteger(trailCount) || trailCount <= 0) {
       return yield* Effect.fail(
-        ExecError.init(new Error(`trailCount must be a positive integer, got ${trailCount}`)),
+        Error.init(new Error(`trailCount must be a positive integer, got ${trailCount}`)),
       );
     }
 
@@ -158,7 +158,7 @@ export const run = Effect.fn("exec/schedule")(
           }),
         );
 
-        const fibers: Array<Fiber.Fiber<void, ExecError>> = [];
+        const fibers: Array<Fiber.Fiber<void, Error>> = [];
 
         for (const trailIndex of range(0, trailCount - 1)) {
           yield* Effect.logDebug(`Forking trail ${trailIndex}`);
@@ -204,7 +204,7 @@ export const run = Effect.fn("exec/schedule")(
             ),
             Stream.runDrain,
           )
-          .pipe(Effect.mapError(ExecError.metric))
+          .pipe(Effect.mapError(Error.metric))
           .pipe(Effect.tap(() => Effect.logDebug("Completed metrics stream"))),
       onNone: () => metricStream.pipe(Stream.runDrain),
     }).pipe(Effect.forkChild);
@@ -216,7 +216,7 @@ export const run = Effect.fn("exec/schedule")(
     const runSchedule = Effect.fn("exec/runSchedule")(function* () {
       yield* Effect.logDebug("Loading tasks");
       const loadedTasks = yield* Effect.all(
-        benchmark.tasks.map((task) => task.pipe(Effect.mapError(ExecError.taskLoad))),
+        benchmark.tasks.map((task) => task.pipe(Effect.mapError(Error.taskLoad))),
         { concurrency: "unbounded" },
       );
       if (loadedTasks.length === 0) {

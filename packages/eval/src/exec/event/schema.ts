@@ -1,6 +1,6 @@
 import { Schema, Stream } from "effect";
 import { Response, Toolkit } from "effect/unstable/ai";
-import type { ExecError } from "../error.ts";
+import type { Error } from "../error.ts";
 import * as Metric from "@/metric/index.ts";
 import * as Task from "@/task/index.ts";
 import * as Bench from "@/benchmark/index.ts";
@@ -62,4 +62,4 @@ export const Event = Schema.Union([
 ]);
 export type Event = Schema.Schema.Type<typeof Event>;
 
-export type EventStream = Stream.Stream<Event, ExecError>;
+export type EventStream = Stream.Stream<Event, Error>;

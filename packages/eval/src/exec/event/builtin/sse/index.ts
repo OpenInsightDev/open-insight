@@ -1,6 +1,6 @@
 import { Effect, Schema, Stream } from "effect";
 import type { EventTransport } from "@/exec/event/index.ts";
-import { ExecError } from "@/exec/error.ts";
+import { Error } from "@/exec/error.ts";
 import { HttpBody, HttpClient, HttpClientResponse } from "effect/unstable/http";
 import { Sse } from "effect/unstable/encoding";
 import { type EventStream } from "@/exec/event/schema.ts";
@@ -10,9 +10,7 @@ const transport = "sse";
 const joinUrl = (baseURL: string, path: string): string =>
   new URL(path, baseURL.endsWith("/") ? baseURL : `${baseURL}/`).toString();
 
-const eventStream = (
-  stream: EventStream,
-): Stream.Stream<Uint8Array, ExecError | Schema.SchemaError> =>
+const eventStream = (stream: EventStream): Stream.Stream<Uint8Array, Error | Schema.SchemaError> =>
   stream.pipe(
     Stream.map((value) => ({
       _tag: "Event" as const,
@@ -30,14 +28,14 @@ export const make = Effect.fn(function* ({
 }: Readonly<{
   baseUrl?: string;
   endpoint?: string;
-}>): Effect.fn.Return<EventTransport, ExecError, HttpClient.HttpClient> {
+}>): Effect.fn.Return<EventTransport, Error, HttpClient.HttpClient> {
   const client = yield* HttpClient.HttpClient;
 
   return {
     send: Effect.fn(function* ({ stream }) {
       const url = joinUrl(baseUrl, endpoint);
       const body = HttpBody.stream(
-        eventStream(stream).pipe(Stream.mapError(ExecError.eventTransport({ transport }))),
+        eventStream(stream).pipe(Stream.mapError(Error.eventTransport({ transport }))),
         "text/event-stream; charset=utf-8",
       );
 
@@ -45,7 +43,7 @@ export const make = Effect.fn(function* ({
         .post(url, { body })
         .pipe(
           Effect.flatMap(HttpClientResponse.filterStatusOk),
-          Effect.mapError(ExecError.eventTransportInit({ transport, url })),
+          Effect.mapError(Error.eventTransportInit({ transport, url })),
         );
     }),
   } satisfies EventTransport;

@@ -24,6 +24,13 @@ export class TaskExecError extends Schema.TaggedErrorClass<TaskExecError>()("Tas
   cause: Schema.Defect(),
 }) {}
 
+export class TaskVerifFailed extends Schema.TaggedErrorClass<TaskVerifFailed>()("TaskVerifFailed", {
+  task: Task.Metadata,
+  expected: Task.Grade.Result,
+  actual: Task.Grade.Result,
+  cause: Schema.Defect(),
+}) {}
+
 export class EventTransportInitError extends Schema.TaggedErrorClass<EventTransportInitError>()(
   "EventTransportInitError",
   {
@@ -47,7 +54,7 @@ export class SnapshotError extends Schema.TaggedErrorClass<SnapshotError>()("Sna
   cause: Schema.Defect(),
 }) {}
 
-export const ExecErrorReason = Schema.Union([
+export const ErrorReason = Schema.Union([
   InitError,
   TaskLoadError,
   EventTransportInitError,
@@ -55,15 +62,17 @@ export const ExecErrorReason = Schema.Union([
   SnapshotError,
   TaskInitError,
   TaskExecError,
+  TaskVerifFailed,
   Metric.MetricError,
 ]);
+export type ErrorReason = Schema.Schema.Type<typeof ErrorReason>;
 
-export class ExecError extends Schema.TaggedErrorClass<ExecError>()("ExecError", {
-  reason: ExecErrorReason,
+export class Error extends Schema.TaggedErrorClass<Error>()("ExecError", {
+  reason: ErrorReason,
 }) {
-  static init = (cause: unknown) => new ExecError({ reason: new InitError({ cause }) });
+  static init = (cause: unknown) => new Error({ reason: new InitError({ cause }) });
 
-  static taskLoad = (cause: unknown) => new ExecError({ reason: new TaskLoadError({ cause }) });
+  static taskLoad = (cause: unknown) => new Error({ reason: new TaskLoadError({ cause }) });
 
   static eventTransportInit =
     ({ transport, url }: { transport: string; url: string }) =>
@@ -89,7 +98,7 @@ export class ExecError extends Schema.TaggedErrorClass<ExecError>()("ExecError",
   static snapshot =
     ({ task }: { task: Task.Task }) =>
     (cause: unknown) =>
-      new ExecError({
+      new Error({
         reason: new SnapshotError({
           task: task.metadata,
           snapshot: task.snapshot,
@@ -100,7 +109,7 @@ export class ExecError extends Schema.TaggedErrorClass<ExecError>()("ExecError",
   static taskInit =
     ({ task }: { task: Task.Metadata }) =>
     (cause: unknown) =>
-      new ExecError({
+      new Error({
         reason: new TaskInitError({
           task,
           cause,
@@ -110,7 +119,7 @@ export class ExecError extends Schema.TaggedErrorClass<ExecError>()("ExecError",
   static taskExec =
     ({ task, trailIndex }: { task: Task.Metadata; trailIndex: number }) =>
     (cause: unknown) =>
-      new ExecError({
+      new Error({
         reason: new TaskExecError({
           task,
           trailIndex,
@@ -118,5 +127,17 @@ export class ExecError extends Schema.TaggedErrorClass<ExecError>()("ExecError",
         }),
       });
 
-  static metric = (cause: Metric.MetricError) => new ExecError({ reason: cause });
+  static taskVerif =
+    (task: Task.Metadata, expected: Task.Grade.Result, actual: Task.Grade.Result) =>
+    (cause: unknown) =>
+      new Error({
+        reason: new TaskVerifFailed({
+          task,
+          expected,
+          actual,
+          cause,
+        }),
+      });
+
+  static metric = (cause: Metric.MetricError) => new Error({ reason: cause });
 }

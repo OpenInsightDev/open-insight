@@ -2,7 +2,7 @@ import { Effect, FileSystem, Option, Path, Queue, Ref, Scope, Stream } from "eff
 import * as Task from "../task/index.ts";
 import * as Metric from "../metric/index.ts";
 import { Agent, Sandbox } from "@open-insight/core";
-import { ExecError } from "./error.ts";
+import { Error } from "./error.ts";
 import { Response } from "effect/unstable/ai";
 import { type Event, TaskStreamPartEvent } from "./event/index.ts";
 import { ChildProcessSpawner } from "effect/unstable/process";
@@ -20,8 +20,8 @@ export const createTrail = Effect.fn("exec/createTrail")(
     metricQueue: Queue.Enqueue<Metric.Input>;
     eventQueue: Queue.Enqueue<Event>;
   }): Effect.fn.Return<
-    Effect.Effect<void, ExecError, Scope.Scope>,
-    ExecError,
+    Effect.Effect<void, Error, Scope.Scope>,
+    Error,
     | Sandbox.ProviderService
     | Agent.ProviderService
     | FileSystem.FileSystem
@@ -41,7 +41,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
 
     const taskSnapshot = yield* sandboxProvider
       .aquireSnapshot({ snapshot, cache: cacheTaskSnapshot })
-      .pipe(Effect.mapError(ExecError.taskInit({ task: task.metadata })));
+      .pipe(Effect.mapError(Error.taskInit({ task: task.metadata })));
 
     const agentSnapshot = yield* agentProvider.snapshotExtension.pipe(
       Option.match({
@@ -53,7 +53,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
               context: extendContext ?? snapshot.context,
               cache: cacheAgentSnapshot,
             })
-            .pipe(Effect.mapError(ExecError.taskInit({ task: task.metadata }))),
+            .pipe(Effect.mapError(Error.taskInit({ task: task.metadata }))),
         onNone: () => Effect.succeed(taskSnapshot),
       }),
     );
@@ -73,7 +73,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
 
         const sandbox = yield* sandboxProvider
           .runSandbox({ handle: agentSnapshot, resources })
-          .pipe(Effect.mapError(ExecError.taskExec({ task: task.metadata, trailIndex })));
+          .pipe(Effect.mapError(Error.taskExec({ task: task.metadata, trailIndex })));
 
         yield* Effect.logDebug("Sandbox is ready, Starting trail execution");
 
@@ -146,7 +146,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
       (effect, trailIndex) =>
         effect.pipe(
           Effect.annotateLogs({ taskName: task.name, trailIndex }),
-          Effect.mapError(ExecError.taskExec({ task: task.metadata, trailIndex })),
+          Effect.mapError(Error.taskExec({ task: task.metadata, trailIndex })),
         ),
     );
 
