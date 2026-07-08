@@ -1,5 +1,13 @@
 # @open-insight/harness-openai-agents
 
+## 0.0.15
+
+### Patch Changes
+
+- patch
+- Updated dependencies
+  - @open-insight/core@0.0.15
+
 ## 0.0.14
 
 ### Patch Changes
