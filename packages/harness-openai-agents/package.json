@@ -35,10 +35,9 @@
   },
   "devDependencies": {
     "@openai/agents": "catalog:",
-    "@types/node": "^26.1.0",
-    "@typescript/native-preview": "7.0.0-dev.20260707.2",
+    "@types/node": "catalog:",
     "bumpp": "catalog:",
-    "typescript": "^6.0.3",
+    "typescript": "catalog:",
     "vite-plus": "catalog:"
   },
   "peerDependencies": {
