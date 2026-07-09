@@ -126,8 +126,6 @@ export const transform = ({
     function* <E, R>(
       inputStream: InputStream<E, R>,
     ): Effect.fn.Return<OutputStream<E>, E | MetricError, R | Scope.Scope> {
-      const gradeQueue = yield* Queue.bounded<Input, MetricError | Cause.Done>(128);
-      const benchQueue = yield* Queue.bounded<BenchMetric.Input, MetricError | Cause.Done>(128);
       const outputQueue = yield* Queue.bounded<Output, E | MetricError | Cause.Done>(128);
 
       const consumeTrajMetrics = buildTrajMetricConsumer({
@@ -145,45 +143,37 @@ export const transform = ({
         queue: outputQueue,
       });
 
-      const tapGradeQueue = Effect.fn(function* (input: Input) {
-        if (input.delta._tag !== "Grade") {
-          return;
-        }
-        yield* Queue.offer(gradeQueue, input);
-      });
-
-      const tapTaskMetrics = Effect.fn(function* (input: Input) {
+      const mapTaskMetrics = Effect.fn(function* (
+        input: Input,
+      ): Effect.fn.Return<BenchMetric.Input | null, MetricError> {
         const taskOutputs = yield* consumeTaskMetrics(input);
         if (taskOutputs === null) {
-          return;
+          return null;
         }
-        yield* Queue.offer(benchQueue, {
+        return {
           task: input.task.name,
           input: pipe(
             taskOutputs.map(({ name, result }) => [name, result] as const),
             Object.fromEntries,
           ),
-        });
+        } satisfies BenchMetric.Input;
       });
 
-      const trajRun = inputStream
+      const gradeStream = inputStream
         .pipe(Stream.tap(consumeTrajMetrics, { concurrency: "unbounded" }))
-        .pipe(Stream.tap(tapGradeQueue, { concurrency: "unbounded" }))
-        .pipe(Stream.ensuring(Queue.end(gradeQueue)))
-        .pipe(Stream.runDrain);
+        .pipe(Stream.filter((input) => input.delta._tag === "Grade"));
 
-      const taskRun = Stream.fromQueue(gradeQueue)
-        .pipe(Stream.tap(tapTaskMetrics, { concurrency: "unbounded" }))
-        .pipe(Stream.ensuring(Queue.end(benchQueue)))
-        .pipe(Stream.runDrain);
+      const benchInputStream = gradeStream.pipe(
+        Stream.mapEffect(mapTaskMetrics, { concurrency: "unbounded", unordered: true }),
+        Stream.filter((input) => input !== null),
+      );
 
-      const benchRun = Stream.fromQueue(benchQueue)
-        .pipe(Stream.tap(consumeBenchMetrics, { concurrency: "unbounded" }))
-        .pipe(Stream.runDrain);
+      const run = benchInputStream.pipe(
+        Stream.tap(consumeBenchMetrics, { concurrency: "unbounded" }),
+        Stream.runDrain,
+      );
 
-      yield* Effect.all([trajRun, taskRun, benchRun], { concurrency: "unbounded" })
-        .pipe(Queue.into(outputQueue))
-        .pipe(Effect.forkScoped);
+      yield* run.pipe(Queue.into(outputQueue)).pipe(Effect.forkScoped);
 
       return Stream.fromQueue(outputQueue);
     },

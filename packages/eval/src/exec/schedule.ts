@@ -160,6 +160,7 @@ export const run = Effect.fn("exec/schedule")(
             .pipe(Effect.forkScoped);
           fibers.push(fiber);
           // ensure fair scheduling of trails across tasks
+          // TODO fibers are still not ordered, we need task queue
           yield* Effect.yieldNow;
         }
 
