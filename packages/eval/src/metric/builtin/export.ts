@@ -1,2 +1,21 @@
-export { geoMean, mean, passAtK, passPowerK } from "./index.ts";
+export {
+  count,
+  geoMean,
+  harmonicMean,
+  max,
+  mean,
+  median,
+  min,
+  passAtK,
+  passPowerK,
+  percentile,
+  quantile,
+  rootMeanSquare,
+  sampleStdDev,
+  sampleVariance,
+  standardError,
+  stdDev,
+  sum,
+  variance,
+} from "./index.ts";
 export * as Internal from "./index.ts";

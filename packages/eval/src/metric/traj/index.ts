@@ -1,4 +1,4 @@
-import type { Agent } from "@open-insight/core/internal";
+import type { Traj } from "@open-insight/core/internal";
 import { type Data, Effect, Match, Schema } from "effect";
 import type { Bivariant, UnionToIntersection } from "#/utils/variant.ts";
 import { MetricError } from "../error.ts";
@@ -8,17 +8,17 @@ import type * as _Core from "@open-insight/core";
 export type ReduceFn<R> = (
   prev: R,
   input: {
-    trajectory: Agent.Trajectory;
-    messages: ReadonlyArray<Agent.Message>;
+    trajectory: Traj.Trajectory;
+    messages: ReadonlyArray<Traj.Message>;
   },
 ) => PromiseLike<R> | R;
 
 export type EachFn<R> = (input: {
-  trajectory: Agent.Trajectory;
-  messages: ReadonlyArray<Agent.Message>;
+  trajectory: Traj.Trajectory;
+  messages: ReadonlyArray<Traj.Message>;
 }) => PromiseLike<R> | R;
 
-export type AllFn<R> = (input: { trajectory: Agent.Trajectory }) => PromiseLike<R> | R;
+export type AllFn<R> = (input: { trajectory: Traj.Trajectory }) => PromiseLike<R> | R;
 
 type ReduceExec<R = unknown> = {
   init: R;
