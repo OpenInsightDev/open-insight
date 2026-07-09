@@ -63,6 +63,10 @@ catalog:
   bumpp: ^11.1.0
   '@agentclientprotocol/sdk': ^1.2.1
   dockerfile-ast: ^0.7.1
+  '@astryxdesign/core': ^0.1.4
+  '@astryxdesign/theme-neutral': ^0.1.4
+  '@astryxdesign/cli': ^0.1.4
+  '@heroicons/react': ^2.2.0
 overrides:
   vite: "catalog:"
   vitest: "catalog:"

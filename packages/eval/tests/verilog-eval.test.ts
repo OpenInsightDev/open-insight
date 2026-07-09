@@ -21,7 +21,7 @@ class VETask extends Task.Task<{ simPass: boolean }, { category: string }> {}
 async function* loadTasks(repoPath: string): AsyncIterable<VETask> {
   const datasetDir = path.join(repoPath, datasetDirName);
   const files = await fs.readdir(datasetDir);
-  const promptFiles = files.filter((file) => file.endsWith(promptSuffix)).sort();
+  const promptFiles = files.filter((file) => file.endsWith(promptSuffix));
 
   const snapshot = Snapshot.parseContainerfile(
     `FROM ubuntu:latest
@@ -64,7 +64,7 @@ async function* loadTasks(repoPath: string): AsyncIterable<VETask> {
         expect: { simPass: true },
       },
       snapshot,
-      extra: { category: datasetDirName },
+      extra: { category: "verilog-eval" },
     });
   }
 }

@@ -1,7 +1,7 @@
 import type * as Grade from "./grade/index.ts";
 import * as Verif from "./verif/index.ts";
 import { Sandbox, Snapshot } from "@open-insight/core/internal";
-import { Effect, Schema, type Scope } from "effect";
+import { Brand, Effect, Schema, type Scope } from "effect";
 import { Prompt } from "effect/unstable/ai";
 import { TaskError } from "./error.ts";
 
@@ -17,9 +17,11 @@ export class Metadata extends Schema.Class<Metadata>("TaskMetadata")({
   extra: Schema.NullOr(Schema.Record(Schema.String, Schema.Json)),
 }) {}
 
+type NotRequired = Brand.Brand<"not-required">;
+
 export type Options<
   G extends Schema.JsonObject = any,
-  Extra extends Schema.JsonObject = never,
+  Extra extends Schema.JsonObject | NotRequired = NotRequired,
 > = Readonly<
   {
     name: string;
@@ -34,7 +36,7 @@ export type Options<
     resources?: Sandbox.Resources;
   } &
     // if extra not specified, we don't require it to be present
-    ([Extra] extends [never] ? { extra?: never } : { extra: Extra })
+    ([Extra] extends [NotRequired] ? { extra?: never } : { extra: Extra })
 >;
 
 export class Task<G extends Schema.JsonObject = any, Extra extends Schema.JsonObject = any> {

@@ -47,7 +47,9 @@ const formatResources = (resources: Sandbox.Resources | null): Array<string> => 
 };
 
 export const make = Effect.fn("sandbox/provider/docker")(
-  function* ({ portMappings = [] }: MakeOptions = {}): Effect.fn.Return<
+  function* ({
+    portMappings = [],
+  }: MakeOptions): Effect.fn.Return<
     Sandbox.Provider,
     Sandbox.Error,
     Crypto.Crypto | FileSystem.FileSystem | Spawn.SpawnService

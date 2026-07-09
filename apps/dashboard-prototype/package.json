@@ -11,8 +11,11 @@
     "preview": "vp preview"
   },
   "dependencies": {
+    "@astryxdesign/core": "catalog:",
+    "@astryxdesign/theme-neutral": "catalog:",
     "@base-ui/react": "catalog:",
     "@fontsource-variable/geist": "catalog:",
+    "@heroicons/react": "catalog:",
     "@open-insight/eval": "workspace:*",
     "@shadcn/react": "catalog:",
     "@tailwindcss/vite": "catalog:",
@@ -32,6 +35,7 @@
     "zustand": "catalog:"
   },
   "devDependencies": {
+    "@astryxdesign/cli": "catalog:",
     "@babel/core": "catalog:",
     "@effect/vitest": "catalog:",
     "@rolldown/plugin-babel": "catalog:",
