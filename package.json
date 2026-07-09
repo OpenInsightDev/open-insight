@@ -12,9 +12,9 @@
   "devDependencies": {
     "@changesets/cli": "catalog:",
     "@effect/language-service": "^0.86.4",
-    "@effect/tsgo": "catalog:",
-    "@typescript/native-preview": "catalog:",
-    "vite-plus": "catalog:"
+    "@effect/tsgo": "0.16.2",
+    "vite-plus": "catalog:",
+    "@typescript/native-preview": "latest"
   },
   "devEngines": {
     "packageManager": {

@@ -6,20 +6,19 @@ catalogMode: prefer
 
 catalog:
   "@types/node": ^24
-  effect: 4.0.0-beta.91
+  effect: 4.0.0-beta.94
   "@effect/language-service": ^0.86.2
   "@effect/tsgo": ^0.16.2
-  "@typescript/native-preview": 7.0.0-dev.20260707.2
   typescript: ^7.0.2
   vite: npm:@voidzero-dev/vite-plus-core@^0.2.3
   vitest: 4.1.10
   vite-plus: ^0.2.3
-  "@effect/platform-node": 4.0.0-beta.91
-  "@effect/vitest": 4.0.0-beta.91
-  "@effect/ai-openai": 4.0.0-beta.91
-  "@effect/opentelemetry": 4.0.0-beta.91
+  "@effect/platform-node": 4.0.0-beta.94
+  "@effect/vitest": 4.0.0-beta.94
+  "@effect/ai-openai": 4.0.0-beta.94
+  "@effect/opentelemetry": 4.0.0-beta.94
   ai: ^7.0.17
-  '@changesets/cli': ^2.31.0
+  "@changesets/cli": ^2.31.0
   pathe: ^2.0.3
   immer: ^11.1.11
   clsx: ^2.1.1
@@ -51,7 +50,7 @@ catalog:
   '@opentelemetry/sdk-logs': ^0.220.0
   '@opentelemetry/sdk-trace-web': ^2.9.0
   '@effect/ai-openai-compat': 4.0.0-beta.94
-  '@effect/ai-anthropic': 4.0.0-beta.91
+  '@effect/ai-anthropic': 4.0.0-beta.94
   '@babel/core': ^8.0.1
   '@rolldown/plugin-babel': ^0.2.3
   '@types/babel__core': ^7.20.5
@@ -78,14 +77,6 @@ allowBuilds:
   esbuild: true
   msgpackr-extract: true
 minimumReleaseAgeExclude:
-  - "@typescript/native-preview-darwin-arm64@7.0.0-dev.20260629.1"
-  - "@typescript/native-preview-darwin-x64@7.0.0-dev.20260629.1"
-  - "@typescript/native-preview-linux-arm64@7.0.0-dev.20260629.1"
-  - "@typescript/native-preview-linux-arm@7.0.0-dev.20260629.1"
-  - "@typescript/native-preview-linux-x64@7.0.0-dev.20260629.1"
-  - "@typescript/native-preview-win32-arm64@7.0.0-dev.20260629.1"
-  - "@typescript/native-preview-win32-x64@7.0.0-dev.20260629.1"
-  - "@typescript/native-preview@7.0.0-dev.20260629.1"
   - '@typescript/typescript-aix-ppc64@7.0.2'
   - '@typescript/typescript-darwin-arm64@7.0.2'
   - '@typescript/typescript-darwin-x64@7.0.2'
