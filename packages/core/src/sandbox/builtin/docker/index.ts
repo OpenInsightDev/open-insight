@@ -1,7 +1,7 @@
 import * as Sandbox from "#/sandbox/export.ts";
 import * as Snapshot from "#/snapshot/export.ts";
 import { Spawn, Bash } from "#/utils/index.ts";
-import { Crypto, Effect, FileSystem, Stream } from "effect";
+import { Crypto, Duration, Effect, FileSystem, Layer } from "effect";
 import { ChildProcess as CP } from "effect/unstable/process";
 import { dockerOptions, formatPortMappings, formatResources, matchesPortMapping } from "./utils.ts";
 import { makeSandboxSpawner } from "./spawn.ts";
@@ -14,11 +14,16 @@ export type PortMapping = Readonly<{
 
 export type MakeOptions = Readonly<{
   portMappings?: Array<PortMapping>;
+  timeout?: Duration.Input;
 }>;
+
+const formatSandboxCommand = ({ command, args = [] }: Sandbox.Spawn.Command) =>
+  [command, ...args].map(Bash.quote).join(" ");
 
 export const make = Effect.fn("sandbox/provider/docker")(
   function* ({
     portMappings = [],
+    timeout = Duration.seconds(30),
   }: MakeOptions): Effect.fn.Return<
     Sandbox.Provider,
     Sandbox.Error,
@@ -38,9 +43,26 @@ export const make = Effect.fn("sandbox/provider/docker")(
       );
     });
 
-    const removeImage = Effect.fn(function* (handle: Snapshot.Handle.Handle) {
-      const rmi = CP.make(dockerOptions)`rmi ${handle.name}`.pipe(runtime);
-      yield* spawner.string(rmi).pipe(Effect.ignore);
+    const removeImage = (handle: Snapshot.Handle.Handle) =>
+      spawner.success(CP.make(dockerOptions)`rmi ${handle.name}`.pipe(runtime)).pipe(Effect.ignore);
+
+    const getHostPort = Effect.fn(function* (name: string, sandboxPort: number) {
+      const command = CP.make(dockerOptions)`port ${name} ${sandboxPort}`;
+      const output = yield* spawner
+        .string(command)
+        .pipe(Effect.mapError(Sandbox.Error.sandboxExpose(name, sandboxPort)));
+
+      const port = Number(output.trim().split(":").at(-1));
+      if (!Number.isInteger(port)) {
+        return yield* Effect.fail(
+          Sandbox.Error.sandboxExpose(
+            name,
+            sandboxPort,
+          )(new Error(`Docker did not report a host port for sandbox port ${sandboxPort}`)),
+        );
+      }
+
+      return port;
     });
 
     const aquireSnapshot = Effect.fn(
@@ -140,12 +162,12 @@ export const make = Effect.fn("sandbox/provider/docker")(
         ).pipe(runtime);
         yield* spawner
           .success(run)
-          .pipe(Effect.timeout("30 seconds"))
+          .pipe(Effect.timeout(timeout))
           .pipe(Effect.mapError(Sandbox.Error.sandboxStart(name)));
 
         const isRunning = yield* spawner
           .string(CP.make`inspect --format "{{.State.Running}}" ${name}`.pipe(runtime))
-          .pipe(Effect.timeout("30 seconds"))
+          .pipe(Effect.timeout(timeout))
           .pipe(Effect.map((output) => output.trim() === "true"))
           .pipe(Effect.mapError(Sandbox.Error.sandboxStart(name)));
 
@@ -163,62 +185,21 @@ export const make = Effect.fn("sandbox/provider/docker")(
             .pipe(Effect.ignore),
         );
 
-        const makeExecCommand = (
-          { options: { env, cwd }, command, args }: CP.StandardCommand,
-          input?: string,
-        ) => {
-          const execArgs: string[] = [];
-          if (input !== undefined) {
-            execArgs.push("-i");
-          }
-
-          for (const [key, value] of Object.entries(env ?? {})) {
-            if (value !== undefined) {
-              execArgs.push("-e", `${key}=${value}`);
-            }
-          }
-
-          if (cwd !== undefined) {
-            execArgs.push("-w", cwd);
-          }
-
-          execArgs.push(name, command, ...args);
-
-          const execOptions =
-            input === undefined
-              ? dockerOptions
-              : ({
-                  ...dockerOptions,
-                  stdin: {
-                    stream: Stream.make(input).pipe(Stream.encodeText),
-                  },
-                } satisfies CP.CommandOptions);
-
-          return CP.make("exec", execArgs, execOptions).pipe(runtime);
-        };
+        const sandboxSpawnerLayer = yield* makeSandboxSpawner(name).pipe(
+          Effect.provideService(Runtime.Runtime, runtime),
+        );
+        const sandboxSpawner = yield* Effect.service(Sandbox.Spawn.Service).pipe(
+          Effect.provide(sandboxSpawnerLayer),
+        );
 
         return {
-          cmd: Effect.fn(
-            function* (cmd: CP.StandardCommand, input?: string) {
-              const execCommand = makeExecCommand(cmd, input);
-              const handle = yield* spawner.spawn(execCommand);
-
-              const decoder = new TextDecoder();
-              const stdoutBytes = yield* Stream.mkUint8Array(handle.stdout);
-              const stdout = decoder.decode(stdoutBytes);
-
-              const stderrBytes = yield* Stream.mkUint8Array(handle.stderr);
-              const stderr = decoder.decode(stderrBytes);
-
-              const exitCode = yield* handle.exitCode;
-
-              return { stdout, stderr, exitCode };
-            },
-            (effect, cmd) =>
-              effect
-                .pipe(Effect.scoped)
-                .pipe(Effect.mapError(Sandbox.Error.sandboxExec(name, Bash.format(cmd)))),
-          ),
+          ...sandboxSpawner,
+          cmd: (command) =>
+            sandboxSpawner
+              .spawn(command)
+              .pipe(
+                Effect.mapError(Sandbox.Error.sandboxExec(name, formatSandboxCommand(command))),
+              ),
           expose: Effect.fn(function* ({ sandboxPort, hostPort }) {
             if (!matchesPortMapping(portMappings, { sandboxPort, hostPort })) {
               return yield* Effect.fail(
@@ -234,10 +215,7 @@ export const make = Effect.fn("sandbox/provider/docker")(
               );
             }
 
-            const actualHostPort = yield* getHostPort({
-              sandboxPort,
-              expectedHostPort: hostPort,
-            });
+            const actualHostPort = yield* getHostPort(name, sandboxPort);
 
             if (hostPort !== undefined && actualHostPort !== hostPort) {
               return yield* Effect.fail(
@@ -259,28 +237,51 @@ export const make = Effect.fn("sandbox/provider/docker")(
             const command = CP.make(dockerOptions)`cp ${name}:${sandboxPath} ${hostPath}`;
             yield* spawner
               .success(command.pipe(runtime))
-              .pipe(Effect.timeout("30 seconds"))
+              .pipe(Effect.timeout(timeout))
               .pipe(Effect.mapError(Sandbox.Error.sandboxExec(handle.name, Bash.format(command))));
           }),
           upload: Effect.fn(function* ({ sandboxPath, hostPath }) {
             const command = CP.make(dockerOptions)`cp ${hostPath} ${name}:${sandboxPath}`;
             yield* spawner
               .success(command.pipe(runtime))
-              .pipe(Effect.timeout("30 seconds"))
+              .pipe(Effect.timeout(timeout))
               .pipe(Effect.mapError(Sandbox.Error.sandboxExec(handle.name, Bash.format(command))));
           }),
           readFile: Effect.fn(function* ({ sandboxPath }) {
-            const command = makeExecCommand(CP.make`cat ${sandboxPath}`);
-            return yield* spawner
-              .string(command)
-              .pipe(Effect.mapError(Sandbox.Error.sandboxExec(handle.name, Bash.format(command))));
+            const command = { command: "cat", args: [sandboxPath] };
+            return yield* sandboxSpawner
+              .stdout(command)
+              .pipe(
+                Effect.mapError(
+                  Sandbox.Error.sandboxExec(handle.name, formatSandboxCommand(command)),
+                ),
+              );
           }),
-          writeFile: Effect.fn(function* ({ sandboxPath, content }) {
-            const command = makeExecCommand(CP.make`tee ${sandboxPath}`, content);
-            yield* spawner
-              .success(command)
-              .pipe(Effect.mapError(Sandbox.Error.sandboxExec(handle.name, Bash.format(command))));
-          }),
+          writeFile: Effect.fn(
+            function* ({ sandboxPath, content }) {
+              const hostPath = yield* fs.makeTempFile({
+                prefix: "open-insight-docker-upload-",
+              });
+              const command = CP.make(dockerOptions)`cp ${hostPath} ${name}:${sandboxPath}`;
+              yield* fs.writeFileString(hostPath, content).pipe(
+                Effect.andThen(
+                  spawner
+                    .success(command.pipe(runtime))
+                    .pipe(Effect.timeout(timeout))
+                    .pipe(
+                      Effect.mapError(Sandbox.Error.sandboxExec(handle.name, Bash.format(command))),
+                    ),
+                ),
+                Effect.ensuring(fs.remove(hostPath, { force: true }).pipe(Effect.ignore)),
+              );
+            },
+            (effect, { sandboxPath }) =>
+              effect.pipe(
+                Effect.mapError(
+                  Sandbox.Error.sandboxExec(handle.name, `write ${Bash.quote(sandboxPath)}`),
+                ),
+              ),
+          ),
         } satisfies Sandbox.Sandbox;
       },
       (effect) =>

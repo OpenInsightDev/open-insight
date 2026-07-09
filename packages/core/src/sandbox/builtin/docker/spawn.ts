@@ -3,6 +3,7 @@ import { ChildProcess as CP } from "effect/unstable/process";
 import * as Sandbox from "#/sandbox/export.ts";
 import * as Runtime from "./runtime.ts";
 import { Spawn } from "#/utils/export.ts";
+import { dockerOptions } from "./utils.ts";
 
 export const makeSandboxSpawner = Effect.fn(function* (
   sandboxName: string,
@@ -10,11 +11,8 @@ export const makeSandboxSpawner = Effect.fn(function* (
   const runtime = yield* Runtime.Runtime;
   const spawner = yield* Spawn.Service;
 
-  const fn: Sandbox.Spawn.Fn = Effect.fn(function* ({ command, args, cwd, env }) {
+  const fn: Sandbox.Spawn.Fn = Effect.fn(function* ({ command, args, cwd, env }, options) {
     const execArgs: string[] = [sandboxName];
-
-    execArgs.push("-it");
-
     for (const [key, value] of Object.entries(env ?? {})) {
       if (value !== undefined) {
         execArgs.push("-e", `${key}=${value}`);
@@ -28,9 +26,7 @@ export const makeSandboxSpawner = Effect.fn(function* (
     execArgs.push(command);
     execArgs.push(...(args ?? []));
 
-    return yield* spawner.exec(CP.make("exec", execArgs).pipe(runtime), {
-      errorOnNonZeroExit: true,
-    });
+    return yield* spawner.exec(CP.make("exec", execArgs, dockerOptions).pipe(runtime), options);
   });
 
   return Sandbox.Spawn.Service.layerFrom(fn);
