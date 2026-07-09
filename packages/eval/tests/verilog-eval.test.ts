@@ -48,8 +48,10 @@ async function* loadTasks(repoPath: string): AsyncIterable<VETask> {
           sandboxPath: "/tmp/verilog-eval/test.sv",
         });
 
-        const output =
-          await $`cp top.v /tmp/verilog-eval/top.v && cd /tmp/verilog-eval && iverilog -g2012 -s tb -o simv top.v ref.sv test.sv && vvp simv`;
+        const output = await $`cp top.v /tmp/verilog-eval/top.v && \
+          cd /tmp/verilog-eval && \
+          iverilog -g2012 -s tb -o simv top.v ref.sv test.sv && \
+          vvp simv`;
         return { simPass: hasNoMismatches(output) };
       },
       verifier: {
