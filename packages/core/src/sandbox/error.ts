@@ -32,7 +32,7 @@ export class SandboxExposeError extends Schema.TaggedErrorClass<SandboxExposeErr
   {
     name: Schema.String,
     sandboxPort: Schema.Number,
-    hostPort: Schema.Number,
+    hostPort: Schema.optional(Schema.Number),
     cause: Schema.Defect(),
   },
 ) {}
@@ -76,7 +76,7 @@ export class Error extends Schema.TaggedErrorClass<Error>()("SandboxError", {
   static sandboxExec = (name: string, operation: string) =>
     this.mapUnknownError((cause) => SandboxExecError.make({ name, operation, cause }));
 
-  static sandboxExpose = (name: string, sandboxPort: number, hostPort: number) =>
+  static sandboxExpose = (name: string, sandboxPort: number, hostPort?: number) =>
     this.mapUnknownError((cause) =>
       SandboxExposeError.make({ name, sandboxPort, hostPort, cause }),
     );

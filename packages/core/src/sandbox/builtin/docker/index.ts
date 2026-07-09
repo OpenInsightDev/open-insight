@@ -3,48 +3,18 @@ import * as Snapshot from "#/snapshot/export.ts";
 import { Spawn, Bash } from "#/utils/index.ts";
 import { Crypto, Effect, FileSystem, Stream } from "effect";
 import { ChildProcess as CP } from "effect/unstable/process";
-import { makeRuntime } from "./utils.ts";
-
-const dockerOptions = { detached: false } satisfies CP.CommandOptions;
+import { dockerOptions, formatPortMappings, formatResources, matchesPortMapping } from "./utils.ts";
+import { makeSandboxSpawner } from "./spawn.ts";
+import * as Runtime from "./runtime.ts";
 
 export type PortMapping = Readonly<{
   sandboxPort: number;
-  hostPort: number;
+  hostPort?: number;
 }>;
 
 export type MakeOptions = Readonly<{
   portMappings?: Array<PortMapping>;
 }>;
-
-const formatResources = (resources: Sandbox.Resources | null): Array<string> => {
-  if (!resources) {
-    return [];
-  }
-
-  const { numCPUs, memoryMiB, numGPUs, storageMiB, network } = resources;
-  const resourceArgs: Array<string> = [];
-  if (!Sandbox.isUnlimited(numCPUs)) {
-    resourceArgs.push("--cpus", `${numCPUs}`);
-  }
-
-  if (!Sandbox.isUnlimited(memoryMiB)) {
-    resourceArgs.push("--memory", `${memoryMiB}m`);
-  }
-
-  if (!Sandbox.isUnlimited(numGPUs) && numGPUs > 0) {
-    resourceArgs.push("--gpus", `count=${numGPUs}`);
-  }
-
-  if (!Sandbox.isUnlimited(storageMiB)) {
-    resourceArgs.push("--storage-opt", `size=${storageMiB}m`);
-  }
-
-  if (!network) {
-    resourceArgs.push("--network", "none");
-  }
-
-  return resourceArgs;
-};
 
 export const make = Effect.fn("sandbox/provider/docker")(
   function* ({
@@ -52,12 +22,12 @@ export const make = Effect.fn("sandbox/provider/docker")(
   }: MakeOptions): Effect.fn.Return<
     Sandbox.Provider,
     Sandbox.Error,
-    Crypto.Crypto | FileSystem.FileSystem | Spawn.SpawnService
+    Crypto.Crypto | FileSystem.FileSystem | Spawn.Service
   > {
-    const runtime = yield* makeRuntime().pipe(Effect.mapError(Sandbox.Error.provider("docker")));
+    const runtime = yield* Runtime.make().pipe(Effect.mapError(Sandbox.Error.provider("docker")));
 
     const crypto = yield* Crypto.Crypto;
-    const spawner = yield* Spawn.SpawnService;
+    const spawner = yield* Spawn.Service;
     const fs = yield* FileSystem.FileSystem;
 
     const imageExists = Effect.fn(function* (handle: Snapshot.Handle.Handle) {
@@ -153,11 +123,6 @@ export const make = Effect.fn("sandbox/provider/docker")(
           Effect.mapError(Sandbox.Error.sandboxStart(handle.name)),
         );
 
-        const portMappingArgs = portMappings.flatMap((mapping) => [
-          "-p",
-          `${mapping.hostPort}:${mapping.sandboxPort}`,
-        ]);
-
         const run = CP.make(
           "run",
           [
@@ -165,7 +130,7 @@ export const make = Effect.fn("sandbox/provider/docker")(
             "--detach",
             "--name",
             name,
-            ...portMappingArgs,
+            ...formatPortMappings(portMappings),
             ...formatResources(resources),
             handle.name,
             "sleep",
@@ -178,13 +143,8 @@ export const make = Effect.fn("sandbox/provider/docker")(
           .pipe(Effect.timeout("30 seconds"))
           .pipe(Effect.mapError(Sandbox.Error.sandboxStart(name)));
 
-        const running = CP.make(
-          "inspect",
-          ["--format", "{{.State.Running}}", name],
-          dockerOptions,
-        ).pipe(runtime);
         const isRunning = yield* spawner
-          .string(running)
+          .string(CP.make`inspect --format "{{.State.Running}}" ${name}`.pipe(runtime))
           .pipe(Effect.timeout("30 seconds"))
           .pipe(Effect.map((output) => output.trim() === "true"))
           .pipe(Effect.mapError(Sandbox.Error.sandboxStart(name)));
@@ -260,11 +220,7 @@ export const make = Effect.fn("sandbox/provider/docker")(
                 .pipe(Effect.mapError(Sandbox.Error.sandboxExec(name, Bash.format(cmd)))),
           ),
           expose: Effect.fn(function* ({ sandboxPort, hostPort }) {
-            const matchesMapping = portMappings.some(
-              (mapping) => mapping.sandboxPort === sandboxPort && mapping.hostPort === hostPort,
-            );
-
-            if (!matchesMapping) {
+            if (!matchesPortMapping(portMappings, { sandboxPort, hostPort })) {
               return yield* Effect.fail(
                 Sandbox.Error.sandboxExpose(
                   handle.name,
@@ -278,7 +234,26 @@ export const make = Effect.fn("sandbox/provider/docker")(
               );
             }
 
-            return { hostUrl: `http://localhost:${hostPort}` };
+            const actualHostPort = yield* getHostPort({
+              sandboxPort,
+              expectedHostPort: hostPort,
+            });
+
+            if (hostPort !== undefined && actualHostPort !== hostPort) {
+              return yield* Effect.fail(
+                Sandbox.Error.sandboxExpose(
+                  handle.name,
+                  sandboxPort,
+                  hostPort,
+                )(
+                  new Error(
+                    `Expected sandbox port ${sandboxPort} to be exposed on host port ${hostPort}, but Docker reported host port ${actualHostPort}`,
+                  ),
+                ),
+              );
+            }
+
+            return { hostUrl: `http://localhost:${actualHostPort}` };
           }),
           download: Effect.fn(function* ({ sandboxPath, hostPath }) {
             const command = CP.make(dockerOptions)`cp ${name}:${sandboxPath} ${hostPath}`;
@@ -310,7 +285,7 @@ export const make = Effect.fn("sandbox/provider/docker")(
       },
       (effect) =>
         effect.pipe(
-          Effect.provideService(Spawn.SpawnService, spawner),
+          Effect.provideService(Spawn.Service, spawner),
           Effect.provideService(Crypto.Crypto, crypto),
         ),
     ) satisfies Sandbox.Provider["runSandbox"];
@@ -321,5 +296,5 @@ export const make = Effect.fn("sandbox/provider/docker")(
       runSandbox,
     } satisfies Sandbox.Provider;
   },
-  (effect) => effect.pipe(Effect.provide(Spawn.SpawnService.layer)),
+  (effect) => effect.pipe(Effect.provide(Spawn.Service.layer)),
 );

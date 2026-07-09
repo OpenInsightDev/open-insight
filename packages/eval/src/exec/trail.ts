@@ -8,6 +8,8 @@ import { type Event, TaskStreamPartEvent } from "./event/index.ts";
 import { ChildProcessSpawner } from "effect/unstable/process";
 import type { Config } from "./config.ts";
 
+export type RunTrail = Effect.Effect<void, Error, Scope.Scope>;
+
 export const createTrail = Effect.fn("exec/createTrail")(
   function* ({
     task,
@@ -20,7 +22,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
     metricQueue: Queue.Enqueue<Metric.Input>;
     eventQueue: Queue.Enqueue<Event>;
   }): Effect.fn.Return<
-    Effect.Effect<void, Error, Scope.Scope>,
+    RunTrail,
     Error,
     | Sandbox.ProviderService
     | Agent.ProviderService
@@ -35,7 +37,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
       taskName: task.name,
     });
 
-    if (verifMode && verifier === undefined) {
+    if (verifMode && !verifier) {
       yield* Effect.logDebug("Skipping task without verifier");
       return Effect.void;
     }
@@ -127,7 +129,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
           });
         });
 
-        yield* stream.pipe(Stream.tap(tapDelta)).pipe(Stream.runDrain);
+        yield* stream.pipe(Stream.runForEach(tapDelta));
 
         const trajectory = yield* agent.trajectory();
         yield* Effect.logDebug(
@@ -135,13 +137,11 @@ export const createTrail = Effect.fn("exec/createTrail")(
         );
 
         const sandboxPromise = yield* Sandbox.asPromise(sandbox);
-        const ctx = {
+        yield* Effect.logDebug(`Starting graders`);
+        const gradeResults = yield* Task.Grade.run(grader)({
           trajectory,
           ...sandboxPromise,
-        } satisfies Task.Grade.Context;
-
-        yield* Effect.logDebug(`Starting graders`);
-        const gradeResults = yield* Task.Grade.run(grader)(ctx);
+        });
         yield* Effect.logDebug(`Completed graders`);
 
         yield* Queue.offer(metricQueue, {
@@ -161,7 +161,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
 
     const runVerifTrail = Effect.fn(
       function* (trailIndex: number) {
-        if (verifier === undefined) {
+        if (!verifier) {
           return;
         }
 
@@ -213,17 +213,13 @@ export const createTrail = Effect.fn("exec/createTrail")(
           .pipe(Effect.annotateLogs({ taskName: task.name, trailIndex })),
     );
 
-    const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
     return Effect.gen(function* () {
       const trailIndex = yield* Ref.getAndUpdate(nextTrailIndex, (n) => n + 1);
       yield* Effect.logDebug(`Starting trail ${trailIndex}`);
 
       const run = verifMode ? runVerifTrail : runTrail;
       yield* run(trailIndex)
-        .pipe(
-          Effect.provideService(Agent.ProviderService, agentProvider),
-          Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, spawner),
-        )
+        .pipe(Effect.provideService(Agent.ProviderService, agentProvider))
         .pipe(
           Effect.annotateLogs({
             taskName: task.name,

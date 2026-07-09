@@ -9,12 +9,12 @@ import { make } from "./index.ts";
 
 const DockerTestLayer = Layer.merge(
   NodeServices.layer,
-  Spawn.SpawnService.layer.pipe(Layer.provide(NodeServices.layer)),
+  Spawn.Service.layer.pipe(Layer.provide(NodeServices.layer)),
 );
 
 const docker = (args: ReadonlyArray<string>) =>
   Effect.gen(function* () {
-    const spawner = yield* Spawn.SpawnService;
+    const spawner = yield* Spawn.Service;
     return yield* spawner
       .string(CP.make("docker", args))
       .pipe(Effect.map((output) => output.trim()));
@@ -71,13 +71,22 @@ describe("Docker sandbox provider", () => {
             }),
           });
 
-          assert.strictEqual((yield* sandbox.cmd(CP.make`cat /snapshot-marker`)).trim(), "base");
-          assert.strictEqual((yield* sandbox.cmd(CP.make`cat /derived-marker`)).trim(), "derived");
-          assert.strictEqual((yield* sandbox.cmd(CP.make({ cwd: "/tmp" })`pwd`)).trim(), "/tmp");
+          assert.strictEqual(
+            (yield* sandbox.cmd(CP.make`cat /snapshot-marker`)).stdout?.trim(),
+            "base",
+          );
+          assert.strictEqual(
+            (yield* sandbox.cmd(CP.make`cat /derived-marker`)).stdout?.trim(),
+            "derived",
+          );
+          assert.strictEqual(
+            (yield* sandbox.cmd(CP.make({ cwd: "/tmp" })`pwd`)).stdout?.trim(),
+            "/tmp",
+          );
           assert.strictEqual(
             (yield* sandbox.cmd(
               CP.make({ env: { TEST_VALUE: "from-env" } })`printenv TEST_VALUE`,
-            )).trim(),
+            )).stdout?.trim(),
             "from-env",
           );
 
@@ -108,6 +117,35 @@ describe("Docker sandbox provider", () => {
             .expose({ sandboxPort: 8080, hostPort: 18080 })
             .pipe(Effect.exit);
           assert.isTrue(expose._tag === "Failure");
+        }),
+      ),
+    );
+
+    it.effect("exposes configured ports with docker-assigned host ports", () =>
+      Effect.scoped(
+        Effect.gen(function* () {
+          const provider = yield* make({ portMappings: [{ sandboxPort: 8080 }] });
+          const handle = yield* provider.aquireSnapshot({ snapshot, cache: true });
+          const sandbox = yield* provider.runSandbox({
+            handle,
+            resources: Sandbox.Resources.make({
+              numCPUs: 1,
+              memoryMiB: 128,
+              network: true,
+            }),
+          });
+
+          const first = yield* sandbox.expose({ sandboxPort: 8080 });
+          const second = yield* sandbox.expose({ sandboxPort: 8080 });
+
+          assert.match(first.hostUrl, /^http:\/\/localhost:\d+$/);
+          assert.strictEqual(second.hostUrl, first.hostUrl);
+          assert.notStrictEqual(first.hostUrl, "http://localhost:8080");
+
+          const fixedHostPortExpose = yield* sandbox
+            .expose({ sandboxPort: 8080, hostPort: 8080 })
+            .pipe(Effect.exit);
+          assert.isTrue(fixedHostPortExpose._tag === "Failure");
         }),
       ),
     );

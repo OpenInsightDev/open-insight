@@ -14,7 +14,7 @@ import {
 import type { Config } from "./config.ts";
 import * as Task from "#/task/index.ts";
 import * as Metric from "#/metric/index.ts";
-import { createTrail } from "./trail.ts";
+import { createTrail, type RunTrail } from "./trail.ts";
 import { Error } from "./error.ts";
 import { Agent, Sandbox } from "@open-insight/core";
 import {
@@ -77,7 +77,7 @@ const updateMetricResult =
 
 type ScheduledTask = Readonly<{
   task: Task.Task;
-  runTrail: Effect.Effect<void, Error, Scope.Scope>;
+  runTrail: RunTrail;
 }>;
 
 type ScheduledTrail = ScheduledTask &
