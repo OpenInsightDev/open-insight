@@ -3,7 +3,7 @@ import type { EventTransport } from "#/exec/event/index.ts";
 import { Error } from "#/exec/error.ts";
 import { HttpBody, HttpClient, HttpClientResponse } from "effect/unstable/http";
 import { Sse } from "effect/unstable/encoding";
-import { type EventStream } from "#/exec/event/schema.ts";
+import { Event, type EventStream } from "#/exec/event/schema.ts";
 
 const transport = "sse";
 
@@ -16,7 +16,7 @@ const eventStream = (stream: EventStream): Stream.Stream<Uint8Array, Error | Sch
       _tag: "Event" as const,
       event: value._tag,
       id: undefined,
-      data: JSON.stringify(value),
+      data: JSON.stringify(Schema.encodeSync(Event)(value)),
     })),
     Stream.map((event) => Sse.encoder.write(event)),
     Stream.encodeText,

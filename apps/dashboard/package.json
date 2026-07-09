@@ -14,8 +14,10 @@
     "@astryxdesign/theme-neutral": "catalog:",
     "@heroicons/react": "catalog:",
     "@open-insight/eval": "workspace:*",
+    "idb-keyval": "catalog:",
     "react": "^19.2.7",
-    "react-dom": "^19.2.7"
+    "react-dom": "^19.2.7",
+    "zustand": "catalog:"
   },
   "devDependencies": {
     "@astryxdesign/cli": "catalog:",
