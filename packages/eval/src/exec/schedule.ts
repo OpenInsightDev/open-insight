@@ -9,7 +9,6 @@ import {
   Queue,
   Ref,
   Scope,
-  Semaphore,
   Stream,
 } from "effect";
 import type { Config } from "./config.ts";
@@ -18,7 +17,6 @@ import * as Metric from "#/metric/index.ts";
 import { createTrail } from "./trail.ts";
 import { Error } from "./error.ts";
 import { Agent, Sandbox } from "@open-insight/core";
-import { Countdown } from "@open-insight/core/utils";
 import {
   type Event,
   InitEvent,
@@ -27,7 +25,6 @@ import {
   MetricsStreamEvent,
   EventTransportService,
 } from "./event/index.ts";
-import { range } from "effect/Array";
 import * as Benchmark from "#/benchmark/index.ts";
 import { Result } from "./result.ts";
 import { castDraft, produce } from "immer";
@@ -79,6 +76,16 @@ const updateMetricResult =
       );
     });
 
+type ScheduledTask = Readonly<{
+  task: Task.Task;
+  trail: Effect.Effect<void, Error, Scope.Scope>;
+}>;
+
+type ScheduledTrail = ScheduledTask &
+  Readonly<{
+    trailIndex: number;
+  }>;
+
 export const run = Effect.fn("exec/schedule")(
   function* (
     {
@@ -107,9 +114,6 @@ export const run = Effect.fn("exec/schedule")(
 
     // TODO reasonable default config values
     const { snapshotConcurrency = 32, trailConcurrency = 32 } = config;
-    const snapshotSem = yield* Semaphore.make(snapshotConcurrency);
-    const snapshotCountdown = yield* Countdown.make(benchmark.tasks.length);
-    const trailSem = yield* Semaphore.make(trailConcurrency);
 
     const result = yield* Ref.make<Result>({
       metrics: {},
@@ -123,7 +127,7 @@ export const run = Effect.fn("exec/schedule")(
     });
     yield* Effect.logDebug("Starting evaluation schedule");
 
-    const scheduleTrail = Effect.fn("exec/scheduleTrail")(
+    const prepareTaskSchedule = Effect.fn("exec/prepareTaskSchedule")(
       function* ({ task }: { task: Task.Task }) {
         yield* Effect.annotateCurrentSpan({
           benchmark: benchmark.name,
@@ -132,46 +136,45 @@ export const run = Effect.fn("exec/schedule")(
         });
         yield* Effect.logDebug("Preparing task schedule");
 
-        const trail = yield* createTrail({ task, metricQueue, eventQueue, config })
-          // snapshot building should also be limited to avoid overwhelming the sandbox provider
-          .pipe((create) => snapshotSem.withPermit(create));
+        const trail = yield* createTrail({ task, metricQueue, eventQueue, config });
         yield* Effect.logDebug("Task snapshot is ready");
 
-        // wait for all snapshots to be built successfully before starting any trails
-        // avoid wasting agent resources that will be discarded due to snapshot failures
-        yield* snapshotCountdown.open;
-        yield* Effect.logDebug("Waiting for all task snapshots");
-        yield* snapshotCountdown.await;
-        yield* Effect.logDebug("All task snapshots are ready");
+        return { task, trail };
+      },
+      (effect, { task }) =>
+        effect.pipe(
+          Effect.annotateLogs({
+            benchmark: benchmark.name,
+            taskName: task.name,
+          }),
+        ),
+    );
+
+    const scheduleTrail = Effect.fn("exec/scheduleTrail")(
+      function* ({ task, trail, trailIndex }: ScheduledTrail) {
+        yield* Effect.annotateCurrentSpan({
+          benchmark: benchmark.name,
+          taskName: task.name,
+          trailIndex,
+          trailCount,
+        });
 
         yield* offerEvent(
           TaskScheduleEvent.make({
             bench: benchmark.name,
             task: task.name,
+            trailIndex,
             op: "start",
           }),
         );
 
-        const fibers: Array<Fiber.Fiber<void, Error>> = [];
-        for (const trailIndex of range(0, trailCount - 1)) {
-          yield* Effect.logDebug(`Forking trail ${trailIndex}`);
-          const fiber = yield* trail
-            .pipe((trail) => trailSem.withPermit(trail))
-            .pipe(Effect.forkScoped);
-          fibers.push(fiber);
-          // ensure fair scheduling of trails across tasks
-          // TODO fibers are still not ordered, we need task queue
-          yield* Effect.yieldNow;
-        }
+        yield* trail;
 
-        yield* Effect.logDebug("Waiting for task trails");
-        // TODO fail tolerance for trails
-        yield* Fiber.joinAll(fibers);
-        yield* Effect.logDebug("Completed task trails");
         yield* offerEvent(
           TaskScheduleEvent.make({
             bench: benchmark.name,
             task: task.name,
+            trailIndex,
             op: "stop",
           }),
         );
@@ -184,6 +187,15 @@ export const run = Effect.fn("exec/schedule")(
           }),
         ),
     );
+
+    const trailStream = (scheduledTasks: ReadonlyArray<ScheduledTask>) =>
+      Stream.range(0, trailCount - 1).pipe(
+        Stream.flatMap((trailIndex) =>
+          Stream.fromIterable(scheduledTasks).pipe(
+            Stream.map((scheduledTask): ScheduledTrail => ({ ...scheduledTask, trailIndex })),
+          ),
+        ),
+      );
 
     const metricStream = Stream.fromQueue(metricQueue);
     const metricsFiber = yield* Option.match(metrics, {
@@ -241,9 +253,15 @@ export const run = Effect.fn("exec/schedule")(
         }),
       );
 
-      yield* Effect.all(
-        loadedTasks.map((task) => scheduleTrail({ task })),
-        { concurrency: "unbounded" },
+      const scheduledTasks = yield* Effect.all(
+        loadedTasks.map((task) => prepareTaskSchedule({ task })),
+        { concurrency: snapshotConcurrency },
+      );
+      yield* Effect.logDebug("All task snapshots are ready");
+
+      yield* trailStream(scheduledTasks).pipe(
+        Stream.mapEffect(scheduleTrail, { concurrency: trailConcurrency, unordered: true }),
+        Stream.runDrain,
       );
 
       yield* offerEvent(
