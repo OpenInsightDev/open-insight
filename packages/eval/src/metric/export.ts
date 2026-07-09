@@ -3,7 +3,7 @@ export {
   init,
   type Metrics,
   withBenchEach,
-  withBenchmark,
+  withBench,
   withBenchReduce,
   withTask,
   withTaskEach,

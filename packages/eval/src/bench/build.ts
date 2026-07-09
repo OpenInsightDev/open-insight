@@ -1,7 +1,7 @@
 import type * as Task from "../task/index.ts";
 import { Effect, Schema } from "effect";
 
-export class Metadata extends Schema.Class<Metadata>("BenchmarkMetadata")({
+export class Metadata extends Schema.Class<Metadata>("BenchMetadata")({
   name: Schema.String,
   description: Schema.optional(Schema.String),
   categories: Schema.optional(Schema.Array(Schema.String)),

@@ -6,9 +6,3 @@ export type Verifier<G extends Grade.Result = Grade.Result> = Readonly<{
   exec: Bivariant<(sandbox: Sandbox.SandboxPromise) => PromiseLike<Agent.Trajectory | null>>;
   expect: G;
 }>;
-
-export const check =
-  <R extends Grade.Result>(verifier: Verifier<R>) =>
-  (sandbox: Sandbox.SandboxPromise) => {
-    return verifier.exec(sandbox);
-  };

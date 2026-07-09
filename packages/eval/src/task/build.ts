@@ -1,5 +1,5 @@
 import type * as Grade from "#/grade/index.ts";
-import * as Verif from "./verif/index.ts";
+import { type Verifier } from "./verif.ts";
 import { Sandbox, Snapshot } from "@open-insight/core/internal";
 import { Brand, Effect, Schema, type Scope } from "effect";
 import { Prompt } from "effect/unstable/ai";
@@ -27,7 +27,7 @@ export type Options<
     name: string;
     prompt: ReadonlyArray<Prompt.UserMessage>;
     grader: Grade.Grader<G>;
-    verifier?: Verif.Verifier<G>;
+    verifier?: Verifier<G>;
     snapshot: Snapshot.Snapshot;
 
     description?: string;
@@ -46,7 +46,7 @@ export class Task<G extends Schema.JsonObject = any, Extra extends Schema.JsonOb
   resources: Sandbox.Resources;
   prompt: ReadonlyArray<Prompt.UserMessage>;
   grader: Grade.Grader<G>;
-  verifier?: Verif.Verifier<G>;
+  verifier?: Verifier<G>;
   snapshot: Snapshot.Snapshot;
 
   constructor({

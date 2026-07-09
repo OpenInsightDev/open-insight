@@ -69,7 +69,7 @@ async function* loadTasks(repoPath: string): AsyncIterable<VETask> {
   }
 }
 
-const runBenchmark = Effect.fn("runBenchmark")(function* () {
+const runBench = Effect.fn("runBench")(function* () {
   const repoPath = path.resolve("./.repos/verilog-eval");
   const tasks = yield* Task.Load.fromAsyncIter(loadTasks(repoPath)).pipe(Task.Load.select(4));
 
@@ -91,13 +91,13 @@ const runBenchmark = Effect.fn("runBenchmark")(function* () {
         Metric.passAtK(3),
       ),
     ),
-    Metric.withBenchmark("avgPassAt1", (tasks) =>
+    Metric.withBench("avgPassAt1", (tasks) =>
       pipe(
         Object.values(tasks).map(({ passAt1 }) => passAt1),
         Metric.mean,
       ),
     ),
-    Metric.withBenchmark("avgPassAt3", (tasks) =>
+    Metric.withBench("avgPassAt3", (tasks) =>
       pipe(
         Object.values(tasks).map(({ passAt3 }) => passAt3),
         Metric.mean,
@@ -149,7 +149,7 @@ const main = Effect.gen(function* () {
 
   return yield* Effect.gen(function* () {
     yield* Effect.logInfo(`[verilog-eval] writing debug logs to ${debugLogPath}`);
-    const result = yield* runBenchmark();
+    const result = yield* runBench();
     yield* Effect.logInfo("[verilog-eval] benchmark result", JSON.stringify(result));
     return result;
   }).pipe(

@@ -29,7 +29,7 @@ export class TaskOutput extends Schema.TaggedClass<TaskOutput>()("TaskOutput", {
   result: Schema.Json,
 }) {}
 
-export class BenchOutput extends Schema.TaggedClass<BenchOutput>()("BenchmarkOutput", {
+export class BenchOutput extends Schema.TaggedClass<BenchOutput>()("BenchOutput", {
   name: Schema.String,
   result: Schema.Json,
 }) {}

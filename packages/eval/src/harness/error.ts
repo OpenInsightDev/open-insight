@@ -4,10 +4,10 @@ export class InitError extends Schema.TaggedErrorClass<InitError>()("InitError",
   cause: Schema.Defect(),
 }) {}
 
-export const HarnessErrorReason = Schema.Union([InitError]);
+export const ErrorReason = Schema.Union([InitError]);
 
-export class HarnessError extends Schema.TaggedErrorClass<HarnessError>()("HarnessError", {
-  reason: HarnessErrorReason,
+export class Error extends Schema.TaggedErrorClass<Error>()("HarnessError", {
+  reason: ErrorReason,
 }) {
-  static init = (cause: unknown) => new HarnessError({ reason: new InitError({ cause }) });
+  static init = (cause: unknown) => new Error({ reason: new InitError({ cause }) });
 }

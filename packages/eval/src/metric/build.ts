@@ -153,7 +153,7 @@ export const withBenchEach =
       }),
     );
 
-export const withBenchmark =
+export const withBench =
   <TAM extends TaskMetric.Metric, N extends string, R>(
     name: N,
     exec: BenchMetric.AllFn<TAM, R>,

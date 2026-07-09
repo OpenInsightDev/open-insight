@@ -53,7 +53,7 @@ const updateMetricResult =
   (current: Result): Result =>
     produce(current, (draft) => {
       Match.value(output).pipe(
-        Match.tag("BenchmarkOutput", ({ name, result }) => {
+        Match.tag("BenchOutput", ({ name, result }) => {
           draft.metrics[name] = result;
         }),
         Match.tag("TaskOutput", ({ name, task, result }) => {
