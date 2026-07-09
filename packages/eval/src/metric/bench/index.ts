@@ -80,11 +80,11 @@ export type Result<M> = UnionToIntersection<
 const runExec = (name: string, exec: () => unknown) =>
   Effect.tryPromise({
     try: async () => await exec(),
-    catch: MetricError.exec({ name, type: "Benchmark" }),
+    catch: MetricError.exec({ name, type: "Bench" }),
   }).pipe(
     Effect.flatMap((result) =>
       Schema.decodeUnknownEffect(Schema.Json)(result).pipe(
-        Effect.mapError(MetricError.exec({ name, type: "Benchmark" })),
+        Effect.mapError(MetricError.exec({ name, type: "Bench" })),
       ),
     ),
   );
@@ -95,10 +95,10 @@ export const buildReduce = ({ name, exec }: { name: string; exec: ReduceExec }) 
   return Effect.fn(function* (input: Input): Effect.fn.Return<BenchOutput, MetricError> {
     const rawResult = yield* Effect.tryPromise({
       try: async () => await exec.exec(state.value, input),
-      catch: MetricError.exec({ name, type: "Benchmark" }),
+      catch: MetricError.exec({ name, type: "Bench" }),
     });
     const result = yield* Schema.decodeUnknownEffect(Schema.Json)(rawResult).pipe(
-      Effect.mapError(MetricError.exec({ name, type: "Benchmark" })),
+      Effect.mapError(MetricError.exec({ name, type: "Bench" })),
     );
     state.value = rawResult;
 

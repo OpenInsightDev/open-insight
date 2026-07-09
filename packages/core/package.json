@@ -53,6 +53,7 @@
     "@effect/opentelemetry": "catalog:",
     "ai": "catalog:",
     "dockerfile-ast": "catalog:",
+    "openai": "catalog:",
     "picomatch": "catalog:",
     "semver": "catalog:"
   },

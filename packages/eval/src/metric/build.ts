@@ -132,7 +132,7 @@ export const withBenchReduce =
         if (format) {
           draft.format.push({ name, format: format as Exec });
         }
-        draft.metadata.push({ name, type: "Benchmark", variant: "Reduce" });
+        draft.metadata.push({ name, type: "Bench", variant: "Reduce" });
       }),
     );
 
@@ -149,7 +149,7 @@ export const withBenchEach =
         if (format) {
           draft.format.push({ name, format: format as Exec });
         }
-        draft.metadata.push({ name, type: "Benchmark", variant: "Each" });
+        draft.metadata.push({ name, type: "Bench", variant: "Each" });
       }),
     );
 
@@ -166,6 +166,6 @@ export const withBenchmark =
         if (format) {
           draft.format.push({ name, format: format as Exec });
         }
-        draft.metadata.push({ name, type: "Benchmark", variant: "All" });
+        draft.metadata.push({ name, type: "Bench", variant: "All" });
       }),
     );

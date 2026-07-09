@@ -11,7 +11,7 @@ export class Metadata extends Schema.Class<Metadata>("BenchmarkMetadata")({
   extra: Schema.optional(Schema.Record(Schema.String, Schema.String)),
 }) {}
 
-export type Benchmark<T extends Task.Task = Task.Task> = Metadata &
+export type Bench<T extends Task.Task = Task.Task> = Metadata &
   Readonly<{
     tasks: Task.Tasks<T>;
   }>;
@@ -25,4 +25,4 @@ export const make = <T extends Task.Task>({ tasks, ...metadata }: Options<T>) =>
   Effect.succeed({
     ...metadata,
     tasks,
-  } satisfies Benchmark<T>);
+  } satisfies Bench<T>);

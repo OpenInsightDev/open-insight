@@ -1,4 +1,4 @@
-export * as Benchmark from "./benchmark/export.ts";
+export * as Bench from "./bench/export.ts";
 export * as Exec from "./exec/export.ts";
 export * as Harness from "./harness/export.ts";
 export * as Matrix from "./matrix/export.ts";

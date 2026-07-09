@@ -1,4 +1,4 @@
-export * as Benchmark from "./bench/index.ts";
+export * as Bench from "./bench/index.ts";
 export * as Task from "./task/index.ts";
 export * as Traj from "./traj/index.ts";
 

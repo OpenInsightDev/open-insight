@@ -2,7 +2,7 @@ import { Schema, Stream } from "effect";
 import type { Error } from "../error.ts";
 import * as Metric from "#/metric/index.ts";
 import * as Task from "#/task/index.ts";
-import * as Bench from "#/benchmark/index.ts";
+import * as Bench from "#/bench/index.ts";
 import { Response, Toolkit } from "effect/unstable/ai";
 
 export class InitEvent extends Schema.TaggedClass<InitEvent>()("InitEvent", {

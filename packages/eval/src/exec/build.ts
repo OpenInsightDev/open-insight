@@ -1,4 +1,4 @@
-import type * as Benchmark from "#/benchmark/index.ts";
+import type * as Bench from "#/bench/index.ts";
 import type * as Harness from "#/harness/index.ts";
 import type * as Metric from "#/metric/index.ts";
 import type * as Task from "#/task/index.ts";
@@ -7,7 +7,7 @@ import { Error } from "./error.ts";
 import { EventTransportService } from "./event/index.ts";
 
 export type Executor<T extends Task.Task = Task.Task> = Readonly<{
-  benchmark: Benchmark.Benchmark;
+  benchmark: Bench.Bench;
   harness: Harness.Harness;
   trailCount: number;
   metrics: Option.Option<Metric.Metrics<Task.GradeResultOf<T>>>;
@@ -15,7 +15,7 @@ export type Executor<T extends Task.Task = Task.Task> = Readonly<{
 }> & { _T?: T };
 
 type Options<T extends Task.Task> = Readonly<{
-  benchmark: Benchmark.Benchmark;
+  benchmark: Bench.Bench;
   harness: Harness.Harness;
   trailCount?: number;
   metrics?: Metric.Metrics<Task.GradeResultOf<T>>;

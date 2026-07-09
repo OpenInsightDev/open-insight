@@ -25,7 +25,7 @@ import {
   MetricsStreamEvent,
   EventTransportService,
 } from "./event/index.ts";
-import * as Benchmark from "#/benchmark/index.ts";
+import * as Bench from "#/bench/index.ts";
 import { Result } from "./result.ts";
 import { castDraft, produce } from "immer";
 import type { ChildProcessSpawner } from "effect/unstable/process";
@@ -94,7 +94,7 @@ export const run = Effect.fn("exec/schedule")(
     }: Readonly<{
       trailCount: number;
       metrics: Option.Option<Metric.Metrics>;
-      benchmark: Benchmark.Benchmark;
+      benchmark: Bench.Bench;
     }>,
     config: Config,
   ): Effect.fn.Return<

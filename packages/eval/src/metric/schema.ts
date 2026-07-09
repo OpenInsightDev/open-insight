@@ -40,7 +40,7 @@ export type Output = Schema.Schema.Type<typeof OutputSchema>;
 export const TypeSchema = Schema.Union([
   Schema.Literal("Trajectory"),
   Schema.Literal("Task"),
-  Schema.Literal("Benchmark"),
+  Schema.Literal("Bench"),
 ]);
 export type Type = Schema.Schema.Type<typeof TypeSchema>;
 

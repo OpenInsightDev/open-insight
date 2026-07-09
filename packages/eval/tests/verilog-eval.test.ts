@@ -1,4 +1,4 @@
-import { Benchmark, Metric, Snapshot, Task } from "#/export.ts";
+import { Bench, Metric, Snapshot, Task } from "#/export.ts";
 import { Effect, FileSystem, Logger, pipe, References } from "effect";
 import { DevTools } from "effect/unstable/devtools";
 import { Agent, Exec, Harness, Sandbox } from "@open-insight/eval";
@@ -73,7 +73,7 @@ const runBenchmark = Effect.fn("runBenchmark")(function* () {
   const repoPath = path.resolve("./.repos/verilog-eval");
   const tasks = yield* Task.Load.fromAsyncIter(loadTasks(repoPath)).pipe(Task.Load.select(4));
 
-  const benchmark = yield* Benchmark.make({
+  const benchmark = yield* Bench.make({
     name: "verilog-eval",
     tasks,
   });

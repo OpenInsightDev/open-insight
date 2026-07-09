@@ -4,7 +4,7 @@ import { Agent, Sandbox, Snapshot } from "@open-insight/core";
 import { Effect, Layer, Option } from "effect";
 import { Prompt } from "effect/unstable/ai";
 import { vi } from "vite-plus/test";
-import * as Benchmark from "../benchmark/index.ts";
+import * as Bench from "../bench/index.ts";
 import * as Task from "../task/index.ts";
 import { run } from "./schedule.ts";
 
@@ -98,7 +98,7 @@ describe("run", () => {
       Effect.gen(function* () {
         const taskNames = ["task-a", "task-b", "task-c", "task-d"];
         const trailCount = 3;
-        const benchmark = yield* Benchmark.make({
+        const benchmark = yield* Bench.make({
           name: "fair-schedule",
           tasks: taskNames.map(makeTask),
         });

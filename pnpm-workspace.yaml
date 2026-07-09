@@ -67,6 +67,7 @@ catalog:
   '@astryxdesign/theme-neutral': ^0.1.4
   '@astryxdesign/cli': ^0.1.4
   '@heroicons/react': ^2.2.0
+  openai: ^6.45.0
 overrides:
   vite: "catalog:"
   vitest: "catalog:"
