@@ -61,11 +61,11 @@
     "picomatch": "catalog:"
   },
   "devDependencies": {
-    "@types/node": "^25.6.2",
+    "@types/node": "^26.1.0",
     "@types/picomatch": "catalog:",
     "@typescript/native-preview": "catalog:",
-    "bumpp": "^11.1.0",
-    "typescript": "^5",
+    "bumpp": "catalog:",
+    "typescript": "^6.0.3",
     "vite-plus": "catalog:",
     "vitest": "catalog:"
   },

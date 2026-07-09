@@ -41,9 +41,9 @@
     "@open-insight/eval": "workspace:*"
   },
   "devDependencies": {
-    "@types/node": "^25.6.2",
-    "@typescript/native-preview": "7.0.0-dev.20260509.2",
-    "bumpp": "^11.1.0",
+    "@types/node": "^26.1.0",
+    "@typescript/native-preview": "7.0.0-dev.20260707.2",
+    "bumpp": "catalog:",
     "typescript": "^6.0.3",
     "vite-plus": "catalog:"
   }

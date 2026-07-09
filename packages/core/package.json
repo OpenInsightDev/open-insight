@@ -47,23 +47,23 @@
     "prepublishOnly": "vp run build"
   },
   "dependencies": {
-    "@agentclientprotocol/sdk": "^1.0.0",
+    "@agentclientprotocol/sdk": "catalog:",
     "@effect/ai-anthropic": "catalog:",
     "@effect/ai-openai": "catalog:",
     "@effect/opentelemetry": "catalog:",
     "ai": "catalog:",
-    "dockerfile-ast": "^0.7.1",
+    "dockerfile-ast": "catalog:",
     "picomatch": "catalog:",
     "semver": "catalog:"
   },
   "devDependencies": {
-    "@effect/vitest": "4.0.0-beta.91",
-    "@types/node": "^25.6.2",
-    "@types/picomatch": "^4.0.3",
+    "@effect/vitest": "catalog:",
+    "@types/node": "^26.1.0",
+    "@types/picomatch": "catalog:",
     "@types/semver": "catalog:",
     "@typescript/native-preview": "catalog:",
-    "bumpp": "^11.1.0",
-    "typescript": "^5",
+    "bumpp": "catalog:",
+    "typescript": "^6.0.3",
     "vite-plus": "catalog:",
     "vitest": "catalog:"
   },
