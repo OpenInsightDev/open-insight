@@ -1,7 +1,7 @@
 import { Bench, Metric, Snapshot, Task } from "#/export.ts";
 import { Effect, FileSystem, Logger, pipe, References } from "effect";
 import { DevTools } from "effect/unstable/devtools";
-import { Agent, Exec, Harness, Sandbox } from "@open-insight/eval";
+import { Agent, Eval, Harness, Sandbox } from "@open-insight/eval";
 import { OpenAiClient, OpenAiLanguageModel } from "@effect/ai-openai";
 import { LanguageModel, Prompt } from "effect/unstable/ai";
 import { NodeHttpClient } from "@effect/platform-node";
@@ -126,14 +126,14 @@ const runBenchmark = Effect.fn("runBenchmark")(function* () {
 
   const harnessMetrics = yield* metrics;
 
-  const exec = yield* Exec.make<VETask>({
+  const evalRun = yield* Eval.make<VETask>({
     benchmark,
     harness,
     metrics: harnessMetrics,
     trailCount: 3,
   });
 
-  const result = yield* Exec.run(exec, {
+  const result = yield* Eval.run(evalRun, {
     verifMode: true,
     trailConcurrency: 16,
   });
@@ -162,6 +162,6 @@ const main = Effect.gen(function* () {
   .pipe(Effect.provide(DevTools.layer()));
 
 it("verilog-eval benchmark should pass", async () => {
-  const result = await Exec.runPromise(main);
+  const result = await Eval.runPromise(main);
   assert.isTrue(result !== null);
 }, 100000);

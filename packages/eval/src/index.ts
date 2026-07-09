@@ -1,5 +1,5 @@
 export * as Bench from "./bench/index.ts";
-export * as Exec from "./exec/index.ts";
+export * as Eval from "./eval/index.ts";
 export * as Harness from "./harness/index.ts";
 export * as Matrix from "./matrix/index.ts";
 export * as Metric from "./metric/index.ts";

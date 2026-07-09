@@ -1,9 +1,9 @@
 import { Effect, Schema, Stream } from "effect";
-import type { EventTransport } from "#/exec/event/index.ts";
-import { Error } from "#/exec/error.ts";
+import type { EventTransport } from "#/eval/event/index.ts";
+import { Error } from "#/eval/error.ts";
 import { HttpBody, HttpClient, HttpClientResponse } from "effect/unstable/http";
 import { Sse } from "effect/unstable/encoding";
-import { Event, type EventStream } from "#/exec/event/schema.ts";
+import { Event, type EventStream } from "#/eval/event/schema.ts";
 
 const transport = "sse";
 
