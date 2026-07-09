@@ -279,11 +279,11 @@ export const make = Effect.fn("sandbox/provider/docker")(
           containerName: name,
         });
 
-        const sandboxSpawnerLayer = yield* makeSandboxSpawner(name).pipe(
+        const spawnerLayer = yield* makeSandboxSpawner(name).pipe(
           Effect.provideService(Runtime.Runtime, runtime),
         );
         const sandboxSpawner = yield* Effect.service(Sandbox.Spawn.Service).pipe(
-          Effect.provide(sandboxSpawnerLayer),
+          Effect.provide(spawnerLayer),
         );
 
         return {

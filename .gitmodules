@@ -19,3 +19,6 @@
 [submodule ".repos/slime"]
 	path = .repos/slime
 	url = https://github.com/THUDM/slime.git
+[submodule "packages/acp-agent"]
+	path = packages/acp-agent
+	url = https://github.com/OpenInsightDev/acp-agent.git
