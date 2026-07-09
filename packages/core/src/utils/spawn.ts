@@ -117,7 +117,7 @@ export class Service extends Context.Service<
 
         if (exitCode !== 0 && errorOnNonZeroExit) {
           const { stdout, stderr } = yield* toExecHandle(handle);
-          throw Error.exit(exitCode, stdout, stderr);
+          return yield* Effect.fail(Error.exit(exitCode, stdout, stderr));
         }
 
         return handle;

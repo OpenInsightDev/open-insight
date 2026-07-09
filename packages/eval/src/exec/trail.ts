@@ -224,7 +224,8 @@ export const createTrail = Effect.fn("exec/createTrail")(
           Effect.annotateLogs({
             taskName: task.name,
           }),
-        );
+        )
+        .pipe(Effect.scoped);
       yield* Effect.logDebug(`Completed trail ${trailIndex}`);
     });
   },
