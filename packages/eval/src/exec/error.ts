@@ -1,4 +1,5 @@
 import { Schema } from "effect";
+import * as Grade from "#/grade/index.ts";
 import * as Metric from "#/metric/index.ts";
 import * as Task from "../task/index.ts";
 import { Snapshot } from "@open-insight/core/internal";
@@ -34,8 +35,8 @@ export class TaskVerifExecError extends Schema.TaggedErrorClass<TaskVerifExecErr
 
 export class TaskVerifFailed extends Schema.TaggedErrorClass<TaskVerifFailed>()("TaskVerifFailed", {
   task: Task.Metadata,
-  expected: Task.Grade.Result,
-  actual: Task.Grade.Result,
+  expected: Grade.Result,
+  actual: Grade.Result,
   cause: Schema.Defect(),
 }) {}
 
@@ -103,11 +104,8 @@ export class Error extends Schema.TaggedErrorClass<Error>()("ExecError", {
   static taskExec = (task: Task.Task, trailIndex: number) =>
     this.mapUnknownError((cause) => new TaskExecError({ task: task.metadata, trailIndex, cause }));
 
-  static taskVerif = (
-    task: Task.Metadata,
-    expected: Task.Grade.Result,
-    actual: Task.Grade.Result,
-  ) => this.mapUnknownError((cause) => new TaskVerifFailed({ task, expected, actual, cause }));
+  static taskVerif = (task: Task.Metadata, expected: Grade.Result, actual: Grade.Result) =>
+    this.mapUnknownError((cause) => new TaskVerifFailed({ task, expected, actual, cause }));
 
   static taskVerifExec = (task: Task.Task) =>
     this.mapUnknownError((cause) => new TaskVerifExecError({ task: task.metadata, cause }));

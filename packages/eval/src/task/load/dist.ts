@@ -15,7 +15,7 @@ const archiveHash = Effect.fn(function* (url: string) {
 export const withDist = ({ url, format = "tar.gz" }: { url: string; format?: "tar.gz" }) =>
   Effect.fn(function* <T extends Task.Task>(exec: (options: { distPath: string }) => Loader<T>) {
     const fs = yield* FileSystem.FileSystem;
-    const spawner = yield* Spawn.SpawnService;
+    const spawner = yield* Spawn.Service;
 
     const hash = yield* archiveHash(url);
     const distPath = yield* fs.makeTempDirectory({

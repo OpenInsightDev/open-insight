@@ -7,12 +7,12 @@ import { withGitRepo } from "./git.ts";
 
 const testLayer = Layer.merge(
   NodeServices.layer,
-  Spawn.SpawnService.layer.pipe(Layer.provide(NodeServices.layer)),
+  Spawn.Service.layer.pipe(Layer.provide(NodeServices.layer)),
 );
 
 const git = (cwd: string, args: ReadonlyArray<string>) =>
   Effect.gen(function* () {
-    const spawner = yield* Spawn.SpawnService;
+    const spawner = yield* Spawn.Service;
     return yield* spawner
       .string(ChildProcess.make("git", ["-C", cwd, ...args]))
       .pipe(Effect.map((s) => s.trim()));
@@ -20,7 +20,7 @@ const git = (cwd: string, args: ReadonlyArray<string>) =>
 
 const runGit = (cwd: string, args: ReadonlyArray<string>) =>
   Effect.gen(function* () {
-    const spawner = yield* Spawn.SpawnService;
+    const spawner = yield* Spawn.Service;
     yield* spawner.exitCode(ChildProcess.make("git", ["-C", cwd, ...args]));
   });
 
@@ -33,7 +33,7 @@ const initRemote = Effect.gen(function* () {
 
   yield* fs.makeDirectory(work);
 
-  const spawner = yield* Spawn.SpawnService;
+  const spawner = yield* Spawn.Service;
   yield* spawner.exitCode(ChildProcess.make("git", ["init", "--bare", "-b", "main", remote]));
   yield* runGit(work, ["init", "-b", "main"]);
   yield* runGit(work, ["config", "user.email", "test@example.com"]);

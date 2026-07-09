@@ -43,7 +43,7 @@ const cloneArgs = (
 
 const loadGitRepo = Effect.fn(function* (repoPath: string, repoURL: string, options: Options) {
   const fs = yield* FileSystem.FileSystem;
-  const spawner = yield* Spawn.SpawnService;
+  const spawner = yield* Spawn.Service;
 
   const run = (args: ReadonlyArray<string>) =>
     spawner.success(ChildProcess.make("git", ["-C", repoPath, ...args]));
@@ -151,8 +151,7 @@ export const withGitRepo = <T extends Task.Task>(repoURL: string, options: Optio
       });
       return yield* loader;
     },
-    (effect) =>
-      effect.pipe(Effect.mapError(TaskError.load), Effect.provide(Spawn.SpawnService.layer)),
+    (effect) => effect.pipe(Effect.mapError(TaskError.load), Effect.provide(Spawn.Service.layer)),
   );
 
 export const withGithub = <T extends Task.Task>(id: string, options?: Options) =>

@@ -1,4 +1,4 @@
-import type * as Grade from "./grade/index.ts";
+import type * as Grade from "#/grade/index.ts";
 import * as Verif from "./verif/index.ts";
 import { Sandbox, Snapshot } from "@open-insight/core/internal";
 import { Brand, Effect, Schema, type Scope } from "effect";

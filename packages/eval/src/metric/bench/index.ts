@@ -77,7 +77,7 @@ export type Result<M> = UnionToIntersection<
   M extends Metric<infer _, infer N, infer R> ? Record<N, R> : never
 >;
 
-const runExec = (name: string, exec: () => PromiseLike<unknown> | unknown) =>
+const runExec = (name: string, exec: () => unknown) =>
   Effect.tryPromise({
     try: async () => await exec(),
     catch: MetricError.exec({ name, type: "Benchmark" }),

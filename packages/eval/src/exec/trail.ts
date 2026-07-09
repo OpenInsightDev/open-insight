@@ -1,4 +1,5 @@
 import { Effect, Equal, FileSystem, Option, Path, Queue, Ref, Scope, Stream } from "effect";
+import * as Grade from "#/grade/index.ts";
 import * as Task from "../task/index.ts";
 import * as Metric from "../metric/index.ts";
 import { Agent, Sandbox } from "@open-insight/core";
@@ -138,7 +139,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
 
         const sandboxPromise = yield* Sandbox.asPromise(sandbox);
         yield* Effect.logDebug(`Starting graders`);
-        const gradeResults = yield* Task.Grade.run(grader)({
+        const gradeResults = yield* Grade.run(grader)({
           trajectory,
           ...sandboxPromise,
         });
@@ -183,7 +184,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
         }).pipe(Effect.mapError(Error.taskVerifExec(task)));
 
         yield* Effect.logDebug("Starting verifier");
-        const gradeResults = yield* Task.Grade.run(grader)({
+        const gradeResults = yield* Grade.run(grader)({
           trajectory,
           ...sandboxPromise,
         });

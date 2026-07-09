@@ -1,7 +1,7 @@
 import type { Agent, Sandbox } from "@open-insight/core/internal";
 import type { Bivariant } from "#/utils/variant.ts";
 import { Effect, Schema } from "effect";
-import { TaskError } from "../error.ts";
+import { TaskError } from "../task/error.ts";
 
 export type Context = Sandbox.SandboxPromise &
   Readonly<{

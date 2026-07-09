@@ -3,14 +3,14 @@ import * as Task from "../index.ts";
 import type { Loader } from "./index.ts";
 
 export const withParquetDir = <S>({
-  dirPath,
-  prefix,
-  schema,
+  dirPath: _dirPath,
+  prefix: _prefix,
+  schema: _schema,
 }: {
   dirPath: string;
   prefix: string;
   schema: Schema.Schema<S>;
 }) =>
   Effect.fn(function* <T extends Task.Task>(
-    exec: ({ items }: { items: AsyncIterator<S> }) => Loader<T>,
+    _exec: ({ items }: { items: AsyncIterator<S> }) => Loader<T>,
   ) {});
