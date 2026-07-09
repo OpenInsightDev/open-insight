@@ -61,7 +61,6 @@ const updateMetricResult =
             metrics: {},
             trails: [],
           });
-
           taskResult.metrics[name] = result;
         }),
         Match.tag("TrajOutput", ({ name, task, trailIndex, result }) => {
@@ -78,7 +77,7 @@ const updateMetricResult =
 
 type ScheduledTask = Readonly<{
   task: Task.Task;
-  trail: Effect.Effect<void, Error, Scope.Scope>;
+  runTrail: Effect.Effect<void, Error, Scope.Scope>;
 }>;
 
 type ScheduledTrail = ScheduledTask &
@@ -136,10 +135,10 @@ export const run = Effect.fn("exec/schedule")(
         });
         yield* Effect.logDebug("Preparing task schedule");
 
-        const trail = yield* createTrail({ task, metricQueue, eventQueue, config });
+        const runTrail = yield* createTrail({ task, metricQueue, eventQueue, config });
         yield* Effect.logDebug("Task snapshot is ready");
 
-        return { task, trail };
+        return { task, runTrail };
       },
       (effect, { task }) =>
         effect.pipe(
@@ -151,7 +150,7 @@ export const run = Effect.fn("exec/schedule")(
     );
 
     const scheduleTrail = Effect.fn("exec/scheduleTrail")(
-      function* ({ task, trail, trailIndex }: ScheduledTrail) {
+      function* ({ task, runTrail, trailIndex }: ScheduledTrail) {
         yield* Effect.annotateCurrentSpan({
           benchmark: benchmark.name,
           taskName: task.name,
@@ -168,7 +167,7 @@ export const run = Effect.fn("exec/schedule")(
           }),
         );
 
-        yield* trail;
+        yield* runTrail;
 
         yield* offerEvent(
           TaskScheduleEvent.make({
@@ -188,7 +187,7 @@ export const run = Effect.fn("exec/schedule")(
         ),
     );
 
-    const trailStream = (scheduledTasks: ReadonlyArray<ScheduledTask>) =>
+    const makeTrailStream = (scheduledTasks: ReadonlyArray<ScheduledTask>) =>
       Stream.range(0, trailCount - 1).pipe(
         Stream.flatMap((trailIndex) =>
           Stream.fromIterable(scheduledTasks).pipe(
@@ -197,10 +196,10 @@ export const run = Effect.fn("exec/schedule")(
         ),
       );
 
-    const metricStream = Stream.fromQueue(metricQueue);
+    const metricsStream = Stream.fromQueue(metricQueue);
     const metricsFiber = yield* Option.match(metrics, {
       onSome: (metrics) =>
-        metricStream
+        metricsStream
           .pipe(
             Stream.tap((input) => Ref.update(result, updateTrailResult(input))),
             Metric.transform({
@@ -216,12 +215,8 @@ export const run = Effect.fn("exec/schedule")(
           )
           .pipe(Effect.mapError(Error.metric))
           .pipe(Effect.tap(() => Effect.logDebug("Completed metrics stream"))),
-      onNone: () => metricStream.pipe(Stream.runDrain),
+      onNone: () => metricsStream.pipe(Stream.runDrain),
     }).pipe(Effect.forkChild);
-
-    if (metricsFiber) {
-      yield* Effect.logDebug("Started metrics stream");
-    }
 
     const runSchedule = Effect.fn("exec/runSchedule")(function* () {
       yield* Effect.logDebug("Loading tasks");
@@ -259,7 +254,7 @@ export const run = Effect.fn("exec/schedule")(
       );
       yield* Effect.logDebug("All task snapshots are ready");
 
-      yield* trailStream(scheduledTasks).pipe(
+      yield* makeTrailStream(scheduledTasks).pipe(
         Stream.mapEffect(scheduleTrail, { concurrency: trailConcurrency, unordered: true }),
         Stream.runDrain,
       );

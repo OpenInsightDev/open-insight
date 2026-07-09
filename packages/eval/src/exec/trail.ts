@@ -15,7 +15,7 @@ import * as Task from "../task/index.ts";
 import * as Metric from "../metric/index.ts";
 import { Agent, Sandbox } from "@open-insight/core";
 import { Error } from "./error.ts";
-import { Response, type Tool } from "effect/unstable/ai";
+import { Prompt, Response, type Tool } from "effect/unstable/ai";
 import {
   type Event,
   type StreamPart as EventStreamPart,
@@ -298,7 +298,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
         yield* Effect.logDebug("Running verifier");
         const sandboxPromise = yield* Sandbox.asPromise(sandbox);
         const trajectory = yield* Effect.tryPromise({
-          try: () => verifier.exec(sandboxPromise),
+          try: () => verifier.exec(sandboxPromise).then((result) => result ?? Prompt.empty),
           catch: Error.taskExec(task, trailIndex),
         }).pipe(Effect.mapError(Error.taskVerifExec(task)));
 
@@ -309,11 +309,11 @@ export const createTrail = Effect.fn("exec/createTrail")(
         });
         yield* Effect.logDebug("Completed verifier");
 
-        if (!Equal.equals(gradeResults, verifier.expected)) {
+        if (!Equal.equals(gradeResults, verifier.expect)) {
           return yield* Effect.fail(
             Error.taskVerif(
               task.metadata,
-              verifier.expected,
+              verifier.expect,
               gradeResults,
             )(new globalThis.Error("Verifier result did not match expected result")),
           );

@@ -10,11 +10,11 @@
     "version": "changeset version"
   },
   "devDependencies": {
-    "@effect/language-service": "^0.86.2",
+    "@changesets/cli": "catalog:",
+    "@effect/language-service": "^0.86.4",
     "@effect/tsgo": "catalog:",
     "@typescript/native-preview": "catalog:",
-    "vite-plus": "catalog:",
-    "@changesets/cli": "catalog:"
+    "vite-plus": "catalog:"
   },
   "devEngines": {
     "packageManager": {

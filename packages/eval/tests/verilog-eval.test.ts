@@ -61,7 +61,7 @@ async function* loadTasks(repoPath: string): AsyncIterable<VETask> {
           await $`sed 's/RefModule/TopModule/g' /tmp/ref.v > top.v`;
           return Prompt.empty;
         },
-        expected: { simPass: true },
+        expect: { simPass: true },
       },
       snapshot,
       extra: { category: datasetDirName },
