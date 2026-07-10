@@ -74,7 +74,9 @@ type SandboxShell = (
   strings: TemplateStringsArray,
   ...values: ReadonlyArray<ShellExpression>
 ) => Promise<string>;
-type SandboxWriteFile = (options: Readonly<{ sandboxPath: string; content: string }>) => Promise<void>;
+type SandboxWriteFile = (
+  options: Readonly<{ sandboxPath: string; content: string }>,
+) => Promise<void>;
 
 const isNonAgentic = (datapoint: CvdpDatapoint): datapoint is CvdpNonAgenticDatapoint =>
   "input" in datapoint;

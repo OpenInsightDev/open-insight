@@ -9,9 +9,9 @@ import type { Metadata } from "./schema.ts";
 
 export type Metrics<
   G extends Grade.Result = Grade.Result,
-  TRM extends TrajMetric.Metric = never,
-  TAM extends TaskMetric.Metric = never,
-  BM extends BenchMetric.Metric = never,
+  TRM extends TrajMetric.Metric = any,
+  TAM extends TaskMetric.Metric = any,
+  BM extends BenchMetric.Metric = any,
 > = Readonly<{
   trajectory: Array<TRM>;
   task: Array<TAM>;
@@ -110,44 +110,48 @@ export const withTaskReduce =
   ) =>
   <TRM extends TrajMetric.Metric, TAM extends TaskMetric.Metric, BM extends BenchMetric.Metric>(
     builder: Builder<G, TRM, TAM, BM>,
-  ): Builder<G, TRM, TAM | TaskMetric.Metric<G, N, R>, BM> =>
+  ): Builder<G, TRM, TAM | TaskMetric.Metric<N, R, "Reduce", G>, BM> =>
     Effect.map(
       builder,
       (metrics) =>
         produce(metrics, (draft) => {
-          (draft.task as Array<TAM | TaskMetric.Metric<G, N, R>>).push(
+          (draft.task as Array<TAM | TaskMetric.Metric<N, R, "Reduce", G>>).push(
             TaskMetric.reduce(name, init, exec),
           );
           draft.metadata.push({ name, type: "Task", variant: "Reduce" });
-        }) as Metrics<G, TRM, TAM | TaskMetric.Metric<G, N, R>, BM>,
+        }) as Metrics<G, TRM, TAM | TaskMetric.Metric<N, R, "Reduce", G>, BM>,
     );
 
 export const withTask =
   <G extends Grade.Result, N extends string, R>(name: N, exec: TaskMetric.EachFn<G, R>) =>
   <TRM extends TrajMetric.Metric, TAM extends TaskMetric.Metric, BM extends BenchMetric.Metric>(
     builder: Builder<G, TRM, TAM, BM>,
-  ): Builder<G, TRM, TAM | TaskMetric.Metric<G, N, R>, BM> =>
+  ): Builder<G, TRM, TAM | TaskMetric.Metric<N, R, "Each", G>, BM> =>
     Effect.map(
       builder,
       (metrics) =>
         produce(metrics, (draft) => {
-          (draft.task as Array<TAM | TaskMetric.Metric<G, N, R>>).push(TaskMetric.each(name, exec));
+          (draft.task as Array<TAM | TaskMetric.Metric<N, R, "Each", G>>).push(
+            TaskMetric.each(name, exec),
+          );
           draft.metadata.push({ name, type: "Task", variant: "Each" });
-        }) as Metrics<G, TRM, TAM | TaskMetric.Metric<G, N, R>, BM>,
+        }) as Metrics<G, TRM, TAM | TaskMetric.Metric<N, R, "Each", G>, BM>,
     );
 
 export const withTaskAll =
   <G extends Grade.Result, N extends string, R>(name: N, exec: TaskMetric.AllFn<G, R>) =>
   <TRM extends TrajMetric.Metric, TAM extends TaskMetric.Metric, BM extends BenchMetric.Metric>(
     builder: Builder<G, TRM, TAM, BM>,
-  ): Builder<G, TRM, TAM | TaskMetric.Metric<G, N, R>, BM> =>
+  ): Builder<G, TRM, TAM | TaskMetric.Metric<N, R, "All", G>, BM> =>
     Effect.map(
       builder,
       (metrics) =>
         produce(metrics, (draft) => {
-          (draft.task as Array<TAM | TaskMetric.Metric<G, N, R>>).push(TaskMetric.all(name, exec));
+          (draft.task as Array<TAM | TaskMetric.Metric<N, R, "All", G>>).push(
+            TaskMetric.all(name, exec),
+          );
           draft.metadata.push({ name, type: "Task", variant: "All" });
-        }) as Metrics<G, TRM, TAM | TaskMetric.Metric<G, N, R>, BM>,
+        }) as Metrics<G, TRM, TAM | TaskMetric.Metric<N, R, "All", G>, BM>,
     );
 
 export const withBenchReduce =

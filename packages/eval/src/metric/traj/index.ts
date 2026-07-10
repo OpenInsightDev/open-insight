@@ -48,7 +48,7 @@ export type Metric<
 > = Readonly<{
   name: N;
   exec: Exec<R>;
-}> & { _T?: T };
+}> & { _N?: N; _R?: R; _T?: T };
 
 export type Result<M> = UnionToIntersection<
   M extends Metric<infer N, infer R, infer _> ? { [K in N]: R } : never
@@ -78,13 +78,6 @@ export const all = <N extends string, R>(name: N, exec: AllFn<R>): Metric<N, R, 
   name,
   exec: Exec.All({ exec }),
 });
-
-const a = reduce("a", 0, () => 0);
-const b = each("b", () => 0);
-const c = all("c", () => 0);
-
-type R = Result<typeof a | typeof b | typeof c>; // { a: number; b: number; c: number }
-type S = StreamResult<typeof a | typeof b | typeof c>; // { a: number; b: never; c: never }
 
 const runExec = (name: string, exec: () => unknown) =>
   Effect.tryPromise({

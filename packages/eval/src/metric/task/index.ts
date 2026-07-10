@@ -29,40 +29,66 @@ export type Exec<G extends Grade.Result = Grade.Result, R = unknown> = Data.Tagg
   Each: EachExec<G, R>;
   All: AllExec<G, R>;
 }>;
+export type ExecTag = Exec["_tag"];
 
 export type Metric<
-  G extends Grade.Result = Grade.Result,
-  N extends string = string,
-  R = unknown,
-> = Readonly<{ name: N; exec: Exec<G, R> }>;
+  N extends string = string, // metric name
+  R = unknown, // metric result
+  T extends ExecTag = ExecTag, // exec type
+  G extends Grade.Result = Grade.Result, // grade result
+> = Readonly<{
+  name: N;
+  exec: Exec<G, R>;
+}> & { _N?: N; _R?: R; _T?: T; _G?: G };
+
+const makeReduce = <G extends Grade.Result, R>(exec: ReduceExec<G, R>): Exec<G, R> => ({
+  _tag: "Reduce",
+  ...exec,
+});
+
+const makeEach = <G extends Grade.Result, R>(exec: EachExec<G, R>): Exec<G, R> => ({
+  _tag: "Each",
+  ...exec,
+});
+
+const makeAll = <G extends Grade.Result, R>(exec: AllExec<G, R>): Exec<G, R> => ({
+  _tag: "All",
+  ...exec,
+});
 
 export const reduce = <G extends Grade.Result, N extends string, R>(
   name: N,
   init: R,
   exec: ReduceFn<G, R>,
-): Metric<G, N, R> => ({
+): Metric<N, R, "Reduce", G> => ({
   name,
-  exec: { _tag: "Reduce", init, exec },
+  exec: makeReduce({ init, exec }),
 });
 
 export const each = <G extends Grade.Result, N extends string, R>(
   name: N,
   exec: EachFn<G, R>,
-): Metric<G, N, R> => ({
+): Metric<N, R, "Each", G> => ({
   name,
-  exec: { _tag: "Each", exec },
+  exec: makeEach({ exec }),
 });
 
 export const all = <G extends Grade.Result, N extends string, R>(
   name: N,
   exec: AllFn<G, R>,
-): Metric<G, N, R> => ({
+): Metric<N, R, "All", G> => ({
   name,
-  exec: { _tag: "All", exec },
+  exec: makeAll({ exec }),
 });
 
 export type Result<M> = UnionToIntersection<
-  M extends Metric<infer _, infer N, infer R> ? Record<N, R> : never
+  M extends Metric<infer N extends string, infer R, infer _T, infer _G> ? { [K in N]: R } : never
+>;
+export type StreamResult<M> = UnionToIntersection<
+  M extends Metric<infer N extends string, infer R, infer T, infer _G>
+    ? // `All` metrics are not available when streaming
+      Omit<{ [K in N]: R }, T extends "All" ? N : never>
+    : never
 >;
 
 const runExec = (name: string, exec: () => unknown) =>

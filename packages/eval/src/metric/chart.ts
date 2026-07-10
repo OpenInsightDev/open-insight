@@ -1,5 +1,5 @@
 import { Schema } from "effect";
-import type { Metrics, ResultOf } from "./build.ts";
+import type { Metrics } from "./build.ts";
 
 // export class Bar extends Schema.TaggedClass<Bar>()("Bar", {
 //   category: Schema.String,
@@ -148,8 +148,7 @@ export type Composable = Schema.Schema.Type<typeof Composable>;
 export const DataPoint = Schema.Union([Composable, Pie]);
 export type DataPoint = Schema.Schema.Type<typeof DataPoint>;
 
-// not all metrics yield result every time, so this is partial
-type Input<M extends Metrics> = Partial<ResultOf<M>>;
+type Input<M extends Metrics> = Partial<{}>;
 
 type Output =
   | DataPoint // single datapoint, or
