@@ -58,7 +58,8 @@
     "ai": "catalog:",
     "hyparquet": "catalog:",
     "immer": "catalog:",
-    "picomatch": "catalog:"
+    "picomatch": "catalog:",
+    "smol-toml": "catalog:"
   },
   "devDependencies": {
     "@types/node": "catalog:",

@@ -1,6 +1,12 @@
 {
   "version": 1,
   "skills": {
+    "create-task": {
+      "source": "harbor-framework/harbor",
+      "sourceType": "github",
+      "skillPath": "skills/create-task/SKILL.md",
+      "computedHash": "6db2350d3604dd16f1925628afaf55a5a2b426de8a35efa46e86e809adb2fa2e"
+    },
     "effect-ts": {
       "source": "Effect-TS/skills",
       "sourceType": "github",

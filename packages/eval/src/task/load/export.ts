@@ -14,4 +14,22 @@ export {
   type Loader,
   type Tasks,
 } from "./index.ts";
+export {
+  HarborAgentConfig,
+  HarborAuthor,
+  HarborEnvironmentConfig,
+  HarborGrade,
+  HarborPackageInfo,
+  HarborSolutionConfig,
+  HarborTaskConfig,
+  HarborVerifierConfig,
+  makeGrader,
+  makeHarborTask,
+  makeSnapshot,
+  makeVerifier,
+  readHarborTaskConfig,
+  type HarborMetadata,
+  type HarborTask,
+  type HarborTaskClass,
+} from "./harbor/index.ts";
 export * as Internal from "./index.ts";

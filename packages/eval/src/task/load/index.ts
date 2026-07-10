@@ -17,3 +17,4 @@ export * from "./git.ts";
 export * from "./parquet.ts";
 export * from "./select.ts";
 export * from "./iter.ts";
+export * from "./harbor/index.ts";
