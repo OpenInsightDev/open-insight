@@ -1,5 +1,13 @@
 # @open-insight/sandbox-smolmachines
 
+## 0.0.17
+
+### Patch Changes
+
+- patch
+- Updated dependencies
+  - @open-insight/core@0.0.17
+
 ## 0.0.16
 
 ### Patch Changes
