@@ -72,7 +72,7 @@ async function* loadTasks(repoPath: string): AsyncIterable<VETask> {
 
 const runBench = Effect.fn("runBench")(function* () {
   const repoPath = path.resolve("./.repos/verilog-eval");
-  const tasks = yield* Task.Load.fromAsyncIter(loadTasks(repoPath)).pipe(Task.Load.select(4));
+  const tasks = yield* Task.fromAsyncIter(loadTasks(repoPath)).pipe(Task.select(4));
 
   const benchmark = yield* Bench.make({
     name: "verilog-eval",
