@@ -22,3 +22,6 @@
 [submodule "packages/acp-agent"]
 	path = packages/acp-agent
 	url = https://github.com/OpenInsightDev/acp-agent.git
+[submodule ".repos/pier"]
+	path = .repos/pier
+	url = https://github.com/datacurve-ai/pier.git
