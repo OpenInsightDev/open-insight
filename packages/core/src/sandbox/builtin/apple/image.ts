@@ -1,5 +1,6 @@
-import { Sandbox, Snapshot } from "@open-insight/core";
-import { Spawn } from "@open-insight/core/utils";
+import * as Sandbox from "#/sandbox/export.ts";
+import * as Snapshot from "#/snapshot/export.ts";
+import { Spawn } from "#/utils/export.ts";
 import { Effect, FileSystem } from "effect";
 import { ChildProcess as CP } from "effect/unstable/process";
 

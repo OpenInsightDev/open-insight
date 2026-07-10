@@ -1,4 +1,4 @@
-import { Sandbox } from "@open-insight/core";
+import * as Sandbox from "#/sandbox/export.ts";
 import { ChildProcess as CP } from "effect/unstable/process";
 
 export const containerOptions = { detached: false } satisfies CP.CommandOptions;

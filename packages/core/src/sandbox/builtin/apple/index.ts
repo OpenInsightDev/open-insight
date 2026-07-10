@@ -4,7 +4,6 @@ import { Crypto, Duration, Effect, FileSystem } from "effect";
 import * as Image from "./image.ts";
 import * as AppleSandbox from "./sandbox.ts";
 import type { PortMapping } from "./utils.ts";
-import * as _Core from "@open-insight/core";
 
 export type { PortMapping };
 
