@@ -25,8 +25,6 @@ const encodeInstruction = (instruction: Instruction): string =>
       return `ENV ${keys.map((key) => `${key}=${env[key]}`).join(" ")}`;
     },
     Copy: ({ src, dest }) => `COPY ${JSON.stringify([...src, dest])}`,
-    Cmd: ({ cmd }) => `CMD ${JSON.stringify(cmd)}`,
-    Entrypoint: ({ cmd }) => `ENTRYPOINT ${JSON.stringify(cmd)}`,
   });
 
 const invalidContainerfile = (containerfile: string, message: string) =>
@@ -60,20 +58,6 @@ const requireNoFlags = Effect.fn("containerfile/requireNoFlags")(function* (
       ),
     );
   }
-});
-
-const decodeJsonArguments = Effect.fn("containerfile/decodeJsonArguments")(function* (
-  containerfile: string,
-  instruction: Cmd | Entrypoint,
-) {
-  const openingBracket = instruction.getOpeningBracket();
-  const closingBracket = instruction.getClosingBracket();
-  if (openingBracket === null || closingBracket === null) {
-    return yield* Effect.fail(
-      invalidContainerfile(containerfile, `${instruction.getKeyword()} must use JSON array form`),
-    );
-  }
-  return instruction.getJSONStrings().map((argument) => argument.getJSONValue());
 });
 
 const decodeCopyArguments = Effect.fn("containerfile/decodeCopyArguments")(function* (
@@ -149,22 +133,6 @@ const decodeInstruction = Effect.fn("containerfile/decodeInstruction")(function*
       _tag: "Copy",
       src: argumentsContent.slice(0, -1),
       dest: argumentsContent[argumentsContent.length - 1],
-    });
-  }
-
-  if (instruction instanceof Cmd) {
-    yield* requireNoFlags(containerfile, instruction);
-    return Instruction.make({
-      _tag: "Cmd",
-      cmd: yield* decodeJsonArguments(containerfile, instruction),
-    });
-  }
-
-  if (instruction instanceof Entrypoint) {
-    yield* requireNoFlags(containerfile, instruction);
-    return Instruction.make({
-      _tag: "Entrypoint",
-      cmd: yield* decodeJsonArguments(containerfile, instruction),
     });
   }
 

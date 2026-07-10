@@ -1,5 +1,5 @@
 import type { Prompt } from "@open-insight/core/internal";
-import { type Data, Effect, Match, Schema } from "effect";
+import { Data, Effect, Match, Schema } from "effect";
 import type { Bivariant, UnionToIntersection } from "#/utils/variant.ts";
 import { MetricError } from "../error.ts";
 import { type Input, TrajOutput } from "../schema.ts";
@@ -33,35 +33,58 @@ type AllExec<R = unknown> = {
   exec: Bivariant<AllFn<R>>;
 };
 
-export type Exec<R = unknown> = Data.TaggedEnum<{
+export type Exec<R = any> = Data.TaggedEnum<{
   Reduce: ReduceExec<R>;
   Each: EachExec<R>;
   All: AllExec<R>;
 }>;
+export type ExecTag = Exec["_tag"];
+const Exec = Data.taggedEnum<Exec>();
 
-export type Metric<N extends string = string, R = unknown> = Readonly<{
+export type Metric<
+  N extends string = string, // metric name
+  R = unknown, // metric result
+  T extends ExecTag = ExecTag, // exec type
+> = Readonly<{
   name: N;
   exec: Exec<R>;
-}>;
-
-export const reduce = <N extends string, R>(name: N, init: R, exec: ReduceFn<R>): Metric<N, R> => ({
-  name,
-  exec: { _tag: "Reduce", init, exec },
-});
-
-export const each = <N extends string, R>(name: N, exec: EachFn<R>): Metric<N, R> => ({
-  name,
-  exec: { _tag: "Each", exec },
-});
-
-export const all = <N extends string, R>(name: N, exec: AllFn<R>): Metric<N, R> => ({
-  name,
-  exec: { _tag: "All", exec },
-});
+}> & { _T?: T };
 
 export type Result<M> = UnionToIntersection<
-  M extends Metric<infer N, infer R> ? Record<N, R> : never
+  M extends Metric<infer N, infer R, infer _> ? { [K in N]: R } : never
 >;
+export type StreamResult<M> = UnionToIntersection<
+  M extends Metric<infer N, infer R, infer T>
+    ? // all metrics are not available when streaming
+      Omit<{ [K in N]: R }, T extends "All" ? N : never>
+    : never
+>;
+
+export const reduce = <N extends string, R>(
+  name: N,
+  init: R,
+  exec: ReduceFn<R>,
+): Metric<N, R, "Reduce"> => ({
+  name,
+  exec: Exec.Reduce({ init, exec }),
+});
+
+export const each = <N extends string, R>(name: N, exec: EachFn<R>): Metric<N, R, "Each"> => ({
+  name,
+  exec: Exec.Each({ exec }),
+});
+
+export const all = <N extends string, R>(name: N, exec: AllFn<R>): Metric<N, R, "All"> => ({
+  name,
+  exec: Exec.All({ exec }),
+});
+
+const a = reduce("a", 0, () => 0);
+const b = each("b", () => 0);
+const c = all("c", () => 0);
+
+type R = Result<typeof a | typeof b | typeof c>; // { a: number; b: number; c: number }
+type S = StreamResult<typeof a | typeof b | typeof c>; // { a: number; b: never; c: never }
 
 const runExec = (name: string, exec: () => unknown) =>
   Effect.tryPromise({

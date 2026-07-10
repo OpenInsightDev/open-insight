@@ -80,25 +80,25 @@ const runBench = Effect.fn("runBench")(function* () {
   });
 
   const metrics = Metric.init<VETask>().pipe(
-    Metric.withTask("passAt1", (grades) =>
+    Metric.withTaskAll("passAt1", (grades) =>
       pipe(
         grades.map(({ simPass }) => simPass),
         Metric.passAtK(1),
       ),
     ),
-    Metric.withTask("passAt3", (grades) =>
+    Metric.withTaskAll("passAt3", (grades) =>
       pipe(
         grades.map(({ simPass }) => simPass),
         Metric.passAtK(3),
       ),
     ),
-    Metric.withBench("avgPassAt1", (tasks) =>
+    Metric.withBenchAll("avgPassAt1", (tasks) =>
       pipe(
         Object.values(tasks).map(({ passAt1 }) => passAt1),
         Metric.mean,
       ),
     ),
-    Metric.withBench("avgPassAt3", (tasks) =>
+    Metric.withBenchAll("avgPassAt3", (tasks) =>
       pipe(
         Object.values(tasks).map(({ passAt3 }) => passAt3),
         Metric.mean,

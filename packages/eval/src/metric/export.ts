@@ -2,14 +2,14 @@ export {
   MetricError,
   init,
   type Metrics,
-  withBenchEach,
   withBench,
+  withBenchAll,
   withBenchReduce,
   withTask,
-  withTaskEach,
+  withTaskAll,
   withTaskReduce,
   withTraj,
-  withTrajEach,
+  withTrajAll,
   withTrajReduce,
 } from "./index.ts";
 
