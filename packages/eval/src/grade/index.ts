@@ -1,11 +1,11 @@
-import type { Sandbox, Traj } from "@open-insight/core/internal";
+import type { Prompt, Sandbox } from "@open-insight/core/internal";
 import type { Bivariant } from "#/utils/variant.ts";
 import { Effect, Schema } from "effect";
 import { TaskError } from "../task/error.ts";
 
 export type Context = Sandbox.SandboxPromise &
   Readonly<{
-    trajectory: Traj.Trajectory;
+    trajectory: Prompt.Trajectory;
   }>;
 
 // grade result must be json serializable

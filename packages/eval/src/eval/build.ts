@@ -2,16 +2,13 @@ import type * as Bench from "#/bench/index.ts";
 import type * as Harness from "#/harness/index.ts";
 import type * as Metric from "#/metric/index.ts";
 import type * as Task from "#/task/index.ts";
-import { Effect, Layer, Option } from "effect";
-import { Error } from "./error.ts";
-import { EventTransportService } from "./event/index.ts";
+import { Effect, Option } from "effect";
 
 export type Executor<T extends Task.Task = Task.Task> = Readonly<{
   benchmark: Bench.Bench;
   harness: Harness.Harness;
   trailCount: number;
   metrics: Option.Option<Metric.Metrics<Task.GradeResultOf<T>>>;
-  transport: Option.Option<Layer.Layer<EventTransportService, Error>>;
 }> & { _T?: T };
 
 type Options<T extends Task.Task> = Readonly<{
@@ -21,19 +18,12 @@ type Options<T extends Task.Task> = Readonly<{
   metrics?: Metric.Metrics<Task.GradeResultOf<T>>;
 }>;
 
-export const make = Effect.fn(function* <T extends Task.Task>({
-  benchmark,
-  harness,
-  trailCount = 1,
-  metrics,
-}: Options<T>): Effect.fn.Return<Executor<T>, never> {
-  const transport = yield* Effect.serviceOption(EventTransportService);
-
-  return {
-    benchmark,
-    harness,
-    trailCount,
-    metrics: Option.fromNullishOr(metrics),
-    transport: transport.pipe(Option.map((t) => Layer.succeed(EventTransportService, t))),
-  } satisfies Executor<T>;
-});
+export const make = Effect.fn(
+  <T extends Task.Task>({ benchmark, harness, trailCount = 1, metrics }: Options<T>) =>
+    Effect.succeed({
+      benchmark,
+      harness,
+      trailCount,
+      metrics: Option.fromNullishOr(metrics),
+    } satisfies Executor<T>),
+);

@@ -1,10 +1,10 @@
-import { Traj } from "@open-insight/core/internal";
+import { Prompt } from "@open-insight/core/internal";
 import { Schema } from "effect";
 
 export class TrailResult extends Schema.Class<TrailResult>("TrailResult")({
   grades: Schema.Record(Schema.String, Schema.Json),
   metrics: Schema.Record(Schema.String, Schema.Json),
-  trajectory: Traj.Trajectory,
+  trajectory: Prompt.Trajectory,
 }) {}
 
 export class TaskResult extends Schema.Class<TaskResult>("TaskResult")({

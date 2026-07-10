@@ -1,35 +1,182 @@
-import { Effect, Option } from "effect";
-import { NodeSdk } from "@effect/opentelemetry";
-import { type Executor } from "./build.ts";
 import { NodeHttpClient, NodeServices } from "@effect/platform-node";
-import { Error } from "./error.ts";
-import { type Config } from "./config.ts";
+import { NodeSdk } from "@effect/opentelemetry";
 import type * as _Core from "@open-insight/core";
-import { run as runSchedule } from "./schedule.ts";
+import { Cause, Effect, Exit, Fiber, Option, Queue, Scope, Stream } from "effect";
+import * as Bench from "#/bench/index.ts";
+import type * as Harness from "#/harness/index.ts";
+import type * as Metric from "#/metric/index.ts";
+import { type Executor } from "./build.ts";
+import { type Config } from "./config.ts";
+import { Error } from "./error.ts";
+import { type Event, EventTransportService } from "./event/index.ts";
 import type { Result } from "./result.ts";
+import { run as runSchedule } from "./schedule.ts";
 
-export const run = Effect.fn(function* (
-  { transport, benchmark, harness, trailCount, metrics }: Executor,
-  config: Config = {},
-): Effect.fn.Return<Result, Error> {
-  let pipeline = runSchedule({ trailCount, metrics, benchmark }, config).pipe(
+const annotateCombinationError =
+  (benchmark: Bench.Metadata, harness: Harness.Metadata) =>
+  (error: Error): Error =>
+    new Error({
+      reason: error.reason,
+      benchmark,
+      harness,
+    });
+
+const runEvaluation = (
+  { benchmark, harness, trailCount, metrics }: Executor,
+  config: Config,
+  eventQueue: Queue.Enqueue<Event>,
+) => {
+  return runSchedule(
+    {
+      trailCount,
+      metrics,
+      bench: benchmark,
+      harness: harness.metadata,
+      eventQueue,
+    },
+    config,
+  ).pipe(
     Effect.provide(harness.layer),
     Effect.mapError(Error.init),
+    Effect.mapError(annotateCombinationError(benchmark, harness.metadata)),
+  );
+};
+
+const withEventTransport = Effect.fn("eval/withEventTransport")(function* <A, R>(
+  evaluate: (eventQueue: Queue.Enqueue<Event>) => Effect.Effect<A, Error, R>,
+): Effect.fn.Return<A, Error, R | Scope.Scope> {
+  const eventQueue = yield* Queue.bounded<Event, Cause.Done>(128);
+  const transport = yield* Effect.serviceOption(EventTransportService);
+  const stream = Stream.fromQueue(eventQueue);
+
+  const transportFiber = yield* Option.match(transport, {
+    onSome: (transport) => transport.send({ stream }),
+    onNone: () => stream.pipe(Stream.runDrain),
+  }).pipe(Effect.forkChild);
+
+  const evaluationExit = yield* evaluate(eventQueue).pipe(
+    Effect.raceFirst(Fiber.join(transportFiber).pipe(Effect.andThen(Effect.never))),
+    Effect.exit,
   );
 
-  if (Option.isSome(transport)) {
-    pipeline = pipeline.pipe(Effect.provide(transport.value));
+  yield* Queue.end(eventQueue);
+
+  if (Exit.isFailure(evaluationExit)) {
+    yield* Fiber.await(transportFiber);
+    return yield* Effect.failCause(evaluationExit.cause);
   }
 
-  const otelConfig = config?.otel;
+  yield* Fiber.join(transportFiber);
+  return evaluationExit.value;
+});
+
+const findDuplicateName = <A>(
+  values: ReadonlyArray<A>,
+  getName: (value: A) => string,
+): string | undefined => {
+  const names = new Set<string>();
+
+  for (const value of values) {
+    const name = getName(value);
+    if (names.has(name)) {
+      return name;
+    }
+    names.add(name);
+  }
+};
+
+export const run = Effect.fn(function* (
+  executor: Executor,
+  config: Config = {},
+): Effect.fn.Return<Result, Error> {
+  let pipeline = withEventTransport((eventQueue) => runEvaluation(executor, config, eventQueue));
+
+  const otelConfig = config.otel;
   if (otelConfig) {
     pipeline = pipeline.pipe(Effect.provide(NodeSdk.layer(() => otelConfig)));
   }
 
-  return yield* pipeline.pipe(Effect.scoped).pipe(Effect.provide(NodeServices.layer));
+  return yield* pipeline.pipe(Effect.scoped, Effect.provide(NodeServices.layer));
 });
 
-export const runPromise = async <E>(main: Effect.Effect<Result, E, NodeServices.NodeServices>) =>
+export const runMatrix = Effect.fn(function* (
+  {
+    benchmarks,
+    harnesses,
+  }: Readonly<{
+    benchmarks: ReadonlyArray<
+      Readonly<{
+        benchmark: Bench.Bench;
+        metrics?: Metric.Metrics;
+        trailCount?: number;
+      }>
+    >;
+    harnesses: ReadonlyArray<Harness.Harness>;
+  }>,
+  {
+    concurrency = 1,
+    eval: evalConfig = {},
+  }: Readonly<{
+    concurrency?: number;
+    eval?: Config;
+  }> = {},
+): Effect.fn.Return<ReadonlyArray<ReadonlyArray<Result>>, Error> {
+  const duplicateBenchmark = findDuplicateName(benchmarks, ({ benchmark }) => benchmark.name);
+  if (duplicateBenchmark !== undefined) {
+    return yield* Effect.fail(
+      Error.init(new globalThis.Error(`Benchmark names must be unique: "${duplicateBenchmark}"`)),
+    );
+  }
+
+  const duplicateHarness = findDuplicateName(harnesses, ({ name }) => name);
+  if (duplicateHarness !== undefined) {
+    return yield* Effect.fail(
+      Error.init(new globalThis.Error(`Harness names must be unique: "${duplicateHarness}"`)),
+    );
+  }
+
+  if (benchmarks.length === 0) {
+    return [];
+  }
+  if (harnesses.length === 0) {
+    return benchmarks.map(() => []);
+  }
+
+  let pipeline = withEventTransport((eventQueue) => {
+    const evaluations = benchmarks.flatMap(({ benchmark, metrics, trailCount = 1 }) =>
+      harnesses.map((harness) =>
+        runEvaluation(
+          {
+            benchmark,
+            harness,
+            trailCount,
+            metrics: Option.fromNullishOr(metrics),
+          },
+          evalConfig,
+          eventQueue,
+        ),
+      ),
+    );
+
+    return Effect.all(evaluations, { concurrency });
+  });
+
+  const otelConfig = evalConfig.otel;
+  if (otelConfig) {
+    pipeline = pipeline.pipe(Effect.provide(NodeSdk.layer(() => otelConfig)));
+  }
+
+  const results = yield* pipeline.pipe(Effect.scoped, Effect.provide(NodeServices.layer));
+
+  return benchmarks.map((_, benchIndex) => {
+    const start = benchIndex * harnesses.length;
+    return results.slice(start, start + harnesses.length);
+  });
+});
+
+export const runPromise = async <A, E>(
+  main: Effect.Effect<A, E, NodeServices.NodeServices>,
+): Promise<A> =>
   Effect.runPromise(
     main.pipe(Effect.provide(NodeServices.layer), Effect.provide(NodeHttpClient.layerUndici)),
   );

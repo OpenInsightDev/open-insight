@@ -2,6 +2,8 @@ import { Schema } from "effect";
 import * as Grade from "#/grade/index.ts";
 import * as Metric from "#/metric/index.ts";
 import * as Task from "../task/index.ts";
+import * as Bench from "#/bench/index.ts";
+import * as Harness from "#/harness/index.ts";
 import { Snapshot } from "@open-insight/core/internal";
 
 const NonNegativeInt = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0));
@@ -79,6 +81,8 @@ export type ErrorReason = Schema.Schema.Type<typeof ErrorReason>;
 
 export class Error extends Schema.TaggedErrorClass<Error>()("ExecError", {
   reason: ErrorReason,
+  benchmark: Schema.optional(Bench.Metadata),
+  harness: Schema.optional(Harness.Metadata),
 }) {
   static mapUnknownError = (mapper: (cause: unknown) => ErrorReason) => (cause: unknown) =>
     cause instanceof Error ? cause : new Error({ reason: mapper(cause) });

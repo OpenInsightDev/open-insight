@@ -14,11 +14,15 @@ export type RunTrail = Effect.Effect<void, Error, Scope.Scope>;
 export const createTrail = Effect.fn("exec/createTrail")(
   function* ({
     task,
-    config: { verifMode = false, sandbox: { cacheAgentSnapshot, cacheTaskSnapshot } = {} } = {},
+    bench,
+    harness,
+    config = {},
     metricQueue,
     eventQueue,
   }: {
     task: Task.Task;
+    bench: string;
+    harness: string;
     config?: Config;
     metricQueue: Queue.Enqueue<Metric.Input>;
     eventQueue: Queue.Enqueue<Event>;
@@ -33,6 +37,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
     | Scope.Scope
   > {
     const { snapshot, resources, prompt, grader, verifier } = task;
+    const { verifMode = false, sandbox: { cacheAgentSnapshot, cacheTaskSnapshot } = {} } = config;
 
     yield* Effect.annotateCurrentSpan({
       taskName: task.name,
@@ -103,7 +108,8 @@ export const createTrail = Effect.fn("exec/createTrail")(
           yield* Queue.offer(
             eventQueue,
             TaskStreamPartEvent.make({
-              bench: task.name,
+              bench,
+              harness,
               task: task.name,
               parts: [part],
               trailIndex,

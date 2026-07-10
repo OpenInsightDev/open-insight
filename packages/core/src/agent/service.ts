@@ -1,16 +1,16 @@
 import * as Sandbox from "#/sandbox/index.ts";
 import * as Snapshot from "#/snapshot/index.ts";
-import type * as Traj from "#/traj/index.ts";
+import type * as PromptModel from "#/prompt/index.ts";
 import { Context, Effect, Option, Stream } from "effect";
-import { Prompt, Response } from "effect/unstable/ai";
+import { Response } from "effect/unstable/ai";
 import { type AgentError } from "./error.ts";
 
 export type StreamPart = Response.StreamPart<never>;
 
 export type Agent = Readonly<{
-  trajectory(): Effect.Effect<Traj.Trajectory, AgentError>;
+  trajectory(): Effect.Effect<PromptModel.Trajectory, AgentError>;
   prompt(options: {
-    prompt: ReadonlyArray<Prompt.UserMessage>;
+    prompt: ReadonlyArray<PromptModel.UserMessage>;
   }): Stream.Stream<StreamPart, AgentError>;
 }>;
 

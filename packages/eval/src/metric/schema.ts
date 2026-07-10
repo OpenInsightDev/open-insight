@@ -1,10 +1,10 @@
-import type { Traj } from "@open-insight/core/internal";
+import type { Prompt } from "@open-insight/core/internal";
 import type * as GradeResult from "#/grade/index.ts";
 import * as Task from "../task/index.ts";
 import { Data, Schema } from "effect";
 
 export type InputDelta = Data.TaggedEnum<{
-  Messages: { messages: Array<Traj.Message> };
+  Messages: { messages: Array<Prompt.Message> };
   Grade: { result: GradeResult.Result };
 }>;
 export const { Grade, Messages } = Data.taggedEnum<InputDelta>();
@@ -12,7 +12,7 @@ export const { Grade, Messages } = Data.taggedEnum<InputDelta>();
 export type Input = Readonly<{
   task: Task.Task;
   trailIndex: number;
-  trajectory: Traj.Trajectory;
+  trajectory: Prompt.Trajectory;
   delta: InputDelta;
 }>;
 
