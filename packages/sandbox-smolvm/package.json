@@ -1,5 +1,5 @@
 {
-  "name": "@open-insight/sandbox-smolmachines",
+  "name": "@open-insight/sandbox-smolvm",
   "version": "0.0.16",
   "description": "A starter for creating a TypeScript package.",
   "homepage": "https://github.com/author/library#readme",
