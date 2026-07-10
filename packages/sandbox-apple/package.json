@@ -1,16 +1,16 @@
 {
   "name": "@open-insight/sandbox-apple",
   "version": "0.0.0",
-  "description": "A starter for creating a TypeScript package.",
-  "homepage": "https://github.com/author/library#readme",
+  "description": "Apple container CLI sandbox provider for Open Insight.",
+  "homepage": "https://github.com/open-insight/open-insight#readme",
   "bugs": {
-    "url": "https://github.com/author/library/issues"
+    "url": "https://github.com/open-insight/open-insight/issues"
   },
   "license": "MIT",
-  "author": "Author Name <author.name@mail.com>",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/author/library.git"
+    "url": "git+https://github.com/open-insight/open-insight.git",
+    "directory": "packages/sandbox-apple"
   },
   "files": [
     "dist/**/*.mjs",
@@ -29,6 +29,11 @@
     "./package.json": "./package.json"
   },
   "publishConfig": {
+    "exports": {
+      ".": "./dist/index.mjs",
+      "./internal": "./dist/internal.mjs",
+      "./package.json": "./package.json"
+    },
     "access": "public"
   },
   "scripts": {
@@ -38,15 +43,22 @@
     "check": "vp check",
     "prepublishOnly": "vp run build"
   },
+  "dependencies": {
+    "effect": "catalog:"
+  },
   "devDependencies": {
-    "@types/node": "^25.6.2",
-    "@typescript/native-preview": "7.0.0-dev.20260509.2",
-    "bumpp": "^11.1.0",
-    "typescript": "^6.0.3",
+    "@effect/platform-node": "catalog:",
+    "@effect/vitest": "catalog:",
+    "@types/node": "catalog:",
+    "@typescript/native-preview": "latest",
+    "bumpp": "catalog:",
+    "typescript": "catalog:",
     "vite": "catalog:",
-    "vite-plus": "catalog:"
+    "vite-plus": "catalog:",
+    "vitest": "catalog:"
   },
   "peerDependencies": {
+    "@effect/platform-node": "catalog:",
     "@open-insight/core": "workspace:*"
   }
 }

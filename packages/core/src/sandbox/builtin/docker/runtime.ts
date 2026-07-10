@@ -1,5 +1,5 @@
 import { Context, Effect, Option } from "effect";
-import { Spawn } from "#/utils/index.ts";
+import { Spawn } from "#/utils/export.ts";
 import { ChildProcess as CP } from "effect/unstable/process";
 
 export const runtimes = ["docker", "podman", "nerdctl"] as const;
