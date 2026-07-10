@@ -44,6 +44,3 @@ export const copy = (src: string[], dest: string): Instruction =>
 
 export const Instructions = Schema.Array(Instruction);
 export type Instructions = Schema.Schema.Type<typeof Instructions>;
-
-export const make = (...instructions: Instruction[]): Instructions =>
-  Instructions.make(instructions);
