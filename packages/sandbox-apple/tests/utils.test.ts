@@ -2,6 +2,7 @@ import { Sandbox } from "@open-insight/core/internal";
 import { assert, describe, it } from "@effect/vitest";
 import { Schema } from "effect";
 import {
+  findPortMapping,
   formatPortMappings,
   formatResources,
   matchesPortMapping,
@@ -49,6 +50,12 @@ describe("Apple container sandbox arguments", () => {
   it("matches configured ports with or without an expected host port", () => {
     const mappings = [{ sandboxPort: 8080, hostPort: 18080 }];
 
+    assert.deepEqual(findPortMapping(mappings, { sandboxPort: 8080 }), mappings[0]);
+    assert.deepEqual(
+      findPortMapping(mappings, { sandboxPort: 8080, hostPort: 18080 }),
+      mappings[0],
+    );
+    assert.isUndefined(findPortMapping(mappings, { sandboxPort: 8080, hostPort: 18081 }));
     assert.isTrue(matchesPortMapping(mappings, { sandboxPort: 8080 }));
     assert.isTrue(matchesPortMapping(mappings, { sandboxPort: 8080, hostPort: 18080 }));
     assert.isFalse(matchesPortMapping(mappings, { sandboxPort: 8080, hostPort: 18081 }));

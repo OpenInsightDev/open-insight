@@ -4,7 +4,7 @@ import { ChildProcess as CP } from "effect/unstable/process";
 export const containerOptions = { detached: false } satisfies CP.CommandOptions;
 export const minimumMemoryMiB = 200;
 
-type PortMapping = Readonly<{
+export type PortMapping = Readonly<{
   sandboxPort: number;
   hostPort: number;
 }>;
@@ -30,12 +30,17 @@ export const formatResources = (resources: Sandbox.Resources | null): Array<stri
 export const formatPortMappings = (portMappings: ReadonlyArray<PortMapping>): Array<string> =>
   portMappings.flatMap(({ sandboxPort, hostPort }) => ["--publish", `${hostPort}:${sandboxPort}`]);
 
-export const matchesPortMapping = (
+export const findPortMapping = (
   portMappings: ReadonlyArray<PortMapping>,
   { sandboxPort, hostPort }: Readonly<{ sandboxPort: number; hostPort?: number }>,
 ) =>
-  portMappings.some(
+  portMappings.find(
     (mapping) =>
       mapping.sandboxPort === sandboxPort &&
       (hostPort === undefined || mapping.hostPort === hostPort),
   );
+
+export const matchesPortMapping = (
+  portMappings: ReadonlyArray<PortMapping>,
+  { sandboxPort, hostPort }: Readonly<{ sandboxPort: number; hostPort?: number }>,
+) => findPortMapping(portMappings, { sandboxPort, hostPort }) !== undefined;
