@@ -1,6 +1,6 @@
 import { Effect, Scope, Stream } from "effect";
-import type { Task, Tasks } from "../build.ts";
-import type { TaskError } from "../error.ts";
+import type { Task, Tasks } from "#/task/build.ts";
+import type { TaskError } from "#/task/error.ts";
 
 export const fromArray = <T extends Task>(
   arr: ReadonlyArray<T & Disposable>,

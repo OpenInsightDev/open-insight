@@ -1,7 +1,7 @@
 import { Effect, FileSystem, Path, Predicate } from "effect";
-import * as Task from "../index.ts";
+import * as Task from "#/task/index.ts";
 import picomatch from "picomatch";
-import { TaskError } from "../error.ts";
+import { TaskError } from "#/task/error.ts";
 import type { Loader } from "./index.ts";
 
 const missingDefaultExport = (taskFile: string) =>

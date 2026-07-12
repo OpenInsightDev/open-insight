@@ -1,4 +1,4 @@
-import type * as Task from "../index.ts";
+import type * as Task from "#/task/index.ts";
 import { ChildProcess } from "effect/unstable/process";
 import { Effect, FileSystem } from "effect";
 import { Spawn } from "@open-insight/core/utils";

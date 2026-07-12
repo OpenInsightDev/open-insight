@@ -5,9 +5,10 @@ import { Brand, Effect, Schema, type Scope } from "effect";
 import { Prompt } from "effect/unstable/ai";
 import { TaskError } from "./error.ts";
 
-export type ID = string;
 export type TypeId = "~open-insight/eval/task";
 export const TypeId: TypeId = "~open-insight/eval/task";
+
+export type ID = string;
 
 export class Metadata extends Schema.Class<Metadata>("TaskMetadata")({
   name: Schema.String,

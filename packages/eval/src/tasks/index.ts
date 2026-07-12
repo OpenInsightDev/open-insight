@@ -1,10 +1,9 @@
 import type { Effect, Scope } from "effect";
-import type * as Task from "../index.ts";
-import type { TaskError } from "../error.ts";
-import type { Tasks } from "../index.ts";
+import type * as Task from "#/task/index.ts";
+import type { TaskError } from "#/task/error.ts";
 
 export type Loader<T extends Task.Task = Task.Task, R = never, E = TaskError> = Effect.Effect<
-  Tasks<T>,
+  Task.Tasks<T>,
   E,
   R | Scope.Scope
 >;

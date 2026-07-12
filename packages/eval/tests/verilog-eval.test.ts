@@ -1,6 +1,16 @@
 import { Effect, FileSystem, Logger, pipe, References } from "effect";
 import { DevTools } from "effect/unstable/devtools";
-import { Agent, Eval, Harness, Sandbox, Bench, Metric, Snapshot, Task } from "@open-insight/eval";
+import {
+  Agent,
+  Eval,
+  Harness,
+  Sandbox,
+  Bench,
+  Metric,
+  Snapshot,
+  Task,
+  Tasks,
+} from "@open-insight/eval";
 import { OpenAiClient, OpenAiLanguageModel } from "@effect/ai-openai";
 import { LanguageModel, Prompt } from "effect/unstable/ai";
 import { NodeHttpClient } from "@effect/platform-node";
@@ -47,7 +57,8 @@ async function* loadTasks(repoPath: string): AsyncIterable<VETask> {
           sandboxPath: "/tmp/verilog-eval/test.sv",
         });
 
-        const output = await $`cp top.v /tmp/verilog-eval/top.v && \
+        const output = await $`\
+          cp top.v /tmp/verilog-eval/top.v && \
           cd /tmp/verilog-eval && \
           iverilog -g2012 -s tb -o simv top.v ref.sv test.sv && \
           vvp simv`;
@@ -72,7 +83,7 @@ async function* loadTasks(repoPath: string): AsyncIterable<VETask> {
 
 const runBench = Effect.fn(function* () {
   const repoPath = path.resolve("./.repos/verilog-eval");
-  const tasks = yield* Task.fromAsyncIter(loadTasks(repoPath));
+  const tasks = yield* Tasks.fromAsyncIter(loadTasks(repoPath));
 
   const benchmark = yield* Bench.make({
     name: "verilog-eval",

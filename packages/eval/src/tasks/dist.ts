@@ -2,7 +2,7 @@ import { ChildProcess } from "effect/unstable/process";
 import { Crypto, Effect, Encoding, FileSystem, Schema } from "effect";
 import { HttpClient, HttpClientResponse } from "effect/unstable/http";
 import { Spawn } from "@open-insight/core/utils";
-import * as Task from "../index.ts";
+import * as Task from "#/task/index.ts";
 import type { Loader } from "./index.ts";
 
 const archiveHash = Effect.fn(function* (url: string) {
