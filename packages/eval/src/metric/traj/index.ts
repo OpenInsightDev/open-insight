@@ -1,175 +1,76 @@
-import type { Prompt } from "@open-insight/core/internal";
-import { Data, Effect, Match, Schema } from "effect";
-import type { Bivariant, UnionToIntersection } from "#/utils/variant.ts";
+import type { Prompt } from "@open-insight/core";
+import type { Bivariant } from "#/utils/variant.ts";
 import { MetricError } from "../error.ts";
 import { type Input, TrajOutput } from "../schema.ts";
 import type * as _Core from "@open-insight/core";
+import { Effect, type Stream } from "effect";
+import type { UnionToIntersection } from "effect/Types";
 
-export type ReduceFn<R> = (
-  prev: R,
-  input: {
-    trajectory: Prompt.Trajectory;
-    messages: ReadonlyArray<Prompt.Message>;
-  },
-) => PromiseLike<R> | R;
-
-export type EachFn<R> = (input: {
+type StreamInput = Readonly<{
   trajectory: Prompt.Trajectory;
   messages: ReadonlyArray<Prompt.Message>;
-}) => PromiseLike<R> | R;
-
-export type AllFn<R> = (input: { trajectory: Prompt.Trajectory }) => PromiseLike<R> | R;
-
-type ReduceExec<R = unknown> = {
-  init: R;
-  exec: Bivariant<ReduceFn<R>>;
-};
-
-type EachExec<R = unknown> = {
-  exec: Bivariant<EachFn<R>>;
-};
-
-type AllExec<R = unknown> = {
-  exec: Bivariant<AllFn<R>>;
-};
-
-export type Exec<R = any> = Data.TaggedEnum<{
-  Reduce: ReduceExec<R>;
-  Each: EachExec<R>;
-  All: AllExec<R>;
 }>;
-export type ExecTag = Exec["_tag"];
-const Exec = Data.taggedEnum<Exec>();
+type BulkInput = Readonly<{
+  trajectory: Prompt.Trajectory;
+}>;
 
-export type Metric<
+export type ReduceFn<R> = (prev: R, input: StreamInput) => PromiseLike<R> | R;
+export type EachFn<R> = (input: StreamInput) => PromiseLike<R> | R;
+export type BulkFn<R> = (input: BulkInput) => PromiseLike<R> | R;
+
+export type ReduceMetric<
   N extends string = string, // metric name
   R = unknown, // metric result
-  T extends ExecTag = ExecTag, // exec type
 > = Readonly<{
   name: N;
-  exec: Exec<R>;
-}> & { _N?: N; _R?: R; _T?: T };
+  prev: R;
+  exec: Bivariant<ReduceFn<R>>;
+}> & { _N?: N; _R?: R };
+type ReduceMetricResult<R> =
+  R extends ReduceMetric<infer N, infer R> ? UnionToIntersection<{ [K in N]: R }> : never;
 
-export type Result<M> = UnionToIntersection<
-  M extends Metric<infer N, infer R, infer _> ? { [K in N]: R } : never
->;
-export type StreamResult<M> = UnionToIntersection<
-  M extends Metric<infer N, infer R, infer T>
-    ? // all metrics are not available when streaming
-      Omit<{ [K in N]: R }, T extends "All" ? N : never>
-    : never
->;
+export type EachMetric<N extends string = string, R = unknown> = Readonly<{
+  name: N;
+  exec: Bivariant<EachFn<R>>;
+}> & { _N?: N; _R?: R };
+type EachMetricResult<R> =
+  R extends EachMetric<infer N, infer R> ? UnionToIntersection<{ [K in N]: R }> : never;
 
-export const reduce = <N extends string, R>(
-  name: N,
-  init: R,
-  exec: ReduceFn<R>,
-): Metric<N, R, "Reduce"> => ({
-  name,
-  exec: Exec.Reduce({ init, exec }),
-});
+export type BulkMetric<N extends string = string, R = unknown> = Readonly<{
+  name: N;
+  exec: Bivariant<BulkFn<R>>;
+}> & { _N?: N; _R?: R };
+type BulkMetricResult<R> =
+  R extends BulkMetric<infer N, infer R> ? UnionToIntersection<{ [K in N]: R }> : never;
 
-export const each = <N extends string, R>(name: N, exec: EachFn<R>): Metric<N, R, "Each"> => ({
-  name,
-  exec: Exec.Each({ exec }),
-});
+export type Metrics<
+  R extends ReduceMetric = never,
+  E extends EachMetric = never,
+  B extends BulkMetric = never,
+> = Readonly<{
+  reduce: ReadonlyArray<R>;
+  each: ReadonlyArray<E>;
+  bulk: ReadonlyArray<B>;
+}>;
 
-export const all = <N extends string, R>(name: N, exec: AllFn<R>): Metric<N, R, "All"> => ({
-  name,
-  exec: Exec.All({ exec }),
-});
+type StreamResult<M> =
+  M extends Metrics<infer R, infer E, infer _B>
+    ? ReduceMetricResult<R> & EachMetricResult<E>
+    : never;
+type BulkResult<M> =
+  M extends Metrics<infer R, infer E, infer B>
+    ? ReduceMetricResult<R> & EachMetricResult<E> & BulkMetricResult<B>
+    : never;
 
-const runExec = (name: string, exec: () => unknown) =>
-  Effect.tryPromise({
-    try: async () => await exec(),
-    catch: MetricError.exec({ name, type: "Trajectory" }),
-  }).pipe(
-    Effect.flatMap((result) =>
-      Schema.decodeUnknownEffect(Schema.Json)(result).pipe(
-        Effect.mapError(MetricError.trajExec(name)),
-      ),
-    ),
-  );
-
-export const buildReduce = ({ name, exec }: { name: string; exec: ReduceExec }) => {
-  const state = { value: exec.init };
-
-  return Effect.fn(function* ({
-    task,
-    trailIndex,
-    trajectory,
-    delta,
-  }: Input): Effect.fn.Return<TrajOutput | null, MetricError> {
-    if (delta._tag !== "Messages") {
-      return null;
-    }
-
-    const rawResult = yield* Effect.tryPromise({
-      try: async () => await exec.exec(state.value, { trajectory, messages: delta.messages }),
-      catch: MetricError.trajExec(name),
-    });
-    const result = yield* Schema.decodeUnknownEffect(Schema.Json)(rawResult).pipe(
-      Effect.mapError(MetricError.trajExec(name)),
-    );
-    state.value = rawResult;
-
-    return TrajOutput.make({
-      name,
-      task: task.metadata,
-      trailIndex,
-      result,
-    });
+export const tap = ({
+  out,
+  metrics: { reduce, bulk, each },
+}: {
+  out: Stream.Stream<TrajOutput, MetricError>;
+  metrics: Metrics;
+}) =>
+  Effect.fn(function* <E, R>(
+    stream: Stream.Stream<Input, E, R>,
+  ): Effect.fn.Return<Stream.Stream<Input, E, R>, MetricError> {
+    return stream;
   });
-};
-
-export const buildEach = ({ name, exec }: { name: string; exec: EachExec }) =>
-  Effect.fn(function* ({
-    task,
-    trailIndex,
-    trajectory,
-    delta,
-  }: Input): Effect.fn.Return<TrajOutput | null, MetricError> {
-    if (delta._tag !== "Messages") {
-      return null;
-    }
-
-    const result = yield* runExec(name, () => exec.exec({ trajectory, messages: delta.messages }));
-
-    return TrajOutput.make({
-      name,
-      task: task.metadata,
-      trailIndex,
-      result,
-    });
-  });
-
-export const buildAll = ({ name, exec }: { name: string; exec: AllExec }) => {
-  return Effect.fn(function* ({
-    task,
-    trailIndex,
-    trajectory,
-    delta,
-  }: Input): Effect.fn.Return<TrajOutput | null, MetricError> {
-    // not the full trajectory, skip this metric
-    if (delta._tag !== "Grade") {
-      return null;
-    }
-
-    const result = yield* runExec(name, () => exec.exec({ trajectory }));
-
-    return TrajOutput.make({
-      name,
-      task: task.metadata,
-      trailIndex,
-      result,
-    });
-  });
-};
-
-export const build = (metric: Metric) =>
-  Match.value(metric.exec).pipe(
-    Match.tag("Reduce", (exec) => buildReduce({ name: metric.name, exec })),
-    Match.tag("Each", (exec) => buildEach({ name: metric.name, exec })),
-    Match.tag("All", (exec) => buildAll({ name: metric.name, exec })),
-    Match.exhaustive,
-  );

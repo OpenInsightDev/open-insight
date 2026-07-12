@@ -93,12 +93,12 @@ async function* load(repoPath: string): AsyncIterable<RtllmTask> {
 
 const run = Effect.fn("run")(function* () {
   const repoPath = path.resolve("./.repos/RTLLM");
-  const tasks = yield* Task.fromAsyncIter(load(repoPath)).pipe(Task.select(4));
+  const tasks = yield* Task.fromAsyncIter(load(repoPath));
 
   const benchmark = yield* Bench.make({
     name: "rtllm",
     tasks,
-  });
+  }).pipe(Bench.head(4));
 
   const metrics = Metric.init<RtllmTask>().pipe(
     Metric.withTaskAll("passAt1", (grades) =>

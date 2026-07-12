@@ -70,14 +70,14 @@ async function* loadTasks(repoPath: string): AsyncIterable<VETask> {
   }
 }
 
-const runBench = Effect.fn("runBench")(function* () {
+const runBench = Effect.fn(function* () {
   const repoPath = path.resolve("./.repos/verilog-eval");
-  const tasks = yield* Task.fromAsyncIter(loadTasks(repoPath)).pipe(Task.select(4));
+  const tasks = yield* Task.fromAsyncIter(loadTasks(repoPath));
 
   const benchmark = yield* Bench.make({
     name: "verilog-eval",
     tasks,
-  });
+  }).pipe(Bench.head(4));
 
   const metrics = Metric.init<VETask>().pipe(
     Metric.withTaskAll("passAt1", (grades) =>
