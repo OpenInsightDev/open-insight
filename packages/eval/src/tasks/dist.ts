@@ -30,7 +30,7 @@ export const withDist = ({ url, format = "tar.gz" }: { url: string; format?: "ta
       const parsedUrl = yield* Schema.decodeUnknownEffect(Schema.URLFromString)(url);
       const bytes = yield* HttpClient.get(parsedUrl).pipe(
         Effect.flatMap(HttpClientResponse.filterStatusOk),
-        Effect.flatMap((response) => response.arrayBuffer),
+        Effect.flatMap(({ arrayBuffer }) => arrayBuffer),
         Effect.map((buffer) => new Uint8Array(buffer)),
       );
       yield* fs.writeFile(archivePath, bytes);

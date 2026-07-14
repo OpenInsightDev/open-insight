@@ -5,45 +5,40 @@ import type * as Grade from "#/grade/index.ts";
 import { Task, type Options } from "#/task/build.ts";
 import { TaskError } from "#/task/error.ts";
 import type { Verifier } from "#/task/verif.ts";
-import {
-  type HarborEnvironmentConfig,
-  type HarborMetadata,
-  type HarborTaskConfig,
-  readHarborTaskConfig,
-} from "./config.ts";
+import { type EnvConfig, type Metadata, type TaskConfig, readTaskConfig } from "./config.ts";
 
 export * from "./config.ts";
 
-export const HarborGrade = Schema.Record(Schema.String, Schema.Finite);
-export type HarborGrade = Schema.Schema.Type<typeof HarborGrade>;
-export type HarborTask = Task<HarborGrade, HarborMetadata>;
+export const GradeResult = Schema.Record(Schema.String, Schema.Finite);
+export type GradeResult = Schema.Schema.Type<typeof GradeResult>;
+export type HarborTask = Task<GradeResult, Metadata>;
 
-export type HarborTaskClass<T extends HarborTask = HarborTask> = new (
-  options: Options<HarborGrade, HarborMetadata>,
+export type TaskClass<T extends HarborTask = HarborTask> = new (
+  options: Options<GradeResult, Metadata>,
 ) => T;
 
 const rewardTextPath = "/logs/verifier/reward.txt";
 const rewardJsonPath = "/logs/verifier/reward.json";
 
-const decodeJsonReward = async (content: string): Promise<HarborGrade> => {
+const decodeJsonReward = async (content: string): Promise<GradeResult> => {
   const parsed: unknown = JSON.parse(content);
-  return Schema.decodeUnknownPromise(HarborGrade)(parsed);
+  return Schema.decodeUnknownPromise(GradeResult)(parsed);
 };
 
-const decodeTextReward = async (content: string): Promise<HarborGrade> => {
+const decodeTextReward = async (content: string): Promise<GradeResult> => {
   const value = content.trim();
   if (value.length === 0) {
     throw new Error(`Harbor reward file is empty: ${rewardTextPath}`);
   }
   const reward = Number(value);
-  return Schema.decodeUnknownPromise(HarborGrade)({ reward });
+  return Schema.decodeUnknownPromise(GradeResult)({ reward });
 };
 
 export const makeGrader =
   (
     taskDir: string,
     { env = {} }: { readonly env?: Record<string, string> } = {},
-  ): Grade.Grader<HarborGrade> =>
+  ): Grade.Grader<GradeResult> =>
   async ({ $, readFile, upload }) => {
     await $`rm -rf /tests /logs/verifier && mkdir -p /logs/verifier`;
     await upload({ hostPath: `${taskDir}/tests`, sandboxPath: "/tests" });
@@ -65,7 +60,7 @@ export const makeGrader =
 export const makeVerifier = (
   taskDir: string,
   { env = {} }: { readonly env?: Record<string, string> } = {},
-): Verifier<HarborGrade> => ({
+): Verifier<GradeResult> => ({
   exec: async ({ $, upload }) => {
     await $`rm -rf /solution`;
     await upload({ hostPath: `${taskDir}/solution`, sandboxPath: "/solution" });
@@ -75,9 +70,9 @@ export const makeVerifier = (
   expect: { reward: 1 },
 });
 
-export const makeSnapshot = Effect.fn("Task.Load.makeHarborSnapshot")(function* (
+export const makeSnapshot = Effect.fn("Task.Load.makeSnapshot")(function* (
   taskDir: string,
-  environment?: HarborEnvironmentConfig,
+  environment?: EnvConfig,
 ) {
   const path = yield* Path.Path;
   const envDir = path.resolve(taskDir, "environment");
@@ -92,7 +87,7 @@ export const makeSnapshot = Effect.fn("Task.Load.makeHarborSnapshot")(function* 
   });
 });
 
-const makeResources = (config: HarborTaskConfig): Sandbox.Resources => {
+const makeResources = (config: TaskConfig): Sandbox.Resources => {
   const environment = config.environment;
   const agentTimeout = config.agent?.timeout_sec ?? 600;
   const verifierTimeout = config.verifier?.timeout_sec ?? 600;
@@ -117,16 +112,14 @@ const formatAuthor = ({
   readonly email?: string;
 }): string => (email === undefined ? name : `${name} <${email}>`);
 
-export const makeHarborTask = Effect.fn("Task.Load.makeHarborTask")(function* <
-  T extends HarborTask,
->(
+export const makeTask = Effect.fn("Task.Load.makeTask")(function* <T extends HarborTask>(
   taskDir: string,
-  TaskClass: HarborTaskClass<T>,
+  TaskClass: TaskClass<T>,
 ): Effect.fn.Return<T, TaskError, FileSystem.FileSystem | Path.Path> {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const resolvedTaskDir = path.resolve(taskDir);
-  const config = yield* readHarborTaskConfig(resolvedTaskDir);
+  const config = yield* readTaskConfig(resolvedTaskDir);
 
   if (config.steps !== undefined && config.steps.length > 0) {
     return yield* Effect.fail(

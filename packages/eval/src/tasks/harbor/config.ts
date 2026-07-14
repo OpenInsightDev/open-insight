@@ -16,28 +16,26 @@ const VerifierEnvironmentMode = Schema.Union([
 ]);
 const MultiStepRewardStrategy = Schema.Union([Schema.Literal("mean"), Schema.Literal("final")]);
 
-export class HarborAuthor extends Schema.Class<HarborAuthor>("HarborAuthor")({
+export class Author extends Schema.Class<Author>("Author")({
   name: Schema.String,
   email: Schema.optional(Schema.String),
 }) {}
 
-export class HarborPackageInfo extends Schema.Class<HarborPackageInfo>("HarborPackageInfo")({
+export class PackageInfo extends Schema.Class<PackageInfo>("PackageInfo")({
   name: Schema.String,
   description: Schema.optional(Schema.String),
-  authors: Schema.optional(Schema.Array(HarborAuthor)),
+  authors: Schema.optional(Schema.Array(Author)),
   keywords: Schema.optional(Schema.Array(Schema.String)),
 }) {}
 
-export class HarborAgentConfig extends Schema.Class<HarborAgentConfig>("HarborAgentConfig")({
+export class AgentConfig extends Schema.Class<AgentConfig>("AgentConfig")({
   timeout_sec: Schema.optional(Schema.Number),
   user: Schema.optional(Schema.Union([Schema.String, Schema.Number])),
   network_mode: Schema.optional(NetworkMode),
   allowed_hosts: Schema.optional(Schema.Array(Schema.String)),
 }) {}
 
-export class HarborEnvironmentConfig extends Schema.Class<HarborEnvironmentConfig>(
-  "HarborEnvironmentConfig",
-)({
+export class EnvConfig extends Schema.Class<EnvConfig>("EnvConfig")({
   build_timeout_sec: Schema.optional(Schema.Number),
   docker_image: Schema.optional(Schema.String),
   os: Schema.optional(TaskOS),
@@ -56,46 +54,40 @@ export class HarborEnvironmentConfig extends Schema.Class<HarborEnvironmentConfi
   healthcheck: Schema.optional(JsonRecord),
 }) {}
 
-export class HarborVerifierConfig extends Schema.Class<HarborVerifierConfig>(
-  "HarborVerifierConfig",
-)({
+export class VerifierConfig extends Schema.Class<VerifierConfig>("VerifierConfig")({
   timeout_sec: Schema.optional(Schema.Number),
   env: Schema.optional(StringRecord),
   user: Schema.optional(Schema.Union([Schema.String, Schema.Number])),
   network_mode: Schema.optional(NetworkMode),
   allowed_hosts: Schema.optional(Schema.Array(Schema.String)),
   environment_mode: Schema.optional(VerifierEnvironmentMode),
-  environment: Schema.optional(HarborEnvironmentConfig),
+  environment: Schema.optional(EnvConfig),
 }) {}
 
-export class HarborSolutionConfig extends Schema.Class<HarborSolutionConfig>(
-  "HarborSolutionConfig",
-)({
+export class SolutionConfig extends Schema.Class<SolutionConfig>("SolutionConfig")({
   env: Schema.optional(StringRecord),
 }) {}
 
-const HarborArtifact = Schema.Union([Schema.String, JsonRecord]);
+const Artifact = Schema.Union([Schema.String, JsonRecord]);
 
-export class HarborTaskConfig extends Schema.Class<HarborTaskConfig>("HarborTaskConfig")({
+export class TaskConfig extends Schema.Class<TaskConfig>("TaskConfig")({
   schema_version: Schema.optional(Schema.String),
   version: Schema.optional(Schema.String),
-  task: Schema.optional(HarborPackageInfo),
+  task: Schema.optional(PackageInfo),
   metadata: Schema.optional(JsonRecord),
-  verifier: Schema.optional(HarborVerifierConfig),
-  agent: Schema.optional(HarborAgentConfig),
-  environment: Schema.optional(HarborEnvironmentConfig),
-  solution: Schema.optional(HarborSolutionConfig),
+  verifier: Schema.optional(VerifierConfig),
+  agent: Schema.optional(AgentConfig),
+  environment: Schema.optional(EnvConfig),
+  solution: Schema.optional(SolutionConfig),
   source: Schema.optional(Schema.String),
   multi_step_reward_strategy: Schema.optional(MultiStepRewardStrategy),
   steps: Schema.optional(Schema.Array(Schema.Unknown)),
-  artifacts: Schema.optional(Schema.Array(HarborArtifact)),
+  artifacts: Schema.optional(Schema.Array(Artifact)),
 }) {}
 
-export type HarborMetadata = Schema.Schema.Type<typeof JsonRecord>;
+export type Metadata = Schema.Schema.Type<typeof JsonRecord>;
 
-export const readHarborTaskConfig = Effect.fn("Task.Load.readHarborTaskConfig")(function* (
-  taskDir: string,
-) {
+export const readTaskConfig = Effect.fn("Task.Load.readTaskConfig")(function* (taskDir: string) {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const toml = yield* fs
@@ -106,7 +98,7 @@ export const readHarborTaskConfig = Effect.fn("Task.Load.readHarborTaskConfig")(
     catch: TaskError.load,
   });
 
-  return yield* Schema.decodeUnknownEffect(HarborTaskConfig)(parsed).pipe(
+  return yield* Schema.decodeUnknownEffect(TaskConfig)(parsed).pipe(
     Effect.mapError(TaskError.load),
   );
 });
