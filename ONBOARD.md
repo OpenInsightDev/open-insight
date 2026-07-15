@@ -12,8 +12,11 @@
 
 ## Task
 
+- 支持多 graders 的 task
+    - 如果已经有多 graders task 的话是不是就不用设计流式 grader 了，而是按照阶段来触发 grading？
+    - 即使是多阶段，如何自动出发 graders 仍然是个问题。但好在框架把 sandbox 的交互限制在了一个固定的工具集之内，所以可以通过拦截 $, cmd 和 writeFile 这几个工具来触发 grading，比如：要求所有 graders 都必须提供一个触发条件（执行某个命令成功、某个文件被更新等）；然后每次 sandbox 执行 mutation 操作的时候都全部执行一遍这些条件来判断此时该触发哪些 graders 了。
 - 支持多阶段 task
-    - 如果已经有多阶段 task 的话是不是就不用设计流式 grader 了，而是按照阶段来触发 grading？
+    - 按照目前 harbor 的设计，多 grader 和多 grading 似乎是不同的概念，因为多阶段可以每个阶段对应不同的环境。
 
 ## Agent
 

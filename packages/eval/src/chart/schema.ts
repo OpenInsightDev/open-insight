@@ -31,12 +31,25 @@ export class Pie extends DataPointBase.extend<Pie>("Pie")({
   value: Schema.Number,
 }) {}
 
-// restricted by https://recharts.github.io/en-US/api/ComposedChart/
-export const Composable = Schema.Union([Area, Line, Bar, Scatter]);
-export type Composable = Schema.Schema.Type<typeof Composable>;
+// RadarChart data points use a category/name plus one numeric value.
+export class Radar extends DataPointBase.extend<Radar>("Radar")({
+  value: Schema.Number,
+}) {}
 
-export const Standalone = Schema.Union([Pie]);
-export type Standalone = Schema.Schema.Type<typeof Standalone>;
+export class RadialBar extends DataPointBase.extend<RadialBar>("RadialBar")({
+  value: Schema.Number,
+}) {}
+
+export class Funnel extends DataPointBase.extend<Funnel>("Funnel")({
+  value: Schema.Number,
+}) {}
+
+// restricted by https://recharts.github.io/en-US/api/ComposedChart/
+const Composable = Schema.Union([Area, Line, Bar, Scatter]);
+export const ComposablePoints = Schema.Array(Composable);
+export type ComposablePoints = Schema.Schema.Type<typeof ComposablePoints>;
+
+const Standalone = Schema.Union([Pie, Radar, RadialBar, Funnel]);
 
 export const DataPoint = Schema.Union([Composable, Standalone]);
 export type DataPoint = Schema.Schema.Type<typeof DataPoint>;

@@ -1,9 +1,9 @@
 import type { Prompt } from "@open-insight/core";
 import type { Bivariant } from "#/utils/variant.ts";
-import { MetricError } from "../error.ts";
-import { type Input, TrajOutput } from "../schema.ts";
+import { MetricError } from "./error.ts";
+import { type Input, TrajOutput } from "./schema.ts";
 import type * as _Core from "@open-insight/core";
-import { Context, Effect, type Stream } from "effect";
+import { Effect, type Stream } from "effect";
 import type { UnionToIntersection } from "effect/Types";
 
 type StreamInput = Readonly<{
