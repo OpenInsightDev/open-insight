@@ -25,3 +25,6 @@
 [submodule ".repos/pier"]
 	path = .repos/pier
 	url = https://github.com/datacurve-ai/pier.git
+[submodule ".repos/polar"]
+	path = .repos/polar
+	url = https://github.com/NVIDIA-NeMo/ProRL-Agent-Server.git
