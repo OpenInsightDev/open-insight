@@ -1,9 +1,11 @@
 import type * as Grade from "#/grade/index.ts";
 import { type Verifier } from "./verif.ts";
 import { Sandbox, Snapshot } from "@open-insight/core/internal";
-import { Brand, Effect, Schema, type Scope } from "effect";
+import { Brand, Data, Effect, Schema, type Scope } from "effect";
 import { Prompt } from "effect/unstable/ai";
 import { TaskError } from "./error.ts";
+
+export type T = Data.TaggedEnum<{}>;
 
 export type TypeId = "~open-insight/eval/task";
 export const TypeId: TypeId = "~open-insight/eval/task";

@@ -18,6 +18,13 @@
 - 支持多阶段 task
     - 按照目前 harbor 的设计，多 grader 和多 grading 似乎是不同的概念，因为多阶段可以每个阶段对应不同的环境。
 
+### Renew
+
+- 多 grader task 这个思路从一开始就是错的：
+    - 最终的 grader 无论如何都会拿到完整的 trajectory，其中包含了整个步骤的所有所需信息，根本就没有必要 on the fly 的去触发 grading；
+    - 在运行过程中实时 grading 的需求是确实存在的，但其实不应该被归纳到 grading 的范畴（也即，得到最终评估结果），而应该是一种 metrics 才对；
+    - 不同 task 的 on the fly grading 需求可能是不同的，所以应当允许在定义 task 的时候给出 task specific 的 metrics；
+
 ## Agent
 
 - 应当集成一个 LLM 网关，用于：

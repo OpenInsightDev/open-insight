@@ -1,6 +1,6 @@
 {
-  "name": "@open-insight/harness-openai-agents",
-  "version": "0.0.17",
+  "name": "@open-insight/agent",
+  "version": "0.0.0",
   "description": "A starter for creating a TypeScript package.",
   "homepage": "https://github.com/author/library#readme",
   "bugs": {
@@ -30,19 +30,14 @@
     "check": "vp check",
     "prepublishOnly": "vp run build"
   },
-  "dependencies": {
-    "@effect/platform-node": "4.0.0-beta.98",
-    "effect": "catalog:"
-  },
   "devDependencies": {
-    "@openai/agents": "catalog:",
-    "@types/node": "catalog:",
+    "@types/node": "^26.1.1",
     "bumpp": "catalog:",
     "typescript": "catalog:",
+    "vite": "catalog:",
     "vite-plus": "catalog:"
   },
-  "peerDependencies": {
-    "@open-insight/core": "workspace:*",
-    "@openai/agents": "catalog:"
+  "dependencies": {
+    "effect": "catalog:"
   }
 }
