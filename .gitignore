@@ -38,4 +38,4 @@ dist-ssr
 !.vscode/extensions.json
 
 /references
-
+/.repos/effect/

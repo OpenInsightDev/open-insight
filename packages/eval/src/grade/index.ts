@@ -1,7 +1,7 @@
 import type { Prompt, Sandbox } from "@open-insight/core/internal";
 import type { Bivariant } from "#/utils/variant.ts";
 import { Effect, Schema } from "effect";
-import { TaskError } from "#/task/error.ts";
+import { Error } from "./error.ts";
 
 export type Context = Sandbox.SandboxPromise &
   Readonly<{
@@ -18,14 +18,13 @@ export type Grader<R extends Result> = Bivariant<(ctx: Context) => PromiseLike<R
  * Run a collection of graders with the given context.
  */
 export const run = <R extends Result>(grader: Grader<R>) =>
-  Effect.fn(function* (ctx: Context): Effect.fn.Return<R, TaskError> {
-    const result = yield* Effect.tryPromise(() => grader(ctx)).pipe(
-      Effect.mapError(TaskError.gradeExec),
-    );
+  Effect.fn(function* (ctx: Context): Effect.fn.Return<R, Error> {
+    const result = yield* Effect.tryPromise(() => grader(ctx)).pipe(Effect.mapError(Error.exec));
     const decoded = yield* Schema.decodeUnknownEffect(Result)(result).pipe(
-      Effect.mapError(TaskError.gradeResult),
+      Effect.mapError(Error.result),
     );
     return decoded as R;
   });
 
 export * from "./builtin/index.ts";
+export * from "./error.ts";

@@ -4,9 +4,6 @@
 [submodule ".repos/terminal-bench-2"]
 	path = .repos/terminal-bench-2
 	url = https://github.com/observerw/terminal-bench-2.git
-[submodule ".repos/effect"]
-	path = .repos/effect
-	url = https://github.com/Effect-TS/effect-smol.git
 [submodule ".repos/ai"]
 	path = .repos/ai
 	url = https://github.com/vercel/ai.git
