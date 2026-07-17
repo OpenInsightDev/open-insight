@@ -1,6 +1,6 @@
 import { type Data, Effect, Match, Schema } from "effect";
 import type { Bivariant, UnionToIntersection } from "#/utils/variant.ts";
-import { MetricError } from "../error.ts";
+import { Error } from "../error.ts";
 import { BenchOutput } from "../schema.ts";
 import type * as TaskMetric from "../task/index.ts";
 
@@ -80,11 +80,11 @@ export type Result<M> = UnionToIntersection<
 const runExec = (name: string, exec: () => unknown) =>
   Effect.tryPromise({
     try: async () => await exec(),
-    catch: MetricError.exec({ name, type: "Bench" }),
+    catch: Error.exec({ name, type: "Bench" }),
   }).pipe(
     Effect.flatMap((result) =>
       Schema.decodeUnknownEffect(Schema.Json)(result).pipe(
-        Effect.mapError(MetricError.exec({ name, type: "Bench" })),
+        Effect.mapError(Error.exec({ name, type: "Bench" })),
       ),
     ),
   );
@@ -92,13 +92,13 @@ const runExec = (name: string, exec: () => unknown) =>
 export const buildReduce = ({ name, exec }: { name: string; exec: ReduceExec }) => {
   const state = { value: exec.init };
 
-  return Effect.fn(function* (input: Input): Effect.fn.Return<BenchOutput, MetricError> {
+  return Effect.fn(function* (input: Input): Effect.fn.Return<BenchOutput, Error> {
     const rawResult = yield* Effect.tryPromise({
       try: async () => await exec.exec(state.value, input),
-      catch: MetricError.exec({ name, type: "Bench" }),
+      catch: Error.exec({ name, type: "Bench" }),
     });
     const result = yield* Schema.decodeUnknownEffect(Schema.Json)(rawResult).pipe(
-      Effect.mapError(MetricError.exec({ name, type: "Bench" })),
+      Effect.mapError(Error.exec({ name, type: "Bench" })),
     );
     state.value = rawResult;
 
@@ -110,7 +110,7 @@ export const buildReduce = ({ name, exec }: { name: string; exec: ReduceExec }) 
 };
 
 export const buildEach = ({ name, exec }: { name: string; exec: EachExec }) =>
-  Effect.fn(function* (input: Input): Effect.fn.Return<BenchOutput, MetricError> {
+  Effect.fn(function* (input: Input): Effect.fn.Return<BenchOutput, Error> {
     const result = yield* runExec(name, () => exec.exec(input));
 
     return BenchOutput.make({
@@ -130,10 +130,7 @@ export const buildAll = ({
 }) => {
   const inputs: Inputs = {};
 
-  return Effect.fn(function* ({
-    task,
-    input,
-  }: Input): Effect.fn.Return<BenchOutput | null, MetricError> {
+  return Effect.fn(function* ({ task, input }: Input): Effect.fn.Return<BenchOutput | null, Error> {
     if (Object.keys(inputs).length >= taskCount) {
       return null;
     }

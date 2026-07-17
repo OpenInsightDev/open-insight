@@ -1,15 +1,17 @@
 import { Schema } from "effect";
-import { AiError } from "effect/unstable/ai";
 
 export class StreamError extends Schema.TaggedErrorClass<StreamError>()("StreamError", {
   cause: Schema.Defect(),
 }) {}
 
-export const AgentErrorReason = Schema.Union([StreamError]);
+export const ErrorReason = Schema.Union([StreamError]);
+export type ErrorReason = Schema.Schema.Type<typeof ErrorReason>;
 
-export class AgentError extends Schema.TaggedErrorClass<AgentError>()("AgentError", {
-  reason: AgentErrorReason,
+export class Error extends Schema.TaggedErrorClass<Error>()("AgentError", {
+  reason: ErrorReason,
 }) {
-  static stream = (error: AiError.AiError) =>
-    new AgentError({ reason: new StreamError({ cause: error }) });
+  static mapUnknownError = (mapper: (cause: unknown) => ErrorReason) => (cause: unknown) =>
+    cause instanceof Error ? cause : new Error({ reason: mapper(cause) });
+
+  static stream = this.mapUnknownError((cause) => new StreamError({ cause }));
 }

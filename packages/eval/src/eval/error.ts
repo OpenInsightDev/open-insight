@@ -1,6 +1,7 @@
 import { Schema } from "effect";
 import * as Grade from "#/grade/index.ts";
 import * as Metric from "#/metric/index.ts";
+import * as Tasks from "#/tasks/index.ts";
 import * as Task from "../task/index.ts";
 import * as Bench from "#/bench/index.ts";
 import * as Harness from "#/harness/index.ts";
@@ -9,10 +10,6 @@ import { Snapshot } from "@open-insight/core/internal";
 const NonNegativeInt = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0));
 
 export class InitError extends Schema.TaggedErrorClass<InitError>()("InitError", {
-  cause: Schema.Defect(),
-}) {}
-
-export class TaskLoadError extends Schema.TaggedErrorClass<TaskLoadError>()("TaskLoadError", {
   cause: Schema.Defect(),
 }) {}
 
@@ -67,7 +64,7 @@ export class SnapshotError extends Schema.TaggedErrorClass<SnapshotError>()("Sna
 
 export const ErrorReason = Schema.Union([
   InitError,
-  TaskLoadError,
+  Tasks.Error,
   EventTransportInitError,
   EventTransportError,
   SnapshotError,
@@ -75,11 +72,11 @@ export const ErrorReason = Schema.Union([
   TaskExecError,
   TaskVerifFailed,
   TaskVerifExecError,
-  Metric.MetricError,
+  Metric.Error,
 ]);
 export type ErrorReason = Schema.Schema.Type<typeof ErrorReason>;
 
-export class Error extends Schema.TaggedErrorClass<Error>()("ExecError", {
+export class Error extends Schema.TaggedErrorClass<Error>()("EvalError", {
   reason: ErrorReason,
   benchmark: Schema.optional(Bench.Metadata),
   harness: Schema.optional(Harness.Metadata),
@@ -89,7 +86,7 @@ export class Error extends Schema.TaggedErrorClass<Error>()("ExecError", {
 
   static init = this.mapUnknownError((cause) => new InitError({ cause }));
 
-  static taskLoad = this.mapUnknownError((cause) => new TaskLoadError({ cause }));
+  static tasks = (cause: Tasks.Error) => new Error({ reason: cause });
 
   static eventTransportInit = (transport: string, url: string) =>
     this.mapUnknownError((cause) => new EventTransportInitError({ transport, url, cause }));
@@ -114,5 +111,5 @@ export class Error extends Schema.TaggedErrorClass<Error>()("ExecError", {
   static taskVerifExec = (task: Task.Task) =>
     this.mapUnknownError((cause) => new TaskVerifExecError({ task: task.metadata, cause }));
 
-  static metric = (cause: Metric.MetricError) => new Error({ reason: cause });
+  static metric = (cause: Metric.Error) => new Error({ reason: cause });
 }

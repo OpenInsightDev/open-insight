@@ -1,18 +1,18 @@
 import { Effect, FileSystem, Path, Predicate } from "effect";
 import * as Task from "#/task/index.ts";
 import picomatch from "picomatch";
-import { TaskError } from "#/task/error.ts";
+import { Error as TasksError } from "./error.ts";
 import type { Loader } from "./index.ts";
 
 const missingDefaultExport = (taskFile: string) =>
-  TaskError.load(
+  TasksError.invalid(
     new Error(
       `Loading task from file requires a default export, but the module at ${taskFile} does not export any.`,
     ),
   );
 
 const invalidDefaultExport = (taskFile: string) =>
-  TaskError.load(
+  TasksError.invalid(
     new Error(
       `Loading task from file requires a default export of type Task, but the module at ${taskFile} exports a value that is not a valid Task.`,
     ),
@@ -29,7 +29,7 @@ const loadTaskFactory = <T extends Task.Task>(taskFile: string, factory: () => u
     Effect.gen(function* () {
       const value = yield* Effect.tryPromise({
         try: () => Promise.resolve(factory()),
-        catch: TaskError.load,
+        catch: TasksError.init,
       });
       const task = yield* verifyTask<T>(taskFile, value);
 
@@ -100,7 +100,7 @@ export const fromDir = <T extends Task.Task>({
 
     const entries = yield* fs // must be relative paths
       .readDirectory(dir, { recursive: true })
-      .pipe(Effect.mapError(TaskError.load));
+      .pipe(Effect.mapError(TasksError.source));
 
     const matcher = picomatch(glob);
     const taskFiles = entries
@@ -111,7 +111,7 @@ export const fromDir = <T extends Task.Task>({
       taskFiles.map(
         Effect.fn(function* (taskFile) {
           const module: unknown = yield* Effect.tryPromise(() => import(taskFile)).pipe(
-            Effect.mapError(TaskError.load),
+            Effect.mapError(TasksError.source),
           );
 
           if (!Predicate.hasProperty(module, "default")) {

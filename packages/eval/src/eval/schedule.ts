@@ -234,7 +234,7 @@ export const run = Effect.fn("exec/schedule")(
     const runSchedule = Effect.fn("exec/runSchedule")(function* () {
       yield* Effect.logDebug("Loading tasks");
       const loadedTasks = yield* Effect.all(
-        bench.tasks.map((task) => task.pipe(Effect.mapError(Error.taskLoad))),
+        bench.tasks.map((task) => task.pipe(Effect.mapError(Error.tasks))),
         { concurrency: "unbounded" },
       );
       if (loadedTasks.length === 0) {

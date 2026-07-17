@@ -5,9 +5,13 @@ export class InitError extends Schema.TaggedErrorClass<InitError>()("InitError",
 }) {}
 
 export const ErrorReason = Schema.Union([InitError]);
+export type ErrorReason = Schema.Schema.Type<typeof ErrorReason>;
 
 export class Error extends Schema.TaggedErrorClass<Error>()("HarnessError", {
   reason: ErrorReason,
 }) {
-  static init = (cause: unknown) => new Error({ reason: new InitError({ cause }) });
+  static mapUnknownError = (mapper: (cause: unknown) => ErrorReason) => (cause: unknown) =>
+    cause instanceof Error ? cause : new Error({ reason: mapper(cause) });
+
+  static init = this.mapUnknownError((cause) => new InitError({ cause }));
 }

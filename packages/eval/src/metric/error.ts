@@ -10,19 +10,19 @@ export class ExecError extends Schema.TaggedErrorClass<ExecError>()("ExecError",
   cause: Schema.Defect(),
 }) {}
 
-export const MetricErrorReason = Schema.Union([ExecError]);
+export const ErrorReason = Schema.Union([ExecError]);
+export type ErrorReason = Schema.Schema.Type<typeof ErrorReason>;
 
-export class MetricError extends Schema.TaggedErrorClass<MetricError>()("MetricError", {
-  reason: MetricErrorReason,
+export class Error extends Schema.TaggedErrorClass<Error>()("MetricError", {
+  reason: ErrorReason,
 }) {
-  static exec =
-    ({ name, type }: { name: string; type: "Trajectory" | "Task" | "Bench" }) =>
-    (cause: unknown) =>
-      new MetricError({
-        reason: new ExecError({ name, type, cause }),
-      });
+  static mapUnknownError = (mapper: (cause: unknown) => ErrorReason) => (cause: unknown) =>
+    cause instanceof Error ? cause : new Error({ reason: mapper(cause) });
 
-  static taskExec = (name: string) => MetricError.exec({ name, type: "Task" });
-  static trajExec = (name: string) => MetricError.exec({ name, type: "Trajectory" });
-  static benchExec = (name: string) => MetricError.exec({ name, type: "Bench" });
+  static exec = ({ name, type }: { name: string; type: "Trajectory" | "Task" | "Bench" }) =>
+    Error.mapUnknownError((cause) => new ExecError({ name, type, cause }));
+
+  static taskExec = (name: string) => Error.exec({ name, type: "Task" });
+  static trajExec = (name: string) => Error.exec({ name, type: "Trajectory" });
+  static benchExec = (name: string) => Error.exec({ name, type: "Bench" });
 }

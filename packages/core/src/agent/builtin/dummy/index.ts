@@ -54,7 +54,7 @@ export const makeAgent = Effect.fn(function* ({
 }: {
   chat?: Effect.Effect<Chat.Service>;
   toolkit?: EmptyToolkit;
-}): Effect.fn.Return<Agent.Agent, Agent.AgentError, never> {
+}): Effect.fn.Return<Agent.Agent, Agent.Error, never> {
   const llm = yield* makeDummyLanguageModel();
   const service = yield* chat;
 
@@ -64,7 +64,7 @@ export const makeAgent = Effect.fn(function* ({
       service
         .streamText({ prompt, toolkit })
         .pipe(
-          Stream.mapError(Agent.AgentError.stream),
+          Stream.mapError(Agent.Error.stream),
           Stream.provideService(LanguageModel.LanguageModel, llm),
         ),
   } satisfies Agent.Agent;
@@ -76,7 +76,7 @@ export const make = Effect.fn(function* ({
 }: {
   chat?: Effect.Effect<Chat.Service>;
   toolkit?: EmptyToolkit;
-}): Effect.fn.Return<Agent.Provider, Agent.AgentError, never> {
+}): Effect.fn.Return<Agent.Provider, Agent.Error, never> {
   const llm = yield* makeDummyLanguageModel();
 
   const runSession = Effect.fn(

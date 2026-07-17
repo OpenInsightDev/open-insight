@@ -3,6 +3,7 @@ import { Crypto, Effect, Encoding, FileSystem, Schema } from "effect";
 import { HttpClient, HttpClientResponse } from "effect/unstable/http";
 import { Spawn } from "@open-insight/core/utils";
 import * as Task from "#/task/index.ts";
+import { Error } from "./error.ts";
 import type { Loader } from "./index.ts";
 
 const archiveHash = Effect.fn(function* (url: string) {
@@ -40,5 +41,9 @@ export const withDist = ({ url, format = "tar.gz" }: { url: string; format?: "ta
       yield* spawner.exitCode(extract);
     }
 
-    return yield* exec({ distPath });
-  });
+    const loader = yield* Effect.try({
+      try: () => exec({ distPath }),
+      catch: Error.init,
+    });
+    return yield* loader;
+  }, Effect.mapError(Error.source));

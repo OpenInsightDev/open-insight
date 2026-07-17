@@ -1,6 +1,6 @@
 import { Effect, FileSystem, Path, Schema } from "effect";
 import { parse } from "smol-toml";
-import { TaskError } from "#/task/error.ts";
+import { Error } from "../error.ts";
 
 const StringRecord = Schema.Record(Schema.String, Schema.String);
 const JsonRecord = Schema.Record(Schema.String, Schema.Json);
@@ -92,13 +92,11 @@ export const readTaskConfig = Effect.fn("Task.Load.readTaskConfig")(function* (t
   const path = yield* Path.Path;
   const toml = yield* fs
     .readFileString(path.join(path.resolve(taskDir), "task.toml"))
-    .pipe(Effect.mapError(TaskError.load));
+    .pipe(Effect.mapError(Error.source));
   const parsed = yield* Effect.try({
     try: () => parse(toml),
-    catch: TaskError.load,
+    catch: Error.invalid,
   });
 
-  return yield* Schema.decodeUnknownEffect(TaskConfig)(parsed).pipe(
-    Effect.mapError(TaskError.load),
-  );
+  return yield* Schema.decodeUnknownEffect(TaskConfig)(parsed).pipe(Effect.mapError(Error.invalid));
 });

@@ -1,5 +1,5 @@
 export {
-  MetricError,
+  Error,
   init,
   type Metrics,
   withBench,

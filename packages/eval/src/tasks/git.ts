@@ -3,7 +3,7 @@ import { ChildProcess } from "effect/unstable/process";
 import { Effect, FileSystem } from "effect";
 import { Spawn } from "@open-insight/core/utils";
 import type { Loader } from "./index.ts";
-import { TaskError } from "../error.ts";
+import { Error } from "./error.ts";
 
 interface Options {
   /** Target directory. Defaults to a scoped temporary directory. */
@@ -143,15 +143,15 @@ export const withGitRepo = <T extends Task.Task>(repoURL: string, options: Optio
         repoPath = tempRepoPath;
       }
 
-      yield* loadGitRepo(repoPath, repoURL, options);
+      yield* loadGitRepo(repoPath, repoURL, options).pipe(Effect.mapError(Error.source));
 
       const loader = yield* Effect.tryPromise({
         try: () => Promise.resolve(exec(repoPath)),
-        catch: TaskError.load,
+        catch: Error.init,
       });
       return yield* loader;
     },
-    (effect) => effect.pipe(Effect.mapError(TaskError.load), Effect.provide(Spawn.Service.layer)),
+    (effect) => effect.pipe(Effect.mapError(Error.source), Effect.provide(Spawn.Service.layer)),
   );
 
 export const withGithub = <T extends Task.Task>(id: string, options?: Options) =>

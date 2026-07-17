@@ -3,7 +3,7 @@ import { type Verifier } from "./verif.ts";
 import { Sandbox, Snapshot } from "@open-insight/core/internal";
 import { Brand, Effect, Schema, type Scope } from "effect";
 import { Prompt } from "effect/unstable/ai";
-import { TaskError } from "./error.ts";
+import type { Error as TasksError } from "#/tasks/error.ts";
 
 export type TypeId = "~open-insight/eval/task";
 export const TypeId: TypeId = "~open-insight/eval/task";
@@ -90,4 +90,4 @@ export class Task<G extends Schema.JsonObject = any, Extra extends Schema.JsonOb
 export type ExtraOf<T> = T extends Task<infer _G, infer Extra> ? Extra : never;
 export type GradeResultOf<T> = T extends Task<infer G, infer _Extra> ? G : never;
 
-export type Tasks<T extends Task = Task> = ReadonlyArray<Effect.Effect<T, TaskError, Scope.Scope>>;
+export type Tasks<T extends Task = Task> = ReadonlyArray<Effect.Effect<T, TasksError, Scope.Scope>>;

@@ -1,6 +1,6 @@
 import type { Prompt } from "@open-insight/core";
 import type { Bivariant } from "#/utils/variant.ts";
-import { MetricError } from "./error.ts";
+import { Error } from "./error.ts";
 import { type Input, TrajOutput } from "./schema.ts";
 import type * as _Core from "@open-insight/core";
 import { Effect, Queue, type Stream } from "effect";
@@ -73,11 +73,11 @@ export const tap = ({
   out,
   metrics: { reduce, bulk, each },
 }: {
-  out: Queue.Enqueue<TrajOutput, MetricError>;
+  out: Queue.Enqueue<TrajOutput, Error>;
   metrics: Metrics;
 }) =>
   Effect.fn(function* <E, R>(
     input: Stream.Stream<Input, E, R>,
-  ): Effect.fn.Return<Stream.Stream<Input, E, R>, MetricError> {
+  ): Effect.fn.Return<Stream.Stream<Input, E, R>, Error> {
     return input;
   });

@@ -404,6 +404,9 @@ importers:
 
   packages/agent:
     dependencies:
+      '@open-insight/core':
+        specifier: 'workspace:'
+        version: link:../core
       effect:
         specifier: 'catalog:'
         version: 4.0.0-beta.98

@@ -3,13 +3,13 @@ import * as TaskMetric from "./task/index.ts";
 import * as BenchMetric from "./bench/index.ts";
 import * as TrajMetric from "./traj/index.ts";
 import type { BenchOutput, Input, Output, TaskOutput, TrajOutput } from "./schema.ts";
-import type { MetricError } from "./error.ts";
+import type { Error } from "./error.ts";
 import type { Metrics } from "./build.ts";
 import type * as _Core from "@open-insight/core";
 
 type InputStream<E, R> = Stream.Stream<Input, E, R>;
-type OutputQueue<E = never> = Queue.Queue<Output, E | MetricError | Cause.Done>;
-type OutputStream<E = never> = Stream.Stream<Output, E | MetricError>;
+type OutputQueue<E = never> = Queue.Queue<Output, E | Error | Cause.Done>;
+type OutputStream<E = never> = Stream.Stream<Output, E | Error>;
 
 export const buildTrajMetricConsumer = <E = never>({
   metrics: metricVariants,
@@ -20,9 +20,7 @@ export const buildTrajMetricConsumer = <E = never>({
 }) => {
   const metrics = metricVariants.map(TrajMetric.build);
 
-  return Effect.fn(function* (
-    input: Input,
-  ): Effect.fn.Return<Array<TrajOutput> | null, MetricError> {
+  return Effect.fn(function* (input: Input): Effect.fn.Return<Array<TrajOutput> | null, Error> {
     const exec = Effect.fn(function* (output: TrajOutput | null) {
       if (output === null) {
         return null;
@@ -125,8 +123,8 @@ export const transform = ({
   Effect.fn(
     function* <E, R>(
       inputStream: InputStream<E, R>,
-    ): Effect.fn.Return<OutputStream<E>, E | MetricError, R | Scope.Scope> {
-      const outputQueue = yield* Queue.bounded<Output, E | MetricError | Cause.Done>(128);
+    ): Effect.fn.Return<OutputStream<E>, E | Error, R | Scope.Scope> {
+      const outputQueue = yield* Queue.bounded<Output, E | Error | Cause.Done>(128);
 
       const consumeTrajMetrics = buildTrajMetricConsumer({
         metrics: metrics.trajectory,
@@ -145,7 +143,7 @@ export const transform = ({
 
       const mapTaskMetrics = Effect.fn(function* (
         input: Input,
-      ): Effect.fn.Return<BenchMetric.Input | null, MetricError> {
+      ): Effect.fn.Return<BenchMetric.Input | null, Error> {
         const taskOutputs = yield* consumeTaskMetrics(input);
         if (taskOutputs === null) {
           return null;

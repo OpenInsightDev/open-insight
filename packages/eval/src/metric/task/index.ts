@@ -1,7 +1,7 @@
 import { type Data, Effect, Match, Schema } from "effect";
 import type * as Grade from "#/grade/index.ts";
 import type { Bivariant, UnionToIntersection } from "#/utils/variant.ts";
-import { MetricError } from "../error.ts";
+import { Error } from "../error.ts";
 import { type Input, TaskOutput } from "../schema.ts";
 import type * as _Core from "@open-insight/core";
 
@@ -94,32 +94,27 @@ export type StreamResult<M> = UnionToIntersection<
 const runExec = (name: string, exec: () => unknown) =>
   Effect.tryPromise({
     try: async () => await exec(),
-    catch: MetricError.exec({ name, type: "Task" }),
+    catch: Error.exec({ name, type: "Task" }),
   }).pipe(
     Effect.flatMap((result) =>
-      Schema.decodeUnknownEffect(Schema.Json)(result).pipe(
-        Effect.mapError(MetricError.taskExec(name)),
-      ),
+      Schema.decodeUnknownEffect(Schema.Json)(result).pipe(Effect.mapError(Error.taskExec(name))),
     ),
   );
 
 export const buildReduce = ({ name, exec }: { name: string; exec: ReduceExec }) => {
   const state = { value: exec.init };
 
-  return Effect.fn(function* ({
-    task,
-    delta,
-  }: Input): Effect.fn.Return<TaskOutput | null, MetricError> {
+  return Effect.fn(function* ({ task, delta }: Input): Effect.fn.Return<TaskOutput | null, Error> {
     if (delta._tag !== "Grade") {
       return null;
     }
 
     const rawResult = yield* Effect.tryPromise({
       try: async () => await exec.exec(state.value, delta.result),
-      catch: MetricError.taskExec(name),
+      catch: Error.taskExec(name),
     });
     const result = yield* Schema.decodeUnknownEffect(Schema.Json)(rawResult).pipe(
-      Effect.mapError(MetricError.taskExec(name)),
+      Effect.mapError(Error.taskExec(name)),
     );
     state.value = rawResult;
 
@@ -132,7 +127,7 @@ export const buildReduce = ({ name, exec }: { name: string; exec: ReduceExec }) 
 };
 
 export const buildEach = ({ name, exec }: { name: string; exec: EachExec }) =>
-  Effect.fn(function* ({ task, delta }: Input): Effect.fn.Return<TaskOutput | null, MetricError> {
+  Effect.fn(function* ({ task, delta }: Input): Effect.fn.Return<TaskOutput | null, Error> {
     if (delta._tag !== "Grade") {
       return null;
     }
@@ -157,10 +152,7 @@ export const buildAll = ({
 }) => {
   const taskMap = new Map<string, Array<Grade.Result>>();
 
-  return Effect.fn(function* ({
-    task,
-    delta,
-  }: Input): Effect.fn.Return<TaskOutput | null, MetricError> {
+  return Effect.fn(function* ({ task, delta }: Input): Effect.fn.Return<TaskOutput | null, Error> {
     if (delta._tag !== "Grade") {
       return null;
     }

@@ -3,8 +3,8 @@ import { Effect, FileSystem, Path, Schema } from "effect";
 import { Prompt } from "effect/unstable/ai";
 import type * as Grade from "#/grade/index.ts";
 import { Task, type Options } from "#/task/build.ts";
-import { TaskError } from "#/task/error.ts";
 import type { Verifier } from "#/task/verif.ts";
+import { Error as TasksError } from "../error.ts";
 import { type EnvConfig, type Metadata, type TaskConfig, readTaskConfig } from "./config.ts";
 
 export * from "./config.ts";
@@ -115,7 +115,7 @@ const formatAuthor = ({
 export const makeTask = Effect.fn("Task.Load.makeTask")(function* <T extends HarborTask>(
   taskDir: string,
   TaskClass: TaskClass<T>,
-): Effect.fn.Return<T, TaskError, FileSystem.FileSystem | Path.Path> {
+): Effect.fn.Return<T, TasksError, FileSystem.FileSystem | Path.Path> {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const resolvedTaskDir = path.resolve(taskDir);
@@ -123,22 +123,24 @@ export const makeTask = Effect.fn("Task.Load.makeTask")(function* <T extends Har
 
   if (config.steps !== undefined && config.steps.length > 0) {
     return yield* Effect.fail(
-      TaskError.load(new Error("Multi-step Harbor tasks are not supported")),
+      TasksError.unsupported(new Error("Multi-step Harbor tasks are not supported")),
     );
   }
   if (config.environment?.os === "windows") {
-    return yield* Effect.fail(TaskError.load(new Error("Windows Harbor tasks are not supported")));
+    return yield* Effect.fail(
+      TasksError.unsupported(new Error("Windows Harbor tasks are not supported")),
+    );
   }
 
   const instruction = yield* fs
     .readFileString(path.join(resolvedTaskDir, "instruction.md"))
-    .pipe(Effect.mapError(TaskError.load));
+    .pipe(Effect.mapError(TasksError.source));
   const snapshot = yield* makeSnapshot(resolvedTaskDir, config.environment).pipe(
-    Effect.mapError(TaskError.load),
+    Effect.mapError(TasksError.init),
   );
   const hasSolution = yield* fs
     .exists(path.join(resolvedTaskDir, "solution", "solve.sh"))
-    .pipe(Effect.mapError(TaskError.load));
+    .pipe(Effect.mapError(TasksError.source));
   const packageInfo = config.task;
 
   return yield* Effect.try({
@@ -157,6 +159,6 @@ export const makeTask = Effect.fn("Task.Load.makeTask")(function* <T extends Har
         resources: makeResources(config),
         extra: config.metadata ?? {},
       }),
-    catch: TaskError.load,
+    catch: TasksError.init,
   });
 });
