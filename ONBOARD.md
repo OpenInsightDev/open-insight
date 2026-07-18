@@ -25,9 +25,16 @@
     - 在运行过程中实时 grading 的需求是确实存在的，但其实不应该被归纳到 grading 的范畴（也即，得到最终评估结果），而应该是一种 metrics 才对；
     - 不同 task 的 on the fly grading 需求可能是不同的，所以应当允许在定义 task 的时候给出 task specific 的 metrics；
 
+### ReRenew
+
+- 所谓的多步骤 task，其实就是解决当一轮 agent prompting 结束之后是否应当交付结果，因此：
+    - 应当灵活使用 [] {} 语法来定义 grading 顺序和可并行的 grading 阶段；
+    - 应当允许 grader 指定，当此轮 grading 没有收集到预期结果的时候，是中断后续流程，还是给 agent 提供新的 prompt 让它继续尝试；
+
 ## Agent
 
 - 应当集成一个 LLM 网关，用于：
     - 统一向用户 agent 提供端点；
     - 用于 intercept 用户 agent 与端点之间的通信，就无须用户编写逻辑提供 trajectory 了；
     - 可以考虑 https://github.com/portkey-ai/gateway
+    - 这个概念现在已经有了，叫 async RL，可以从这方面入手；
