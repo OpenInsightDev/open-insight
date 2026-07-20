@@ -1,6 +1,6 @@
 import type * as Grade from "#/grade/index.ts";
 import { Prompt, Sandbox, Snapshot } from "@open-insight/core/internal";
-import { Schema, Stream } from "effect";
+import { Array, Schema, Stream } from "effect";
 import { Error } from "./error.ts";
 
 export type TypeId = "~open-insight/eval/task";
@@ -43,9 +43,11 @@ const makeStage = <G extends Grade.Result = Grade.Result>(options: StageOptions<
   grader: options.grader,
 });
 
+type MetadataSchema = Schema.ConstraintDecoder<Metadata>;
+
 export type Options<
   G extends Grade.Result = Grade.Result,
-  M extends Metadata = Metadata,
+  M extends MetadataSchema = typeof Metadata,
 > = Schema.Codec.Encoded<M> &
   Readonly<{
     snapshot: Snapshot.Snapshot;
@@ -54,8 +56,45 @@ export type Options<
   (StageOptions<G> | { stages: [...StageOptions[], StageOptions<G>] });
 
 export type Task<G extends Grade.Result = Grade.Result, M extends Metadata = Metadata> = Readonly<{
+  [TypeId]: TypeId;
   metadata: M;
   snapshot: Snapshot.Snapshot;
   resources?: Sandbox.Resources;
   stages: readonly [...Stage[], Stage<G>];
+  [Symbol.asyncDispose]: () => Promise<void>;
 }>;
+
+const isMetadataSchema = <M extends MetadataSchema>(value: Options | M): value is M =>
+  Schema.isSchema(value);
+
+function makeTask<G extends Grade.Result, M extends MetadataSchema>(
+  metadataSchema: M,
+  options: Options<G, M>,
+): Task<G, M["Type"]>;
+function makeTask<G extends Grade.Result, M extends MetadataSchema>(
+  metadataSchema: M,
+  options: Options<G, M>,
+): unknown {
+  const stages = "stages" in options ? options.stages : [options];
+
+  return {
+    [TypeId]: TypeId,
+    metadata: Schema.decodeSync(metadataSchema)(options),
+    snapshot: options.snapshot,
+    resources: options.resources,
+    stages: Array.map(stages, (options) => makeStage(options)),
+    [Symbol.asyncDispose]: async () => {},
+  };
+}
+
+export function make<G extends Grade.Result = Grade.Result>(options: Options<G>): Task<G>;
+export function make<M extends MetadataSchema>(
+  metadataSchema: M,
+): <G extends Grade.Result = Grade.Result>(options: Options<G, M>) => Task<G, M["Type"]>;
+export function make<G extends Grade.Result, M extends MetadataSchema>(
+  optionsOrSchema: Options<G> | M,
+): Task<G> | ((options: Options<G, M>) => Task<G, M["Type"]>) {
+  return isMetadataSchema(optionsOrSchema)
+    ? (options) => makeTask(optionsOrSchema, options)
+    : makeTask(Metadata, optionsOrSchema);
+}

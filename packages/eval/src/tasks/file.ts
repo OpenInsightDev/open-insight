@@ -1,4 +1,4 @@
-import { Effect, FileSystem, Path, Predicate } from "effect";
+import { Effect, FileSystem, Path, Predicate, Scope } from "effect";
 import * as Task from "#/task/index.ts";
 import picomatch from "picomatch";
 import { Error as TasksError } from "./error.ts";
