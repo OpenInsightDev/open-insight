@@ -1,9 +1,7 @@
 import type * as Grade from "#/grade/index.ts";
-import { type Verifier } from "./verif.ts";
-import { Sandbox, Snapshot } from "@open-insight/core/internal";
-import { Brand, Effect, Schema, type Scope } from "effect";
-import { Prompt } from "effect/unstable/ai";
-import type { Error as TasksError } from "#/tasks/error.ts";
+import { Prompt, Sandbox, Snapshot } from "@open-insight/core/internal";
+import { Schema, Stream } from "effect";
+import { Error } from "./error.ts";
 
 export type TypeId = "~open-insight/eval/task";
 export const TypeId: TypeId = "~open-insight/eval/task";
@@ -12,82 +10,52 @@ export type ID = string;
 
 export class Metadata extends Schema.Class<Metadata>("TaskMetadata")({
   name: Schema.String,
-  description: Schema.NullOr(Schema.String),
-  keywords: Schema.NullOr(Schema.Array(Schema.String)),
-  authors: Schema.NullOr(Schema.Array(Schema.String)),
-  extra: Schema.NullOr(Schema.Record(Schema.String, Schema.Json)),
+  description: Schema.OptionFromOptionalNullOr(Schema.String),
+  keywords: Schema.OptionFromOptionalNullOr(Schema.Array(Schema.String)),
+  authors: Schema.OptionFromOptionalNullOr(Schema.Array(Schema.String)),
+  extra: Schema.OptionFromOptionalNullOr(Schema.Record(Schema.String, Schema.Json)),
 }) {}
 
-type NotRequired = Brand.Brand<"not-required">;
+type PromptOptions = Prompt.UserMessage | Prompt.Trajectory | AsyncIterable<Prompt.UserMessage>;
+type PromptStream = Stream.Stream<Prompt.Message, Error>;
+
+const makePromptStream = (prompt: PromptOptions): PromptStream => {
+  if (Prompt.isMessage(prompt)) {
+    return Stream.make(prompt);
+  }
+  if ("content" in prompt) {
+    return Stream.fromIterable(prompt.content);
+  }
+  return Stream.fromAsyncIterable(prompt, Error.prompt);
+};
+
+type StageOptions<G extends Grade.Result = Grade.Result> = Readonly<{
+  prompt: PromptOptions;
+  grader: Grade.Grader<G>;
+}>;
+type Stage<G extends Grade.Result = Grade.Result> = Readonly<{
+  prompt: PromptStream;
+  grader: Grade.Grader<G>;
+}>;
+
+const makeStage = <G extends Grade.Result = Grade.Result>(options: StageOptions<G>): Stage<G> => ({
+  prompt: makePromptStream(options.prompt),
+  grader: options.grader,
+});
 
 export type Options<
-  G extends Schema.JsonObject = any,
-  Extra extends Schema.JsonObject | NotRequired = NotRequired,
-> = Readonly<
-  {
-    name: string;
-    prompt: ReadonlyArray<Prompt.UserMessage>;
-    grader: Grade.Grader<G>;
-    verifier?: Verifier<G>;
+  G extends Grade.Result = Grade.Result,
+  M extends Metadata = Metadata,
+> = Schema.Codec.Encoded<M> &
+  Readonly<{
     snapshot: Snapshot.Snapshot;
-
-    description?: string;
-    keywords?: ReadonlyArray<string>;
-    authors?: ReadonlyArray<string>;
     resources?: Sandbox.Resources;
-  } &
-    // if extra not specified, we don't require it to be present
-    ([Extra] extends [NotRequired] ? { extra?: never } : { extra: Extra })
->;
+  }> &
+  (StageOptions<G> | { stages: [...StageOptions[], StageOptions<G>] });
 
-export class Task<G extends Schema.JsonObject = any, Extra extends Schema.JsonObject = any> {
-  static readonly TypeId: TypeId = TypeId;
-
-  metadata: Metadata;
-  resources: Sandbox.Resources;
-  prompt: ReadonlyArray<Prompt.UserMessage>;
-  grader: Grade.Grader<G>;
-  verifier?: Verifier<G>;
+export type Task<G extends Grade.Result = Grade.Result, M extends Metadata = Metadata> = Readonly<{
+  metadata: M;
   snapshot: Snapshot.Snapshot;
-
-  constructor({
-    name,
-    prompt,
-    grader,
-    verifier,
-    snapshot,
-    description,
-    keywords,
-    authors,
-    extra,
-    resources,
-  }: Options<G, Extra>) {
-    this.prompt = prompt;
-    this.grader = grader;
-    this.verifier = verifier;
-    this.snapshot = snapshot;
-    this.metadata = Metadata.make({
-      name,
-      description: description ?? null,
-      keywords: keywords ?? null,
-      authors: authors ?? null,
-      extra: extra ?? null,
-    });
-    this.resources = resources ?? new Sandbox.Resources();
-  }
-
-  get name(): string {
-    return this.metadata.name;
-  }
-
-  get extra(): Extra | null {
-    return this.metadata.extra as Extra | null;
-  }
-
-  [Symbol.dispose](): void {}
-}
-
-export type ExtraOf<T> = T extends Task<infer _G, infer Extra> ? Extra : never;
-export type GradeResultOf<T> = T extends Task<infer G, infer _Extra> ? G : never;
-
-export type Tasks<T extends Task = Task> = ReadonlyArray<Effect.Effect<T, TasksError, Scope.Scope>>;
+  resources?: Sandbox.Resources;
+  stages: readonly [...Stage[], Stage<G>];
+}>;
