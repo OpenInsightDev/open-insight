@@ -1,10 +1,10 @@
-import * as Task from "#/task/index.ts";
+import * as Tasks from "#/tasks/index.ts";
 import { Cause, Effect, FileSystem, Path } from "effect";
 
 export type Options = Readonly<{}>;
 
 export type Config = Readonly<{
-  tasks: Task.Tasks;
+  tasks: Tasks.Tasks;
 }>;
 
 export const ConfigPath = ".open-insight/ci.ts";

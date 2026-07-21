@@ -3,6 +3,7 @@ import type { Bivariant } from "#/utils/variant.ts";
 import { Effect, Equal, Schema } from "effect";
 import { Error } from "./error.ts";
 import { isFunction } from "effect/Predicate";
+import type { Snapshot } from "@open-insight/core/internal";
 
 export type SandboxContext = Sandbox.SandboxPromise;
 export type Context = SandboxContext &
@@ -14,14 +15,20 @@ export type Context = SandboxContext &
 export const Result = Schema.Record(Schema.String, Schema.Json);
 export type Result = Schema.Schema.Type<typeof Result>;
 
-type Verifier = (sandbox: SandboxContext) => PromiseLike<Prompt.Trajectory | null>;
-
 export type BaseGrader<R extends Result = Result> = Bivariant<(ctx: Context) => PromiseLike<R>>;
+
+type Verifier = (sandbox: SandboxContext) => PromiseLike<Prompt.Trajectory | null>;
 export type VerifGrader<R extends Result = Result> = Readonly<{
   verif: Verifier;
   grade: BaseGrader<R>;
   expect: R;
 }>;
+
+// TODO
+export type SandboxGrader<R extends Result = Result> = VerifGrader<R> &
+  Readonly<{
+    snapshot: Snapshot.Snapshot;
+  }>;
 
 /**
  * Grades an agent run against task-specific criteria using the sandbox's current state and the
