@@ -1,5 +1,6 @@
 import * as Grade from "#/grade/index.ts";
 import * as Chart from "#/chart/index.ts";
+import * as Task from "#/task/index.ts";
 import type { Prompt } from "@open-insight/core/internal";
 import type { Schema } from "effect";
 
@@ -9,10 +10,10 @@ export type Result<G extends Grade.Result = Grade.Result> = Readonly<{
 }>;
 
 export type Input<G extends Grade.Result = Grade.Result> = Readonly<
-  Record<string, Array<Result<G>>>
+  Record<Task.ID, Array<Result<G>>>
 >;
 export type Delta<G extends Grade.Result = Grade.Result> = Readonly<{
-  task: string;
+  task: Task.ID;
   result: Result<G>;
 }>;
 

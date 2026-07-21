@@ -1,5 +1,6 @@
-import type * as Task from "../task/index.ts";
 import { Effect, Schema } from "effect";
+import * as Task from "#/task/index.ts";
+import * as Tasks from "#/tasks/index.ts";
 import { immerable } from "immer";
 
 export class Metadata extends Schema.Class<Metadata>("BenchMetadata")({
@@ -17,12 +18,12 @@ export class Metadata extends Schema.Class<Metadata>("BenchMetadata")({
 
 export type Bench<T extends Task.Task = Task.Task> = Metadata &
   Readonly<{
-    tasks: Task.Tasks<T>;
+    tasks: Tasks.Tasks<T>;
   }>;
 
 type Options<T extends Task.Task> = Parameters<typeof Metadata.make>[0] &
   Readonly<{
-    tasks: Task.Tasks<T>;
+    tasks: Tasks.Tasks<T>;
   }>;
 
 export const make = <T extends Task.Task>({ tasks, ...metadata }: Options<T>) =>

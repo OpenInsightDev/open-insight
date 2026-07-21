@@ -5,7 +5,7 @@ import { Data, Duration, Schedule, type Schema } from "effect";
 export type Context = Grade.Context;
 
 export type When = Data.TaggedEnum<{
-  Check: { exec: (ctx: Context) => Promise<boolean> };
+  Exec: { exec: (ctx: Context) => Promise<boolean> };
   Schedule: Schedule.Schedule<number>;
 }>;
 export const When = Data.taggedEnum<When>();
@@ -38,22 +38,22 @@ export const make = <R extends Schema.JsonObject = Schema.JsonObject>({
   chart = null,
 }: Options<R>): Metric<R> => ({ name, exec, when, description, chart });
 
-export const always = When.Check({ exec: () => Promise.resolve(true) });
+export const always = When.Exec({ exec: () => Promise.resolve(true) });
 
 export const every = (input: Duration.Input) => When.Schedule(Schedule.fixed(input));
 
 export const success = (bash: string) =>
-  When.Check({ exec: ({ $ }) => $`${bash}`.then(() => true).catch(() => false) });
+  When.Exec({ exec: ({ $ }) => $`${bash}`.then(() => true).catch(() => false) });
 
 export const fails = (bash: string) =>
-  When.Check({ exec: ({ $ }) => $`${bash}`.then(() => false).catch(() => true) });
+  When.Exec({ exec: ({ $ }) => $`${bash}`.then(() => false).catch(() => true) });
 
 export const assert = (bash: string, equals: string) =>
-  When.Check({
+  When.Exec({
     exec: ({ $ }) => $`${bash}`.then((stdout) => stdout.trim() === equals).catch(() => false),
   });
 
 export const exists = (sandboxPath: string) =>
-  When.Check({
+  When.Exec({
     exec: ({ $ }) => $`test -f ${sandboxPath}`.then(() => true).catch(() => false),
   });
