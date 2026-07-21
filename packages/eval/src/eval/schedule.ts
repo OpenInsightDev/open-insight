@@ -1,79 +1,13 @@
-import {
-  Cause,
-  Effect,
-  Fiber,
-  FileSystem,
-  Match,
-  Option,
-  Path,
-  Queue,
-  Ref,
-  Scope,
-  Stream,
-} from "effect";
-import type { Config } from "./config.ts";
-import * as Task from "#/task/index.ts";
-import * as Metric from "#/metric/index.ts";
-import { createTrail, type RunTrail } from "./trail.ts";
-import { Error } from "./error.ts";
+import { Effect, FileSystem, Path, Queue, Scope, Stream } from "effect";
+import type { ChildProcessSpawner } from "effect/unstable/process";
 import { Agent, Sandbox } from "@open-insight/core";
-import {
-  type Event,
-  InitEvent,
-  TaskScheduleEvent,
-  BenchScheduleEvent,
-  MetricsStreamEvent,
-} from "./event/index.ts";
 import * as Bench from "#/bench/index.ts";
 import * as Harness from "#/harness/index.ts";
-import { Result } from "./result.ts";
-import { castDraft, produce } from "immer";
-import type { ChildProcessSpawner } from "effect/unstable/process";
-
-const updateTrailResult =
-  ({ task, trailIndex, trajectory, delta }: Metric.Input) =>
-  (current: Result): Result =>
-    produce(current, (draft) => {
-      const taskName = task.name;
-      const taskResult = (draft.tasks[taskName] ??= {
-        metrics: {},
-        trails: [],
-      });
-      const trailResult = taskResult.trails[trailIndex];
-
-      taskResult.trails[trailIndex] = {
-        grades: delta._tag === "Grade" ? delta.result : (trailResult?.grades ?? {}),
-        metrics: trailResult?.metrics ?? {},
-        trajectory: castDraft(trajectory),
-      };
-    });
-
-const updateMetricResult =
-  (output: Metric.Output) =>
-  (current: Result): Result =>
-    produce(current, (draft) => {
-      Match.value(output).pipe(
-        Match.tag("BenchOutput", ({ name, result }) => {
-          draft.metrics[name] = result;
-        }),
-        Match.tag("TaskOutput", ({ name, task, result }) => {
-          const taskResult = (draft.tasks[task.name] ??= {
-            metrics: {},
-            trails: [],
-          });
-          taskResult.metrics[name] = result;
-        }),
-        Match.tag("TrajOutput", ({ name, task, trailIndex, result }) => {
-          const taskResult = draft.tasks[task.name];
-          const trailResult = taskResult?.trails[trailIndex];
-
-          if (trailResult) {
-            trailResult.metrics[name] = result;
-          }
-        }),
-        Match.exhaustive,
-      );
-    });
+import * as Task from "#/task/index.ts";
+import type { Config } from "./config.ts";
+import { Error } from "./error.ts";
+import { BenchScheduleEvent, type Event, InitEvent, TaskScheduleEvent } from "./event/index.ts";
+import { createTrail, type RunTrail } from "./trail.ts";
 
 type ScheduledTask = Readonly<{
   task: Task.Task;
@@ -89,20 +23,18 @@ export const run = Effect.fn("exec/schedule")(
   function* (
     {
       trailCount,
-      metrics,
       bench,
       harness,
       eventQueue,
     }: Readonly<{
       trailCount: number;
-      metrics: Option.Option<Metric.Metrics>;
       bench: Bench.Bench;
       harness: Harness.Metadata;
       eventQueue: Queue.Enqueue<Event>;
     }>,
     config: Config,
   ): Effect.fn.Return<
-    Result,
+    void,
     Error,
     | Agent.ProviderService
     | Sandbox.ProviderService
@@ -111,58 +43,46 @@ export const run = Effect.fn("exec/schedule")(
     | Path.Path
     | Scope.Scope
   > {
-    const metricQueue = yield* Queue.bounded<Metric.Input, Cause.Done>(128);
-
-    // TODO reasonable default config values
     const { snapshotConcurrency = 32, trailConcurrency = 32 } = config;
-
-    const result = yield* Ref.make<Result>({
-      metrics: {},
-      tasks: {},
-    });
-
     const offerEvent = (event: Event) => Queue.offer(eventQueue, event);
 
-    yield* Effect.annotateCurrentSpan({
-      benchmark: bench.name,
-    });
+    yield* Effect.annotateCurrentSpan({ benchmark: bench.name });
     yield* Effect.logDebug("Starting evaluation schedule");
 
-    const prepareTaskSchedule = Effect.fn("exec/prepareTaskSchedule")(
-      function* ({ task }: { task: Task.Task }) {
+    const prepareTask = Effect.fn("exec/prepareTask")(
+      function* (task: Task.Task) {
         yield* Effect.annotateCurrentSpan({
           benchmark: bench.name,
-          taskName: task.name,
+          taskName: task.metadata.name,
           trailCount,
         });
-        yield* Effect.logDebug("Preparing task schedule");
+        yield* Effect.logDebug("Preparing task");
 
         const runTrail = yield* createTrail({
           task,
           bench: bench.name,
           harness: harness.name,
-          metricQueue,
           eventQueue,
           config,
         });
-        yield* Effect.logDebug("Task snapshot is ready");
 
+        yield* Effect.logDebug("Prepared task");
         return { task, runTrail };
       },
-      (effect, { task }) =>
+      (effect, task) =>
         effect.pipe(
           Effect.annotateLogs({
             benchmark: bench.name,
-            taskName: task.name,
+            taskName: task.metadata.name,
           }),
         ),
     );
 
-    const scheduleTrail = Effect.fn("exec/scheduleTrail")(
+    const runScheduledTrail = Effect.fn("exec/runScheduledTrail")(
       function* ({ task, runTrail, trailIndex }: ScheduledTrail) {
         yield* Effect.annotateCurrentSpan({
           benchmark: bench.name,
-          taskName: task.name,
+          taskName: task.metadata.name,
           trailIndex,
           trailCount,
         });
@@ -171,7 +91,7 @@ export const run = Effect.fn("exec/schedule")(
           TaskScheduleEvent.make({
             bench: bench.name,
             harness: harness.name,
-            task: task.name,
+            task: task.metadata.name,
             trailIndex,
             op: "start",
           }),
@@ -183,7 +103,7 @@ export const run = Effect.fn("exec/schedule")(
           TaskScheduleEvent.make({
             bench: bench.name,
             harness: harness.name,
-            task: task.name,
+            task: task.metadata.name,
             trailIndex,
             op: "stop",
           }),
@@ -193,7 +113,7 @@ export const run = Effect.fn("exec/schedule")(
         effect.pipe(
           Effect.annotateLogs({
             benchmark: bench.name,
-            taskName: task.name,
+            taskName: task.metadata.name,
           }),
         ),
     );
@@ -207,95 +127,56 @@ export const run = Effect.fn("exec/schedule")(
         ),
       );
 
-    const metricsStream = Stream.fromQueue(metricQueue);
-    const metricsFiber = yield* Option.match(metrics, {
-      onSome: (metrics) =>
-        metricsStream
-          .pipe(
-            Stream.tap((input) => Ref.update(result, updateTrailResult(input))),
-            Metric.transform({
-              metrics,
-              trailCount,
-              taskCount: bench.tasks.length,
-            }),
-            Stream.tap((output) => Ref.update(result, updateMetricResult(output))),
-            Stream.tap((output) =>
-              offerEvent(
-                MetricsStreamEvent.make({ bench: bench.name, harness: harness.name, output }),
-              ),
-            ),
-            Stream.runDrain,
-          )
-          .pipe(Effect.mapError(Error.metric))
-          .pipe(Effect.tap(() => Effect.logDebug("Completed metrics stream"))),
-      onNone: () => metricsStream.pipe(Stream.runDrain),
-    }).pipe(Effect.forkChild);
+    yield* Effect.logDebug("Loading tasks");
+    const tasks = yield* Effect.all(
+      bench.tasks.map((task) => task.pipe(Effect.mapError(Error.tasks))),
+      { concurrency: "unbounded" },
+    );
 
-    const runSchedule = Effect.fn("exec/runSchedule")(function* () {
-      yield* Effect.logDebug("Loading tasks");
-      const loadedTasks = yield* Effect.all(
-        bench.tasks.map((task) => task.pipe(Effect.mapError(Error.tasks))),
-        { concurrency: "unbounded" },
-      );
-      if (loadedTasks.length === 0) {
-        yield* Effect.logWarning("No tasks to schedule");
-        return;
-      }
-      yield* Effect.logDebug(`Loaded ${loadedTasks.length} task(s)`);
+    if (tasks.length === 0) {
+      yield* Effect.logWarning("No tasks to schedule");
+      return;
+    }
 
-      yield* offerEvent(
-        InitEvent.make({
-          bench,
-          harness,
-          tasks: loadedTasks.map(({ metadata }) => metadata),
-          metrics: Option.match(metrics, {
-            onSome: (metrics) => metrics.metadata,
-            onNone: () => [],
-          }),
-        }),
-      );
-
-      yield* offerEvent(
-        BenchScheduleEvent.make({
-          bench: bench.name,
-          harness: harness.name,
-          op: "start",
-        }),
-      );
-
-      const scheduledTasks = yield* Effect.all(
-        loadedTasks.map((task) => prepareTaskSchedule({ task })),
-        { concurrency: snapshotConcurrency },
-      );
-      yield* Effect.logDebug("All task snapshots are ready");
-
-      yield* makeTrailStream(scheduledTasks).pipe(
-        Stream.mapEffect(scheduleTrail, { concurrency: trailConcurrency, unordered: true }),
-        Stream.runDrain,
-      );
-
-      yield* offerEvent(
-        BenchScheduleEvent.make({
-          bench: bench.name,
-          harness: harness.name,
-          op: "stop",
-        }),
-      );
-    });
-
-    yield* runSchedule()
-      .pipe(Effect.ensuring(Queue.end(metricQueue)))
-      .pipe(Effect.andThen(Fiber.join(metricsFiber)));
-
-    yield* Effect.logDebug("Scheduled all tasks");
-
-    return yield* Ref.get(result);
-  },
-  (effect, { bench: benchmark }) =>
-    effect.pipe(
-      Effect.scoped,
-      Effect.annotateLogs({
-        benchmark: benchmark.name,
+    yield* Effect.logDebug(`Loaded ${tasks.length} task(s)`);
+    yield* offerEvent(
+      InitEvent.make({
+        bench,
+        harness,
+        tasks: tasks.map(({ metadata }) => metadata),
+        metrics: [],
       }),
-    ),
+    );
+    yield* offerEvent(
+      BenchScheduleEvent.make({
+        bench: bench.name,
+        harness: harness.name,
+        op: "start",
+      }),
+    );
+
+    const scheduledTasks = yield* Effect.all(tasks.map(prepareTask), {
+      concurrency: snapshotConcurrency,
+    });
+    yield* Effect.logDebug("Prepared all tasks");
+
+    yield* makeTrailStream(scheduledTasks).pipe(
+      Stream.mapEffect(runScheduledTrail, {
+        concurrency: trailConcurrency,
+        unordered: true,
+      }),
+      Stream.runDrain,
+    );
+
+    yield* offerEvent(
+      BenchScheduleEvent.make({
+        bench: bench.name,
+        harness: harness.name,
+        op: "stop",
+      }),
+    );
+
+    yield* Effect.logDebug("Completed evaluation schedule");
+  },
+  (effect, { bench }) => effect.pipe(Effect.scoped, Effect.annotateLogs({ benchmark: bench.name })),
 );

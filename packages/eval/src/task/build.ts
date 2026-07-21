@@ -52,6 +52,15 @@ export type Task<G extends Grade.Result = Grade.Result, M extends Metadata = Met
   metadata: M;
   snapshot: Snapshot.Snapshot;
   resources: Sandbox.Resources;
+
+  /**
+   * Execution stages of the task.
+   * Stages are executed sequentially.
+   * When executing a stage, the prompt(s) of the stage will be sent to the agent.
+   * When all prompts are sent and the agent has finished responding, the grader of the stage will be executed.
+   * If the stage grader returns a passing result, the next stage will be executed.
+   * The grading result of the last stage will be used as the final result of the task.
+   */
   stages: ReadonlyArray<Stage>;
 }> & { _G?: G } & AsyncDisposable;
 
