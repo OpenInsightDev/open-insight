@@ -51,7 +51,7 @@ export type VerifGrader<R extends Result = Result> = Readonly<{
  *
  *   if (output.length === 0) {
  *     throw Prompt.userMessage({
- *       content: "result.txt is empty. Please write the result to /workspace/result.txt.",
+ *       content: "result is empty. Please write the result to /workspace/result.txt.",
  *     });
  *   }
  *   if (!output.startsWith("RESULT:")) {

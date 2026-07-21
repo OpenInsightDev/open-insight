@@ -1,3 +1,3 @@
-export { TypeId, Task, type Options, type Tasks, Metadata, type Verifier } from "./index.ts";
-
+export * as Metric from "./metric.ts";
+export { make as metric } from "./metric.ts";
 export * as Internal from "./index.ts";
