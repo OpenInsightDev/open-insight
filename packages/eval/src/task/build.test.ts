@@ -26,6 +26,24 @@ it("makes a task from options", () => {
   assert.lengthOf(task.stages, 1);
 });
 
+it("uses the provided dispose function for async disposal", async () => {
+  let disposed = false;
+  const dispose = async () => {
+    disposed = true;
+  };
+  const task = make({
+    name: "disposable-task",
+    prompt,
+    grader,
+    snapshot,
+    dispose,
+  });
+
+  assert.strictEqual(task[Symbol.asyncDispose], dispose);
+  await task[Symbol.asyncDispose]();
+  assert.isTrue(disposed);
+});
+
 it("curries options from an extended metadata schema", () => {
   const options = {
     name: "custom-task",

@@ -52,19 +52,20 @@ export type Options<
   Readonly<{
     snapshot: Snapshot.Snapshot;
     resources?: Sandbox.Resources;
+    dispose?: () => Promise<void>;
   }> &
   (StageOptions<G> | { stages: [...StageOptions[], StageOptions<G>] });
 
 export type Task<G extends Grade.Result = Grade.Result, M extends Metadata = Metadata> = Readonly<{
   [TypeId]: TypeId;
-  metadata: M;
+  metadata: Schema.JsonObject;
   snapshot: Snapshot.Snapshot;
   resources?: Sandbox.Resources;
-  stages: readonly [...Stage[], Stage<G>];
+  stages: ReadonlyArray<Stage>;
   [Symbol.asyncDispose]: () => Promise<void>;
-}>;
+}> & { _G?: G; _M?: M };
 
-const isMetadataSchema = <M extends MetadataSchema>(value: Options | M): value is M =>
+const isMetadataSchema = <M extends MetadataSchema>(value: unknown): value is M =>
   Schema.isSchema(value);
 
 function makeTask<G extends Grade.Result, M extends MetadataSchema>(
@@ -75,15 +76,15 @@ function makeTask<G extends Grade.Result, M extends MetadataSchema>(
   metadataSchema: M,
   options: Options<G, M>,
 ): unknown {
-  const stages = "stages" in options ? options.stages : [options];
+  const stageOptions = "stages" in options ? options.stages : [options];
 
   return {
     [TypeId]: TypeId,
     metadata: Schema.decodeSync(metadataSchema)(options),
     snapshot: options.snapshot,
     resources: options.resources,
-    stages: Array.map(stages, (options) => makeStage(options)),
-    [Symbol.asyncDispose]: async () => {},
+    stages: Array.map(stageOptions, makeStage),
+    [Symbol.asyncDispose]: options.dispose ?? (async () => {}),
   };
 }
 
@@ -93,8 +94,8 @@ export function make<M extends MetadataSchema>(
 ): <G extends Grade.Result = Grade.Result>(options: Options<G, M>) => Task<G, M["Type"]>;
 export function make<G extends Grade.Result, M extends MetadataSchema>(
   optionsOrSchema: Options<G> | M,
-): Task<G> | ((options: Options<G, M>) => Task<G, M["Type"]>) {
+): unknown {
   return isMetadataSchema(optionsOrSchema)
-    ? (options) => makeTask(optionsOrSchema, options)
+    ? (options: Options<G, M>) => makeTask(optionsOrSchema, options)
     : makeTask(Metadata, optionsOrSchema);
 }
