@@ -3,6 +3,7 @@ import * as Grade from "#/grade/index.ts";
 import { Schema, Stream } from "effect";
 import { Error } from "./error.ts";
 import type { ConstraintDecoder } from "effect/Schema";
+import * as Metric from "./metric.ts";
 
 export type TypeId = "~open-insight/eval/task";
 export const TypeId: TypeId = "~open-insight/eval/task";
@@ -62,6 +63,8 @@ export type Task<G extends Grade.Result = Grade.Result, M extends Metadata = Met
    * The grading result of the last stage will be used as the final result of the task.
    */
   stages: ReadonlyArray<Stage>;
+
+  metrics: ReadonlyArray<Metric.Metric>;
 }> & { _G?: G } & AsyncDisposable;
 
 type Options<
@@ -71,6 +74,8 @@ type Options<
   StageOptions<G> &
   Readonly<{
     snapshot: Snapshot.Snapshot;
+
+    metrics?: ReadonlyArray<Metric.Options>;
     resources?: Sandbox.Resources;
     stages?: ReadonlyArray<StageOptions>;
     dispose?: () => PromiseLike<void>;
@@ -78,13 +83,14 @@ type Options<
 
 export const makeWith =
   <M extends Metadata = Metadata>(decoder: Schema.ConstraintDecoder<M>) =>
-  <G extends Grade.Result = Grade.Result>(options: Options<G, typeof decoder>) => {
+  <G extends Grade.Result = Grade.Result>(options: Options<G, typeof decoder>): Task<G, M> => {
     const {
       snapshot,
       resources = new Sandbox.Resources(),
       prompt,
       grader,
       stages = [],
+      metrics = [],
       dispose,
     } = options;
 
@@ -95,6 +101,7 @@ export const makeWith =
       snapshot,
       resources,
       stages: [...stages.map(makeStage), makeStage({ prompt, grader })],
+      metrics: metrics.map(Metric.make),
       async [Symbol.asyncDispose]() {
         await dispose?.();
       },
