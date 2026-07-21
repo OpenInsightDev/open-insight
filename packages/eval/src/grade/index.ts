@@ -81,7 +81,7 @@ export type VerifGrader<R extends Result = Result> = Readonly<{
  * };
  * ```
  */
-export type Grader<R extends Result> = BaseGrader<R> | VerifGrader<R>;
+export type Grader<R extends Result = Result> = BaseGrader<R> | VerifGrader<R>;
 
 export const run = <R extends Result>(grader: Grader<R>) =>
   Effect.fn(function* (ctx: Context): Effect.fn.Return<R, Error> {
