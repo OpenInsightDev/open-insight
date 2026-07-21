@@ -2,6 +2,7 @@ import { Prompt, Sandbox, Snapshot } from "@open-insight/core/internal";
 import * as Grade from "#/grade/index.ts";
 import { Schema, Stream } from "effect";
 import { Error } from "./error.ts";
+import type { ConstraintDecoder } from "effect/Schema";
 
 export type TypeId = "~open-insight/eval/task";
 export const TypeId: TypeId = "~open-insight/eval/task";
@@ -14,6 +15,7 @@ export class Metadata extends Schema.Class<Metadata>("TaskMetadata")({
   keywords: Schema.OptionFromOptionalNullOr(Schema.Array(Schema.String)),
   authors: Schema.OptionFromOptionalNullOr(Schema.Array(Schema.String)),
 }) {}
+type MetadataDecoder = Schema.ConstraintDecoder<Metadata>;
 
 type PromptOptions = Prompt.UserMessage | Prompt.Trajectory | AsyncIterable<Prompt.UserMessage>;
 type PromptStream = Stream.Stream<Prompt.Message, Error>;
@@ -28,28 +30,68 @@ const makePromptStream = (prompt: PromptOptions): PromptStream => {
   return Stream.fromAsyncIterable(prompt, Error.prompt);
 };
 
-type Stage = Readonly<{
+type Stage<G extends Grade.Result = Grade.Result> = Readonly<{
   prompt: PromptStream;
-  grader: Grade.Grader;
+  grader: Grade.Grader<G>;
 }>;
 
-type StageOptions = Readonly<{
+type StageOptions<G extends Grade.Result = Grade.Result> = Readonly<{
   prompt: PromptOptions;
-  grader: Grade.Grader;
+  grader: Grade.Grader<G>;
 }>;
 
-export type Task<G extends Grade.Result = Grade.Result> = Readonly<{
+const makeStage = (options: StageOptions): Stage => {
+  const { prompt, grader } = options;
+  return {
+    prompt: makePromptStream(prompt),
+    grader,
+  };
+};
+
+export type Task<G extends Grade.Result = Grade.Result, M extends Metadata = Metadata> = Readonly<{
+  metadata: M;
+  snapshot: Snapshot.Snapshot;
+  resources: Sandbox.Resources;
   stages: ReadonlyArray<Stage>;
-}> & { _G?: G };
+}> & { _G?: G } & AsyncDisposable;
 
-type Builder<G extends Grade.Result = never> = Readonly<{}>;
+type Options<
+  G extends Grade.Result = Grade.Result,
+  M extends ConstraintDecoder<Metadata> = MetadataDecoder,
+> = M["Encoded"] &
+  StageOptions<G> &
+  Readonly<{
+    snapshot: Snapshot.Snapshot;
+    resources?: Sandbox.Resources;
+    stages?: ReadonlyArray<StageOptions>;
+    dispose?: () => PromiseLike<void>;
+  }>;
 
-export const init = <G extends Grade.Result = Grade.Result>(
-  options: Schema.Codec.Encoded<Metadata> &
-    Readonly<{
-      snpashot: Snapshot.Snapshot;
-      resources?: Sandbox.Resources;
-    }>,
-) => {};
+export const makeWith =
+  <M extends Metadata = Metadata>(decoder: Schema.ConstraintDecoder<M>) =>
+  <G extends Grade.Result = Grade.Result>(options: Options<G, typeof decoder>) => {
+    const {
+      snapshot,
+      resources = new Sandbox.Resources(),
+      prompt,
+      grader,
+      stages = [],
+      dispose,
+    } = options;
 
-export const stage = (options: StageOptions) => (builder: Builder) => {};
+    const metadata = Schema.decodeSync(decoder, { onExcessProperty: "ignore" })(options);
+
+    return {
+      metadata,
+      snapshot,
+      resources,
+      stages: [...stages.map(makeStage), makeStage({ prompt, grader })],
+      async [Symbol.asyncDispose]() {
+        await dispose?.();
+      },
+    };
+  };
+
+export const make = <G extends Grade.Result = Grade.Result>(options: Options<G>): Task<G> => {
+  return makeWith(Metadata)(options);
+};
