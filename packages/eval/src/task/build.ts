@@ -1,9 +1,10 @@
 import { Prompt, Sandbox, Snapshot } from "@open-insight/core/internal";
 import { type EmptyRecord } from "#/utils/type.ts";
 import * as Grade from "#/grade/index.ts";
-import { Schema, Stream } from "effect";
+import { Effect, Schema, Stream } from "effect";
 import { Error } from "./error.ts";
 import * as Metric from "./metric.ts";
+import { makeID } from "#/utils/id.ts";
 
 export type TypeId = "~open-insight/eval/task";
 export const TypeId: TypeId = "~open-insight/eval/task";
@@ -43,23 +44,24 @@ type Stage<G extends Grade.Result = Grade.Result> = Readonly<{
 }>;
 
 type StageOptions<G extends Grade.Result = Grade.Result> = Readonly<{
-  id: string;
   name?: string;
   description?: string | null;
   prompt: PromptOptions;
   grader: Grade.Grader<G>;
 }>;
 
-const makeStage = (options: StageOptions): Stage => {
-  const { prompt, grader, description = null, id, name = id } = options;
+const makeStage = Effect.fn(function* (
+  order: number,
+  { prompt, grader, description = null, name = `Stage ${order}` }: StageOptions,
+) {
   return {
-    id,
+    id: yield* makeID(),
     name,
     description,
     prompt: makePromptStream(prompt),
     grader,
   };
-};
+});
 
 export type Task<
   G extends Grade.Result = Grade.Result,
@@ -97,18 +99,16 @@ type Options<
     extras?: E;
   }>;
 
-export const make = <
+export const make = Effect.fn(function* <
   G extends Grade.Result = Grade.Result,
   E extends Schema.JsonObject = EmptyRecord,
->(
-  options: Options<G, E>,
-): Task<G, E> => {
+>(options: Options<G, E>) {
   const {
     snapshot,
     resources = new Sandbox.Resources(),
     prompt,
     grader,
-    stages = [],
+    stages: stageOptions = [],
     metrics = [],
     extras = {} as E,
     dispose,
@@ -119,15 +119,19 @@ export const make = <
     extras,
   });
 
+  const stages = yield* Effect.all(
+    [...stageOptions, { prompt, grader }].map((stage, index) => makeStage(index + 1, stage)),
+  );
+
   return {
     metadata,
     snapshot,
     resources,
-    stages: [...stages.map(makeStage), makeStage({ prompt, grader, id: "primary" })],
+    stages,
     metrics: metrics.map(Metric.make),
     extras,
     async [Symbol.asyncDispose]() {
       await dispose?.();
     },
   };
-};
+});
