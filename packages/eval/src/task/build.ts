@@ -130,8 +130,6 @@ export const make = Effect.fn(function* <
     stages,
     metrics: metrics.map(Metric.make),
     extras,
-    async [Symbol.asyncDispose]() {
-      await dispose?.();
-    },
+    [Symbol.asyncDispose]: dispose,
   };
 });

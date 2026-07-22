@@ -53,8 +53,9 @@ export class TrailScheduleEvent extends Schema.TaggedClass<TrailScheduleEvent>()
   },
 ) {}
 
-export class TrailGradeEvent extends Schema.TaggedClass<TrailGradeEvent>()("TrailGradeEvent", {
-  ...TrailFields,
+// TODO 在该事件中包含完成该 stage 时，trajectory 所报告的所有 metadata 信息，比如 context 长度、用时等等
+export class TrailStagedEvent extends Schema.TaggedClass<TrailStagedEvent>()("TrailStagedEvent", {
+  ...StageFields,
   grade: Grade.Result,
 }) {}
 
@@ -71,7 +72,7 @@ export const Event = Schema.Union([
   InitEvent,
   TrailScheduleEvent,
   TrailStreamEvent,
-  TrailGradeEvent,
+  TrailStagedEvent,
 ]);
 export type Event = Schema.Schema.Type<typeof Event>;
 

@@ -25,3 +25,6 @@
 [submodule ".repos/polar"]
 	path = .repos/polar
 	url = https://github.com/NVIDIA-NeMo/ProRL-Agent-Server.git
+[submodule ".repos/EdgeBench"]
+	path = .repos/EdgeBench
+	url = https://github.com/ByteDance-Seed/EdgeBench.git
