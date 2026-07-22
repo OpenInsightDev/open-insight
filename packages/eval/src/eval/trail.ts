@@ -7,7 +7,7 @@ import * as Grade from "#/grade/index.ts";
 import * as Task from "../task/index.ts";
 import type { Config } from "./config.ts";
 import { Error } from "./error.ts";
-import { type Event, TaskStreamPartEvent } from "./event/index.ts";
+import { type Event, TrailStreamEvent } from "./event/index.ts";
 
 export type RunTrail = Effect.Effect<Grade.Result | undefined, Error, Scope.Scope>;
 
@@ -153,7 +153,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
             Stream.runForEach((part) =>
               Queue.offer(
                 eventQueue,
-                TaskStreamPartEvent.make({
+                TrailStreamEvent.make({
                   bench,
                   harness,
                   task: task.metadata.name,

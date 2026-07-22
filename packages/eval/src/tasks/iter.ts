@@ -1,10 +1,9 @@
 import { Effect, Scope, Stream } from "effect";
-import type { Task, Tasks } from "#/task/build.ts";
+import type { Task } from "#/task/build.ts";
 import { Error } from "./error.ts";
+import type { Load, Tasks } from "./index.ts";
 
-export const fromArray = <T extends Task>(
-  arr: ReadonlyArray<T & Disposable>,
-): Effect.Effect<Tasks<T>> =>
+export const fromArray = <T extends Task>(arr: ReadonlyArray<T & Disposable>): Load<T> =>
   Effect.sync(() => arr.map((task) => Effect.acquireDisposable(Effect.succeed(task))));
 
 export const fromIter = <T extends Task>(

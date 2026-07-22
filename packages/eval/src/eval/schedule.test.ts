@@ -9,7 +9,7 @@ import * as Harness from "../harness/index.ts";
 import * as Task from "../task/index.ts";
 import {
   EventTransportService,
-  TaskStreamPartEvent,
+  TrailStreamEvent,
   type Event,
   type EventTransport,
 } from "./event/index.ts";
@@ -49,7 +49,7 @@ const installTrailMock = () => {
 
         yield* Queue.offer(
           eventQueue,
-          TaskStreamPartEvent.make({
+          TrailStreamEvent.make({
             bench: benchmark,
             harness,
             task: task.name,

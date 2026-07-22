@@ -1,16 +1,34 @@
 import { Schema, Stream } from "effect";
+import * as Grade from "#/grade/index.ts";
 import type { Error } from "../error.ts";
-import * as Metric from "#/metric/index.ts";
 import * as Task from "#/task/index.ts";
 import * as Bench from "#/bench/index.ts";
 import * as Harness from "#/harness/index.ts";
 import { Response, Toolkit } from "effect/unstable/ai";
 
+const EvalFields = {
+  bench: Schema.String,
+  harness: Schema.String,
+};
+
+const taskFields = {
+  ...EvalFields,
+  task: Schema.String,
+};
+
+const TrailFields = {
+  ...taskFields,
+  harness: Schema.String,
+};
+
+const StageFields = {
+  ...TrailFields,
+  stage: Schema.String,
+};
+
 export class InitEvent extends Schema.TaggedClass<InitEvent>()("InitEvent", {
-  bench: Bench.Metadata,
-  harness: Harness.Metadata,
+  ...EvalFields,
   tasks: Schema.Array(Task.Metadata),
-  metrics: Schema.Array(Metric.Metadata),
 }) {}
 
 const ScheduleOpSchema = Schema.Union([
@@ -19,56 +37,41 @@ const ScheduleOpSchema = Schema.Union([
   Schema.Literal("pause"),
 ]);
 
+export class EvalScheduleEvent extends Schema.TaggedClass<EvalScheduleEvent>()(
+  "EvalScheduleEvent",
+  {
+    ...EvalFields,
+    op: ScheduleOpSchema,
+  },
+) {}
+
+export class TrailScheduleEvent extends Schema.TaggedClass<TrailScheduleEvent>()(
+  "TrailScheduleEvent",
+  {
+    ...TrailFields,
+    op: ScheduleOpSchema,
+  },
+) {}
+
+export class TrailGradeEvent extends Schema.TaggedClass<TrailGradeEvent>()("TrailGradeEvent", {
+  ...TrailFields,
+  grade: Grade.Result,
+}) {}
+
 export const StreamPart = Response.StreamPart(Toolkit.empty);
 export type StreamPart = typeof StreamPart.Type;
 export type StreamPartEncoded = typeof StreamPart.Encoded;
 
-export class TaskScheduleEvent extends Schema.TaggedClass<TaskScheduleEvent>()(
-  "TaskScheduleEvent",
-  {
-    bench: Schema.String,
-    harness: Schema.String,
-    task: Schema.String,
-    trailIndex: Schema.optional(Schema.Number),
-    op: ScheduleOpSchema,
-  },
-) {}
-
-export class BenchScheduleEvent extends Schema.TaggedClass<BenchScheduleEvent>()(
-  "BenchScheduleEvent",
-  {
-    bench: Schema.String,
-    harness: Schema.String,
-    op: ScheduleOpSchema,
-  },
-) {}
-
-export class MetricsStreamEvent extends Schema.TaggedClass<MetricsStreamEvent>()(
-  "MetricsStreamEvent",
-  {
-    bench: Schema.String,
-    harness: Schema.String,
-    output: Metric.OutputSchema,
-  },
-) {}
-
-export class TaskStreamPartEvent extends Schema.TaggedClass<TaskStreamPartEvent>()(
-  "TaskStreamPartEvent",
-  {
-    bench: Schema.String,
-    harness: Schema.String,
-    task: Schema.String,
-    trailIndex: Schema.Number,
-    parts: Schema.Array(StreamPart),
-  },
-) {}
+export class TrailStreamEvent extends Schema.TaggedClass<TrailStreamEvent>()("TrailStreamEvent", {
+  ...TrailFields,
+  parts: Schema.Array(StreamPart),
+}) {}
 
 export const Event = Schema.Union([
   InitEvent,
-  TaskScheduleEvent,
-  BenchScheduleEvent,
-  MetricsStreamEvent,
-  TaskStreamPartEvent,
+  TrailScheduleEvent,
+  TrailStreamEvent,
+  TrailGradeEvent,
 ]);
 export type Event = Schema.Schema.Type<typeof Event>;
 

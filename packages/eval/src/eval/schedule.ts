@@ -6,7 +6,7 @@ import * as Harness from "#/harness/index.ts";
 import * as Task from "#/task/index.ts";
 import type { Config } from "./config.ts";
 import { Error } from "./error.ts";
-import { BenchScheduleEvent, type Event, InitEvent, TaskScheduleEvent } from "./event/index.ts";
+import { BenchScheduleEvent, type Event, InitEvent, TrailScheduleEvent } from "./event/index.ts";
 import { createTrail, type RunTrail } from "./trail.ts";
 
 type ScheduledTask = Readonly<{
@@ -88,7 +88,7 @@ export const run = Effect.fn("exec/schedule")(
         });
 
         yield* offerEvent(
-          TaskScheduleEvent.make({
+          TrailScheduleEvent.make({
             bench: bench.name,
             harness: harness.name,
             task: task.metadata.name,
@@ -100,7 +100,7 @@ export const run = Effect.fn("exec/schedule")(
         yield* runTrail;
 
         yield* offerEvent(
-          TaskScheduleEvent.make({
+          TrailScheduleEvent.make({
             bench: bench.name,
             harness: harness.name,
             task: task.metadata.name,

@@ -1,7 +1,5 @@
 # Onboard
 
-
-
 ## Agent
 
 - 应当集成一个 LLM 网关，用于：

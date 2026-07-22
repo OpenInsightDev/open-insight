@@ -4,8 +4,8 @@ export {
   EventTransportService,
   InitEvent,
   MetricsStreamEvent,
-  TaskScheduleEvent,
-  TaskStreamPartEvent,
+  TrailScheduleEvent as TaskScheduleEvent,
+  TrailStreamEvent as TaskStreamPartEvent,
   type EventStream,
   type EventTransport,
 } from "./index.ts";
