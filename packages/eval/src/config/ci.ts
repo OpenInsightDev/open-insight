@@ -4,7 +4,7 @@ import { Cause, Effect, FileSystem, Path } from "effect";
 export type Options = Readonly<{}>;
 
 export type Config = Readonly<{
-  tasks: Tasks.Tasks;
+  tasks: Tasks.Load;
 }>;
 
 export const ConfigPath = ".open-insight/ci.ts";

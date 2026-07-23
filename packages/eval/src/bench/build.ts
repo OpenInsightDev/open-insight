@@ -1,27 +1,53 @@
-import { Effect, Schema } from "effect";
+import { Crypto, Effect, Schema } from "effect";
+import { castDraft, produce } from "immer";
+import * as BenchMetric from "#/metric/bench.ts";
 import * as Task from "#/task/index.ts";
 import * as Tasks from "#/tasks/index.ts";
+import { Error } from "./error.ts";
 
-export class Metadata extends Schema.Class<Metadata>("BenchMetadata")({
+export class BaseMetadata extends Schema.Class<BaseMetadata>("BenchBaseMetadata")({
   subset: Schema.Boolean.pipe(Schema.withConstructorDefault(Effect.succeed(false))),
   extras: Schema.optional(Schema.Record(Schema.String, Schema.Json)),
+}) {}
+type BaseMetadataEncoded = Schema.Codec.Encoded<typeof BaseMetadata>;
+
+export class Metadata extends Schema.Class<Metadata>("BenchMetadata")({
+  base: BaseMetadata,
   tasks: Schema.Array(Task.Metadata),
 }) {}
 
-type MetadataOptions = Omit<Schema.Codec.Encoded<typeof Metadata>, "tasks">;
-
-export type Bench<T extends Task.Task = Task.Task> = Metadata &
+export type Bench<T extends Task.Task = Task.Task> = BaseMetadata &
   Readonly<{
-    tasks: Tasks.Tasks<T>;
+    tasks: ReadonlyArray<T>;
+    metrics: ReadonlyArray<BenchMetric.Metric>;
   }>;
 
-type Options<T extends Task.Task> = MetadataOptions &
+type Options<T extends Task.Task> = BaseMetadataEncoded &
   Readonly<{
-    loader: Tasks.Load<T>;
+    load: Tasks.Load<T>;
   }>;
 
 export const make = Effect.fn(function* <T extends Task.Task>(options: Options<T>) {
-  const { loader } = options;
+  const { load } = options;
 
-  const tasks = yield* loader;
+  const tasks = yield* load;
 });
+
+export const metric =
+  (options: BenchMetric.Options) =>
+  <T extends Task.Task, E, Env>(
+    bench: Effect.Effect<Bench<T>, E, Env>,
+  ): Effect.Effect<Bench<T>, E | Error, Env | Crypto.Crypto> =>
+    Effect.all([bench, BenchMetric.make(options).pipe(Effect.mapError(Error.init))]).pipe(
+      Effect.map(([bench, metric]) =>
+        produce(bench, (draft) => {
+          draft.metrics.push(castDraft(metric));
+        }),
+      ),
+    );
+
+export const metadata = (bench: Bench): Metadata =>
+  Metadata.make({
+    base: bench,
+    tasks: bench.tasks.map(Task.metadata),
+  });

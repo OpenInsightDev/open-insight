@@ -1,14 +1,14 @@
 import { Effect, Scope, Stream } from "effect";
 import type { Task } from "#/task/build.ts";
 import { Error } from "./error.ts";
-import type { Load, Tasks } from "./index.ts";
+import type { Load, Load } from "./index.ts";
 
 export const fromArray = <T extends Task>(arr: ReadonlyArray<T & Disposable>): Load<T> =>
   Effect.sync(() => arr.map((task) => Effect.acquireDisposable(Effect.succeed(task))));
 
 export const fromIter = <T extends Task>(
   iter: Iterable<T & Disposable>,
-): Effect.Effect<Tasks<T>, Error> =>
+): Effect.Effect<Load<T>, Error> =>
   Effect.try({
     try: () => Array.from(iter),
     catch: Error.source,
@@ -16,7 +16,7 @@ export const fromIter = <T extends Task>(
 
 export const fromAsyncIter = <T extends Task>(
   iter: AsyncIterable<T & Disposable>,
-): Effect.Effect<Tasks<T>, Error> =>
+): Effect.Effect<Load<T>, Error> =>
   Effect.tryPromise({
     try: () => Array.fromAsync(iter),
     catch: Error.source,
@@ -26,4 +26,4 @@ export const fromAsyncIter = <T extends Task>(
 
 export const fromStream = <T extends Task>(
   stream: Stream.Stream<Effect.Effect<T, Error, Scope.Scope>>,
-): Effect.Effect<Tasks<T>> => stream.pipe(Stream.runCollect);
+): Effect.Effect<Load<T>> => stream.pipe(Stream.runCollect);
