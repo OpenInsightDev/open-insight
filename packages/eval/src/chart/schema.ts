@@ -55,3 +55,7 @@ export type Standalone = Schema.Schema.Type<typeof Standalone>;
 
 export const DataPoint = Schema.Union([Composable, Standalone]);
 export type DataPoint = Schema.Schema.Type<typeof DataPoint>;
+
+export type DataPoints<Point extends DataPoint = DataPoint> = Point extends DataPoint
+  ? Array<Point>
+  : never;

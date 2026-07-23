@@ -1,6 +1,6 @@
 import { Prompt, type Sandbox } from "@open-insight/core/internal";
 import type { BivariantFn, UnionToIntersection } from "#/utils/variant.ts";
-import { Effect, Equal, Schema } from "effect";
+import { Effect, Schema } from "effect";
 import { Error } from "./error.ts";
 import { isFunction } from "effect/Predicate";
 
