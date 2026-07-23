@@ -1,7 +1,6 @@
 import { Schema, Stream } from "effect";
 import * as Grade from "#/grade/index.ts";
 import type { Error } from "../error.ts";
-import * as Task from "#/task/index.ts";
 import * as Bench from "#/bench/index.ts";
 import * as Harness from "#/harness/index.ts";
 import { Response, Toolkit } from "effect/unstable/ai";
@@ -21,14 +20,10 @@ const TrailFields = {
   harness: Schema.String,
 };
 
-const StageFields = {
-  ...TrailFields,
-  stage: Schema.String,
-};
-
 export class InitEvent extends Schema.TaggedClass<InitEvent>()("InitEvent", {
   ...EvalFields,
-  tasks: Schema.Array(Task.Metadata),
+  benchMetadata: Bench.Metadata,
+  harnessMetadata: Harness.Metadata,
 }) {}
 
 const ScheduleOpSchema = Schema.Union([
@@ -45,6 +40,14 @@ export class EvalScheduleEvent extends Schema.TaggedClass<EvalScheduleEvent>()(
   },
 ) {}
 
+export class TaskScheduleEvent extends Schema.TaggedClass<TaskScheduleEvent>()(
+  "TaskScheduleEvent",
+  {
+    ...taskFields,
+    op: ScheduleOpSchema,
+  },
+) {}
+
 export class TrailScheduleEvent extends Schema.TaggedClass<TrailScheduleEvent>()(
   "TrailScheduleEvent",
   {
@@ -53,10 +56,11 @@ export class TrailScheduleEvent extends Schema.TaggedClass<TrailScheduleEvent>()
   },
 ) {}
 
-// TODO 在该事件中包含完成该 stage 时，trajectory 所报告的所有 metadata 信息，比如 context 长度、用时等等
 export class TrailStagedEvent extends Schema.TaggedClass<TrailStagedEvent>()("TrailStagedEvent", {
-  ...StageFields,
+  ...TrailFields,
+  stage: Schema.String,
   grade: Grade.Result,
+  usage: Response.Usage,
 }) {}
 
 export const StreamPart = Response.StreamPart(Toolkit.empty);
@@ -68,11 +72,36 @@ export class TrailStreamEvent extends Schema.TaggedClass<TrailStreamEvent>()("Tr
   parts: Schema.Array(StreamPart),
 }) {}
 
+const MetricFields = {
+  id: Schema.String,
+  result: Schema.Record(Schema.String, Schema.Json),
+};
+
+export class TrajMetricEvent extends Schema.TaggedClass<TrajMetricEvent>()("TrajMetricEvent", {
+  ...TrailFields,
+  ...MetricFields,
+}) {}
+
+export class TaskMetricEvent extends Schema.TaggedClass<TaskMetricEvent>()("TaskMetricEvent", {
+  ...taskFields,
+  ...MetricFields,
+}) {}
+
+export class BenchMetricEvent extends Schema.TaggedClass<BenchMetricEvent>()("BenchMetricEvent", {
+  ...EvalFields,
+  ...MetricFields,
+}) {}
+
 export const Event = Schema.Union([
   InitEvent,
+  EvalScheduleEvent,
+  TaskScheduleEvent,
   TrailScheduleEvent,
-  TrailStreamEvent,
   TrailStagedEvent,
+  TrailStreamEvent,
+  TrajMetricEvent,
+  TaskMetricEvent,
+  BenchMetricEvent,
 ]);
 export type Event = Schema.Schema.Type<typeof Event>;
 
