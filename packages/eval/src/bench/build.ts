@@ -1,21 +1,12 @@
 import { Effect, Schema } from "effect";
 import * as Task from "#/task/index.ts";
 import * as Tasks from "#/tasks/index.ts";
-import { immerable } from "immer";
 
 export class Metadata extends Schema.Class<Metadata>("BenchMetadata")({
-  name: Schema.String,
-  description: Schema.optional(Schema.String),
-  categories: Schema.optional(Schema.Array(Schema.String)),
-  homepage: Schema.optional(Schema.String),
-  registry: Schema.optional(Schema.String),
-  authors: Schema.optional(Schema.Array(Schema.String)),
   subset: Schema.Boolean.pipe(Schema.withConstructorDefault(Effect.succeed(false))),
-  extra: Schema.optional(Schema.Record(Schema.String, Schema.String)),
+  extras: Schema.optional(Schema.Record(Schema.String, Schema.Json)),
   tasks: Schema.Array(Task.Metadata),
-}) {
-  [immerable] = true;
-}
+}) {}
 
 type MetadataOptions = Omit<Schema.Codec.Encoded<typeof Metadata>, "tasks">;
 

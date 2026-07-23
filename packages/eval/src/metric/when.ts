@@ -1,0 +1,80 @@
+import * as Grade from "#/grade/index.ts";
+import { Data, Duration, Schedule } from "effect";
+
+/**
+ * Read-only version of grading context.
+ */
+export type Context = Omit<Grade.Context, "writeFile" | "expose" | "upload">;
+
+type ExecOptions = Readonly<{ retry?: Schedule.Schedule<unknown> }>;
+type ScheduleOptions = Readonly<{}>;
+
+/**
+ * Controls when a trajectory metric runs during an agent prompt session.
+ *
+ * @remarks
+ * `Exec` evaluates its predicate after each completed round of tool calls and runs the metric when the predicate returns `true`.
+ * The predicate can access the current sandbox state and complete trajectory, but must remain fast because it blocks the agent loop.
+ * It must also be read-only because observable sandbox changes can alter the agent's behavior.
+ *
+ * `Schedule` triggers the metric externally using a policy from Effect's `Schedule` module.
+ *
+ * @example Run after a file contains the expected value
+ *
+ * ```ts
+ * const when = When.Exec({
+ *   exec: ({ $ }) =>
+ *     $`cat /workspace/status.txt`
+ *       .then((output) => output.trim() === "ready")
+ *       .catch(() => false),
+ * });
+ * // note: you can use `content` instead
+ * ```
+ *
+ * @example Run every 30 seconds
+ *
+ * ```ts
+ * const when = When.Schedule(Schedule.fixed("30 seconds"));
+ * ```
+ */
+export type When = Data.TaggedEnum<{
+  Exec: { exec: (ctx: Context) => Promise<boolean> } & ExecOptions;
+  Schedule: Schedule.Schedule<unknown>;
+}>;
+export const When = Data.taggedEnum<When>();
+
+export const always = When.Exec({ exec: () => Promise.resolve(true) });
+
+export const every = (input: Duration.Input, _options: ScheduleOptions) =>
+  When.Schedule(Schedule.fixed(input));
+
+export const success = (bash: string, { retry }: ExecOptions = {}) =>
+  When.Exec({ exec: ({ $ }) => $`${bash}`.then(() => true).catch(() => false), retry });
+
+export const fails = (bash: string, { retry }: ExecOptions = {}) =>
+  When.Exec({ exec: ({ $ }) => $`${bash}`.then(() => false).catch(() => true), retry });
+
+export const bash = (
+  { bash, expect }: { bash: string; expect: string },
+  { retry }: ExecOptions = {},
+) =>
+  When.Exec({
+    exec: ({ $ }) => $`${bash}`.then((stdout) => stdout.trim() === expect).catch(() => false),
+    retry,
+  });
+
+export const content = (
+  { sandboxPath, expect }: { sandboxPath: string; expect: string },
+  { retry }: ExecOptions = {},
+) =>
+  When.Exec({
+    exec: ({ $ }) =>
+      $`cat ${sandboxPath}`.then((stdout) => stdout.trim() === expect).catch(() => false),
+    retry,
+  });
+
+export const exists = (sandboxPath: string, { retry }: ExecOptions = {}) =>
+  When.Exec({
+    exec: ({ $ }) => $`test -f ${sandboxPath}`.then(() => true).catch(() => false),
+    retry,
+  });
