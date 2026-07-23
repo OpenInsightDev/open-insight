@@ -6,6 +6,7 @@ import {
   Option,
   Path,
   Queue,
+  Ref,
   Schema,
   Sink,
   Scope,
@@ -17,10 +18,12 @@ import { ChildProcessSpawner } from "effect/unstable/process";
 import { Agent, Sandbox } from "@open-insight/core";
 import { produce } from "immer";
 import * as Grade from "#/grade/index.ts";
+import type * as TrajMetric from "#/metric/traj.ts";
+import type { Context as TrajMetricContext } from "#/metric/when.ts";
 import * as Task from "../task/index.ts";
 import type { Config } from "./config.ts";
 import { Error } from "./error.ts";
-import { type Event, TrailStagedEvent, TrailStreamEvent } from "./event/index.ts";
+import { type Event, TrailStagedEvent, TrailStreamEvent, TrajMetricEvent } from "./event/index.ts";
 
 export type RunTrail = (
   trailIdx: number,
@@ -28,6 +31,7 @@ export type RunTrail = (
 
 type StageResults = Readonly<Record<string, Grade.Result>>;
 type StageAccuStep = readonly [results: StageResults, grades: ReadonlyArray<Grade.Result>];
+const TrajMetricResult = Schema.Record(Schema.String, Schema.Json);
 
 const advance = (results: StageResults, stage: string, grade: Grade.Result): StageAccuStep => [
   produce(results, (draft) => {
@@ -61,7 +65,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
     | Path.Path
     | Scope.Scope
   > {
-    const { snapshot, resources, stages } = task;
+    const { snapshot, resources, stages, trajMetrics } = task;
     const {
       verifMode = false,
       graderMaxRetries: maxRetries = 3,
@@ -172,6 +176,73 @@ export const createTrail = Effect.fn("exec/createTrail")(
 
         yield* Effect.logDebug("Starting agent session");
         const agent = yield* agentProvider.runSession({ sandbox });
+        const metricResults = yield* Ref.make<StageResults>({});
+
+        const metricContext = Effect.fn("exec/runTrail/metricContext")(function* () {
+          const [results, trajectory] = yield* Effect.all([
+            Ref.get(metricResults),
+            agent.trajectory(),
+          ]);
+          return { ...sandboxContext, results, trajectory } satisfies TrajMetricContext;
+        });
+
+        const runTrajMetric = Effect.fn("exec/runTrail/runTrajMetric")(function* (
+          metric: TrajMetric.Metric,
+          context: TrajMetricContext,
+        ) {
+          const result = yield* Effect.tryPromise(() => metric.exec(context)).pipe(
+            Effect.flatMap(Schema.decodeEffect(TrajMetricResult)),
+          );
+
+          yield* Queue.offer(
+            eventQueue,
+            TrajMetricEvent.make({
+              bench,
+              harness,
+              task: task.metadata.id,
+              trailIdx,
+              id: metric.metadata.id,
+              result,
+            }),
+          );
+        });
+
+        const hasExecTrajMetrics = trajMetrics.some(({ when }) => when._tag === "Exec");
+        const runExecTrajMetrics = Effect.fn("exec/runTrail/runExecTrajMetrics")(function* () {
+          if (!hasExecTrajMetrics) {
+            return;
+          }
+
+          const context = yield* metricContext();
+
+          for (const metric of trajMetrics) {
+            const when = metric.when;
+            if (when._tag !== "Exec") {
+              continue;
+            }
+
+            const check = Effect.tryPromise(() => when.exec(context));
+            const shouldRun = yield* when.retry === undefined
+              ? check
+              : check.pipe(Effect.retry(when.retry));
+
+            if (shouldRun) {
+              yield* runTrajMetric(metric, context);
+            }
+          }
+        });
+
+        const scheduledTrajMetrics = trajMetrics.flatMap((metric) => {
+          const when = metric.when;
+          return when._tag === "Schedule"
+            ? [
+                metricContext().pipe(
+                  Effect.flatMap((context) => runTrajMetric(metric, context)),
+                  Effect.schedule(when),
+                ),
+              ]
+            : [];
+        });
 
         // Prompt.Trajectory stores normalized messages and drops response finish parts, so usage
         // is returned from the stream and threaded through the current stage explicitly.
@@ -186,6 +257,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
             );
           }
 
+          const previousTrajectory = yield* agent.trajectory();
           const finish = yield* agent.prompt({ prompt: [prompt] }).pipe(
             Stream.tap((part) =>
               Queue.offer(
@@ -203,11 +275,23 @@ export const createTrail = Effect.fn("exec/createTrail")(
             Stream.runLast,
           );
 
-          return yield* Option.match(finish, {
+          const usage = yield* Option.match(finish, {
             onNone: () =>
               Effect.fail(new globalThis.Error("Agent stream did not produce a finish part")),
             onSome: ({ usage }) => Effect.succeed(usage),
           });
+
+          const trajectory = yield* agent.trajectory();
+          const previousToolRounds = previousTrajectory.content.filter(
+            ({ role }) => role === "tool",
+          ).length;
+          const completedToolRounds = trajectory.content.filter(
+            ({ role }) => role === "tool",
+          ).length;
+          for (let round = previousToolRounds; round < completedToolRounds; round += 1) {
+            yield* runExecTrajMetrics();
+          }
+          return usage;
         });
 
         const runPrompt = Effect.fn("exec/runTrail/runPrompt")(function* (prompt: Task.PromptFn) {
@@ -299,6 +383,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
           results: StageResults,
         ) {
           const { metadata, prompt, grader } = stage;
+          yield* Ref.set(metricResults, results);
           yield* Effect.logDebug(`Starting stage ${stageIdx}`);
           const promptUsage = yield* runPrompt(prompt);
 
@@ -320,7 +405,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
           return grade;
         });
 
-        return yield* Stream.fromIterable(stages).pipe(
+        const runStages = Stream.fromIterable(stages).pipe(
           Stream.zipWithIndex,
           Stream.mapAccumEffect(
             (): StageResults => ({}),
@@ -333,6 +418,17 @@ export const createTrail = Effect.fn("exec/createTrail")(
           Stream.run(Sink.last()),
           Effect.map(Option.getOrUndefined),
         );
+
+        if (scheduledTrajMetrics.length === 0) {
+          return yield* runStages;
+        }
+
+        const runScheduledTrajMetrics = Effect.all(scheduledTrajMetrics, {
+          concurrency: "unbounded",
+          discard: true,
+        }).pipe(Effect.andThen(Effect.never));
+
+        return yield* Effect.raceFirst(runStages, runScheduledTrajMetrics);
       },
       (effect, trailIdx) =>
         effect.pipe(

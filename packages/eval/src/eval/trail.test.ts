@@ -1,8 +1,9 @@
 import { NodeServices } from "@effect/platform-node";
 import { assert, describe, it } from "@effect/vitest";
 import { Agent, Sandbox, Snapshot } from "@open-insight/core";
-import { Crypto, Effect, Layer, Option, Queue, Stream } from "effect";
+import { Crypto, Effect, Layer, Option, Queue, Schedule, Stream } from "effect";
 import { Prompt, Response } from "effect/unstable/ai";
+import { When } from "../metric/when.ts";
 import * as Task from "../task/index.ts";
 import { type Event } from "./event/index.ts";
 import { createTrail } from "./trail.ts";
@@ -164,6 +165,158 @@ describe("createTrail", () => {
               usage: retryUsage,
             },
           ],
+        );
+      }),
+    );
+
+    it.effect("runs exec trajectory metrics and publishes matching results", () =>
+      Effect.gen(function* () {
+        const usage = makeUsage(10, 2);
+        let promptIdx = 0;
+        let metricChecks = 0;
+        const toolTrajectory = Prompt.make([
+          Prompt.userMessage({ content: [Prompt.textPart({ text: "task" })] }),
+          Prompt.assistantMessage({ content: [Prompt.textPart({ text: "checking" })] }),
+          Prompt.toolMessage({
+            content: [
+              Prompt.makePart("tool-result", {
+                id: "tool-1",
+                name: "read",
+                result: "done",
+                isFailure: false,
+              }),
+            ],
+          }),
+        ]);
+        const agent = {
+          trajectory: () => Effect.succeed(promptIdx < 2 ? Prompt.empty : toolTrajectory),
+          prompt: () => {
+            promptIdx += 1;
+            return promptIdx === 1
+              ? Stream.make(finishPart(usage))
+              : Stream.make(finishPart(usage));
+          },
+        } satisfies Agent.Agent;
+        const layer = yield* makeLayer(agent);
+        const queue = yield* Queue.unbounded<Event>();
+        const task = yield* Task.make({
+          id: "trajectory-metric-task",
+          name: "Trajectory metric task",
+          snapshot: Snapshot.make({ image: "scratch" }),
+          trajMetrics: [
+            {
+              id: "matching-metric",
+              when: When.Exec({
+                exec: async ({ results, trajectory: current }) => {
+                  assert.deepStrictEqual(results, {});
+                  assert.strictEqual(current, toolTrajectory);
+                  metricChecks += 1;
+                  return true;
+                },
+              }),
+              exec: async ({ trajectory: current }) => ({
+                messages: current.content.length,
+              }),
+            },
+            {
+              id: "skipped-metric",
+              when: When.Exec({ exec: async () => false }),
+              exec: async () => ({ unexpected: true }),
+            },
+          ],
+        }).pipe(
+          Task.stage("only", {
+            prompt: Prompt.make([
+              Prompt.userMessage({ content: [Prompt.textPart({ text: "text-only" })] }),
+              Prompt.userMessage({ content: [Prompt.textPart({ text: "with-tool" })] }),
+            ]),
+            grader: async () => ({ score: 1 }),
+          }),
+        );
+
+        const runTrail = yield* createTrail({
+          task,
+          bench: "bench",
+          harness: "harness",
+          eventQueue: queue,
+        }).pipe(Effect.provide(layer));
+        yield* runTrail(3);
+        assert.strictEqual(metricChecks, 1);
+
+        const events = yield* Queue.takeAll(queue);
+        const metricEvents = events.filter((event) => event._tag === "TrajMetricEvent");
+        assert.deepStrictEqual(
+          metricEvents.map(({ bench, harness, task, trailIdx, id, result }) => ({
+            bench,
+            harness,
+            task,
+            trailIdx,
+            id,
+            result,
+          })),
+          [
+            {
+              bench: "bench",
+              harness: "harness",
+              task: "trajectory-metric-task",
+              trailIdx: 3,
+              id: "matching-metric",
+              result: { messages: 3 },
+            },
+          ],
+        );
+      }),
+    );
+
+    it.effect("runs scheduled trajectory metrics during the trail", () =>
+      Effect.gen(function* () {
+        let releasePrompt: (() => void) | undefined;
+        const waitForMetric = new Promise<void>((resolve) => {
+          releasePrompt = resolve;
+        });
+        const agent = {
+          trajectory: () => Effect.succeed(Prompt.empty),
+          prompt: () =>
+            Stream.fromEffect(
+              Effect.promise(() => waitForMetric).pipe(Effect.as(finishPart(makeUsage(1, 1)))),
+            ),
+        } satisfies Agent.Agent;
+        const layer = yield* makeLayer(agent);
+        const queue = yield* Queue.unbounded<Event>();
+        const task = yield* Task.make({
+          id: "scheduled-trajectory-metric-task",
+          name: "Scheduled trajectory metric task",
+          snapshot: Snapshot.make({ image: "scratch" }),
+          trajMetrics: [
+            {
+              id: "scheduled-metric",
+              when: When.Schedule(Schedule.recurs(1)),
+              exec: async () => {
+                releasePrompt?.();
+                return { samples: 1 };
+              },
+            },
+          ],
+        }).pipe(
+          Task.stage("only", {
+            prompt: Prompt.userMessage({ content: [Prompt.textPart({ text: "task" })] }),
+            grader: async () => ({ score: 1 }),
+          }),
+        );
+
+        const runTrail = yield* createTrail({
+          task,
+          bench: "bench",
+          harness: "harness",
+          eventQueue: queue,
+        }).pipe(Effect.provide(layer));
+        yield* runTrail(4);
+
+        const events = yield* Queue.takeAll(queue);
+        const metricEvents = events.filter((event) => event._tag === "TrajMetricEvent");
+        assert.deepStrictEqual(
+          metricEvents.map(({ trailIdx, id, result }) => ({ trailIdx, id, result })),
+          [{ trailIdx: 4, id: "scheduled-metric", result: { samples: 1 } }],
         );
       }),
     );
