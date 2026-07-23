@@ -29,7 +29,7 @@ const sandbox = {
   expose: () => Effect.die("unused sandbox operation"),
 } satisfies Sandbox.Sandbox;
 
-const makeProviderLayer = Effect.fn(function* (agent: Agent.Agent) {
+const makeLayer = Effect.fn(function* (agent: Agent.Agent) {
   const handle = yield* Snapshot.Handle.make(Snapshot.make({ image: "scratch" }));
   const sandboxProvider = {
     aquireSnapshot: () => Effect.succeed(handle),
@@ -79,21 +79,21 @@ describe("createTrail", () => {
         const firstUsage = makeUsage(10, 2);
         const secondUsage = makeUsage(20, 4);
         const retryUsage = makeUsage(30, 6);
-        let promptIndex = 0;
-        let secondGradeAttempts = 0;
+        let promptIdx = 0;
+        let attempts = 0;
         const agent = {
           trajectory: () => Effect.succeed(Prompt.empty),
           prompt: () => {
-            const usage = [firstUsage, secondUsage, retryUsage][promptIndex];
-            promptIndex += 1;
+            const usage = [firstUsage, secondUsage, retryUsage][promptIdx];
+            promptIdx += 1;
             if (usage === undefined) {
               return Stream.die("unexpected agent prompt");
             }
             return Stream.make(finishPart(usage));
           },
         } satisfies Agent.Agent;
-        const providers = yield* makeProviderLayer(agent);
-        const eventQueue = yield* Queue.unbounded<Event>();
+        const layer = yield* makeLayer(agent);
+        const queue = yield* Queue.unbounded<Event>();
         const task = yield* Task.make({
           id: "multi-stage",
           name: "multi-stage",
@@ -110,8 +110,8 @@ describe("createTrail", () => {
             prompt: Prompt.userMessage({ content: [Prompt.textPart({ text: "second" })] }),
             grader: async ({ results }) => {
               assert.deepStrictEqual(results, { first: firstGrade });
-              if (secondGradeAttempts === 0) {
-                secondGradeAttempts += 1;
+              if (attempts === 0) {
+                attempts += 1;
                 throw Prompt.userMessage({
                   content: [Prompt.textPart({ text: "retry second" })],
                 });
@@ -125,10 +125,10 @@ describe("createTrail", () => {
           task,
           bench: "bench",
           harness: "harness",
-          eventQueue,
-        }).pipe(Effect.provide(providers));
+          eventQueue: queue,
+        }).pipe(Effect.provide(layer));
         const result = yield* runTrail;
-        const events = yield* Queue.takeAll(eventQueue);
+        const events = yield* Queue.takeAll(queue);
         const stagedEvents = events.filter((event) => event._tag === "TrailStagedEvent");
 
         assert.deepStrictEqual(result, secondGrade);
@@ -150,8 +150,8 @@ describe("createTrail", () => {
           trajectory: () => Effect.succeed(Prompt.empty),
           prompt: () => Stream.die("agent should not run in verification mode"),
         } satisfies Agent.Agent;
-        const providers = yield* makeProviderLayer(agent);
-        const eventQueue = yield* Queue.unbounded<Event>();
+        const layer = yield* makeLayer(agent);
+        const queue = yield* Queue.unbounded<Event>();
         const task = yield* Task.make({
           id: "multi-stage-verification",
           name: "multi-stage-verification",
@@ -185,9 +185,9 @@ describe("createTrail", () => {
           task,
           bench: "bench",
           harness: "harness",
-          eventQueue,
+          eventQueue: queue,
           config: { verifMode: true },
-        }).pipe(Effect.provide(providers));
+        }).pipe(Effect.provide(layer));
 
         assert.deepStrictEqual(yield* runTrail, secondGrade);
       }),
@@ -199,8 +199,8 @@ describe("createTrail", () => {
           trajectory: () => Effect.succeed(Prompt.empty),
           prompt: () => Stream.die("agent should not run in verification mode"),
         } satisfies Agent.Agent;
-        const providers = yield* makeProviderLayer(agent);
-        const eventQueue = yield* Queue.unbounded<Event>();
+        const layer = yield* makeLayer(agent);
+        const queue = yield* Queue.unbounded<Event>();
         const task = yield* Task.make({
           id: "missing-stage-verifier",
           name: "missing-stage-verifier",
@@ -226,9 +226,9 @@ describe("createTrail", () => {
           task,
           bench: "bench",
           harness: "harness",
-          eventQueue,
+          eventQueue: queue,
           config: { verifMode: true },
-        }).pipe(Effect.provide(providers), Effect.flip);
+        }).pipe(Effect.provide(layer), Effect.flip);
 
         assert.strictEqual(error.reason._tag, "MissingVerifier");
         if (error.reason._tag === "MissingVerifier") {
