@@ -65,6 +65,7 @@ const loadTaskFactory = <T extends Task.Task>(taskFile: string, factory: () => u
  * import { Task } from "@open-insight/eval";
  *
  * export default Task.make({
+ *   id: "static-task",
  *   name: "static task",
  *   // ...
  * });
@@ -75,6 +76,7 @@ const loadTaskFactory = <T extends Task.Task>(taskFile: string, factory: () => u
  *
  * export default async function makeTask() {
  *   const task = Task.make({
+ *     id: "scoped-task",
  *     name: "scoped task",
  *     // ...
  *   });

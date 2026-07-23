@@ -32,7 +32,7 @@ export const select = (ids: ReadonlyArray<Task.ID>) => {
         produce(bench, (draft) => {
           draft.subset = true;
           draft.tasks = castDraft(
-            tasks.filter((task) => selectedIds.has(task.metadata.name)).map(Effect.succeed),
+            tasks.filter((task) => selectedIds.has(task.metadata.id)).map(Effect.succeed),
           );
         }),
       ),

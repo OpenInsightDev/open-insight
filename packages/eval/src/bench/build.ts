@@ -1,9 +1,7 @@
-import { Crypto, Effect, Schema } from "effect";
-import { castDraft, produce } from "immer";
+import { Effect, Schema } from "effect";
 import * as BenchMetric from "#/metric/bench.ts";
 import * as Task from "#/task/index.ts";
-import * as Tasks from "#/tasks/index.ts";
-import { Error } from "./error.ts";
+import type * as Tasks from "#/tasks/index.ts";
 
 export class BaseMetadata extends Schema.Class<BaseMetadata>("BenchBaseMetadata")({
   subset: Schema.Boolean.pipe(Schema.withConstructorDefault(Effect.succeed(false))),
@@ -32,19 +30,6 @@ export const make = Effect.fn(function* <T extends Task.Task>(options: Options<T
 
   const tasks = yield* load;
 });
-
-export const metric =
-  (options: BenchMetric.Options) =>
-  <T extends Task.Task, E, Env>(
-    bench: Effect.Effect<Bench<T>, E, Env>,
-  ): Effect.Effect<Bench<T>, E | Error, Env | Crypto.Crypto> =>
-    Effect.all([bench, BenchMetric.make(options).pipe(Effect.mapError(Error.init))]).pipe(
-      Effect.map(([bench, metric]) =>
-        produce(bench, (draft) => {
-          draft.metrics.push(castDraft(metric));
-        }),
-      ),
-    );
 
 export const metadata = (bench: Bench): Metadata =>
   Metadata.make({

@@ -45,7 +45,8 @@ export class Funnel extends DataPointBase.extend<Funnel>("Funnel")({
 }) {}
 
 // restricted by https://recharts.github.io/en-US/api/ComposedChart/
-const Composable = Schema.Union([Area, Line, Bar, Scatter]);
+export const Composable = Schema.Union([Area, Line, Bar, Scatter]);
+export type Composable = Schema.Schema.Type<typeof Composable>;
 export const ComposablePoints = Schema.Array(Composable);
 export type ComposablePoints = Schema.Schema.Type<typeof ComposablePoints>;
 

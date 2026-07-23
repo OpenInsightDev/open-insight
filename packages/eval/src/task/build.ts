@@ -16,6 +16,7 @@ export const TypeId: TypeId = "~open-insight/eval/task";
 export type ID = string;
 
 export class BaseMetadata extends Schema.Class<BaseMetadata>("BaseMetadata")({
+  id: Schema.String,
   name: Schema.String,
   description: Schema.OptionFromOptionalNullOr(Schema.String),
   keywords: Schema.OptionFromOptionalNullOr(Schema.Array(Schema.String)),
@@ -143,6 +144,7 @@ export const satisfies = <G extends Grade.Result, E extends Schema.JsonObject = 
 
 const task = Effect.gen(function* () {
   return yield* make({
+    id: "task",
     name: "Task",
     snapshot: yield* Snapshot.fromContainerfile({ filePath: "Dockerfile" }),
     metrics: [

@@ -15,7 +15,7 @@ const TestCrypto = Layer.succeed(
 it.layer(TestCrypto)((it) => {
   it.effect("adds task and trajectory metrics", () =>
     Effect.gen(function* () {
-      const task = yield* make({ name: "task", snapshot }).pipe(
+      const task = yield* make({ id: "task", name: "task", snapshot }).pipe(
         metric("task-metric", {
           exec: async () => ({ score: 1 }),
         }),
@@ -33,7 +33,7 @@ it.layer(TestCrypto)((it) => {
 
   it.effect("starts with empty metric arrays and appends metrics", () =>
     Effect.gen(function* () {
-      const base = yield* make({ name: "task", snapshot });
+      const base = yield* make({ id: "task", name: "task", snapshot });
       assert.deepStrictEqual(base.metrics, []);
       assert.deepStrictEqual(base.trajMetrics, []);
 
@@ -52,6 +52,7 @@ it.layer(TestCrypto)((it) => {
   it.effect("builds metrics directly from task options", () =>
     Effect.gen(function* () {
       const task = yield* make({
+        id: "task",
         name: "task",
         snapshot,
         metrics: [
