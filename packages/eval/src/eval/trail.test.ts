@@ -95,11 +95,12 @@ describe("createTrail", () => {
         const layer = yield* makeLayer(agent);
         const queue = yield* Queue.unbounded<Event>();
         const task = yield* Task.make({
-          id: "multi-stage",
-          name: "multi-stage",
+          id: "multi-stage-id",
+          name: "Multi-stage task",
           snapshot: Snapshot.make({ image: "scratch" }),
         }).pipe(
           Task.stage("first", {
+            id: "first-stage-id",
             prompt: Prompt.userMessage({ content: [Prompt.textPart({ text: "first" })] }),
             grader: async ({ results }) => {
               assert.deepStrictEqual(results, {});
@@ -107,6 +108,7 @@ describe("createTrail", () => {
             },
           }),
           Task.stage("second", {
+            id: "second-stage-id",
             prompt: Prompt.userMessage({ content: [Prompt.textPart({ text: "second" })] }),
             grader: async ({ results }) => {
               assert.deepStrictEqual(results, { first: firstGrade });
@@ -127,16 +129,40 @@ describe("createTrail", () => {
           harness: "harness",
           eventQueue: queue,
         }).pipe(Effect.provide(layer));
-        const result = yield* runTrail;
+        const result = yield* runTrail(7);
         const events = yield* Queue.takeAll(queue);
+        const streamEvents = events.filter((event) => event._tag === "TrailStreamEvent");
         const stagedEvents = events.filter((event) => event._tag === "TrailStagedEvent");
 
         assert.deepStrictEqual(result, secondGrade);
+        assert.strictEqual(streamEvents.length, 3);
+        for (const event of streamEvents) {
+          assert.strictEqual(event.task, "multi-stage-id");
+          assert.strictEqual(event.trailIdx, 7);
+        }
         assert.deepStrictEqual(
-          stagedEvents.map(({ stage, grade, usage }) => ({ stage, grade, usage })),
+          stagedEvents.map(({ task, trailIdx, stage, grade, usage }) => ({
+            task,
+            trailIdx,
+            stage,
+            grade,
+            usage,
+          })),
           [
-            { stage: "first", grade: firstGrade, usage: firstUsage },
-            { stage: "second", grade: secondGrade, usage: retryUsage },
+            {
+              task: "multi-stage-id",
+              trailIdx: 7,
+              stage: "first-stage-id",
+              grade: firstGrade,
+              usage: firstUsage,
+            },
+            {
+              task: "multi-stage-id",
+              trailIdx: 7,
+              stage: "second-stage-id",
+              grade: secondGrade,
+              usage: retryUsage,
+            },
           ],
         );
       }),
@@ -189,7 +215,7 @@ describe("createTrail", () => {
           config: { verifMode: true },
         }).pipe(Effect.provide(layer));
 
-        assert.deepStrictEqual(yield* runTrail, secondGrade);
+        assert.deepStrictEqual(yield* runTrail(0), secondGrade);
       }),
     );
 

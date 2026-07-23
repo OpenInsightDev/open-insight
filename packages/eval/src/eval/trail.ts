@@ -6,7 +6,6 @@ import {
   Option,
   Path,
   Queue,
-  Ref,
   Schema,
   Sink,
   Scope,
@@ -23,7 +22,9 @@ import type { Config } from "./config.ts";
 import { Error } from "./error.ts";
 import { type Event, TrailStagedEvent, TrailStreamEvent } from "./event/index.ts";
 
-export type RunTrail = Effect.Effect<Grade.Result | undefined, Error, Scope.Scope>;
+export type RunTrail = (
+  trailIdx: number,
+) => Effect.Effect<Grade.Result | undefined, Error, Scope.Scope>;
 
 type StageResults = Readonly<Record<string, Grade.Result>>;
 type StageAccuStep = readonly [results: StageResults, grades: ReadonlyArray<Grade.Result>];
@@ -104,8 +105,6 @@ export const createTrail = Effect.fn("exec/createTrail")(
         );
 
     yield* Effect.logDebug("Prepared task snapshot");
-
-    const nextTrailIdx = yield* Ref.make(0);
 
     const runTrail = Effect.fn(
       function* (trailIdx: number) {
@@ -194,7 +193,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
                 TrailStreamEvent.make({
                   bench,
                   harness,
-                  task: task.metadata.name,
+                  task: task.metadata.id,
                   part,
                   trailIdx,
                 }),
@@ -310,9 +309,9 @@ export const createTrail = Effect.fn("exec/createTrail")(
             TrailStagedEvent.make({
               bench,
               harness,
-              task: task.metadata.name,
+              task: task.metadata.id,
               trailIdx,
-              stage: metadata.name,
+              stage: metadata.id,
               grade,
               usage,
             }),
@@ -342,15 +341,11 @@ export const createTrail = Effect.fn("exec/createTrail")(
         ),
     );
 
-    return Ref.getAndUpdate(nextTrailIdx, (idx) => idx + 1).pipe(
-      Effect.tap((trailIdx) => Effect.logDebug(`Starting trail ${trailIdx}`)),
-      Effect.flatMap((trailIdx) =>
-        runTrail(trailIdx).pipe(
-          Effect.scoped,
-          Effect.tap(() => Effect.logDebug(`Completed trail ${trailIdx}`)),
-        ),
-      ),
-    );
+    return (trailIdx) =>
+      Effect.logDebug(`Starting trail ${trailIdx}`).pipe(
+        Effect.andThen(runTrail(trailIdx).pipe(Effect.scoped)),
+        Effect.tap(() => Effect.logDebug(`Completed trail ${trailIdx}`)),
+      );
   },
   (effect, { task }) => effect.pipe(Effect.annotateLogs({ taskName: task.metadata.name })),
 );

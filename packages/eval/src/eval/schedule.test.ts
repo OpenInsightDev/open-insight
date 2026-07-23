@@ -29,19 +29,16 @@ const mockState = vi.hoisted(
 
 const installTrailMock = () => {
   vi.mocked(createTrail).mockImplementation(({ task }) =>
-    Effect.sync(() => {
-      let nextTrailIdx = 0;
-
-      return Effect.gen(function* () {
+    Effect.succeed((trailIdx) =>
+      Effect.gen(function* () {
         yield* Scope.Scope;
         mockState.starts.push({
           task: task.metadata.id,
-          trailIdx: nextTrailIdx,
+          trailIdx,
         });
-        nextTrailIdx += 1;
         return undefined;
-      });
-    }),
+      }),
+    ),
   );
 };
 
@@ -186,6 +183,77 @@ describe("run", () => {
         assert.strictEqual(event.bench, "bench-a");
         assert.strictEqual(event.harness, "harness-a");
       }
+    }).pipe(Effect.provide(TestLayer)),
+  );
+
+  it.effect("balances schedule events when a trail fails", () =>
+    Effect.gen(function* () {
+      vi.mocked(createTrail).mockImplementation(() =>
+        Effect.succeed((_trailIdx) => Effect.die("expected trail failure")),
+      );
+
+      const benchmark = yield* makeBench("bench-failure", ["task-failure"]);
+      const eventQueue = yield* Queue.unbounded<Event>();
+
+      const exit = yield* run(
+        {
+          trailCount: 1,
+          bench: benchmark,
+          harness: makeHarnessMetadata("harness-failure"),
+          eventQueue,
+        },
+        { trailConcurrency: 1 },
+      ).pipe(Effect.exit);
+
+      assert.isTrue(exit._tag === "Failure");
+
+      const events = yield* Queue.takeAll(eventQueue);
+      assert.deepStrictEqual(
+        events.filter((event) => event._tag === "EvalScheduleEvent").map(({ op }) => op),
+        ["start", "stop"],
+      );
+      assert.deepStrictEqual(
+        events.filter((event) => event._tag === "TaskScheduleEvent").map(({ op }) => op),
+        ["start", "stop"],
+      );
+      assert.deepStrictEqual(
+        events.filter((event) => event._tag === "TrailScheduleEvent").map(({ op }) => op),
+        ["start", "stop"],
+      );
+    }).pipe(Effect.provide(TestLayer)),
+  );
+
+  it.effect("balances task and eval events when task preparation fails", () =>
+    Effect.gen(function* () {
+      vi.mocked(createTrail).mockImplementation(() =>
+        Effect.die("expected task preparation failure"),
+      );
+
+      const benchmark = yield* makeBench("bench-prepare-failure", ["task-prepare-failure"]);
+      const eventQueue = yield* Queue.unbounded<Event>();
+
+      const exit = yield* run(
+        {
+          trailCount: 1,
+          bench: benchmark,
+          harness: makeHarnessMetadata("harness-prepare-failure"),
+          eventQueue,
+        },
+        {},
+      ).pipe(Effect.exit);
+
+      assert.isTrue(exit._tag === "Failure");
+
+      const events = yield* Queue.takeAll(eventQueue);
+      assert.deepStrictEqual(
+        events.filter((event) => event._tag === "EvalScheduleEvent").map(({ op }) => op),
+        ["start", "stop"],
+      );
+      assert.deepStrictEqual(
+        events.filter((event) => event._tag === "TaskScheduleEvent").map(({ op }) => op),
+        ["start", "stop"],
+      );
+      assert.isEmpty(events.filter((event) => event._tag === "TrailScheduleEvent"));
     }).pipe(Effect.provide(TestLayer)),
   );
 });

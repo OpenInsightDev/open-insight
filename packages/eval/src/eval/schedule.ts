@@ -75,11 +75,20 @@ export const run = Effect.fn("exec/schedule")(
         });
         yield* Effect.logDebug("Preparing task");
 
-        yield* offerEvent(
-          TaskScheduleEvent.make({
-            ...taskEventFields(task),
-            op: "start",
-          }),
+        yield* Effect.acquireRelease(
+          offerEvent(
+            TaskScheduleEvent.make({
+              ...taskEventFields(task),
+              op: "start",
+            }),
+          ),
+          () =>
+            offerEvent(
+              TaskScheduleEvent.make({
+                ...taskEventFields(task),
+                op: "stop",
+              }),
+            ),
         );
 
         const runTrail = yield* createTrail({
@@ -111,20 +120,21 @@ export const run = Effect.fn("exec/schedule")(
           trailCount,
         });
 
-        yield* offerEvent(
-          TrailScheduleEvent.make({
-            ...trailEventFields(task, trailIdx),
-            op: "start",
-          }),
-        );
-
-        yield* runTrail;
-
-        yield* offerEvent(
-          TrailScheduleEvent.make({
-            ...trailEventFields(task, trailIdx),
-            op: "stop",
-          }),
+        yield* Effect.acquireUseRelease(
+          offerEvent(
+            TrailScheduleEvent.make({
+              ...trailEventFields(task, trailIdx),
+              op: "start",
+            }),
+          ),
+          () => runTrail(trailIdx),
+          () =>
+            offerEvent(
+              TrailScheduleEvent.make({
+                ...trailEventFields(task, trailIdx),
+                op: "stop",
+              }),
+            ),
         );
       },
       (effect, { task }) =>
@@ -160,11 +170,20 @@ export const run = Effect.fn("exec/schedule")(
         harnessMetadata: harness,
       }),
     );
-    yield* offerEvent(
-      EvalScheduleEvent.make({
-        ...evalEventFields,
-        op: "start",
-      }),
+    yield* Effect.acquireRelease(
+      offerEvent(
+        EvalScheduleEvent.make({
+          ...evalEventFields,
+          op: "start",
+        }),
+      ),
+      () =>
+        offerEvent(
+          EvalScheduleEvent.make({
+            ...evalEventFields,
+            op: "stop",
+          }),
+        ),
     );
 
     const scheduledTasks = yield* Effect.all(tasks.map(prepareTask), {
@@ -178,25 +197,6 @@ export const run = Effect.fn("exec/schedule")(
         unordered: true,
       }),
       Stream.runDrain,
-    );
-
-    yield* Effect.forEach(
-      scheduledTasks,
-      ({ task }) =>
-        offerEvent(
-          TaskScheduleEvent.make({
-            ...taskEventFields(task),
-            op: "stop",
-          }),
-        ),
-      { discard: true },
-    );
-
-    yield* offerEvent(
-      EvalScheduleEvent.make({
-        ...evalEventFields,
-        op: "stop",
-      }),
     );
 
     yield* Effect.logDebug("Completed evaluation schedule");
