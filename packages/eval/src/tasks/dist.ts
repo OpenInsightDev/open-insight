@@ -4,7 +4,7 @@ import { HttpClient, HttpClientResponse } from "effect/unstable/http";
 import { Spawn } from "@open-insight/core/utils";
 import * as Task from "#/task/index.ts";
 import { Error } from "./error.ts";
-import type { Loader } from "./index.ts";
+import type { Load } from "./index.ts";
 
 const archiveHash = Effect.fn(function* (url: string) {
   const crypto = yield* Crypto.Crypto;
@@ -14,7 +14,7 @@ const archiveHash = Effect.fn(function* (url: string) {
 });
 
 export const withDist = ({ url, format = "tar.gz" }: { url: string; format?: "tar.gz" }) =>
-  Effect.fn(function* <T extends Task.Task>(exec: (options: { distPath: string }) => Loader<T>) {
+  Effect.fn(function* <T extends Task.Task>(exec: (options: { distPath: string }) => Load<T>) {
     const fs = yield* FileSystem.FileSystem;
     const spawner = yield* Spawn.Service;
 

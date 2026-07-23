@@ -1,8 +1,8 @@
-import { Effect, FileSystem, Path, Predicate, Scope } from "effect";
+import { Effect, FileSystem, Path, Predicate } from "effect";
 import * as Task from "#/task/index.ts";
 import picomatch from "picomatch";
 import { Error as TasksError } from "./error.ts";
-import type { Loader } from "./index.ts";
+import type { Load } from "./index.ts";
 
 const missingDefaultExport = (taskFile: string) =>
   TasksError.invalid(
@@ -95,7 +95,7 @@ export const fromDir = <T extends Task.Task>({
 }: {
   dir: string;
   glob?: string;
-}): Loader<T, FileSystem.FileSystem | Path.Path> =>
+}): Load<T, TasksError, FileSystem.FileSystem | Path.Path> =>
   Effect.gen(function* () {
     const fs = yield* FileSystem.FileSystem;
     const path = yield* Path.Path;
@@ -123,10 +123,10 @@ export const fromDir = <T extends Task.Task>({
           const taskExport = module.default;
 
           if (typeof taskExport === "function") {
-            return loadTaskFactory<T>(taskFile, () => taskExport());
+            return yield* loadTaskFactory<T>(taskFile, () => taskExport());
           }
 
-          return Effect.succeed(yield* verifyTask<T>(taskFile, taskExport));
+          return yield* verifyTask<T>(taskFile, taskExport);
         }),
       ),
       { concurrency: "unbounded" },

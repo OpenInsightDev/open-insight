@@ -1,1 +1,1 @@
-export { type HarborTask, type TaskClass } from "./index.ts";
+export { type HarborTask } from "./index.ts";

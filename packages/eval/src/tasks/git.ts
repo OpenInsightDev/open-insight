@@ -2,7 +2,7 @@ import type * as Task from "#/task/index.ts";
 import { ChildProcess } from "effect/unstable/process";
 import { Effect, FileSystem } from "effect";
 import { Spawn } from "@open-insight/core/utils";
-import type { Loader } from "./index.ts";
+import type { Load } from "./index.ts";
 import { Error } from "./error.ts";
 
 interface Options {
@@ -129,7 +129,7 @@ const loadGitRepo = Effect.fn(function* (repoPath: string, repoURL: string, opti
 
 export const withGitRepo = <T extends Task.Task>(repoURL: string, options: Options = {}) =>
   Effect.fn(
-    function* (exec: (repoPath: string) => Loader<T> | Promise<Loader<T>>) {
+    function* (exec: (repoPath: string) => Load<T> | Promise<Load<T>>) {
       const fs = yield* FileSystem.FileSystem;
 
       let repoPath = options.directory;

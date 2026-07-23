@@ -1,6 +1,6 @@
 import { Effect, Schema } from "effect";
 import * as Task from "#/task/index.ts";
-import type { Loader } from "./index.ts";
+import type { Load } from "./index.ts";
 
 export const withParquetDir = <S>({
   dirPath: _dirPath,
@@ -12,5 +12,5 @@ export const withParquetDir = <S>({
   schema: Schema.Schema<S>;
 }) =>
   Effect.fn(function* <T extends Task.Task>(
-    _exec: ({ items }: { items: AsyncIterator<S> }) => Loader<T>,
+    _exec: ({ items }: { items: AsyncIterator<S> }) => Load<T>,
   ) {});
