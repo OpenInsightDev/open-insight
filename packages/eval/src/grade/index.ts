@@ -1,25 +1,31 @@
 import { Prompt, type Sandbox } from "@open-insight/core/internal";
-import type { Bivariant } from "#/utils/variant.ts";
+import type { BivariantFn, UnionToIntersection } from "#/utils/variant.ts";
 import { Effect, Equal, Schema } from "effect";
 import { Error } from "./error.ts";
 import { isFunction } from "effect/Predicate";
-
-export type SandboxContext = Sandbox.SandboxPromise;
-export type Context = SandboxContext &
-  Readonly<{
-    trajectory: Prompt.Trajectory;
-  }>;
 
 // grade result must be json serializable
 export const Result = Schema.Record(Schema.String, Schema.Json);
 export type Result = Schema.Schema.Type<typeof Result>;
 
-export type BaseGrader<R extends Result = Result> = Bivariant<(ctx: Context) => PromiseLike<R>>;
+type Results = Record<PropertyKey, Result>;
+
+export type SandboxContext = Sandbox.SandboxPromise;
+export type Context<Rs extends Results = never> = SandboxContext &
+  Readonly<{
+    results: UnionToIntersection<Rs>;
+    trajectory: Prompt.Trajectory;
+  }>;
+
+export type BaseGrader<R extends Result = Result, Rs extends Results = never> = BivariantFn<
+  [ctx: Context<Rs>],
+  PromiseLike<R>
+>;
 
 type Verifier = (sandbox: SandboxContext) => PromiseLike<Prompt.Trajectory | null>;
-export type VerifGrader<R extends Result = Result> = Readonly<{
+export type VerifGrader<R extends Result = Result, Rs extends Results = never> = Readonly<{
   verif: Verifier;
-  grade: BaseGrader<R>;
+  grade: BaseGrader<R, Rs>;
   expect: R;
 }>;
 
@@ -81,10 +87,12 @@ export type VerifGrader<R extends Result = Result> = Readonly<{
  * };
  * ```
  */
-export type Grader<R extends Result = Result> = BaseGrader<R> | VerifGrader<R>;
+export type Grader<R extends Result = Result, Rs extends Results = never> =
+  | BaseGrader<R, Rs>
+  | VerifGrader<R, Rs>;
 
-export const run = <R extends Result>(grader: Grader<R>) =>
-  Effect.fn(function* (ctx: Context): Effect.fn.Return<R, Error> {
+export const run = <R extends Result, Rs extends Results = never>(grader: Grader<R, Rs>) =>
+  Effect.fn(function* (ctx: Context<Rs>): Effect.fn.Return<R, Error> {
     const exec = isFunction(grader) ? grader : grader.grade;
     const result = yield* Effect.tryPromise({
       try: () => exec(ctx),
@@ -102,14 +110,14 @@ export const run = <R extends Result>(grader: Grader<R>) =>
     return decoded as R;
   });
 
-export const verify = ({ verif, grade, expect }: VerifGrader) =>
-  Effect.fn(function* (sandbox: Sandbox.SandboxPromise): Effect.fn.Return<boolean, Error> {
-    const trajectory = yield* Effect.tryPromise(() => verif(sandbox)).pipe(
-      Effect.mapError(Error.verify),
-    );
-    const result = yield* run(grade)({ ...sandbox, trajectory: trajectory ?? Prompt.empty });
-    return Equal.equals(result, expect);
-  });
+// export const verify = ({ verif, grade, expect }: VerifGrader) =>
+//   Effect.fn(function* (ctx: Context): Effect.fn.Return<boolean, Error> {
+//     const trajectory = yield* Effect.tryPromise(() => verif(ctx)).pipe(
+//       Effect.mapError(Error.verify),
+//     );
+//     const result = yield* run(grade)({});
+//     return Equal.equals(result, expect);
+//   });
 
 export * from "./builtin/index.ts";
 export * from "./error.ts";

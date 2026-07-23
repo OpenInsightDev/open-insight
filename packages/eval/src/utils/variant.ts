@@ -1,7 +1,6 @@
 // HACK make function parameters bivariant
-// deno-lint-ignore no-explicit-any
-export type Bivariant<Fn extends (...args: never[]) => any> = {
-  bivarianceHack(...args: Parameters<Fn>): ReturnType<Fn>;
+export type BivariantFn<Args extends ReadonlyArray<unknown>, Return> = {
+  bivarianceHack(...args: Args): Return;
 }["bivarianceHack"];
 
 export type Invariant<T> = (arg: T) => T;

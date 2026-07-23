@@ -28,3 +28,9 @@
 [submodule ".repos/EdgeBench"]
 	path = .repos/EdgeBench
 	url = https://github.com/ByteDance-Seed/EdgeBench.git
+[submodule ".repos/LHTB"]
+	path = .repos/LHTB
+	url = https://github.com/zli12321/LHTB.git
+[submodule ".repos/EvoCodeBench"]
+	path = .repos/EvoCodeBench
+	url = https://github.com/UniPat-AI/EvoCodeBench.git
