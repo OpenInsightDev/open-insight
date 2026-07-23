@@ -95,8 +95,8 @@ type Options<
     metrics?: ReadonlyArray<Metric.Options>;
     resources?: Sandbox.Resources;
     stages?: ReadonlyArray<StageOptions>;
-    dispose?: () => PromiseLike<void>;
     extras?: E;
+    [Symbol.asyncDispose]?: () => PromiseLike<void>;
   }>;
 
 export const make = Effect.fn(function* <
@@ -111,7 +111,7 @@ export const make = Effect.fn(function* <
     stages: stageOptions = [],
     metrics = [],
     extras = {} as E,
-    dispose,
+    [Symbol.asyncDispose]: dispose,
   } = options;
 
   const metadata = Schema.decodeSync(Metadata)({

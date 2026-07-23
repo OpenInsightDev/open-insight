@@ -85,14 +85,14 @@ Bad pattern:
 const Todo = Schema.Struct({
   id: Schema.Number,
   title: Schema.String,
-  completed: Schema.Boolean,
-});
+  completed: Schema.Boolean
+})
 
 const TodoSql = Schema.Struct({
   id: Schema.Number,
   title: Schema.String,
-  completed: Schema.BooleanFromBit,
-});
+  completed: Schema.BooleanFromBit
+})
 ```
 
 This is usually a sign that transformations are not being used properly.
@@ -123,23 +123,23 @@ When a schema represents a named domain model, reusable payload, or long-lived A
 Prefer:
 
 ```ts
-import { Schema } from "effect";
+import { Schema } from "effect"
 
 export class User extends Schema.Class<User>("User")({
   id: Schema.String,
-  name: Schema.String,
+  name: Schema.String
 }) {}
 ```
 
 Over:
 
 ```ts
-import { Schema } from "effect";
+import { Schema } from "effect"
 
 export const User = Schema.Struct({
   id: Schema.String,
-  name: Schema.String,
-});
+  name: Schema.String
+})
 ```
 
 Why `Class` variants are usually better:
@@ -206,8 +206,8 @@ Example:
 const Todo = Schema.Struct({
   id: Schema.Number,
   title: Schema.String,
-  completed: Schema.Boolean,
-});
+  completed: Schema.Boolean
+})
 ```
 
 ## `Class`, `TaggedClass`, and `TaggedErrorClass`
@@ -219,7 +219,7 @@ Use for named reusable schema-backed models.
 ```ts
 class Product extends Schema.Class<Product>("Product")({
   id: Schema.String,
-  price: Schema.Number,
+  price: Schema.Number
 }) {}
 ```
 
@@ -233,8 +233,8 @@ Prefer:
 const todo = Todo.make({
   id: 1,
   title: "write docs",
-  completed: false,
-});
+  completed: false
+})
 ```
 
 Over:
@@ -243,8 +243,8 @@ Over:
 const todo = new Todo({
   id: 1,
   title: "write docs",
-  completed: false,
-});
+  completed: false
+})
 ```
 
 Why:
@@ -266,12 +266,12 @@ Use for members of tagged unions.
 
 ```ts
 class Circle extends Schema.TaggedClass<Circle>()("Circle", {
-  radius: Schema.Number,
+  radius: Schema.Number
 }) {}
 
 class Rectangle extends Schema.TaggedClass<Rectangle>()("Rectangle", {
   width: Schema.Number,
-  height: Schema.Number,
+  height: Schema.Number
 }) {}
 ```
 
@@ -281,7 +281,7 @@ Use for schema-backed typed errors.
 
 ```ts
 class NotFound extends Schema.TaggedErrorClass<NotFound>()("NotFound", {
-  id: Schema.String,
+  id: Schema.String
 }) {}
 ```
 
@@ -300,8 +300,8 @@ Prefer:
 
 ```ts
 const Query = Schema.Struct({
-  search: Schema.optionalKey(Schema.String),
-});
+  search: Schema.optionalKey(Schema.String)
+})
 ```
 
 Use `optional` when the value itself should be `A | undefined`, not just an omitted field.
@@ -311,21 +311,24 @@ Use `optional` when the value itself should be `A | undefined`, not just an omit
 Use `Schema.Union([...])` for ordinary unions.
 
 ```ts
-const Id = Schema.Union([Schema.String, Schema.Number]);
+const Id = Schema.Union([
+  Schema.String,
+  Schema.Number
+])
 ```
 
 Prefer tagged unions for domain variants.
 
 ```ts
 class Created extends Schema.TaggedClass<Created>()("Created", {
-  id: Schema.String,
+  id: Schema.String
 }) {}
 
 class Deleted extends Schema.TaggedClass<Deleted>()("Deleted", {
-  id: Schema.String,
+  id: Schema.String
 }) {}
 
-const TodoEvent = Schema.Union([Created, Deleted]);
+const TodoEvent = Schema.Union([Created, Deleted])
 ```
 
 Why:
@@ -339,14 +342,14 @@ Use `Schema.suspend` for recursive schemas.
 
 ```ts
 type Tree = {
-  readonly name: string;
-  readonly children: ReadonlyArray<Tree>;
-};
+  readonly name: string
+  readonly children: ReadonlyArray<Tree>
+}
 
 const Tree: Schema.Schema<Tree> = Schema.Struct({
   name: Schema.String,
-  children: Schema.Array(Schema.suspend((): Schema.Schema<Tree> => Tree)),
-});
+  children: Schema.Array(Schema.suspend((): Schema.Schema<Tree> => Tree))
+})
 ```
 
 Use it whenever a schema refers to itself, directly or indirectly.
@@ -371,9 +374,9 @@ Use `decodeTo` when you want one schema to decode into another schema's type.
 const TrimmedString = Schema.String.pipe(
   Schema.decodeTo(Schema.String, {
     decode: (value) => value.trim(),
-    encode: (value) => value,
-  }),
-);
+    encode: (value) => value
+  })
+)
 ```
 
 The vendored docs explicitly note that `decodeTo` is curried and should be used with `pipe`.
@@ -387,18 +390,18 @@ Use `encodeTo` when the reverse direction reads more clearly.
 Use `transformOrFail` when the transformation itself is effectful or may fail.
 
 ```ts
-import * as Effect from "effect/Effect";
-import * as SchemaTransformation from "effect/SchemaTransformation";
+import * as Effect from "effect/Effect"
+import * as SchemaTransformation from "effect/SchemaTransformation"
 
 const VerifiedString = Schema.String.pipe(
   Schema.decodeTo(
     Schema.String,
     SchemaTransformation.transformOrFail({
       decode: (value) => Effect.succeed(value.trim()),
-      encode: (value) => Effect.succeed(value),
-    }),
-  ),
-);
+      encode: (value) => Effect.succeed(value)
+    })
+  )
+)
 ```
 
 Use this when:
@@ -414,13 +417,13 @@ Very often, the right answer is not a second object schema but a transformed fie
 Example shape:
 
 ```ts
-const Completed = Schema.BooleanFromBit;
+const Completed = Schema.BooleanFromBit
 
 const Todo = Schema.Struct({
   id: Schema.Number,
   title: Schema.String,
-  completed: Completed,
-});
+  completed: Completed
+})
 ```
 
 In this pattern:
@@ -472,7 +475,9 @@ Use opaque or branded schemas when a value should stay distinct from its structu
 Use `brand` for refined nominal distinctions.
 
 ```ts
-const UserId = Schema.String.pipe(Schema.brand("UserId"));
+const UserId = Schema.String.pipe(
+  Schema.brand("UserId")
+)
 ```
 
 This is useful for:
@@ -549,7 +554,7 @@ Preferred rule:
 Good pattern:
 
 ```ts
-const decodeUser = Schema.decodeUnknownEffect(User);
+const decodeUser = Schema.decodeUnknownEffect(User)
 ```
 
 ## Schema Metadata And Derived Tooling

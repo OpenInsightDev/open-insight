@@ -98,18 +98,16 @@ export const run = <R extends Result>(grader: Grader<R>) =>
         return Error.exec(cause);
       },
     });
-    const decoded = yield* Schema.decodeUnknownEffect(Result)(result).pipe(
-      Effect.mapError(Error.result),
-    );
+    const decoded = yield* Schema.decodeEffect(Result)(result).pipe(Effect.mapError(Error.result));
     return decoded as R;
   });
 
-export const verify = ({ verif: verify, grade: exec, expect }: VerifGrader) =>
+export const verify = ({ verif, grade, expect }: VerifGrader) =>
   Effect.fn(function* (sandbox: Sandbox.SandboxPromise): Effect.fn.Return<boolean, Error> {
-    const trajectory = yield* Effect.tryPromise(() => verify(sandbox)).pipe(
+    const trajectory = yield* Effect.tryPromise(() => verif(sandbox)).pipe(
       Effect.mapError(Error.verify),
     );
-    const result = yield* run(exec)({ ...sandbox, trajectory: trajectory ?? Prompt.empty });
+    const result = yield* run(grade)({ ...sandbox, trajectory: trajectory ?? Prompt.empty });
     return Equal.equals(result, expect);
   });
 

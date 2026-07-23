@@ -62,18 +62,18 @@ There are two good definition styles:
 Example:
 
 ```ts
-import { Context, Effect, Schema } from "effect";
+import { Context, Effect, Schema } from "effect"
 
-class UserRepoError extends Schema.TaggedErrorClass<UserRepoError>()("UserRepoError", {
-  message: Schema.String,
-}) {}
-
-class UserRepo extends Context.Service<
-  UserRepo,
+class UserRepoError extends Schema.TaggedErrorClass<UserRepoError>()(
+  "UserRepoError",
   {
-    readonly getById: (id: string) => Effect.Effect<{ id: string; name: string }, UserRepoError>;
+    message: Schema.String
   }
->()("UserRepo") {}
+) {}
+
+class UserRepo extends Context.Service<UserRepo, {
+  readonly getById: (id: string) => Effect.Effect<{ id: string; name: string }, UserRepoError>
+}>()("UserRepo") {}
 ```
 
 Why this style is preferred:
@@ -91,18 +91,23 @@ Repo reference:
 When the implementation shape is clearer than the interface declaration, prefer using the `make` argument so the service shape is inferred from the implementation.
 
 ```ts
-import { Context, Effect, Schema } from "effect";
+import { Context, Effect, Schema } from "effect"
 
-class UserRepoError extends Schema.TaggedErrorClass<UserRepoError>()("UserRepoError", {
-  message: Schema.String,
-}) {}
+class UserRepoError extends Schema.TaggedErrorClass<UserRepoError>()(
+  "UserRepoError",
+  {
+    message: Schema.String
+  }
+) {}
 
 class UserRepo extends Context.Service<UserRepo>()("UserRepo", {
   make: Effect.succeed({
-    getById: Effect.fn("UserRepo.getById")(function* (id: string) {
-      return yield* Effect.fail(UserRepoError.make({ message: `User ${id} not found` }));
-    }),
-  }),
+    getById: Effect.fn("UserRepo.getById")(function*(id: string) {
+      return yield* Effect.fail(
+        UserRepoError.make({ message: `User ${id} not found` })
+      )
+    })
+  })
 }) {}
 ```
 
@@ -125,24 +130,24 @@ Prefer the explicit generic shape when:
 ## Service Example
 
 ```ts
-import { Context, Effect, Schema } from "effect";
+import { Context, Effect, Schema } from "effect"
 
-class UserNotFound extends Schema.TaggedErrorClass<UserNotFound>()("UserNotFound", {
-  userId: Schema.String,
-}) {}
-
-class UserRepo extends Context.Service<
-  UserRepo,
+class UserNotFound extends Schema.TaggedErrorClass<UserNotFound>()(
+  "UserNotFound",
   {
-    readonly getById: (id: string) => Effect.Effect<{ id: string; name: string }, UserNotFound>;
+    userId: Schema.String
   }
->()("UserRepo") {}
+) {}
+
+class UserRepo extends Context.Service<UserRepo, {
+  readonly getById: (id: string) => Effect.Effect<{ id: string; name: string }, UserNotFound>
+}>()("UserRepo") {}
 
 const loadUser = (userId: string) =>
-  Effect.gen(function* () {
-    const repo = yield* UserRepo;
-    return yield* repo.getById(userId);
-  });
+  Effect.gen(function*() {
+    const repo = yield* UserRepo
+    return yield* repo.getById(userId)
+  })
 ```
 
 Key points:
@@ -176,16 +181,18 @@ Use a full service instead when:
 Common patterns:
 
 ```ts
-const program = Effect.gen(function* () {
-  const repo = yield* UserRepo;
-  return yield* repo.getById("u_123");
-});
+const program = Effect.gen(function*() {
+  const repo = yield* UserRepo
+  return yield* repo.getById("u_123")
+})
 ```
 
 or:
 
 ```ts
-const program = Effect.service(UserRepo).pipe(Effect.flatMap((repo) => repo.getById("u_123")));
+const program = Effect.service(UserRepo).pipe(
+  Effect.flatMap((repo) => repo.getById("u_123"))
+)
 ```
 
 Best practice:
@@ -200,10 +207,10 @@ Prefer keeping service access inside the business operation that needs it rather
 Avoid this pattern:
 
 ```ts
-export const createTodo = Effect.fn(function* (title: string) {
-  const todos = yield* TodoService;
-  return yield* todos.create(title);
-});
+export const createTodo = Effect.fn(function*(title: string) {
+  const todos = yield* TodoService
+  return yield* todos.create(title)
+})
 ```
 
 Why this is usually a bad pattern:
@@ -222,14 +229,14 @@ Prefer one of these patterns instead:
 Good:
 
 ```ts
-export const completeTodo = Effect.fn("completeTodo")(function* (id: number) {
-  const todos = yield* TodoService;
-  const todo = yield* todos.getById(id);
+export const completeTodo = Effect.fn("completeTodo")(function*(id: number) {
+  const todos = yield* TodoService
+  const todo = yield* todos.getById(id)
   if (todo.completed) {
-    return todo;
+    return todo
   }
-  return yield* todos.setCompleted(id, true);
-});
+  return yield* todos.setCompleted(id, true)
+})
 ```
 
 This is good because:
@@ -259,8 +266,8 @@ Use for pure, already-constructed implementations.
 
 ```ts
 const UserRepoTest = Layer.succeed(UserRepo)({
-  getById: (id) => Effect.succeed({ id, name: "Test User" }),
-});
+  getById: (id) => Effect.succeed({ id, name: "Test User" })
+})
 ```
 
 Use this when:
@@ -274,26 +281,23 @@ Use this when:
 Use when constructing a service requires effects, other services, or scoped resource acquisition.
 
 ```ts
-class Config extends Context.Service<
-  Config,
-  {
-    readonly apiBaseUrl: string;
-  }
->()("Config") {}
+class Config extends Context.Service<Config, {
+  readonly apiBaseUrl: string
+}>()("Config") {}
 
 const UserRepoLayer = Layer.effect(UserRepo)(
-  Effect.gen(function* () {
-    const config = yield* Config;
+  Effect.gen(function*() {
+    const config = yield* Config
 
     return {
       getById: (id) =>
         Effect.succeed({
           id,
-          name: `Fetched from ${config.apiBaseUrl}`,
-        }),
-    };
-  }),
-);
+          name: `Fetched from ${config.apiBaseUrl}`
+        })
+    }
+  })
+)
 ```
 
 Use this when:
@@ -342,51 +346,42 @@ These operators do different things. Do not treat them as interchangeable.
 ### Example Services
 
 ```ts
-import { Context, Effect, Layer } from "effect";
+import { Context, Effect, Layer } from "effect"
 
-class Config extends Context.Service<
-  Config,
-  {
-    readonly apiBaseUrl: string;
-  }
->()("Config") {}
+class Config extends Context.Service<Config, {
+  readonly apiBaseUrl: string
+}>()("Config") {}
 
-class Logger extends Context.Service<
-  Logger,
-  {
-    readonly log: (message: string) => Effect.Effect<void>;
-  }
->()("Logger") {}
+class Logger extends Context.Service<Logger, {
+  readonly log: (message: string) => Effect.Effect<void>
+}>()("Logger") {}
 
-class UserRepo extends Context.Service<
-  UserRepo,
-  {
-    readonly getById: (id: string) => Effect.Effect<{ id: string; name: string }>;
-  }
->()("UserRepo") {}
+class UserRepo extends Context.Service<UserRepo, {
+  readonly getById: (id: string) => Effect.Effect<{ id: string; name: string }>
+}>()("UserRepo") {}
 
 const ConfigLayer = Layer.succeed(Config)({
-  apiBaseUrl: "https://api.example.com",
-});
+  apiBaseUrl: "https://api.example.com"
+})
 
 const LoggerLayer = Layer.succeed(Logger)({
-  log: (message) => Effect.sync(() => console.log(message)),
-});
+  log: (message) => Effect.sync(() => console.log(message))
+})
 
 const UserRepoLayer = Layer.effect(UserRepo)(
-  Effect.gen(function* () {
-    const config = yield* Config;
-    const logger = yield* Logger;
+  Effect.gen(function*() {
+    const config = yield* Config
+    const logger = yield* Logger
 
     return {
       getById: (id) =>
-        Effect.gen(function* () {
-          yield* logger.log(`loading ${id} from ${config.apiBaseUrl}`);
-          return { id, name: "Ada" };
-        }),
-    };
-  }),
-);
+        Effect.gen(function*() {
+          yield* logger.log(`loading ${id} from ${config.apiBaseUrl}`)
+          return { id, name: "Ada" }
+        })
+    }
+  })
+)
 ```
 
 ### `Layer.mergeAll`
@@ -394,7 +389,10 @@ const UserRepoLayer = Layer.effect(UserRepo)(
 Use `Layer.mergeAll` to combine outputs of independent layers.
 
 ```ts
-const Dependencies = Layer.mergeAll(ConfigLayer, LoggerLayer);
+const Dependencies = Layer.mergeAll(
+  ConfigLayer,
+  LoggerLayer
+)
 ```
 
 Use this when:
@@ -417,7 +415,10 @@ Important:
 Correct pattern:
 
 ```ts
-const Dependencies = Layer.mergeAll(ConfigLayer, LoggerLayer);
+const Dependencies = Layer.mergeAll(
+  ConfigLayer,
+  LoggerLayer
+)
 ```
 
 ### `Layer.provide`
@@ -425,9 +426,12 @@ const Dependencies = Layer.mergeAll(ConfigLayer, LoggerLayer);
 Use `Layer.provide` to satisfy a target layer's dependencies with another layer, while keeping only the target layer's outputs.
 
 ```ts
-const Dependencies = Layer.mergeAll(ConfigLayer, LoggerLayer);
+const Dependencies = Layer.mergeAll(
+  ConfigLayer,
+  LoggerLayer
+)
 
-const UserRepoLayerReady = Layer.provide(UserRepoLayer, Dependencies);
+const UserRepoLayerReady = Layer.provide(UserRepoLayer, Dependencies)
 ```
 
 Interpretation:
@@ -442,10 +446,12 @@ This is the operator to use when you want to hide construction dependencies behi
 Example program:
 
 ```ts
-const program = Effect.gen(function* () {
-  const repo = yield* UserRepo;
-  return yield* repo.getById("u_123");
-}).pipe(Effect.provide(UserRepoLayerReady));
+const program = Effect.gen(function*() {
+  const repo = yield* UserRepo
+  return yield* repo.getById("u_123")
+}).pipe(
+  Effect.provide(UserRepoLayerReady)
+)
 ```
 
 ### `Layer.provideMerge`
@@ -453,9 +459,12 @@ const program = Effect.gen(function* () {
 Use `provideMerge` when you want to satisfy dependencies and retain both the dependency outputs and the target outputs.
 
 ```ts
-const Dependencies = Layer.mergeAll(ConfigLayer, LoggerLayer);
+const Dependencies = Layer.mergeAll(
+  ConfigLayer,
+  LoggerLayer
+)
 
-const AppLayer = Layer.provideMerge(UserRepoLayer, Dependencies);
+const AppLayer = Layer.provideMerge(UserRepoLayer, Dependencies)
 ```
 
 Interpretation:
@@ -468,14 +477,16 @@ This is useful for assembling larger application layers incrementally, especiall
 Example program:
 
 ```ts
-const program = Effect.gen(function* () {
-  const repo = yield* UserRepo;
-  const logger = yield* Logger;
+const program = Effect.gen(function*() {
+  const repo = yield* UserRepo
+  const logger = yield* Logger
 
-  const user = yield* repo.getById("u_123");
-  yield* logger.log(user.name);
-  return user;
-}).pipe(Effect.provide(AppLayer));
+  const user = yield* repo.getById("u_123")
+  yield* logger.log(user.name)
+  return user
+}).pipe(
+  Effect.provide(AppLayer)
+)
 ```
 
 Preferred rule:
@@ -506,18 +517,29 @@ Preferred style:
 Good pattern:
 
 ```ts
-const UserDependencies = Layer.mergeAll(ConfigLayer, LoggerLayer);
+const UserDependencies = Layer.mergeAll(
+  ConfigLayer,
+  LoggerLayer
+)
 
-const UserLayer = Layer.provide(UserRepoLayer, UserDependencies);
+const UserLayer = Layer.provide(UserRepoLayer, UserDependencies)
 
-const BillingDependencies = Layer.mergeAll(ConfigLayer, LoggerLayer, DatabaseLayer);
+const BillingDependencies = Layer.mergeAll(
+  ConfigLayer,
+  LoggerLayer,
+  DatabaseLayer
+)
 
-const BillingLayer = Layer.provide(BillingServiceLayer, BillingDependencies);
+const BillingLayer = Layer.provide(BillingServiceLayer, BillingDependencies)
 
-const AppLayer = Layer.mergeAll(UserLayer, BillingLayer, HttpLayer).pipe(
+const AppLayer = Layer.mergeAll(
+  UserLayer,
+  BillingLayer,
+  HttpLayer
+).pipe(
   Layer.provide(Telemetry),
-  Layer.provide(NodeSdk),
-);
+  Layer.provide(NodeSdk)
+)
 ```
 
 Why this style is preferred:
@@ -534,10 +556,10 @@ const AppLayer = Layer.provide(
   Layer.mergeAll(
     Layer.provide(UserRepoLayer, Layer.mergeAll(ConfigLayer, LoggerLayer)),
     Layer.provide(BillingServiceLayer, Layer.mergeAll(ConfigLayer, LoggerLayer, DatabaseLayer)),
-    HttpLayer,
+    HttpLayer
   ),
-  Telemetry,
-).pipe(Layer.provide(NodeSdk));
+  Telemetry
+).pipe(Layer.provide(NodeSdk))
 ```
 
 That style is harder to read because:
@@ -555,9 +577,9 @@ Example:
 ```ts
 const UserRepoLayerFromConfig = Layer.flatMap(ConfigLayer, (config) =>
   Layer.succeed(UserRepo)({
-    getById: (id) => Effect.succeed({ id, name: config.apiBaseUrl }),
-  }),
-);
+    getById: (id) => Effect.succeed({ id, name: config.apiBaseUrl })
+  })
+)
 ```
 
 This is more specialized than `merge` or `provide`.
@@ -590,10 +612,12 @@ Bad pattern:
 
 ```ts
 const loadUser = (userId: string) =>
-  Effect.gen(function* () {
-    const repo = yield* UserRepo;
-    return yield* repo.getById(userId);
-  }).pipe(Effect.provide(UserRepoLayer));
+  Effect.gen(function*() {
+    const repo = yield* UserRepo
+    return yield* repo.getById(userId)
+  }).pipe(
+    Effect.provide(UserRepoLayer)
+  )
 ```
 
 Why this is an anti-pattern:
@@ -608,12 +632,14 @@ Preferred pattern:
 
 ```ts
 const loadUser = (userId: string) =>
-  Effect.gen(function* () {
-    const repo = yield* UserRepo;
-    return yield* repo.getById(userId);
-  });
+  Effect.gen(function*() {
+    const repo = yield* UserRepo
+    return yield* repo.getById(userId)
+  })
 
-const program = loadUser("u_123").pipe(Effect.provide(AppLayer));
+const program = loadUser("u_123").pipe(
+  Effect.provide(AppLayer)
+)
 ```
 
 Rule of thumb:
@@ -637,9 +663,10 @@ Typical examples:
 Preferred pattern:
 
 ```ts
-const runtime = ManagedRuntime.make(AppLayer);
+const runtime = ManagedRuntime.make(AppLayer)
 
-const handleRequest = (id: string) => runtime.runPromise(loadUser(id));
+const handleRequest = (id: string) =>
+  runtime.runPromise(loadUser(id))
 ```
 
 Why:
@@ -658,7 +685,9 @@ Repo reference:
 Use `Effect.provide` to satisfy an effect's dependencies with a layer or context.
 
 ```ts
-const program = loadUser("u_123").pipe(Effect.provide(UserRepoLayerReady));
+const program = loadUser("u_123").pipe(
+  Effect.provide(UserRepoLayerReady)
+)
 ```
 
 This is the main boundary provisioning operator.
@@ -670,9 +699,9 @@ Use `provideService` for a single ad hoc implementation.
 ```ts
 const program = loadUser("u_123").pipe(
   Effect.provideService(UserRepo, {
-    getById: (id) => Effect.succeed({ id, name: "Inline User" }),
-  }),
-);
+    getById: (id) => Effect.succeed({ id, name: "Inline User" })
+  })
+)
 ```
 
 Good use cases:
@@ -734,11 +763,11 @@ Good:
 
 ```ts
 const sendWelcomeEmail = (userId: string) =>
-  Effect.gen(function* () {
-    const repo = yield* UserRepo;
-    const user = yield* repo.getById(userId);
-    return user;
-  });
+  Effect.gen(function*() {
+    const repo = yield* UserRepo
+    const user = yield* repo.getById(userId)
+    return user
+  })
 ```
 
 Avoid constructing `UserRepo` inside `sendWelcomeEmail`.
@@ -805,7 +834,7 @@ Instead, leave that dependency unprovided and let it be supplied at the edge.
 Bad pattern:
 
 ```ts
-const UserLayer = Layer.provide(UserRepoLayer, makeDatabaseLayer(config));
+const UserLayer = Layer.provide(UserRepoLayer, makeDatabaseLayer(config))
 ```
 
 Why this is bad:
@@ -818,11 +847,11 @@ Why this is bad:
 Preferred pattern:
 
 ```ts
-const UserLayer = UserRepoLayer;
+const UserLayer = UserRepoLayer
 
-const DatabaseLayer = makeDatabaseLayer(config);
+const DatabaseLayer = makeDatabaseLayer(config)
 
-const AppLayer = Layer.provideMerge(UserLayer, DatabaseLayer);
+const AppLayer = Layer.provideMerge(UserLayer, DatabaseLayer)
 ```
 
 More generally:
@@ -840,9 +869,12 @@ Rule:
 Bad pattern:
 
 ```ts
-const makeDatabaseLayer = () => Layer.effect(DatabaseService)(/* ... */);
+const makeDatabaseLayer = () => Layer.effect(DatabaseService)(/* ... */)
 
-const AppLayer = Layer.mergeAll(makeDatabaseLayer(), makeDatabaseLayer());
+const AppLayer = Layer.mergeAll(
+  makeDatabaseLayer(),
+  makeDatabaseLayer()
+)
 ```
 
 Why this is bad:
@@ -855,9 +887,12 @@ Why this is bad:
 Preferred pattern:
 
 ```ts
-const DatabaseLayer = makeDatabaseLayer();
+const DatabaseLayer = makeDatabaseLayer()
 
-const AppLayer = Layer.mergeAll(DatabaseLayer, OtherLayer);
+const AppLayer = Layer.mergeAll(
+  DatabaseLayer,
+  OtherLayer
+)
 ```
 
 Rule:
@@ -910,60 +945,56 @@ This keeps test wiring explicit and close to production composition style.
 ## Pattern: service definition plus live layer
 
 ```ts
-import { Context, Effect, Layer } from "effect";
+import { Context, Effect, Layer } from "effect"
 
-class Config extends Context.Service<
-  Config,
-  {
-    readonly apiBaseUrl: string;
-  }
->()("Config") {}
+class Config extends Context.Service<Config, {
+  readonly apiBaseUrl: string
+}>()("Config") {}
 
-class UserRepo extends Context.Service<
-  UserRepo,
-  {
-    readonly getById: (id: string) => Effect.Effect<{ id: string; name: string }>;
-  }
->()("UserRepo") {}
+class UserRepo extends Context.Service<UserRepo, {
+  readonly getById: (id: string) => Effect.Effect<{ id: string; name: string }>
+}>()("UserRepo") {}
 
 const ConfigLayer = Layer.succeed(Config)({
-  apiBaseUrl: "https://api.example.com",
-});
+  apiBaseUrl: "https://api.example.com"
+})
 
 const UserRepoLayer = Layer.effect(UserRepo)(
-  Effect.gen(function* () {
-    const config = yield* Config;
+  Effect.gen(function*() {
+    const config = yield* Config
 
     return {
       getById: (id) =>
         Effect.succeed({
           id,
-          name: `Loaded via ${config.apiBaseUrl}`,
-        }),
-    };
-  }),
-);
+          name: `Loaded via ${config.apiBaseUrl}`
+        })
+    }
+  })
+)
 
-const Dependencies = Layer.mergeAll(ConfigLayer);
+const Dependencies = Layer.mergeAll(ConfigLayer)
 
-const AppLayer = Layer.provide(UserRepoLayer, Dependencies);
+const AppLayer = Layer.provide(UserRepoLayer, Dependencies)
 ```
 
 ## Pattern: provide at the top level
 
 ```ts
-const program = Effect.gen(function* () {
-  const repo = yield* UserRepo;
-  return yield* repo.getById("u_123");
-}).pipe(Effect.provide(AppLayer));
+const program = Effect.gen(function*() {
+  const repo = yield* UserRepo
+  return yield* repo.getById("u_123")
+}).pipe(
+  Effect.provide(AppLayer)
+)
 ```
 
 ## Pattern: single-service override in tests
 
 ```ts
 const TestRepo = Layer.succeed(UserRepo)({
-  getById: (id) => Effect.succeed({ id, name: "Test" }),
-});
+  getById: (id) => Effect.succeed({ id, name: "Test" })
+})
 ```
 
 ## Anti-Patterns

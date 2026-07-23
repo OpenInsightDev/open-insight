@@ -49,7 +49,8 @@ const Composable = Schema.Union([Area, Line, Bar, Scatter]);
 export const ComposablePoints = Schema.Array(Composable);
 export type ComposablePoints = Schema.Schema.Type<typeof ComposablePoints>;
 
-const Standalone = Schema.Union([Pie, Radar, RadialBar, Funnel]);
+export const Standalone = Schema.Union([Pie, Radar, RadialBar, Funnel]);
+export type Standalone = Schema.Schema.Type<typeof Standalone>;
 
 export const DataPoint = Schema.Union([Composable, Standalone]);
 export type DataPoint = Schema.Schema.Type<typeof DataPoint>;

@@ -5,7 +5,7 @@
       "source": "harbor-framework/harbor",
       "sourceType": "github",
       "skillPath": "skills/create-task/SKILL.md",
-      "computedHash": "6db2350d3604dd16f1925628afaf55a5a2b426de8a35efa46e86e809adb2fa2e"
+      "computedHash": "e0b0586aa54a874f191bd463641a99f81a25bc5c5b17794113ee707acbbe0950"
     },
     "effect-ts": {
       "source": "Effect-TS/skills",
