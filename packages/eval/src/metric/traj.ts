@@ -1,10 +1,22 @@
 import * as Grade from "#/grade/index.ts";
-import { makeID } from "#/utils/id.ts";
+import { IDSchema, makeID } from "#/utils/id.ts";
 import * as Chart from "#/chart/index.ts";
-import { Data, Duration, Effect, Schedule, type Schema } from "effect";
+import { Data, Duration, Effect, Schedule, Schema } from "effect";
 
+/**
+ * Read-only version of grading context.
+ */
 export type Context = Omit<Grade.Context, "writeFile" | "expose" | "upload">;
-type Retry = { retry?: Schedule.Schedule<unknown> };
+
+export class Metadata extends Schema.Class<Metadata>("Metadata")({
+  id: IDSchema,
+  name: Schema.OptionFromOptionalNullOr(Schema.String),
+  description: Schema.OptionFromOptionalNullOr(Schema.String),
+}) {}
+type MetadataEncoded = Schema.Codec.Encoded<typeof Metadata>;
+
+type ExecOptions = Readonly<{ retry?: Schedule.Schedule<unknown> }>;
+type ScheduleOptions = Readonly<{}>;
 
 /**
  * Controls when a trajectory metric runs during an agent prompt session.
@@ -25,7 +37,7 @@ type Retry = { retry?: Schedule.Schedule<unknown> };
  *       .then((output) => output.trim() === "ready")
  *       .catch(() => false),
  * });
- * // note that you can use `contentIs` instead
+ * // note: you can use `content` instead
  * ```
  *
  * @example Run every 30 seconds
@@ -35,7 +47,7 @@ type Retry = { retry?: Schedule.Schedule<unknown> };
  * ```
  */
 export type When = Data.TaggedEnum<{
-  Exec: { exec: (ctx: Context) => Promise<boolean> } & Retry;
+  Exec: { exec: (ctx: Context) => Promise<boolean> } & ExecOptions;
   Schedule: Schedule.Schedule<unknown>;
 }>;
 export const When = Data.taggedEnum<When>();
@@ -51,6 +63,7 @@ export type Metric<R extends Schema.JsonObject = Schema.JsonObject> = Readonly<{
   name: string;
   description: string | null;
   chart: Chart.Chart<R> | null;
+  metadata: Metadata;
 }>;
 
 export type Options<R extends Schema.JsonObject = Schema.JsonObject> = Readonly<{
@@ -60,29 +73,40 @@ export type Options<R extends Schema.JsonObject = Schema.JsonObject> = Readonly<
   name?: string;
   description?: string | null;
   chart?: Chart.Chart<R> | null;
-}>;
+}> &
+  MetadataEncoded;
 
-export const make = Effect.fn(function* <R extends Schema.JsonObject = Schema.JsonObject>({
-  exec,
-  when = always,
-  name = "Trajectory Metric",
-  description = null,
-  chart = null,
-}: Options<R>) {
-  return { id: yield* makeID(), name, exec, when, description, chart };
+export const make = Effect.fn(function* <R extends Schema.JsonObject = Schema.JsonObject>(
+  options: Options<R>,
+) {
+  const {
+    exec,
+    when = always,
+    name = "Trajectory Metric",
+    description = null,
+    chart = null,
+  } = options;
+  const id = yield* makeID();
+  const metadata = yield* Schema.decodeEffect(Metadata)(options);
+
+  return { id, name, exec, when, description, chart, metadata };
 });
 
 export const always = When.Exec({ exec: () => Promise.resolve(true) });
 
-export const every = (input: Duration.Input) => When.Schedule(Schedule.fixed(input));
+export const every = (input: Duration.Input, options: ScheduleOptions) =>
+  When.Schedule(Schedule.fixed(input));
 
-export const success = (bash: string, { retry }: Retry = {}) =>
+export const success = (bash: string, { retry }: ExecOptions = {}) =>
   When.Exec({ exec: ({ $ }) => $`${bash}`.then(() => true).catch(() => false), retry });
 
-export const fails = (bash: string, { retry }: Retry = {}) =>
+export const fails = (bash: string, { retry }: ExecOptions = {}) =>
   When.Exec({ exec: ({ $ }) => $`${bash}`.then(() => false).catch(() => true), retry });
 
-export const bash = ({ bash, expect }: { bash: string; expect: string }, { retry }: Retry = {}) =>
+export const bash = (
+  { bash, expect }: { bash: string; expect: string },
+  { retry }: ExecOptions = {},
+) =>
   When.Exec({
     exec: ({ $ }) => $`${bash}`.then((stdout) => stdout.trim() === expect).catch(() => false),
     retry,
@@ -90,7 +114,7 @@ export const bash = ({ bash, expect }: { bash: string; expect: string }, { retry
 
 export const content = (
   { sandboxPath, expect }: { sandboxPath: string; expect: string },
-  { retry }: Retry = {},
+  { retry }: ExecOptions = {},
 ) =>
   When.Exec({
     exec: ({ $ }) =>
@@ -98,7 +122,7 @@ export const content = (
     retry,
   });
 
-export const exists = (sandboxPath: string, { retry }: Retry = {}) =>
+export const exists = (sandboxPath: string, { retry }: ExecOptions = {}) =>
   When.Exec({
     exec: ({ $ }) => $`test -f ${sandboxPath}`.then(() => true).catch(() => false),
     retry,

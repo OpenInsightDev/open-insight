@@ -30,15 +30,18 @@
     "check": "vp check",
     "prepublishOnly": "vp run build"
   },
+  "dependencies": {
+    "@open-insight/core": "workspace:",
+    "effect": "catalog:",
+    "yaml": "catalog:"
+  },
   "devDependencies": {
+    "@effect/platform-node": "catalog:",
+    "@effect/vitest": "catalog:",
     "@types/node": "^26.1.1",
     "bumpp": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",
     "vite-plus": "catalog:"
-  },
-  "dependencies": {
-    "effect": "catalog:",
-    "@open-insight/core": "workspace:"
   }
 }

@@ -13,14 +13,11 @@ export class VerifyError extends Schema.TaggedErrorClass<VerifyError>()("VerifyE
   cause: Schema.Defect(),
 }) {}
 
-export class InvalidResultError extends Schema.TaggedErrorClass<InvalidResultError>()(
-  "InvalidResultError",
-  {
-    cause: Schema.Defect(),
-  },
-) {}
+export class InvalidResult extends Schema.TaggedErrorClass<InvalidResult>()("InvalidResult", {
+  cause: Schema.Defect(),
+}) {}
 
-export const ErrorReason = Schema.Union([Retry, ExecError, VerifyError, InvalidResultError]);
+export const ErrorReason = Schema.Union([Retry, ExecError, VerifyError, InvalidResult]);
 export type ErrorReason = Schema.Schema.Type<typeof ErrorReason>;
 
 export class Error extends Schema.TaggedErrorClass<Error>()("GradeError", {
@@ -33,7 +30,7 @@ export class Error extends Schema.TaggedErrorClass<Error>()("GradeError", {
 
   static verify = this.mapUnknownError((cause) => new VerifyError({ cause }));
 
-  static result = this.mapUnknownError((cause) => new InvalidResultError({ cause }));
+  static result = this.mapUnknownError((cause) => new InvalidResult({ cause }));
 
   static retry = (prompt: Prompt.UserMessage) => new Error({ reason: new Retry({ prompt }) });
 }

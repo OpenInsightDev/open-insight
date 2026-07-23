@@ -14,3 +14,29 @@ Docs are local at `node_modules/vite-plus/docs` or online at https://viteplus.de
 - [ ] If setup, runtime, or package-manager behavior looks wrong, run `vp env doctor` and include its output when asking for help.
 
 <!--VITE PLUS END-->
+
+## Package Module Organization
+
+Each module must provides `index.ts` for internal exports and `export.ts` for public exports.
+
+### `index.ts`
+
+Internal exports, intended for use within this project or by other modules in the same workspace. 
+Exports everything from the module.
+
+### `export.ts`
+
+External exports, intended for package users.
+Only exports what package users actually need (core types, functions, classes, etc.).
+What is exported from `export.ts` should be carefully curated.
+DO NOT excessively export everything from the module.
+
+ONLY two kinds of exports are allowed in `export.ts`:
+
+1. Re-export from submodule's `export.ts` as a namespace export, e.g.
+   `export * as Submodule from "./submodule/export.ts"`.
+2. Explicitly export, e.g.
+   `export { MyType, myFunction } from "./submodule/index.ts"`.
+
+Any other kind of export is forbidden, e.g. `export * from "./submodule/some-file.ts"`.
+ 

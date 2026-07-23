@@ -165,6 +165,25 @@ export const createTrail = Effect.fn("exec/createTrail")(
           );
         });
 
+        const runPrompt = Effect.fn("exec/runTrail/runPrompt")(function* (prompt: Task.PromptFn) {
+          let first = true;
+          let previousTrajectoryLength = 0;
+
+          while (true) {
+            const trajectory = yield* agent.trajectory();
+            const generated = first ? [] : trajectory.content.slice(previousTrajectoryLength);
+            previousTrajectoryLength = trajectory.content.length;
+
+            const next = yield* prompt({ trajectory, generated });
+            if (next === null) {
+              return;
+            }
+
+            yield* Stream.runForEach(Stream.fromIterable(next.content), promptAgent);
+            first = false;
+          }
+        });
+
         const runGrader: (
           grader: Grade.Grader,
           retryCount?: number,
@@ -213,7 +232,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
         for (const [stageIndex, { prompt, grader }] of stages.entries()) {
           finalGrade = yield* Effect.gen(function* () {
             yield* Effect.logDebug(`Starting stage ${stageIndex}`);
-            yield* prompt.pipe(Stream.runForEach(promptAgent));
+            yield* runPrompt(prompt);
 
             const grade = yield* runGrader(grader);
             yield* Effect.logDebug(`Completed stage ${stageIndex}`);

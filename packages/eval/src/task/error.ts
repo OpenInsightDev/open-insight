@@ -4,7 +4,11 @@ export class PromptError extends Schema.TaggedErrorClass<PromptError>()("PromptE
   cause: Schema.Defect(),
 }) {}
 
-export const ErrorReason = Schema.Union([PromptError]);
+export class InvalidMetadata extends Schema.TaggedErrorClass<InvalidMetadata>()("InvalidMetadata", {
+  cause: Schema.Defect(),
+}) {}
+
+export const ErrorReason = Schema.Union([PromptError, InvalidMetadata]);
 export type ErrorReason = Schema.Schema.Type<typeof ErrorReason>;
 
 export class Error extends Schema.TaggedErrorClass<Error>()("TaskError", {
@@ -14,4 +18,6 @@ export class Error extends Schema.TaggedErrorClass<Error>()("TaskError", {
     cause instanceof Error ? cause : new Error({ reason: mapper(cause) });
 
   static prompt = this.mapUnknownError((cause) => new PromptError({ cause }));
+
+  static metadata = this.mapUnknownError((cause) => new InvalidMetadata({ cause }));
 }

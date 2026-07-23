@@ -1,100 +1,179 @@
 import { Prompt, Sandbox, Snapshot } from "@open-insight/core/internal";
 import { type EmptyRecord } from "#/utils/type.ts";
 import * as Grade from "#/grade/index.ts";
-import { Effect, Schema, Stream } from "effect";
+import { Crypto, Effect, Schema, Scope } from "effect";
 import { Error } from "./error.ts";
-import * as Metric from "./metric.ts";
-import { makeID } from "#/utils/id.ts";
+import * as Metric from "#/metric/index.ts";
+import { IDSchema } from "#/utils/id.ts";
 
 export type TypeId = "~open-insight/eval/task";
 export const TypeId: TypeId = "~open-insight/eval/task";
 
 export type ID = string;
 
-export class Metadata extends Schema.Class<Metadata>("TaskMetadata")({
+export class StageMetadata extends Schema.Class<StageMetadata>("StageMetadata")({
+  id: IDSchema,
+  name: Schema.String,
+  description: Schema.OptionFromOptionalNullOr(Schema.String),
+}) {}
+type StageMetadataEncoded = Schema.Codec.Encoded<typeof StageMetadata>;
+
+export class BaseMetadata extends Schema.Class<BaseMetadata>("BaseMetadata")({
   name: Schema.String,
   description: Schema.OptionFromOptionalNullOr(Schema.String),
   keywords: Schema.OptionFromOptionalNullOr(Schema.Array(Schema.String)),
   authors: Schema.OptionFromOptionalNullOr(Schema.Array(Schema.String)),
-  extras: Schema.optional(Schema.Record(Schema.String, Schema.Json)),
+}) {}
+type BaseMetadataEncoded = Schema.Codec.Encoded<typeof BaseMetadata>;
+
+export class Metadata extends Schema.Class<Metadata>("Metadata")({
+  base: BaseMetadata,
+  stages: Schema.Array(StageMetadata),
+  extras: Schema.Record(Schema.String, Schema.Json),
 }) {}
 
-type MetadataEncoded = Schema.Codec.Encoded<typeof Metadata>;
-
-type PromptOptions = Prompt.UserMessage | Prompt.Trajectory | AsyncIterable<Prompt.UserMessage>;
-type PromptStream = Stream.Stream<Prompt.Message, Error>;
-
-const makePromptStream = (prompt: PromptOptions): PromptStream => {
-  if (Prompt.isMessage(prompt)) {
-    return Stream.make(prompt);
-  }
-  if ("content" in prompt) {
-    return Stream.fromIterable(prompt.content);
-  }
-  return Stream.fromAsyncIterable(prompt, Error.prompt);
+export type PromptFnInput = {
+  /**
+   * Full trajectory of the agent's session.
+   */
+  trajectory: Prompt.Trajectory;
+  /**
+   * Newly generated messages since the last call.
+   */
+  generated: ReadonlyArray<Prompt.Message>;
 };
 
-type Stage<G extends Grade.Result = Grade.Result> = Readonly<{
-  id: string;
-  name: string;
-  description: string | null;
+export type PromptInit = Prompt.UserMessage | Prompt.Trajectory;
+export type PromptOptions =
+  // return Prompt.Trajectory immediately, then always return null
+  | PromptInit
+  // receive input (first input is empty) and return Prompt.UserMessage for subsequent calls
+  | AsyncIterable<Prompt.UserMessage, void, PromptFnInput>
+  // return `init` first, then receive inputs and return Prompt.UserMessage for subsequent calls
+  | Readonly<{
+      init: PromptInit;
+      then: AsyncIterable<Prompt.UserMessage, void, PromptFnInput>;
+    }>;
 
-  prompt: PromptStream;
+/**
+ * Produces the next batch of user messages from the current agent session.
+ *
+ * Returning `null` completes the prompt. A trajectory lets static input
+ * preserve its entire initial sequence; generator input produces a
+ * single-message trajectory for each subsequent invocation.
+ */
+export type PromptFn = (input: PromptFnInput) => Effect.Effect<Prompt.Trajectory | null, Error>;
+
+const toTrajectory = (input: PromptInit): Prompt.Trajectory =>
+  Prompt.isMessage(input) ? Prompt.make([input]) : input;
+
+const isAsyncIterable = (
+  options: PromptOptions,
+): options is AsyncIterable<Prompt.UserMessage, void, PromptFnInput> =>
+  Symbol.asyncIterator in options;
+
+export const makePrompt = Effect.fn(function* (options: PromptOptions) {
+  if (!isAsyncIterable(options) && !("then" in options)) {
+    let pending: Prompt.Trajectory | null = toTrajectory(options);
+    return ((_: PromptFnInput) => {
+      const next = pending;
+      pending = null;
+      return Effect.succeed(next);
+    }) satisfies PromptFn;
+  }
+
+  const init = isAsyncIterable(options) ? undefined : options.init;
+  const then = isAsyncIterable(options) ? options : options.then;
+
+  const iterator = yield* Effect.try({
+    try: () => then[Symbol.asyncIterator](),
+    catch: Error.prompt,
+  });
+  let pending: Prompt.Trajectory | undefined = init === undefined ? undefined : toTrajectory(init);
+
+  return ((input: PromptFnInput) => {
+    if (pending !== undefined) {
+      const next = pending;
+      pending = undefined;
+      return Effect.succeed(next);
+    }
+
+    return Effect.tryPromise({
+      try: async () => {
+        const next = await iterator.next(input);
+        return next.done ? null : Prompt.make([next.value]);
+      },
+      catch: Error.prompt,
+    });
+  }) satisfies PromptFn;
+});
+
+type Stage<G extends Grade.Result = Grade.Result> = Readonly<{
+  metadata: StageMetadata;
+  prompt: PromptFn;
   grader: Grade.Grader<G>;
 }>;
 
 type StageOptions<G extends Grade.Result = Grade.Result> = Readonly<{
-  name?: string;
-  description?: string | null;
   prompt: PromptOptions;
   grader: Grade.Grader<G>;
-}>;
+}> &
+  StageMetadataEncoded;
 
-const makeStage = Effect.fn(function* (
-  order: number,
-  { prompt, grader, description = null, name = `Stage ${order}` }: StageOptions,
-) {
+const makeStage = Effect.fn(function* (options: StageOptions) {
+  const { prompt, grader } = options;
+  const metadata = yield* Schema.decodeEffect(StageMetadata)(options).pipe(
+    Effect.mapError(Error.metadata),
+  );
   return {
-    id: yield* makeID(),
-    name,
-    description,
-    prompt: makePromptStream(prompt),
+    metadata,
+    prompt: yield* makePrompt(prompt),
     grader,
-  };
+  } satisfies Stage;
 });
 
 export type Task<
   G extends Grade.Result = Grade.Result,
   E extends Schema.JsonObject = EmptyRecord,
 > = Readonly<{
-  metadata: Metadata;
+  metadata: BaseMetadata;
   snapshot: Snapshot.Snapshot;
   resources: Sandbox.Resources;
 
   /**
    * Execution stages of the task.
+   *
    * Stages are executed sequentially.
    * When executing a stage, the prompt(s) of the stage will be sent to the agent.
+   *
    * When all prompts are sent and the agent has finished responding, the grader of the stage will be executed.
    * If the stage grader returns a passing result, the next stage will be executed.
-   * The grading result of the last stage will be used as the final result of the task.
    */
   stages: ReadonlyArray<Stage>;
+  prompt: PromptFn;
+  grader: Grade.Grader<G>;
 
   metrics: ReadonlyArray<Metric.Metric>;
   extras: E;
-}> & { _G?: G } & AsyncDisposable;
+}> & { _G?: G };
+
+export type Array<
+  G extends Grade.Result = Grade.Result,
+  E extends Schema.JsonObject = EmptyRecord,
+> = ReadonlyArray<Task<G, E>>;
 
 type Options<
   G extends Grade.Result = Grade.Result,
   E extends Schema.JsonObject = EmptyRecord,
-> = MetadataEncoded &
+> = BaseMetadataEncoded &
   StageOptions<G> &
   Readonly<{
     snapshot: Snapshot.Snapshot;
     metrics?: ReadonlyArray<Metric.Options>;
     resources?: Sandbox.Resources;
     stages?: ReadonlyArray<StageOptions>;
+    prompt: PromptOptions;
+    grader: Grade.Grader<G>;
     extras?: E;
     [Symbol.asyncDispose]?: () => PromiseLike<void>;
   }>;
@@ -102,25 +181,29 @@ type Options<
 export const make = Effect.fn(function* <
   G extends Grade.Result = Grade.Result,
   E extends Schema.JsonObject = EmptyRecord,
->(options: Options<G, E>) {
+>(options: Options<G, E>): Effect.fn.Return<Task<G, E>, Error, Crypto.Crypto | Scope.Scope> {
   const {
     snapshot,
     resources = new Sandbox.Resources(),
-    prompt,
+    prompt: promptOptions,
     grader,
     stages: stageOptions = [],
-    metrics = [],
+    metrics: metricOptions = [],
     extras = {} as E,
     [Symbol.asyncDispose]: dispose,
   } = options;
 
-  const metadata = Schema.decodeSync(Metadata)({
-    ...options,
-    extras,
-  });
+  const stages = yield* Effect.all(stageOptions.map(makeStage));
+  const metadata = yield* Schema.decodeEffect(BaseMetadata)(options).pipe(
+    Effect.mapError(Error.metadata),
+  );
+  const prompt = yield* makePrompt(promptOptions);
+  const metrics = metricOptions.map(Metric.make);
 
-  const stages = yield* Effect.all(
-    [...stageOptions, { prompt, grader }].map((stage, index) => makeStage(index + 1, stage)),
+  yield* Effect.addFinalizer(() =>
+    Effect.tryPromise(async () => {
+      await dispose?.();
+    }),
   );
 
   return {
@@ -128,8 +211,16 @@ export const make = Effect.fn(function* <
     snapshot,
     resources,
     stages,
-    metrics: metrics.map(Metric.make),
+    metrics,
+    prompt,
+    grader,
     extras,
-    [Symbol.asyncDispose]: dispose,
-  };
+  } satisfies Task<G, E>;
 });
+
+export const metadata = (task: Task): Metadata =>
+  Metadata.make({
+    base: task.metadata,
+    stages: task.stages.map((stage) => stage.metadata),
+    extras: task.extras,
+  });

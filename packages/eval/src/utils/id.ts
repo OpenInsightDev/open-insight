@@ -1,7 +1,16 @@
-import { Effect, Crypto } from "effect";
+import { Effect, Crypto, Schema } from "effect";
+import { NodeCrypto } from "@effect/platform-node";
+import type { Constraint } from "effect/Schema";
 
-export const makeID = Effect.fn(function* (length: number = 4) {
-  const crypto = yield* Crypto.Crypto;
-  const rand = yield* crypto.randomBytes(length);
-  return Buffer.from(rand).toString("hex").slice(0, length);
-});
+export const makeID = Effect.fn(
+  function* (length: number = 4) {
+    const crypto = yield* Crypto.Crypto;
+    const rand = yield* crypto.randomBytes(length);
+    return Buffer.from(rand).toString("hex").slice(0, length);
+  },
+  (effect) => effect.pipe(Effect.orDie),
+);
+
+export const IDSchema = Schema.String.pipe(
+  Schema.withDecodingDefaultType(makeID(), { encodingStrategy: "omit" }),
+);
