@@ -6,7 +6,13 @@ import * as Harness from "#/harness/index.ts";
 import * as Task from "#/task/index.ts";
 import type { Config } from "./config.ts";
 import { Error } from "./error.ts";
-import { BenchScheduleEvent, type Event, InitEvent, TrailScheduleEvent } from "./event/index.ts";
+import {
+  EvalScheduleEvent,
+  type Event,
+  InitEvent,
+  TaskScheduleEvent,
+  TrailScheduleEvent,
+} from "./event/index.ts";
 import { createTrail, type RunTrail } from "./trail.ts";
 
 type ScheduledTask = Readonly<{
@@ -16,7 +22,7 @@ type ScheduledTask = Readonly<{
 
 type ScheduledTrail = ScheduledTask &
   Readonly<{
-    trailIndex: number;
+    trailIdx: number;
   }>;
 
 export const run = Effect.fn("exec/schedule")(
@@ -45,23 +51,41 @@ export const run = Effect.fn("exec/schedule")(
   > {
     const { snapshotConcurrency = 32, trailConcurrency = 32 } = config;
     const offerEvent = (event: Event) => Queue.offer(eventQueue, event);
+    const benchId = bench.metadata.id;
+    const harnessId = harness.id;
+    const evalEventFields = { bench: benchId, harness: harnessId };
+    const taskEventFields = (task: Task.Task) => ({
+      ...evalEventFields,
+      task: task.metadata.id,
+    });
+    const trailEventFields = (task: Task.Task, trailIdx: number) => ({
+      ...taskEventFields(task),
+      trailIdx,
+    });
 
-    yield* Effect.annotateCurrentSpan({ benchmark: bench.name });
+    yield* Effect.annotateCurrentSpan({ benchmark: benchId });
     yield* Effect.logDebug("Starting evaluation schedule");
 
     const prepareTask = Effect.fn("exec/prepareTask")(
       function* (task: Task.Task) {
         yield* Effect.annotateCurrentSpan({
-          benchmark: bench.name,
+          benchmark: benchId,
           taskName: task.metadata.name,
           trailCount,
         });
         yield* Effect.logDebug("Preparing task");
 
+        yield* offerEvent(
+          TaskScheduleEvent.make({
+            ...taskEventFields(task),
+            op: "start",
+          }),
+        );
+
         const runTrail = yield* createTrail({
           task,
-          bench: bench.name,
-          harness: harness.name,
+          bench: benchId,
+          harness: harnessId,
           eventQueue,
           config,
         });
@@ -72,27 +96,24 @@ export const run = Effect.fn("exec/schedule")(
       (effect, task) =>
         effect.pipe(
           Effect.annotateLogs({
-            benchmark: bench.name,
+            benchmark: benchId,
             taskName: task.metadata.name,
           }),
         ),
     );
 
     const runScheduledTrail = Effect.fn("exec/runScheduledTrail")(
-      function* ({ task, runTrail, trailIndex }: ScheduledTrail) {
+      function* ({ task, runTrail, trailIdx }: ScheduledTrail) {
         yield* Effect.annotateCurrentSpan({
-          benchmark: bench.name,
+          benchmark: benchId,
           taskName: task.metadata.name,
-          trailIndex,
+          trailIdx,
           trailCount,
         });
 
         yield* offerEvent(
           TrailScheduleEvent.make({
-            bench: bench.name,
-            harness: harness.name,
-            task: task.metadata.name,
-            trailIndex,
+            ...trailEventFields(task, trailIdx),
             op: "start",
           }),
         );
@@ -101,10 +122,7 @@ export const run = Effect.fn("exec/schedule")(
 
         yield* offerEvent(
           TrailScheduleEvent.make({
-            bench: bench.name,
-            harness: harness.name,
-            task: task.metadata.name,
-            trailIndex,
+            ...trailEventFields(task, trailIdx),
             op: "stop",
           }),
         );
@@ -112,7 +130,7 @@ export const run = Effect.fn("exec/schedule")(
       (effect, { task }) =>
         effect.pipe(
           Effect.annotateLogs({
-            benchmark: bench.name,
+            benchmark: benchId,
             taskName: task.metadata.name,
           }),
         ),
@@ -120,18 +138,14 @@ export const run = Effect.fn("exec/schedule")(
 
     const makeTrailStream = (scheduledTasks: ReadonlyArray<ScheduledTask>) =>
       Stream.range(0, trailCount - 1).pipe(
-        Stream.flatMap((trailIndex) =>
+        Stream.flatMap((trailIdx) =>
           Stream.fromIterable(scheduledTasks).pipe(
-            Stream.map((scheduledTask): ScheduledTrail => ({ ...scheduledTask, trailIndex })),
+            Stream.map((scheduledTask): ScheduledTrail => ({ ...scheduledTask, trailIdx })),
           ),
         ),
       );
 
-    yield* Effect.logDebug("Loading tasks");
-    const tasks = yield* Effect.all(
-      bench.tasks.map((task) => task.pipe(Effect.mapError(Error.tasks))),
-      { concurrency: "unbounded" },
-    );
+    const tasks = bench.tasks;
 
     if (tasks.length === 0) {
       yield* Effect.logWarning("No tasks to schedule");
@@ -141,16 +155,14 @@ export const run = Effect.fn("exec/schedule")(
     yield* Effect.logDebug(`Loaded ${tasks.length} task(s)`);
     yield* offerEvent(
       InitEvent.make({
-        bench,
-        harness,
-        tasks: tasks.map(({ metadata }) => metadata),
-        metrics: [],
+        ...evalEventFields,
+        benchMetadata: Bench.metadata(bench),
+        harnessMetadata: harness,
       }),
     );
     yield* offerEvent(
-      BenchScheduleEvent.make({
-        bench: bench.name,
-        harness: harness.name,
+      EvalScheduleEvent.make({
+        ...evalEventFields,
         op: "start",
       }),
     );
@@ -168,15 +180,27 @@ export const run = Effect.fn("exec/schedule")(
       Stream.runDrain,
     );
 
+    yield* Effect.forEach(
+      scheduledTasks,
+      ({ task }) =>
+        offerEvent(
+          TaskScheduleEvent.make({
+            ...taskEventFields(task),
+            op: "stop",
+          }),
+        ),
+      { discard: true },
+    );
+
     yield* offerEvent(
-      BenchScheduleEvent.make({
-        bench: bench.name,
-        harness: harness.name,
+      EvalScheduleEvent.make({
+        ...evalEventFields,
         op: "stop",
       }),
     );
 
     yield* Effect.logDebug("Completed evaluation schedule");
   },
-  (effect, { bench }) => effect.pipe(Effect.scoped, Effect.annotateLogs({ benchmark: bench.name })),
+  (effect, { bench }) =>
+    effect.pipe(Effect.scoped, Effect.annotateLogs({ benchmark: bench.metadata.id })),
 );

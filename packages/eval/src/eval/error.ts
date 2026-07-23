@@ -8,6 +8,7 @@ import * as Harness from "#/harness/index.ts";
 import { Snapshot } from "@open-insight/core/internal";
 
 const NonNegativeInt = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0));
+type ExecutableTask = Task.Task<Grade.Result, Schema.JsonObject>;
 
 export class InitError extends Schema.TaggedErrorClass<InitError>()("InitError", {
   cause: Schema.Defect(),
@@ -32,9 +33,14 @@ export class TaskVerifExecError extends Schema.TaggedErrorClass<TaskVerifExecErr
   },
 ) {}
 
+export class MissingVerifier extends Schema.TaggedErrorClass<MissingVerifier>()("MissingVerifier", {
+  task: Task.ID,
+  stage: Schema.String,
+}) {}
+
 export class TaskVerifFailed extends Schema.TaggedErrorClass<TaskVerifFailed>()("TaskVerifFailed", {
   task: Task.ID,
-  expected: Grade.Result,
+  expect: Grade.Result,
   actual: Grade.Result,
   cause: Schema.Defect(),
 }) {}
@@ -69,6 +75,7 @@ export const ErrorReason = Schema.Union([
   SnapshotError,
   TaskInitError,
   TaskExecError,
+  MissingVerifier,
   TaskVerifFailed,
   TaskVerifExecError,
 ]);
@@ -92,24 +99,29 @@ export class Error extends Schema.TaggedErrorClass<Error>()("EvalError", {
   static eventTransport = (transport: string) =>
     this.mapUnknownError((cause) => new EventTransportError({ transport, cause }));
 
-  static snapshot = (task: Task.Task) =>
+  static snapshot = (task: ExecutableTask) =>
     this.mapUnknownError(
       (cause) => new SnapshotError({ task: task.metadata.id, snapshot: task.snapshot, cause }),
     );
 
-  static taskInit = (task: Task.Task) =>
+  static taskInit = (task: ExecutableTask) =>
     this.mapUnknownError((cause) => new TaskInitError({ task: task.metadata.id, cause }));
 
-  static taskExec = (task: Task.Task, trailIndex: number) =>
+  static taskExec = (task: ExecutableTask, trailIndex: number) =>
     this.mapUnknownError(
       (cause) => new TaskExecError({ task: task.metadata.id, trailIndex, cause }),
     );
 
-  static taskVerif = (task: Task.Task, expected: Grade.Result, actual: Grade.Result) =>
+  static missingVerifier = (task: ExecutableTask, stage: string) =>
+    new Error({
+      reason: new MissingVerifier({ task: task.metadata.id, stage }),
+    });
+
+  static taskVerif = (task: ExecutableTask, expect: Grade.Result, actual: Grade.Result) =>
     this.mapUnknownError(
-      (cause) => new TaskVerifFailed({ task: task.metadata.id, expected, actual, cause }),
+      (cause) => new TaskVerifFailed({ task: task.metadata.id, expect, actual, cause }),
     );
 
-  static taskVerifExec = (task: Task.Task) =>
+  static taskVerifExec = (task: ExecutableTask) =>
     this.mapUnknownError((cause) => new TaskVerifExecError({ task: task.metadata.id, cause }));
 }

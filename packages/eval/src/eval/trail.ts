@@ -1,15 +1,39 @@
-import { Effect, Equal, FileSystem, Match, Option, Path, Queue, Ref, Scope, Stream } from "effect";
+import {
+  Effect,
+  Equal,
+  FileSystem,
+  Match,
+  Option,
+  Path,
+  Queue,
+  Ref,
+  Schema,
+  Sink,
+  Scope,
+  Stream,
+} from "effect";
 import { isFunction } from "effect/Predicate";
-import { Prompt } from "effect/unstable/ai";
+import { Prompt, Response } from "effect/unstable/ai";
 import { ChildProcessSpawner } from "effect/unstable/process";
 import { Agent, Sandbox } from "@open-insight/core";
+import { produce } from "immer";
 import * as Grade from "#/grade/index.ts";
 import * as Task from "../task/index.ts";
 import type { Config } from "./config.ts";
 import { Error } from "./error.ts";
-import { type Event, TrailStreamEvent } from "./event/index.ts";
+import { type Event, TrailStagedEvent, TrailStreamEvent } from "./event/index.ts";
 
 export type RunTrail = Effect.Effect<Grade.Result | undefined, Error, Scope.Scope>;
+
+type StageResults = Readonly<Record<string, Grade.Result>>;
+type StageAccuStep = readonly [results: StageResults, grades: ReadonlyArray<Grade.Result>];
+
+const advance = (results: StageResults, stage: string, grade: Grade.Result): StageAccuStep => [
+  produce(results, (draft) => {
+    draft[stage] = grade;
+  }),
+  [grade],
+];
 
 const isVerifGrader = (grader: Grade.Grader): grader is Grade.VerifGrader => !isFunction(grader);
 
@@ -21,7 +45,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
     config = {},
     eventQueue,
   }: {
-    task: Task.Task;
+    task: Task.Task<Grade.Result, Schema.JsonObject>;
     bench: string;
     harness: string;
     config?: Config;
@@ -36,7 +60,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
     | Path.Path
     | Scope.Scope
   > {
-    const { snapshot, resources, stages, metrics, trajMetrics } = task;
+    const { snapshot, resources, stages } = task;
     const {
       verifMode = false,
       graderMaxRetries = 3,
@@ -45,10 +69,13 @@ export const createTrail = Effect.fn("exec/createTrail")(
 
     yield* Effect.annotateCurrentSpan({ taskName: task.metadata.name });
 
-    if (verifMode && !stages.some(({ grader }) => isVerifGrader(grader))) {
-      yield* Effect.logDebug("Skipping task without verifiable graders");
-      return Effect.succeed(undefined);
-    }
+    const verificationStages = verifMode
+      ? yield* Effect.forEach(stages, ({ metadata, grader }, stageIndex) =>
+          isVerifGrader(grader)
+            ? Effect.succeed({ metadata, grader, stageIndex })
+            : Effect.fail(Error.missingVerifier(task, metadata.id)),
+        )
+      : [];
 
     yield* Effect.logDebug("Preparing task snapshot");
 
@@ -81,8 +108,8 @@ export const createTrail = Effect.fn("exec/createTrail")(
     const nextTrailIndex = yield* Ref.make(0);
 
     const runTrail = Effect.fn(
-      function* (trailIndex: number) {
-        yield* Effect.annotateCurrentSpan({ taskName: task.metadata.name, trailIndex });
+      function* (trailIdx: number) {
+        yield* Effect.annotateCurrentSpan({ taskName: task.metadata.name, trailIdx });
         yield* Effect.logDebug("Starting sandbox for trail");
 
         const sandbox = yield* sandboxProvider.runSandbox({ handle: trailSnapshot, resources });
@@ -90,19 +117,21 @@ export const createTrail = Effect.fn("exec/createTrail")(
 
         const verifyGrader = Effect.fn("exec/runTrail/verifyGrader")(function* (
           grader: Grade.VerifGrader,
+          results: StageResults,
         ) {
           const trajectory = yield* Effect.tryPromise(() => grader.verif(sandboxContext)).pipe(
             Effect.mapError(Grade.Error.verify),
           );
           const grade = yield* Grade.run(grader.grade)({
             ...sandboxContext,
+            results,
             trajectory: trajectory ?? Prompt.empty,
           });
 
           if (!Equal.equals(grade, grader.expect)) {
             return yield* Effect.fail(
               Error.taskVerif(
-                task.metadata,
+                task,
                 grader.expect,
                 grade,
               )(new globalThis.Error("Grader result did not match its expected result")),
@@ -114,30 +143,38 @@ export const createTrail = Effect.fn("exec/createTrail")(
 
         if (verifMode) {
           yield* Effect.logDebug("Starting grader verification");
-          let finalGrade: Grade.Result | undefined;
+          const runVerificationStage = Effect.fn("exec/runTrail/verifyStage")(function* (
+            stage: (typeof verificationStages)[number],
+            results: StageResults,
+          ) {
+            const { grader, stageIndex } = stage;
 
-          for (const [stageIndex, { grader }] of stages.entries()) {
-            if (!isVerifGrader(grader)) {
-              continue;
-            }
+            yield* Effect.logDebug(`Verifying grader for stage ${stageIndex}`);
+            const grade = yield* verifyGrader(grader, results);
+            yield* Effect.logDebug(`Verified grader for stage ${stageIndex}`);
+            return grade;
+          });
 
-            finalGrade = yield* Effect.gen(function* () {
-              yield* Effect.logDebug(`Verifying grader for stage ${stageIndex}`);
-              const grade = yield* verifyGrader(grader);
-              yield* Effect.logDebug(`Verified grader for stage ${stageIndex}`);
-              return grade;
-            }).pipe(
-              Effect.annotateLogs({ stageIndex }),
-              Effect.mapError(Error.taskVerifExec(task)),
-            );
-          }
-
-          return finalGrade;
+          return yield* Stream.fromIterable(verificationStages).pipe(
+            Stream.mapAccumEffect(
+              (): StageResults => ({}),
+              (results, stage) =>
+                runVerificationStage(stage, results).pipe(
+                  Effect.map((grade) => advance(results, stage.metadata.name, grade)),
+                  Effect.annotateLogs({ stageIndex: stage.stageIndex }),
+                  Effect.mapError(Error.taskVerifExec(task)),
+                ),
+            ),
+            Stream.run(Sink.last()),
+            Effect.map(Option.getOrUndefined),
+          );
         }
 
         yield* Effect.logDebug("Starting agent session");
         const agent = yield* agentProvider.runSession({ sandbox });
 
+        // Prompt.Trajectory stores normalized messages and drops response finish parts, so usage
+        // is returned from the stream and threaded through the current stage explicitly.
         const promptAgent = Effect.fn("exec/runTrail/promptAgent")(function* (
           prompt: Prompt.Message,
         ) {
@@ -149,25 +186,34 @@ export const createTrail = Effect.fn("exec/createTrail")(
             );
           }
 
-          yield* agent.prompt({ prompt: [prompt] }).pipe(
-            Stream.runForEach((part) =>
+          const finish = yield* agent.prompt({ prompt: [prompt] }).pipe(
+            Stream.tap((part) =>
               Queue.offer(
                 eventQueue,
                 TrailStreamEvent.make({
                   bench,
                   harness,
                   task: task.metadata.name,
-                  parts: [part],
-                  trailIndex,
+                  part,
+                  trailIdx,
                 }),
               ),
             ),
+            Stream.filter((part): part is Response.FinishPart => part.type === "finish"),
+            Stream.runLast,
           );
+
+          return yield* Option.match(finish, {
+            onNone: () =>
+              Effect.fail(new globalThis.Error("Agent stream did not produce a finish part")),
+            onSome: ({ usage }) => Effect.succeed(usage),
+          });
         });
 
         const runPrompt = Effect.fn("exec/runTrail/runPrompt")(function* (prompt: Task.PromptFn) {
           let first = true;
           let previousTrajectoryLength = 0;
+          let latestUsage = Option.none<Response.Usage>();
 
           while (true) {
             const trajectory = yield* agent.trajectory();
@@ -176,49 +222,69 @@ export const createTrail = Effect.fn("exec/createTrail")(
 
             const next = yield* prompt({ trajectory, generated });
             if (next === null) {
-              return;
+              return yield* Option.match(latestUsage, {
+                onNone: () =>
+                  Effect.fail(
+                    new globalThis.Error("Stage prompt did not produce an agent response"),
+                  ),
+                onSome: Effect.succeed,
+              });
             }
 
-            yield* Stream.runForEach(Stream.fromIterable(next.content), promptAgent);
+            const usage = yield* Stream.fromIterable(next.content).pipe(
+              Stream.mapEffect(promptAgent),
+              Stream.runLast,
+            );
+            if (Option.isSome(usage)) {
+              latestUsage = usage;
+            }
             first = false;
           }
         });
 
         const runGrader: (
           grader: Grade.Grader,
+          usage: Response.Usage,
+          results: StageResults,
           retryCount?: number,
-        ) => Effect.Effect<Grade.Result, Grade.Error | Agent.Error | globalThis.Error> = Effect.fn(
-          "exec/runTrail/runGrader",
-        )(function* (grader: Grade.Grader, retryCount = 0) {
+        ) => Effect.Effect<
+          Readonly<{ grade: Grade.Result; usage: Response.Usage }>,
+          Grade.Error | Agent.Error | globalThis.Error
+        > = Effect.fn("exec/runTrail/runGrader")(function* (
+          grader: Grade.Grader,
+          usage: Response.Usage,
+          results: StageResults,
+          retryCount = 0,
+        ) {
           const trajectory = yield* agent.trajectory();
-          const grade = yield* Grade.run(grader)({ ...sandboxContext, trajectory }).pipe(
-            Effect.result,
-          );
+          const grade = yield* Grade.run(grader)({
+            ...sandboxContext,
+            results,
+            trajectory,
+          }).pipe(Effect.result);
 
           return yield* Match.value(grade).pipe(
-            Match.tag("Success", ({ success }) => Effect.succeed(success)),
+            Match.tag("Success", ({ success }) => Effect.succeed({ grade: success, usage })),
             Match.tag("Failure", ({ failure }) =>
               Match.value(failure.reason).pipe(
                 Match.tag("Retry", ({ prompt }) =>
-                  Effect.gen(function* () {
-                    if (retryCount >= graderMaxRetries) {
-                      return yield* Effect.fail(
+                  retryCount >= graderMaxRetries
+                    ? Effect.fail(
                         Grade.Error.exec(
                           new globalThis.Error(
                             `Grader exceeded the maximum of ${graderMaxRetries} retries`,
                             { cause: failure },
                           ),
                         ),
-                      );
-                    }
-
-                    const nextRetryCount = retryCount + 1;
-                    yield* Effect.logDebug(
-                      `Grader requested agent retry ${nextRetryCount}/${graderMaxRetries}`,
-                    );
-                    yield* promptAgent(prompt);
-                    return yield* runGrader(grader, nextRetryCount);
-                  }),
+                      )
+                    : Effect.logDebug(
+                        `Grader requested agent retry ${retryCount + 1}/${graderMaxRetries}`,
+                      ).pipe(
+                        Effect.andThen(promptAgent(prompt)),
+                        Effect.flatMap((retryUsage) =>
+                          runGrader(grader, retryUsage, results, retryCount + 1),
+                        ),
+                      ),
                 ),
                 Match.orElse(() => Effect.fail(failure)),
               ),
@@ -227,37 +293,63 @@ export const createTrail = Effect.fn("exec/createTrail")(
           );
         });
 
-        let finalGrade: Grade.Result | undefined;
+        const runStage = Effect.fn("exec/runTrail/runStage")(function* (
+          stage: Task.Stage,
+          stageIndex: number,
+          results: StageResults,
+        ) {
+          const { metadata, prompt, grader } = stage;
+          yield* Effect.logDebug(`Starting stage ${stageIndex}`);
+          const promptUsage = yield* runPrompt(prompt);
 
-        for (const [stageIndex, { prompt, grader }] of stages.entries()) {
-          finalGrade = yield* Effect.gen(function* () {
-            yield* Effect.logDebug(`Starting stage ${stageIndex}`);
-            yield* runPrompt(prompt);
+          const { grade, usage } = yield* runGrader(grader, promptUsage, results);
 
-            const grade = yield* runGrader(grader);
-            yield* Effect.logDebug(`Completed stage ${stageIndex}`);
-            return grade;
-          }).pipe(Effect.annotateLogs({ stageIndex }));
-        }
+          yield* Queue.offer(
+            eventQueue,
+            TrailStagedEvent.make({
+              bench,
+              harness,
+              task: task.metadata.name,
+              trailIdx,
+              stage: metadata.name,
+              grade,
+              usage,
+            }),
+          );
+          yield* Effect.logDebug(`Completed stage ${stageIndex}`);
+          return grade;
+        });
 
-        return finalGrade;
+        return yield* Stream.fromIterable(stages).pipe(
+          Stream.zipWithIndex,
+          Stream.mapAccumEffect(
+            (): StageResults => ({}),
+            (results, [stage, stageIndex]) =>
+              runStage(stage, stageIndex, results).pipe(
+                Effect.map((grade) => advance(results, stage.metadata.name, grade)),
+                Effect.annotateLogs({ stageIndex }),
+              ),
+          ),
+          Stream.run(Sink.last()),
+          Effect.map(Option.getOrUndefined),
+        );
       },
-      (effect, trailIndex) =>
+      (effect, trailIdx) =>
         effect.pipe(
-          Effect.annotateLogs({ taskName: task.metadata.name, trailIndex }),
-          Effect.mapError(Error.taskExec(task, trailIndex)),
+          Effect.annotateLogs({ taskName: task.metadata.name, trailIdx }),
+          Effect.mapError(Error.taskExec(task, trailIdx)),
         ),
     );
 
-    return Effect.gen(function* () {
-      const trailIndex = yield* Ref.getAndUpdate(nextTrailIndex, (index) => index + 1);
-      yield* Effect.logDebug(`Starting trail ${trailIndex}`);
-
-      const result = yield* runTrail(trailIndex).pipe(Effect.scoped);
-
-      yield* Effect.logDebug(`Completed trail ${trailIndex}`);
-      return result;
-    });
+    return Ref.getAndUpdate(nextTrailIndex, (index) => index + 1).pipe(
+      Effect.tap((trailIdx) => Effect.logDebug(`Starting trail ${trailIdx}`)),
+      Effect.flatMap((trailIdx) =>
+        runTrail(trailIdx).pipe(
+          Effect.scoped,
+          Effect.tap(() => Effect.logDebug(`Completed trail ${trailIdx}`)),
+        ),
+      ),
+    );
   },
   (effect, { task }) => effect.pipe(Effect.annotateLogs({ taskName: task.metadata.name })),
 );

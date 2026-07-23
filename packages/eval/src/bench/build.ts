@@ -4,6 +4,7 @@ import * as Task from "#/task/index.ts";
 import type * as Tasks from "#/tasks/index.ts";
 
 export class BaseMetadata extends Schema.Class<BaseMetadata>("BenchBaseMetadata")({
+  id: Schema.String,
   subset: Schema.Boolean.pipe(Schema.withConstructorDefault(Effect.succeed(false))),
   extras: Schema.optional(Schema.Record(Schema.String, Schema.Json)),
 }) {}

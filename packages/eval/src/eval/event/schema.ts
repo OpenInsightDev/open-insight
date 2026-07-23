@@ -17,7 +17,7 @@ const taskFields = {
 
 const TrailFields = {
   ...taskFields,
-  harness: Schema.String,
+  trailIdx: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
 };
 
 export class InitEvent extends Schema.TaggedClass<InitEvent>()("InitEvent", {
@@ -69,7 +69,7 @@ export type StreamPartEncoded = typeof StreamPart.Encoded;
 
 export class TrailStreamEvent extends Schema.TaggedClass<TrailStreamEvent>()("TrailStreamEvent", {
   ...TrailFields,
-  parts: Schema.Array(StreamPart),
+  part: StreamPart,
 }) {}
 
 const MetricFields = {

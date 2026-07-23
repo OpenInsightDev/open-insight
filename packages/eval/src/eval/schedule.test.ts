@@ -1,19 +1,12 @@
 import { NodeServices } from "@effect/platform-node";
 import { assert, beforeEach, describe, it } from "@effect/vitest";
 import { Agent, Sandbox, Snapshot } from "@open-insight/core";
-import { Cause, Effect, Layer, Option, Queue, Stream } from "effect";
-import { Prompt, Response } from "effect/unstable/ai";
+import { Effect, Layer, Option, Queue, Scope } from "effect";
 import { vi } from "vite-plus/test";
 import * as Bench from "../bench/index.ts";
 import * as Harness from "../harness/index.ts";
 import * as Task from "../task/index.ts";
-import {
-  EventTransportService,
-  TrailStreamEvent,
-  type Event,
-  type EventTransport,
-} from "./event/index.ts";
-import { runMatrix } from "./run.ts";
+import type { Event } from "./event/index.ts";
 import { run } from "./schedule.ts";
 import { createTrail } from "./trail.ts";
 
@@ -21,7 +14,7 @@ vi.mock("./trail.ts", { spy: true });
 
 type TrailStart = Readonly<{
   task: string;
-  trailIndex: number;
+  trailIdx: number;
 }>;
 
 type MockState = {
@@ -35,29 +28,18 @@ const mockState = vi.hoisted(
 );
 
 const installTrailMock = () => {
-  vi.mocked(createTrail).mockImplementation(({ task, bench: benchmark, harness, eventQueue }) =>
+  vi.mocked(createTrail).mockImplementation(({ task }) =>
     Effect.sync(() => {
-      let nextTrailIndex = 0;
+      let nextTrailIdx = 0;
 
       return Effect.gen(function* () {
-        const trailIndex = nextTrailIndex;
+        yield* Scope.Scope;
         mockState.starts.push({
-          task: task.name,
-          trailIndex,
+          task: task.metadata.id,
+          trailIdx: nextTrailIdx,
         });
-        nextTrailIndex += 1;
-
-        yield* Queue.offer(
-          eventQueue,
-          TrailStreamEvent.make({
-            bench: benchmark,
-            harness,
-            task: task.name,
-            trailIndex,
-            parts: [Response.makePart("text-start", { id: "test" })],
-          }),
-        );
-        yield* Effect.yieldNow;
+        nextTrailIdx += 1;
+        return undefined;
       });
     }),
   );
@@ -80,28 +62,37 @@ const TestLayer = Layer.mergeAll(
   Layer.succeed(Sandbox.ProviderService)(unusedSandboxProvider),
 );
 
-const makeTask = (name: string) =>
-  Effect.succeed(
-    new Task.Task<Record<string, never>, never>({
-      name,
-      prompt: [Prompt.userMessage({ content: [Prompt.textPart({ text: name })] })],
-      grader: async (): Promise<Record<string, never>> => ({}),
-      snapshot: Snapshot.make({ image: "scratch" }),
-    }),
-  );
+const makeTask = (id: string) =>
+  Task.make({
+    id,
+    name: `Task ${id}`,
+    snapshot: Snapshot.make({ image: "scratch" }),
+  });
 
-const assertFairWaves = (starts: ReadonlyArray<TrailStart>, taskNames: ReadonlyArray<string>) => {
-  for (let offset = 0; offset < starts.length; offset += taskNames.length) {
-    const wave = starts.slice(offset, offset + taskNames.length);
+const makeHarnessMetadata = (id: string) =>
+  new Harness.Metadata({
+    id,
+    name: `Harness ${id}`,
+    description: Option.none(),
+  });
 
-    assert.strictEqual(wave.length, taskNames.length);
+const makeBench = Effect.fn(function* (id: string, taskIds: ReadonlyArray<string>) {
+  const tasks = yield* Effect.all(taskIds.map(makeTask));
+  return yield* Bench.make({ id, subset: false, tasks: Effect.succeed(tasks) });
+});
+
+const assertFairWaves = (starts: ReadonlyArray<TrailStart>, taskIds: ReadonlyArray<string>) => {
+  for (let offset = 0; offset < starts.length; offset += taskIds.length) {
+    const wave = starts.slice(offset, offset + taskIds.length);
+
+    assert.strictEqual(wave.length, taskIds.length);
     assert.sameMembers(
       wave.map((start) => start.task),
-      [...taskNames],
+      [...taskIds],
     );
 
     for (const start of wave) {
-      assert.strictEqual(start.trailIndex, offset / taskNames.length);
+      assert.strictEqual(start.trailIdx, offset / taskIds.length);
     }
   }
 };
@@ -114,100 +105,87 @@ describe("run", () => {
 
   it.effect("keeps trail starts fair by task when trail concurrency is contended", () =>
     Effect.gen(function* () {
-      const taskNames = ["task-a", "task-b", "task-c", "task-d"];
+      const taskIds = ["task-a", "task-b", "task-c", "task-d"];
       const trailCount = 3;
-      const benchmark = yield* Bench.make({
-        name: "fair-schedule",
-        tasks: taskNames.map(makeTask),
-      });
-      const eventQueue = yield* Queue.unbounded<Event, Cause.Done>();
+      const benchmark = yield* makeBench("fair-schedule", taskIds);
+      const eventQueue = yield* Queue.unbounded<Event>();
 
       yield* run(
         {
           trailCount,
-          metrics: Option.none(),
           bench: benchmark,
-          harness: new Harness.Metadata({ name: "test-harness", description: null }),
+          harness: makeHarnessMetadata("test-harness"),
           eventQueue,
         },
-        {
-          trailConcurrency: 2,
-        },
+        { trailConcurrency: 2 },
       ).pipe(Effect.timeout("5 seconds"));
 
-      assert.strictEqual(mockState.starts.length, taskNames.length * trailCount);
-      assertFairWaves(mockState.starts, taskNames);
+      assert.strictEqual(mockState.starts.length, taskIds.length * trailCount);
+      assertFairWaves(mockState.starts, taskIds);
     }).pipe(Effect.provide(TestLayer)),
   );
 
-  it.effect("loads tasks for every combination and tags all shared events", () =>
+  it.effect("offers init and balanced schedule events with entity ids", () =>
     Effect.gen(function* () {
-      let loadCount = 0;
-      let sendCount = 0;
-      const events: Array<Event> = [];
-      const task = yield* makeTask("task-a");
-      const benchmark = yield* Bench.make({
-        name: "matrix-bench",
-        tasks: [
-          Effect.sync(() => {
-            loadCount += 1;
-            return task;
-          }),
-        ],
-      });
-      const harnessA = yield* Harness.make({ name: "harness-a" });
-      const harnessB = yield* Harness.make({ name: "harness-b" });
-      const transport: EventTransport = {
-        send: ({ stream }) =>
-          Effect.sync(() => {
-            sendCount += 1;
-          }).pipe(
-            Effect.andThen(
-              stream.pipe(
-                Stream.runForEach((event) =>
-                  Effect.sync(() => {
-                    events.push(event);
-                  }),
-                ),
-              ),
-            ),
-          ),
-      };
+      const taskIds = ["task-a", "task-b"];
+      const trailCount = 2;
+      const benchmark = yield* makeBench("bench-a", taskIds);
+      const harness = makeHarnessMetadata("harness-a");
+      const eventQueue = yield* Queue.unbounded<Event>();
 
-      const results = yield* runMatrix(
+      yield* run(
         {
-          benchmarks: [{ benchmark }],
-          harnesses: [harnessA, harnessB],
+          trailCount,
+          bench: benchmark,
+          harness,
+          eventQueue,
         },
-        { concurrency: 2 },
-      ).pipe(Effect.provideService(EventTransportService, transport));
+        { trailConcurrency: 2 },
+      );
 
-      assert.strictEqual(results.length, 1);
-      assert.strictEqual(results[0]?.length, 2);
-      assert.strictEqual(loadCount, 2);
-      assert.strictEqual(sendCount, 1);
-      assert.strictEqual(events.length, 12);
+      const events = yield* Queue.takeAll(eventQueue);
+      const initEvents = events.filter((event) => event._tag === "InitEvent");
+      const evalEvents = events.filter((event) => event._tag === "EvalScheduleEvent");
+      const taskEvents = events.filter((event) => event._tag === "TaskScheduleEvent");
+      const trailEvents = events.filter((event) => event._tag === "TrailScheduleEvent");
 
-      for (const harness of ["harness-a", "harness-b"]) {
-        assert.strictEqual(
-          events.filter((event) => {
-            const eventHarness =
-              typeof event.harness === "string" ? event.harness : event.harness.name;
-            return eventHarness === harness;
-          }).length,
-          6,
+      assert.strictEqual(events.length, 15);
+      assert.strictEqual(initEvents.length, 1);
+      assert.strictEqual(evalEvents.length, 2);
+      assert.strictEqual(taskEvents.length, taskIds.length * 2);
+      assert.strictEqual(trailEvents.length, taskIds.length * trailCount * 2);
+
+      const init = initEvents[0];
+      assert.strictEqual(init?.bench, "bench-a");
+      assert.strictEqual(init?.harness, "harness-a");
+      assert.strictEqual(init?.benchMetadata.base.id, "bench-a");
+      assert.strictEqual(init?.harnessMetadata.id, "harness-a");
+
+      assert.deepStrictEqual(
+        evalEvents.map(({ op }) => op),
+        ["start", "stop"],
+      );
+
+      for (const taskId of taskIds) {
+        assert.sameMembers(
+          taskEvents.filter(({ task }) => task === taskId).map(({ op }) => op),
+          ["start", "stop"],
         );
-      }
 
-      let streamEventCount = 0;
-      for (const event of events) {
-        if (event._tag === "TaskStreamPartEvent") {
-          streamEventCount += 1;
-          assert.strictEqual(event.bench, "matrix-bench");
-          assert.strictEqual(event.task, "task-a");
+        for (let trailIdx = 0; trailIdx < trailCount; trailIdx += 1) {
+          assert.sameMembers(
+            trailEvents
+              .filter((event) => event.task === taskId && event.trailIdx === trailIdx)
+              .map(({ op }) => op),
+            ["start", "stop"],
+          );
         }
       }
-      assert.strictEqual(streamEventCount, 2);
+
+      for (const event of events) {
+        assert.strictEqual(event.bench, "bench-a");
+        assert.strictEqual(event.harness, "harness-a");
+      }
     }).pipe(Effect.provide(TestLayer)),
   );
 });
