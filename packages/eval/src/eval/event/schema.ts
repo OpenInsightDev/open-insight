@@ -1,4 +1,4 @@
-import { Schema, Stream } from "effect";
+import { Queue, Schema, Stream } from "effect";
 import * as Grade from "#/grade/index.ts";
 import type { Error } from "../error.ts";
 import * as Bench from "#/bench/index.ts";
@@ -105,4 +105,6 @@ export const Event = Schema.Union([
 ]);
 export type Event = Schema.Schema.Type<typeof Event>;
 
+export type EventQueue = Queue.Queue<Event, Error>;
+export type EventEnqueue = Queue.Enqueue<Event, Error>;
 export type EventStream = Stream.Stream<Event, Error>;

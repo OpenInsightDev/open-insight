@@ -4,7 +4,7 @@ import { Data, Duration, Schedule } from "effect";
 /**
  * Read-only version of grading context.
  */
-type Context = Omit<Grade.Context, "writeFile" | "expose" | "upload">;
+export type Context = Omit<Grade.Context, "writeFile" | "expose" | "upload">;
 
 type ExecOptions = Readonly<{ retry?: Schedule.Schedule<unknown> }>;
 type ScheduleOptions = Readonly<{}>;

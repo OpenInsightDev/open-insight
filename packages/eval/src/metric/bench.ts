@@ -23,10 +23,7 @@ export type Metric<
   G extends Grade.Result = Grade.Result,
   R extends Schema.JsonObject = Schema.JsonObject,
 > = Readonly<{
-  id: string;
   exec: Exec<G, R>;
-  name: string;
-  description: string | null;
   chart: Chart.Chart<R> | null;
   metadata: Metadata;
 }>;
@@ -36,8 +33,6 @@ export type Options<
   R extends Schema.JsonObject = Schema.JsonObject,
 > = Readonly<{
   exec: Exec<G, R>;
-  name?: string;
-  description?: string | null;
   chart?: Chart.Chart<R> | null;
 }> &
   MetadataEncoded;
@@ -46,9 +41,7 @@ export const make = Effect.fn(function* <
   G extends Grade.Result = Grade.Result,
   R extends Schema.JsonObject = Schema.JsonObject,
 >(options: Options<G, R>) {
-  const { exec, name = "Benchmark Metric", description = null, chart = null } = options;
-  const metadata = yield* Schema.decodeEffect(Metadata)({ ...options, name, description });
-  const { id } = metadata;
-
-  return { id, exec, name, description, chart, metadata } satisfies Metric<G, R>;
+  const { exec, chart = null } = options;
+  const metadata = yield* Schema.decodeEffect(Metadata)(options);
+  return { exec, chart, metadata } satisfies Metric<G, R>;
 });

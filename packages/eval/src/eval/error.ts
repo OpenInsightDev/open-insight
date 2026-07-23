@@ -72,7 +72,6 @@ export const ErrorReason = Schema.Union([
   TaskExecError,
   TaskVerifFailed,
   TaskVerifExecError,
-  Metric.Error,
 ]);
 export type ErrorReason = Schema.Schema.Type<typeof ErrorReason>;
 
