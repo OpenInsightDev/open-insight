@@ -6,14 +6,14 @@ import * as TrajMetric from "#/metric/traj.ts";
 import { Crypto, Effect, Schema, Scope } from "effect";
 import { castDraft, produce } from "immer";
 import { Error } from "./error.ts";
-import { stage, StageMetadata } from "./stage.ts";
+import { StageMetadata } from "./stage.ts";
 import type { Stage } from "./stage.ts";
-import { Prompt } from "@open-insight/core";
 
 export type TypeId = "~open-insight/eval/task";
 export const TypeId: TypeId = "~open-insight/eval/task";
 
-export type ID = string;
+export const ID = Schema.String;
+export type ID = Schema.Schema.Type<typeof ID>;
 
 export class BaseMetadata extends Schema.Class<BaseMetadata>("BaseMetadata")({
   id: Schema.String,
@@ -137,44 +137,6 @@ export const trajMetric =
 
 export const satisfies = <G extends Grade.Result, E extends Schema.JsonObject = EmptyRecord>() =>
   Effect.satisfiesSuccessType<Task<G, E>>();
-
-const task = Effect.gen(function* () {
-  return yield* make({
-    id: "task",
-    name: "Task",
-    snapshot: yield* Snapshot.fromContainerfile({ filePath: "Dockerfile" }),
-    metrics: [
-      {
-        name: "task-metric-from-options",
-        exec: async () => ({ score: 1 }),
-      },
-    ],
-    trajMetrics: [
-      {
-        name: "traj-metric-from-options",
-        exec: async () => ({ messageCount: 1 }),
-      },
-    ],
-  }).pipe(
-    stage("stage1", {
-      prompt: Prompt.userMessage({ content: [Prompt.makePart("text", { text: "Hello, world!" })] }),
-      grader: async () => ({ fuck: "you" }),
-    }),
-    stage("stage2", {
-      prompt: Prompt.userMessage({ content: [Prompt.makePart("text", { text: "Hello, world!" })] }),
-      grader: async ({ results: { stage1 } }) => ({ score: 1 }),
-    }),
-    metric({
-      exec: async (grades) => ({ score: 1 }),
-    }),
-    trajMetric({
-      exec: async ({ $ }) => ({ messageCount: 1 }),
-    }),
-    satisfies<{ score: number }>(),
-  );
-});
-
-void task;
 
 export const metadata = (task: Task): Metadata =>
   Metadata.make({

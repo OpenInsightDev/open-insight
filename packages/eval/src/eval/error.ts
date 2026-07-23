@@ -14,12 +14,12 @@ export class InitError extends Schema.TaggedErrorClass<InitError>()("InitError",
 }) {}
 
 export class TaskInitError extends Schema.TaggedErrorClass<TaskInitError>()("TaskInitError", {
-  task: Task.Metadata,
+  task: Task.ID,
   cause: Schema.Defect(),
 }) {}
 
 export class TaskExecError extends Schema.TaggedErrorClass<TaskExecError>()("TaskExecError", {
-  task: Task.Metadata,
+  task: Task.ID,
   trailIndex: NonNegativeInt,
   cause: Schema.Defect(),
 }) {}
@@ -27,13 +27,13 @@ export class TaskExecError extends Schema.TaggedErrorClass<TaskExecError>()("Tas
 export class TaskVerifExecError extends Schema.TaggedErrorClass<TaskVerifExecError>()(
   "TaskVerifExecError",
   {
-    task: Task.Metadata,
+    task: Task.ID,
     cause: Schema.Defect(),
   },
 ) {}
 
 export class TaskVerifFailed extends Schema.TaggedErrorClass<TaskVerifFailed>()("TaskVerifFailed", {
-  task: Task.Metadata,
+  task: Task.ID,
   expected: Grade.Result,
   actual: Grade.Result,
   cause: Schema.Defect(),
@@ -43,7 +43,6 @@ export class EventTransportInitError extends Schema.TaggedErrorClass<EventTransp
   "EventTransportInitError",
   {
     transport: Schema.String,
-    url: Schema.String,
     cause: Schema.Defect(),
   },
 ) {}
@@ -57,7 +56,7 @@ export class EventTransportError extends Schema.TaggedErrorClass<EventTransportE
 ) {}
 
 export class SnapshotError extends Schema.TaggedErrorClass<SnapshotError>()("SnapshotError", {
-  task: Task.Metadata,
+  task: Task.ID,
   snapshot: Snapshot.Snapshot,
   cause: Schema.Defect(),
 }) {}
@@ -95,20 +94,22 @@ export class Error extends Schema.TaggedErrorClass<Error>()("EvalError", {
 
   static snapshot = (task: Task.Task) =>
     this.mapUnknownError(
-      (cause) => new SnapshotError({ task: task.metadata, snapshot: task.snapshot, cause }),
+      (cause) => new SnapshotError({ task: task.metadata.id, snapshot: task.snapshot, cause }),
     );
 
   static taskInit = (task: Task.Task) =>
-    this.mapUnknownError((cause) => new TaskInitError({ task: task.metadata, cause }));
+    this.mapUnknownError((cause) => new TaskInitError({ task: task.metadata.id, cause }));
 
   static taskExec = (task: Task.Task, trailIndex: number) =>
-    this.mapUnknownError((cause) => new TaskExecError({ task: task.metadata, trailIndex, cause }));
+    this.mapUnknownError(
+      (cause) => new TaskExecError({ task: task.metadata.id, trailIndex, cause }),
+    );
 
-  static taskVerif = (task: Task.Metadata, expected: Grade.Result, actual: Grade.Result) =>
-    this.mapUnknownError((cause) => new TaskVerifFailed({ task, expected, actual, cause }));
+  static taskVerif = (task: Task.Task, expected: Grade.Result, actual: Grade.Result) =>
+    this.mapUnknownError(
+      (cause) => new TaskVerifFailed({ task: task.metadata.id, expected, actual, cause }),
+    );
 
   static taskVerifExec = (task: Task.Task) =>
-    this.mapUnknownError((cause) => new TaskVerifExecError({ task: task.metadata, cause }));
-
-  static metric = (cause: Metric.Error) => new Error({ reason: cause });
+    this.mapUnknownError((cause) => new TaskVerifExecError({ task: task.metadata.id, cause }));
 }

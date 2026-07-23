@@ -36,7 +36,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
     | Path.Path
     | Scope.Scope
   > {
-    const { snapshot, resources, stages, metrics } = task;
+    const { snapshot, resources, stages, metrics, trajMetrics } = task;
     const {
       verifMode = false,
       graderMaxRetries = 3,

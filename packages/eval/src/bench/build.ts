@@ -14,25 +14,36 @@ export class Metadata extends Schema.Class<Metadata>("BenchMetadata")({
   tasks: Schema.Array(Task.Metadata),
 }) {}
 
-export type Bench<T extends Task.Task = Task.Task> = BaseMetadata &
-  Readonly<{
-    tasks: ReadonlyArray<T>;
-    metrics: ReadonlyArray<BenchMetric.Metric>;
-  }>;
+export type Bench<T extends Task.Task = Task.Task> = Readonly<{
+  metadata: BaseMetadata;
+  tasks: ReadonlyArray<T>;
+  metrics: ReadonlyArray<BenchMetric.Metric>;
+}> & { _T?: T };
 
 type Options<T extends Task.Task> = BaseMetadataEncoded &
   Readonly<{
-    load: Tasks.Load<T>;
+    tasks: Tasks.Load<T>;
+    metrics?: ReadonlyArray<BenchMetric.Options>;
   }>;
 
 export const make = Effect.fn(function* <T extends Task.Task>(options: Options<T>) {
-  const { load } = options;
-
+  const { tasks: load, metrics: metricOptions = [] } = options;
   const tasks = yield* load;
+  const metadata = yield* Schema.decodeEffect(BaseMetadata)(options).pipe();
+  const metrics = yield* Effect.all(metricOptions.map(BenchMetric.make));
+
+  return {
+    metadata,
+    tasks,
+    metrics,
+  } satisfies Bench<T>;
 });
 
 export const metadata = (bench: Bench): Metadata =>
-  Metadata.make({
-    base: bench,
-    tasks: bench.tasks.map(Task.metadata),
-  });
+  Metadata.make(
+    {
+      base: bench.metadata,
+      tasks: bench.tasks.map(Task.metadata),
+    },
+    { parseOptions: { onExcessProperty: "ignore" } },
+  );
