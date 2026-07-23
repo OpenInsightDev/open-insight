@@ -114,11 +114,11 @@ export const make = Effect.fn(function* <E extends Schema.JsonObject = EmptyReco
 });
 
 export const metric =
-  (id: string, options: Omit<TaskMetric.Options, "id">) =>
+  (options: Omit<TaskMetric.Options, "id">) =>
   <G extends Grade.Result, Ex extends Schema.JsonObject, S extends Stage, E, Env>(
     task: Effect.Effect<Task<G, Ex, S>, E, Env>,
   ): Effect.Effect<Task<G, Ex, S>, E | Error, Env | Crypto.Crypto> =>
-    Effect.all([task, makeMetric({ ...options, id })]).pipe(
+    Effect.all([task, makeMetric(options)]).pipe(
       Effect.map(([task, metric]) =>
         produce(task, (draft) => {
           draft.metrics.push(castDraft(metric));
@@ -127,11 +127,11 @@ export const metric =
     );
 
 export const trajMetric =
-  (id: string, options: Omit<TrajMetric.Options, "id">) =>
+  (options: Omit<TrajMetric.Options, "id">) =>
   <G extends Grade.Result, Ex extends Schema.JsonObject, S extends Stage, E, Env>(
     task: Effect.Effect<Task<G, Ex, S>, E, Env>,
   ): Effect.Effect<Task<G, Ex, S>, E | Error, Env | Crypto.Crypto> =>
-    Effect.all([task, makeTrajMetric({ ...options, id })]).pipe(
+    Effect.all([task, makeTrajMetric(options)]).pipe(
       Effect.map(([task, metric]) =>
         produce(task, (draft) => {
           draft.trajMetrics.push(castDraft(metric));
@@ -149,13 +149,13 @@ const task = Effect.gen(function* () {
     snapshot: yield* Snapshot.fromContainerfile({ filePath: "Dockerfile" }),
     metrics: [
       {
-        id: "task-metric-from-options",
+        name: "task-metric-from-options",
         exec: async () => ({ score: 1 }),
       },
     ],
     trajMetrics: [
       {
-        id: "traj-metric-from-options",
+        name: "traj-metric-from-options",
         exec: async () => ({ messageCount: 1 }),
       },
     ],
@@ -168,10 +168,10 @@ const task = Effect.gen(function* () {
       prompt: Prompt.userMessage({ content: [Prompt.makePart("text", { text: "Hello, world!" })] }),
       grader: async ({ results: { stage1 } }) => ({ score: 1 }),
     }),
-    metric("task-metric-from-pipe", {
+    metric({
       exec: async () => ({ score: 1 }),
     }),
-    trajMetric("traj-metric-from-pipe", {
+    trajMetric({
       exec: async () => ({ messageCount: 1 }),
     }),
     satisfies<{ score: number }>(),
