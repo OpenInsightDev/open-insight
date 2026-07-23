@@ -1,4 +1,5 @@
 import * as Chart from "#/chart/index.ts";
+import type { BivariantFn } from "#/utils/variant.ts";
 import { Effect, Schema } from "effect";
 import { Metadata, type MetadataEncoded } from "./metadata.ts";
 import { always, type Context, type When } from "./when.ts";
@@ -9,11 +10,11 @@ export type Metric<R extends Schema.JsonObject = Schema.JsonObject> = Readonly<{
   id: string;
 
   when: When;
-  exec: Exec<R>;
+  exec: BivariantFn<Parameters<Exec<R>>, ReturnType<Exec<R>>>;
 
   name: string;
   description: string | null;
-  chart: Chart.Chart<R> | null;
+  chart: BivariantFn<Parameters<Chart.Chart<R>>, ReturnType<Chart.Chart<R>>> | null;
   metadata: Metadata;
 }>;
 

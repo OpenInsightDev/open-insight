@@ -1,5 +1,6 @@
 import * as Grade from "#/grade/index.ts";
 import * as Chart from "#/chart/index.ts";
+import type { BivariantFn } from "#/utils/variant.ts";
 import type { Prompt } from "@open-insight/core/internal";
 import { Effect, Schema } from "effect";
 import { Metadata, type MetadataEncoded } from "./metadata.ts";
@@ -21,10 +22,10 @@ export type Metric<
   R extends Schema.JsonObject = Schema.JsonObject,
 > = Readonly<{
   id: string;
-  exec: Exec<G, R>;
+  exec: BivariantFn<Parameters<Exec<G, R>>, ReturnType<Exec<G, R>>>;
   name: string;
   description: string | null;
-  chart: Chart.Chart<R> | null;
+  chart: BivariantFn<Parameters<Chart.Chart<R>>, ReturnType<Chart.Chart<R>>> | null;
   metadata: Metadata;
 }>;
 

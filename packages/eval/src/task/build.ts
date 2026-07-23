@@ -67,14 +67,15 @@ export type Options<E extends Schema.JsonObject = EmptyRecord> = BaseMetadataEnc
     metrics?: ReadonlyArray<TaskMetric.Options>;
     trajMetrics?: ReadonlyArray<TrajMetric.Options>;
     extras?: E;
-    [Symbol.asyncDispose]?: () => PromiseLike<void>;
   }>;
 
-const makeMetric = (options: TaskMetric.Options) =>
-  TaskMetric.make(options).pipe(Effect.mapError(Error.metadata));
+const makeMetric = <G extends Grade.Result, R extends Schema.JsonObject = Schema.JsonObject>(
+  options: TaskMetric.Options<G, R>,
+) => TaskMetric.make(options).pipe(Effect.mapError(Error.metadata));
 
-const makeTrajMetric = (options: TrajMetric.Options) =>
-  TrajMetric.make(options).pipe(Effect.mapError(Error.metadata));
+const makeTrajMetric = <R extends Schema.JsonObject = Schema.JsonObject>(
+  options: TrajMetric.Options<R>,
+) => TrajMetric.make(options).pipe(Effect.mapError(Error.metadata));
 
 export const make = Effect.fn(function* <E extends Schema.JsonObject = EmptyRecord>(
   options: Options<E>,
@@ -85,7 +86,6 @@ export const make = Effect.fn(function* <E extends Schema.JsonObject = EmptyReco
     metrics: metricOptions = [],
     trajMetrics: trajMetricOptions = [],
     extras = {} as E,
-    [Symbol.asyncDispose]: dispose,
   } = options;
 
   const metadata = yield* Schema.decodeEffect(BaseMetadata)(options).pipe(
@@ -95,12 +95,6 @@ export const make = Effect.fn(function* <E extends Schema.JsonObject = EmptyReco
     Effect.all(metricOptions.map(makeMetric)),
     Effect.all(trajMetricOptions.map(makeTrajMetric)),
   ]);
-
-  yield* Effect.addFinalizer(() =>
-    Effect.tryPromise(async () => {
-      await dispose?.();
-    }),
-  );
 
   return {
     metadata,
@@ -114,8 +108,10 @@ export const make = Effect.fn(function* <E extends Schema.JsonObject = EmptyReco
 });
 
 export const metric =
-  (options: Omit<TaskMetric.Options, "id">) =>
-  <G extends Grade.Result, Ex extends Schema.JsonObject, S extends Stage, E, Env>(
+  <G extends Grade.Result, R extends Schema.JsonObject = Schema.JsonObject>(
+    options: TaskMetric.Options<G, R>,
+  ) =>
+  <Ex extends Schema.JsonObject, S extends Stage, E, Env>(
     task: Effect.Effect<Task<G, Ex, S>, E, Env>,
   ): Effect.Effect<Task<G, Ex, S>, E | Error, Env | Crypto.Crypto> =>
     Effect.all([task, makeMetric(options)]).pipe(
@@ -127,7 +123,7 @@ export const metric =
     );
 
 export const trajMetric =
-  (options: Omit<TrajMetric.Options, "id">) =>
+  <R extends Schema.JsonObject = Schema.JsonObject>(options: TrajMetric.Options<R>) =>
   <G extends Grade.Result, Ex extends Schema.JsonObject, S extends Stage, E, Env>(
     task: Effect.Effect<Task<G, Ex, S>, E, Env>,
   ): Effect.Effect<Task<G, Ex, S>, E | Error, Env | Crypto.Crypto> =>
@@ -169,10 +165,10 @@ const task = Effect.gen(function* () {
       grader: async ({ results: { stage1 } }) => ({ score: 1 }),
     }),
     metric({
-      exec: async () => ({ score: 1 }),
+      exec: async (grades) => ({ score: 1 }),
     }),
     trajMetric({
-      exec: async () => ({ messageCount: 1 }),
+      exec: async ({ $ }) => ({ messageCount: 1 }),
     }),
     satisfies<{ score: number }>(),
   );
