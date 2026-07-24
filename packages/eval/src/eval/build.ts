@@ -1,7 +1,7 @@
 import type * as Bench from "#/bench/index.ts";
 import type * as Harness from "#/harness/index.ts";
 import type * as Task from "#/task/index.ts";
-import { Effect, Option } from "effect";
+import { Effect } from "effect";
 
 export type Executor<T extends Task.Task = Task.Task> = Readonly<{
   benchmark: Bench.Bench;

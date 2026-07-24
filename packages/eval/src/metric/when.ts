@@ -1,11 +1,11 @@
-import type * as Grade from "#/grade/index.ts";
-import type { Prompt } from "@open-insight/core/internal";
+import type { Prompt, Sandbox } from "@open-insight/core/internal";
 import { Data, Duration, Schedule as EffectSchedule } from "effect";
 
 /**
  * Read-only version of grading context.
  */
-export type Context = Omit<Grade.Context, "writeFile" | "expose" | "upload">;
+export type Context = Omit<Sandbox.SandboxPromise, "writeFile" | "expose" | "upload"> &
+  Readonly<{ trajectory: Prompt.Trajectory }>;
 
 export type Exec = (context: Context) => boolean | Promise<boolean>;
 export type On = (trajectory: Prompt.Trajectory) => boolean;

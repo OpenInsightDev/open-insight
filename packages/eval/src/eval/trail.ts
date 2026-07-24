@@ -124,7 +124,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
 
     yield* Effect.logDebug("Prepared task snapshot");
 
-    const runTaskMetrics = yield* Metric.Task.makeAccumulator(metrics);
+    const runTaskMetrics = yield* Metric.Task.makeAccu(metrics);
     const publishTaskMetrics = Effect.fn("exec/runTrail/publishTaskMetrics")(function* (
       trail: TrailResult,
     ) {

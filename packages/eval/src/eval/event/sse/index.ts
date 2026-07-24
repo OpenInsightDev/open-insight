@@ -32,7 +32,7 @@ export const make = Effect.fn(function* ({
   const client = yield* HttpClient.HttpClient;
 
   return {
-    send: Effect.fn(function* ({ stream }) {
+    send: Effect.fn(function* (stream) {
       const url = joinUrl(baseUrl, endpoint);
       const body = HttpBody.stream(
         eventStream(stream).pipe(Stream.mapError(Error.eventTransport(transport))),
@@ -43,7 +43,7 @@ export const make = Effect.fn(function* ({
         .post(url, { body })
         .pipe(
           Effect.flatMap(HttpClientResponse.filterStatusOk),
-          Effect.mapError(Error.eventTransportInit(transport, url)),
+          Effect.mapError(Error.eventTransportInit(transport)),
         );
     }),
   } satisfies EventTransport;

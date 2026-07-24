@@ -21,10 +21,10 @@ export type Stage<
   metadata: StageMetadata;
   continue?: boolean;
   prompt: PromptOptions;
-  grader: Grade.Grader<G, StageResult<S>>;
+  grader: Grade.Grader<G, StageResults<S>>;
 }> & { _N?: N; _G?: G; _S?: S };
 
-type StageResult<T> = T extends Stage<infer N, infer G, infer S> ? { [T in S as N]: G } : never;
+type StageResults<T> = T extends Stage<infer N, infer G, infer S> ? { [T in S as N]: G } : never;
 
 export type StageOptions<
   N extends string = string,
@@ -34,7 +34,7 @@ export type StageOptions<
   name: N;
   continue?: boolean;
   prompt: PromptOptions;
-  grader: Grade.Grader<G, StageResult<S>>;
+  grader: Grade.Grader<G, StageResults<S>>;
 }> &
   Omit<StageMetadataEncoded, "name">;
 

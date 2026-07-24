@@ -6,7 +6,7 @@ import { castDraft, produce } from "immer";
 import { Metadata, type MetadataEncoded } from "./metadata.ts";
 
 type Results = ReadonlyArray<TrailResult>;
-type Accumulator = Readonly<{
+type Accu = Readonly<{
   results: Results;
   prev: Readonly<Record<string, Schema.JsonObject>>;
 }>;
@@ -40,10 +40,10 @@ export const make = Effect.fn(function* <R extends Schema.JsonObject = Schema.Js
   return { exec, chart, metadata } satisfies Metric<R>;
 });
 
-export const makeAccumulator = Effect.fn("metric/task/makeAccumulator")(function* (
+export const makeAccu = Effect.fn("metric/task/makeAccumulator")(function* (
   metrics: ReadonlyArray<Metric>,
 ) {
-  const accumulator = yield* SynchronizedRef.make<Accumulator>({ results: [], prev: {} });
+  const accu = yield* SynchronizedRef.make<Accu>({ results: [], prev: {} });
 
   return Effect.fn("metric/task/accumulate")(function* (delta: TrailResult) {
     if (metrics.length === 0) {
@@ -51,7 +51,7 @@ export const makeAccumulator = Effect.fn("metric/task/makeAccumulator")(function
     }
 
     return yield* SynchronizedRef.modifyEffect(
-      accumulator,
+      accu,
       Effect.fn(function* (state) {
         const resultsByMetric = yield* Effect.forEach(metrics, (metric) =>
           Effect.tryPromise(() =>
@@ -70,7 +70,7 @@ export const makeAccumulator = Effect.fn("metric/task/makeAccumulator")(function
               draft.prev[metric.metadata.id] = castDraft(result);
             }
           }),
-        ] satisfies readonly [typeof resultsByMetric, Accumulator];
+        ] satisfies readonly [typeof resultsByMetric, Accu];
       }),
     );
   });
