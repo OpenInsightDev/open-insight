@@ -1,3 +1,4 @@
+import * as Chart from "#/chart/index.ts";
 import { Queue, Schema, Stream } from "effect";
 import * as Grade from "#/grade/index.ts";
 import type { Error } from "../error.ts";
@@ -75,6 +76,7 @@ export class TrailStreamEvent extends Schema.TaggedClass<TrailStreamEvent>()("Tr
 const MetricFields = {
   id: Schema.String,
   result: Schema.Record(Schema.String, Schema.Json),
+  chart: Schema.optionalKey(Chart.DataPoints),
 };
 
 export class TrajMetricEvent extends Schema.TaggedClass<TrajMetricEvent>()("TrajMetricEvent", {

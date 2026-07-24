@@ -18,8 +18,7 @@ export type Context<Rs extends Results = never> = SandboxContext &
   }>;
 
 export type BaseGrader<R extends Result = Result, Rs extends Results = never> = BivariantFn<
-  [ctx: Context<Rs>],
-  PromiseLike<R>
+  (ctx: Context<Rs>) => PromiseLike<R>
 >;
 
 type Verifier = (sandbox: SandboxContext) => PromiseLike<Prompt.Trajectory | null>;

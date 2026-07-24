@@ -1,5 +1,6 @@
 import * as Metric from "#/metric/index.ts";
 import {
+  Deferred,
   Effect,
   Equal,
   FileSystem,
@@ -9,7 +10,6 @@ import {
   Queue,
   Ref,
   Schema,
-  SynchronizedRef,
   Sink,
   Scope,
   Stream,
@@ -18,10 +18,8 @@ import { isFunction } from "effect/Predicate";
 import { Prompt, Response } from "effect/unstable/ai";
 import { ChildProcessSpawner } from "effect/unstable/process";
 import { Agent, Sandbox } from "@open-insight/core";
-import { castDraft, produce } from "immer";
+import { produce } from "immer";
 import * as Grade from "#/grade/index.ts";
-import type * as TaskMetric from "#/metric/task.ts";
-import type * as TrajMetric from "#/metric/traj.ts";
 import type { Context as TrajMetricContext } from "#/metric/when.ts";
 import * as Task from "../task/index.ts";
 import type { Config } from "./config.ts";
@@ -38,10 +36,6 @@ import {
 export type RunTrail = (trailIdx: number) => Effect.Effect<TrailResult | null, Error, Scope.Scope>;
 
 type StageResults = Readonly<Record<string, Grade.Result>>;
-type TaskMetricAccu = Readonly<{
-  results: ReadonlyArray<TrailResult>;
-  prev: Readonly<Record<string, Schema.JsonObject>>;
-}>;
 type PromptState = Readonly<{
   isFirst: boolean;
   cursor: number;
@@ -55,21 +49,12 @@ type VerifStage = Readonly<{
   grader: Grade.VerifGrader;
   stageIdx: number;
 }>;
-type ScheduledMetric = Readonly<{
-  metric: TrajMetric.Metric;
-  when: Extract<Metric.When.When, { readonly _tag: "Schedule" }>;
-}>;
-const MetricResult = Schema.Record(Schema.String, Schema.Json);
-
 const advanceStage = (results: StageResults, stage: string, grade: Grade.Result): StageResults =>
   produce(results, (draft) => {
     draft[stage] = grade;
   });
 
 const isVerifGrader = (grader: Grade.Grader): grader is Grade.VerifGrader => !isFunction(grader);
-
-const countToolRounds = (trajectory: Prompt.Prompt): number =>
-  trajectory.content.filter(({ role }) => role === "tool").length;
 
 export const createTrail = Effect.fn("exec/createTrail")(
   function* ({
@@ -139,67 +124,36 @@ export const createTrail = Effect.fn("exec/createTrail")(
 
     yield* Effect.logDebug("Prepared task snapshot");
 
-    const taskMetricAccu = yield* SynchronizedRef.make<TaskMetricAccu>({
-      results: [],
-      prev: {},
-    });
-
-    const runTaskMetric = Effect.fn("exec/runTrail/runTaskMetric")(function* (
-      metric: TaskMetric.Metric,
-      results: ReadonlyArray<TrailResult>,
-      delta: TrailResult,
-      prev: Schema.JsonObject | null,
+    const runTaskMetrics = yield* Metric.Task.makeAccumulator(metrics);
+    const publishTaskMetrics = Effect.fn("exec/runTrail/publishTaskMetrics")(function* (
+      trail: TrailResult,
     ) {
-      const result = yield* Effect.tryPromise(() => metric.exec(results, delta, prev)).pipe(
-        Effect.flatMap(Schema.decodeEffect(MetricResult)),
-      );
-
-      yield* Queue.offer(
-        eventQueue,
-        TaskMetricEvent.make({
-          bench,
-          harness,
-          task: task.metadata.id,
-          id: metric.metadata.id,
-          result,
-        }),
-      );
-      return result;
-    });
-
-    const runTaskMetrics = Effect.fn("exec/runTrail/runTaskMetrics")(function* (
-      delta: TrailResult,
-    ) {
-      yield* SynchronizedRef.modifyEffect(
-        taskMetricAccu,
-        Effect.fn(function* (accu) {
-          const metricResults = yield* Effect.forEach(metrics, (metric) =>
-            runTaskMetric(metric, accu.results, delta, accu.prev[metric.metadata.id] ?? null).pipe(
-              Effect.map((result) => ({ id: metric.metadata.id, result })),
-            ),
-          );
-
-          return [
-            null,
-            produce(accu, (draft) => {
-              draft.results.push(castDraft(delta));
-              for (const { id, result } of metricResults) {
-                draft.prev[id] = castDraft(result);
-              }
+      const outputs = yield* runTaskMetrics(trail);
+      yield* Effect.forEach(
+        outputs,
+        ([metric, result]) =>
+          Queue.offer(
+            eventQueue,
+            TaskMetricEvent.make({
+              bench,
+              harness,
+              task: task.metadata.id,
+              id: metric.metadata.id,
+              result,
             }),
-          ] satisfies readonly [null, TaskMetricAccu];
-        }),
+          ),
+        { discard: true },
       );
     });
 
     const completeTrail = Effect.fn("exec/runTrail/complete")(function* (
       result: TrailResult | null,
     ) {
-      if (result === null || metrics.length === 0) {
+      if (result === null) {
         return result;
       }
 
-      yield* runTaskMetrics(result);
+      yield* publishTaskMetrics(result);
       return result;
     });
 
@@ -240,34 +194,6 @@ export const createTrail = Effect.fn("exec/createTrail")(
       const result = yield* verifyGrader(sandboxContext, stage.grader, results);
       yield* Effect.logDebug(`Verified grader for stage ${stage.stageIdx}`);
       return result;
-    });
-
-    const runTrajMetric = Effect.fn("exec/runTrail/runTrajMetric")(function* (
-      metric: TrajMetric.Metric,
-      context: TrajMetricContext,
-      trailIdx: number,
-    ) {
-      const result = yield* Effect.tryPromise(() => metric.exec(context)).pipe(
-        Effect.flatMap(Schema.decodeEffect(MetricResult)),
-      );
-
-      yield* Queue.offer(
-        eventQueue,
-        TrajMetricEvent.make({
-          bench,
-          harness,
-          task: task.metadata.id,
-          trailIdx,
-          id: metric.metadata.id,
-          result,
-        }),
-      );
-    });
-
-    const hasTrajMetrics = trajMetrics.some(({ when }) => when._tag === "Traj");
-    const scheduledMetrics: ReadonlyArray<ScheduledMetric> = trajMetrics.flatMap((metric) => {
-      const when = metric.when;
-      return when._tag === "Schedule" ? [{ metric, when }] : [];
     });
 
     const runTrail = Effect.fn(
@@ -320,64 +246,25 @@ export const createTrail = Effect.fn("exec/createTrail")(
           ]);
           return { ...metricSandboxContext, results, trajectory } satisfies TrajMetricContext;
         });
-
-        const runTrajMetrics = Effect.fn("exec/runTrail/runTrajMetrics")(function* () {
-          if (!hasTrajMetrics) {
-            return;
-          }
-
-          const context = yield* makeTrajContext();
-          for (const metric of trajMetrics) {
-            const when = metric.when;
-            if (when._tag !== "Traj" || !when.on(context.trajectory)) {
-              continue;
-            }
-
-            if (yield* Effect.tryPromise(() => Promise.resolve(when.exec(context)))) {
-              yield* runTrajMetric(metric, context, trailIdx);
-            }
-          }
-        });
-
-        const pollMetric = Effect.fn("exec/runTrail/pollMetric")(function* ({
+        const trajMetricOptions = {
+          metrics: trajMetrics,
+          context: makeTrajContext(),
+        };
+        const publishTrajMetric = Effect.fn("exec/runTrail/publishTrajMetric")(function* ([
           metric,
-          when,
-        }: ScheduledMetric) {
-          const context = yield* makeTrajContext();
-          const shouldRun = yield* Effect.tryPromise(() => Promise.resolve(when.exec(context)));
-          if (shouldRun) {
-            yield* runTrajMetric(metric, context, trailIdx);
-          }
-          return shouldRun;
-        });
-
-        const runSchedule = Effect.fn("exec/runTrail/runSchedule")(function* (
-          scheduled: ScheduledMetric,
-        ) {
-          const poll = () => pollMetric(scheduled);
-          const primary = Stream.fromSchedule(scheduled.when.schedule).pipe(Stream.mapEffect(poll));
-          const retry = scheduled.when.retry;
-          if (retry === undefined) {
-            yield* primary.pipe(Stream.runDrain);
-            return yield* Effect.never;
-          }
-
-          const primaryResult = yield* primary.pipe(
-            Stream.takeUntil((succeeded) => !succeeded),
-            Stream.runLast,
+          result,
+        ]: Metric.Traj.RunResult) {
+          yield* Queue.offer(
+            eventQueue,
+            TrajMetricEvent.make({
+              bench,
+              harness,
+              task: task.metadata.id,
+              trailIdx,
+              id: metric.metadata.id,
+              result,
+            }),
           );
-          if (Option.isNone(primaryResult) || primaryResult.value) {
-            return yield* Effect.never;
-          }
-
-          const retryResult = yield* Stream.fromSchedule(retry).pipe(
-            Stream.mapEffect(poll),
-            Stream.takeUntil((succeeded) => succeeded),
-            Stream.runLast,
-          );
-          if (Option.isNone(retryResult) || !retryResult.value) {
-            return yield* Effect.never;
-          }
         });
 
         // Prompt.Trajectory stores normalized messages and drops response finish parts, so usage
@@ -418,10 +305,11 @@ export const createTrail = Effect.fn("exec/createTrail")(
             onSome: ({ usage }) => Effect.succeed(usage),
           });
 
-          const after = yield* currentAgent.trajectory();
-          for (let round = countToolRounds(before); round < countToolRounds(after); round += 1) {
-            yield* runTrajMetrics();
-          }
+          // FIXME: Evaluate trajectory metrics after each newly appended message. Agent.prompt
+          // currently commits its trajectory only when the stream ends, so this post-turn replay
+          // evaluates every `Traj` condition against the same final trajectory.
+          const metricOutputs = yield* Metric.Traj.run(trajMetricOptions, before);
+          yield* Effect.forEach(metricOutputs, publishTrajMetric, { discard: true });
           return usage;
         });
 
@@ -579,18 +467,17 @@ export const createTrail = Effect.fn("exec/createTrail")(
           ),
         );
 
-        if (scheduledMetrics.length === 0) {
-          return yield* runStages.pipe(Effect.flatMap(completeTrail));
-        }
-
-        const metricSchedules = Effect.all(
-          scheduledMetrics.map((scheduled) => runSchedule(scheduled).pipe(Effect.forever)),
-          { concurrency: "unbounded", discard: true },
-        ).pipe(Effect.andThen(Effect.never));
-
-        return yield* Effect.raceFirst(runStages, metricSchedules).pipe(
-          Effect.flatMap(completeTrail),
+        const haltMetrics = yield* Deferred.make<void>();
+        const { result } = yield* Effect.all(
+          {
+            result: runStages.pipe(Effect.tap(() => Deferred.succeed(haltMetrics, undefined))),
+            metrics: Metric.Traj.schedule(trajMetricOptions, Deferred.await(haltMetrics)).pipe(
+              Stream.runForEach(publishTrajMetric),
+            ),
+          },
+          { concurrency: "unbounded" },
         );
+        return yield* completeTrail(result);
       },
       (effect, trailIdx) =>
         effect.pipe(

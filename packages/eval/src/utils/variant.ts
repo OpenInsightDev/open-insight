@@ -1,6 +1,6 @@
 // HACK make function parameters bivariant
-export type BivariantFn<Args extends ReadonlyArray<unknown>, Return> = {
-  bivarianceHack(...args: Args): Return;
+export type BivariantFn<Fn extends (...args: never[]) => unknown> = {
+  bivarianceHack(...args: Parameters<Fn>): ReturnType<Fn>;
 }["bivarianceHack"];
 
 export type Invariant<T> = (arg: T) => T;

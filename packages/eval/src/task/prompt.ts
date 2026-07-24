@@ -26,12 +26,12 @@ export type PromptFactory = (
   input: PromptFnInput,
 ) => AsyncIterable<Prompt.UserMessage, void, PromptFnInput>;
 
-export type PromptFnPromise = (trajectory: Prompt.Trajectory) => Promise<Prompt.Trajectory | null>;
+export type PromptFnPromise = (trajectory: Prompt.Trajectory) => Promise<Prompt.UserMessage | null>;
 
 export type PromptOptions =
   // return Prompt.Trajectory immediately, then always return null
   | PromptInit
-  // derive each Prompt.UserMessage from the full trajectory
+  // derive the next Prompt.UserMessage from the full trajectory
   | PromptFnPromise
   // optionally return `init`, then receive inputs and generate subsequent messages
   | Readonly<{
@@ -42,9 +42,9 @@ export type PromptOptions =
 /**
  * Produces the next batch of user messages from the current agent session.
  *
- * Returning `null` completes the prompt. A trajectory lets static input
- * preserve its entire initial sequence; callback and factory-backed inputs
- * produce a single-message trajectory for each subsequent invocation.
+ * Returning `null` completes the prompt. Static input preserves complete
+ * trajectories; promise and factory messages become single-message
+ * trajectories.
  */
 export type PromptFn = (input: PromptFnInput) => Effect.Effect<Prompt.Trajectory | null, Error>;
 
@@ -90,13 +90,12 @@ const makeGeneratedPrompt = (factory: PromptFactory, init?: PromptInit): PromptF
 
 export const makePrompt = (options: PromptOptions): PromptFn => {
   if (typeof options === "function") {
-    return Effect.fn(function* ({ trajectory }: PromptFnInput) {
-      const next = yield* Effect.tryPromise({
+    return Effect.fn(({ trajectory }: PromptFnInput) =>
+      Effect.tryPromise({
         try: () => options(trajectory),
         catch: Error.prompt,
-      });
-      return next === null ? null : Prompt.make([next]);
-    });
+      }).pipe(Effect.map((next) => (next === null ? null : Prompt.make([next])))),
+    );
   }
   if ("followUp" in options) {
     return makeGeneratedPrompt(options.followUp, options.init);
