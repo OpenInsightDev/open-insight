@@ -1,5 +1,5 @@
 import type * as Task from "#/task/index.ts";
-import { ChildProcess } from "effect/unstable/process";
+import { ChildProcess as CP } from "effect/unstable/process";
 import { Effect, FileSystem } from "effect";
 import { Spawn } from "@open-insight/core/utils";
 import type { Load } from "./index.ts";
@@ -18,88 +18,75 @@ interface Options {
   readonly singleBranch?: boolean;
 }
 
-const cloneArgs = (
-  repoURL: string,
-  repoPath: string,
-  { branch, depth = 1, singleBranch }: Omit<Options, "directory">,
-): Array<string> => {
-  const args: Array<string> = ["clone"];
-
-  if (depth !== undefined && Number.isFinite(depth)) {
-    args.push("--depth", String(depth));
-  }
-
-  if (branch) {
-    args.push("--branch", branch);
-  }
-
-  if (singleBranch || branch) {
-    args.push("--single-branch");
-  }
-
-  args.push(repoURL, repoPath);
-  return args;
-};
-
 const loadGitRepo = Effect.fn(function* (repoPath: string, repoURL: string, options: Options) {
   const fs = yield* FileSystem.FileSystem;
   const spawner = yield* Spawn.Service;
 
-  const run = (args: ReadonlyArray<string>) =>
-    spawner.success(ChildProcess.make("git", ["-C", repoPath, ...args]));
-
-  const git = (args: ReadonlyArray<string>) =>
-    spawner
-      .string(ChildProcess.make("git", ["-C", repoPath, ...args]))
-      .pipe(Effect.map((s) => s.trim()));
-
   const targetCommit = Effect.gen(function* () {
     if (options.commit) {
-      return yield* git(["rev-parse", `${options.commit}^{commit}`]);
+      return yield* spawner
+        .string(CP.make`git -C ${repoPath} rev-parse ${`${options.commit}^{commit}`}`)
+        .pipe(Effect.map((s) => s.trim()));
     }
 
     if (options.branch) {
-      return yield* git(["rev-parse", `${options.branch}^{commit}`]);
+      return yield* spawner
+        .string(CP.make`git -C ${repoPath} rev-parse ${`${options.branch}^{commit}`}`)
+        .pipe(Effect.map((s) => s.trim()));
     }
 
     return undefined;
   });
 
   const matchesTarget = Effect.gen(function* () {
-    const origin = yield* git(["remote", "get-url", "origin"]);
+    const origin = yield* spawner
+      .string(CP.make`git -C ${repoPath} remote get-url origin`)
+      .pipe(Effect.map((s) => s.trim()));
     if (origin !== repoURL) {
       return false;
     }
 
-    if ((yield* git(["status", "--porcelain"])) !== "") {
+    if (
+      (yield* spawner
+        .string(CP.make`git -C ${repoPath} status --porcelain`)
+        .pipe(Effect.map((s) => s.trim()))) !== ""
+    ) {
       return false;
     }
 
     const target = yield* targetCommit;
     if (target) {
-      return (yield* git(["rev-parse", "HEAD"])) === target;
+      return (
+        (yield* spawner
+          .string(CP.make`git -C ${repoPath} rev-parse HEAD`)
+          .pipe(Effect.map((s) => s.trim()))) === target
+      );
     }
 
     return true;
   });
 
   const tryUpdate = Effect.gen(function* () {
-    yield* run(["remote", "set-url", "origin", repoURL]);
-    yield* run(["fetch", "origin", ...(options.branch ? [options.branch] : [])]);
+    yield* spawner.success(CP.make`git -C ${repoPath} remote set-url origin ${repoURL}`);
+    if (options.branch) {
+      yield* spawner.success(CP.make`git -C ${repoPath} fetch origin ${options.branch}`);
+    } else {
+      yield* spawner.success(CP.make`git -C ${repoPath} fetch origin`);
+    }
 
     if (options.branch) {
-      yield* run(["checkout", options.branch]);
-      yield* run(["reset", "--hard", `origin/${options.branch}`]).pipe(
-        Effect.catch(() => run(["reset", "--hard"])),
-      );
+      yield* spawner.success(CP.make`git -C ${repoPath} checkout ${options.branch}`);
+      yield* spawner
+        .success(CP.make`git -C ${repoPath} reset --hard ${`origin/${options.branch}`}`)
+        .pipe(Effect.catch(() => spawner.success(CP.make`git -C ${repoPath} reset --hard`)));
     }
 
     if (options.commit) {
-      yield* run(["checkout", options.commit]);
+      yield* spawner.success(CP.make`git -C ${repoPath} checkout ${options.commit}`);
     }
 
-    yield* run(["reset", "--hard"]);
-    yield* run(["clean", "-ffdx"]);
+    yield* spawner.success(CP.make`git -C ${repoPath} reset --hard`);
+    yield* spawner.success(CP.make`git -C ${repoPath} clean -ffdx`);
   });
 
   const exists = yield* fs.exists(repoPath);
@@ -120,10 +107,26 @@ const loadGitRepo = Effect.fn(function* (repoPath: string, repoURL: string, opti
     yield* fs.remove(repoPath, { recursive: true, force: true });
   }
 
-  yield* spawner.success(ChildProcess.make("git", cloneArgs(repoURL, repoPath, options)));
+  const depth =
+    options.depth === undefined || Number.isFinite(options.depth)
+      ? (options.depth ?? 1)
+      : undefined;
+  if (depth !== undefined && options.branch) {
+    yield* spawner.success(
+      CP.make`git clone --depth ${depth} --branch ${options.branch} --single-branch ${repoURL} ${repoPath}`,
+    );
+  } else if (depth !== undefined) {
+    yield* spawner.success(CP.make`git clone --depth ${depth} ${repoURL} ${repoPath}`);
+  } else if (options.branch) {
+    yield* spawner.success(
+      CP.make`git clone --branch ${options.branch} --single-branch ${repoURL} ${repoPath}`,
+    );
+  } else {
+    yield* spawner.success(CP.make`git clone ${repoURL} ${repoPath}`);
+  }
 
   if (options.commit) {
-    yield* run(["checkout", options.commit]);
+    yield* spawner.success(CP.make`git -C ${repoPath} checkout ${options.commit}`);
   }
 });
 

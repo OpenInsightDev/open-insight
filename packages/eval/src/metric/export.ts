@@ -1,7 +1,6 @@
-export { compose, Metadata, trajectory } from "./index.ts";
+export { Metadata } from "./index.ts";
 export * as Bench from "./bench.ts";
 export { make as bench } from "./bench.ts";
-export * as Compose from "./compose.ts";
 export * as Task from "./task.ts";
 export { make as task } from "./task.ts";
 export * as Traj from "./traj.ts";

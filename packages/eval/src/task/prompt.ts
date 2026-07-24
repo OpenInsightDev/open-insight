@@ -14,22 +14,33 @@ export type PromptFnInput = {
 };
 
 export type PromptInit = Prompt.UserMessage | Prompt.Trajectory;
+
+/**
+ * Creates a fresh prompt iterable for one stage execution.
+ *
+ * The factory receives the input for the first generated message because an
+ * async iterator ignores the argument to its first `next` call. Each later
+ * input is passed to the iterator that this factory creates.
+ */
+export type PromptFactory = (
+  input: PromptFnInput,
+) => AsyncIterable<Prompt.UserMessage, void, PromptFnInput>;
 export type PromptOptions =
   // return Prompt.Trajectory immediately, then always return null
   | PromptInit
-  // receive input (first input is empty) and return Prompt.UserMessage for subsequent calls
-  | AsyncIterable<Prompt.UserMessage, void, PromptFnInput>
+  // receive the initial input, then return Prompt.UserMessage for each call
+  | PromptFactory
   // return `init` first, then receive inputs and return Prompt.UserMessage for subsequent calls
   | Readonly<{
       init: PromptInit;
-      then: AsyncIterable<Prompt.UserMessage, void, PromptFnInput>;
+      followUp: PromptFactory;
     }>;
 
 /**
  * Produces the next batch of user messages from the current agent session.
  *
  * Returning `null` completes the prompt. A trajectory lets static input
- * preserve its entire initial sequence; generator input produces a
+ * preserve its entire initial sequence; factory-backed input produces a
  * single-message trajectory for each subsequent invocation.
  */
 export type PromptFn = (input: PromptFnInput) => Effect.Effect<Prompt.Trajectory | null, Error>;
@@ -37,43 +48,41 @@ export type PromptFn = (input: PromptFnInput) => Effect.Effect<Prompt.Trajectory
 const toTrajectory = (input: PromptInit): Prompt.Trajectory =>
   Prompt.isMessage(input) ? Prompt.make([input]) : input;
 
-const isAsyncIterable = (
-  options: PromptOptions,
-): options is AsyncIterable<Prompt.UserMessage, void, PromptFnInput> =>
-  Symbol.asyncIterator in options;
-
-export const makePrompt = Effect.fn(function* (options: PromptOptions) {
-  if (!isAsyncIterable(options) && !("then" in options)) {
-    let pending: Prompt.Trajectory | null = toTrajectory(options);
-    return ((_: PromptFnInput) => {
-      const next = pending;
-      pending = null;
-      return Effect.succeed(next);
-    }) satisfies PromptFn;
-  }
-
-  const init = isAsyncIterable(options) ? undefined : options.init;
-  const then = isAsyncIterable(options) ? options : options.then;
-
-  const iterator = yield* Effect.try({
-    try: () => then[Symbol.asyncIterator](),
-    catch: Error.prompt,
-  });
-  let pending: Prompt.Trajectory | undefined = init === undefined ? undefined : toTrajectory(init);
-
-  return ((input: PromptFnInput) => {
-    if (pending !== undefined) {
-      const next = pending;
-      pending = undefined;
-      return Effect.succeed(next);
+export const makePrompt = Effect.fn((options: PromptOptions) =>
+  Effect.sync((): PromptFn => {
+    if (typeof options !== "function" && !("followUp" in options)) {
+      let pending: Prompt.Trajectory | null = toTrajectory(options);
+      return (_: PromptFnInput) => {
+        const next = pending;
+        pending = null;
+        return Effect.succeed(next);
+      };
     }
 
-    return Effect.tryPromise({
-      try: async () => {
-        const next = await iterator.next(input);
-        return next.done ? null : Prompt.make([next.value]);
-      },
-      catch: Error.prompt,
-    });
-  }) satisfies PromptFn;
-});
+    const init = typeof options === "function" ? undefined : options.init;
+    const factory = typeof options === "function" ? options : options.followUp;
+    let pending: Prompt.Trajectory | undefined =
+      init === undefined ? undefined : toTrajectory(init);
+    let iterator: AsyncIterator<Prompt.UserMessage, void, PromptFnInput> | undefined;
+
+    return (input: PromptFnInput) => {
+      if (pending !== undefined) {
+        const next = pending;
+        pending = undefined;
+        return Effect.succeed(next);
+      }
+
+      return Effect.tryPromise({
+        try: async () => {
+          const current = iterator;
+          const next =
+            current === undefined
+              ? await (iterator = factory(input)[Symbol.asyncIterator]()).next()
+              : await current.next(input);
+          return next.done ? null : Prompt.make([next.value]);
+        },
+        catch: Error.prompt,
+      });
+    };
+  }),
+);

@@ -1,80 +1,92 @@
-import * as Grade from "#/grade/index.ts";
-import { Data, Duration, Schedule } from "effect";
+import type * as Grade from "#/grade/index.ts";
+import type { Prompt } from "@open-insight/core/internal";
+import { Data, Duration, Schedule as EffectSchedule } from "effect";
 
 /**
  * Read-only version of grading context.
  */
 export type Context = Omit<Grade.Context, "writeFile" | "expose" | "upload">;
 
-type ExecOptions = Readonly<{ retry?: Schedule.Schedule<unknown> }>;
-type ScheduleOptions = Readonly<{}>;
+export type Exec = (context: Context) => boolean | Promise<boolean>;
+export type On = (trajectory: Prompt.Trajectory) => boolean;
+export type Policy = EffectSchedule.Schedule<unknown>;
+
+type ExecOptions = Readonly<{ exec?: Exec }>;
+type ScheduleOptions = ExecOptions & Readonly<{ retry?: Policy }>;
+
+/** A predicate which never prevents a trajectory metric from running. */
+export const always = () => true;
 
 /**
- * Controls when a trajectory metric runs during an agent prompt session.
+ * Controls when a trajectory metric runs during an agent session.
  *
- * @remarks
- * `Exec` evaluates its predicate after each completed round of tool calls and runs the metric when the predicate returns `true`.
- * The predicate can access the current sandbox state and complete trajectory, but must remain fast because it blocks the agent loop.
- * It must also be read-only because observable sandbox changes can alter the agent's behavior.
+ * `Traj` evaluates a synchronous, trajectory-only predicate after a completed tool round. Once it
+ * matches, its `exec` predicate decides whether the metric should run.
  *
- * `Schedule` triggers the metric externally using a policy from Effect's `Schedule` module.
- *
- * @example Run after a file contains the expected value
- *
- * ```ts
- * const when = When.Exec({
- *   exec: ({ $ }) =>
- *     $`cat /workspace/status.txt`
- *       .then((output) => output.trim() === "ready")
- *       .catch(() => false),
- * });
- * // note: you can use `content` instead
- * ```
- *
- * @example Run every 30 seconds
- *
- * ```ts
- * const when = When.Schedule(Schedule.fixed("30 seconds"));
- * ```
+ * `Schedule` follows its timing policy for regular checks. A false `exec` result is silently
+ * skipped when no retry policy is configured. With a retry policy, regular checks pause while
+ * retry checks continue until one succeeds or the policy ends; a success runs the metric and
+ * restarts the regular schedule from the beginning.
  */
 export type When = Data.TaggedEnum<{
-  Exec: { exec: (ctx: Context) => Promise<boolean> } & ExecOptions;
-  Schedule: Schedule.Schedule<unknown>;
+  Traj: Readonly<{
+    on: On;
+    exec: Exec;
+  }>;
+  Schedule: Readonly<{
+    schedule: Policy;
+    retry?: Policy;
+    exec: Exec;
+  }>;
 }>;
-export const When = Data.taggedEnum<When>();
 
-export const always = When.Exec({ exec: () => Promise.resolve(true) });
+const tagged = Data.taggedEnum<When>();
 
-export const every = (input: Duration.Input, _options: ScheduleOptions) =>
-  When.Schedule(Schedule.fixed(input));
+export const traj = (on: On = always, { exec = always }: ExecOptions = {}): When =>
+  tagged.Traj({ on, exec });
 
-export const success = (bash: string, { retry }: ExecOptions = {}) =>
-  When.Exec({ exec: ({ $ }) => $`${bash}`.then(() => true).catch(() => false), retry });
+export const schedule = (schedule: Policy, { retry, exec = always }: ScheduleOptions = {}): When =>
+  tagged.Schedule({ schedule, retry, exec });
 
-export const fails = (bash: string, { retry }: ExecOptions = {}) =>
-  When.Exec({ exec: ({ $ }) => $`${bash}`.then(() => false).catch(() => true), retry });
+export const message = (role: Prompt.Message["role"], options: ExecOptions = {}) =>
+  traj((trajectory) => trajectory.content.at(-1)?.role === role, options);
 
-export const bash = (
-  { bash, expect }: { bash: string; expect: string },
-  { retry }: ExecOptions = {},
-) =>
-  When.Exec({
-    exec: ({ $ }) => $`${bash}`.then((stdout) => stdout.trim() === expect).catch(() => false),
-    retry,
-  });
+export const toolCall = (toolName?: string, options: ExecOptions = {}) =>
+  traj((trajectory) => {
+    const latest = trajectory.content.findLast(
+      (message): message is Prompt.ToolMessage => message.role === "tool",
+    );
+    return (
+      latest?.content.some(
+        (part) => part.type === "tool-result" && (toolName === undefined || part.name === toolName),
+      ) ?? false
+    );
+  }, options);
 
-export const content = (
-  { sandboxPath, expect }: { sandboxPath: string; expect: string },
-  { retry }: ExecOptions = {},
-) =>
-  When.Exec({
-    exec: ({ $ }) =>
-      $`cat ${sandboxPath}`.then((stdout) => stdout.trim() === expect).catch(() => false),
-    retry,
-  });
+export const interval = (input: Duration.Input, options: ScheduleOptions = {}) =>
+  schedule(EffectSchedule.fixed(input), options);
 
-export const exists = (sandboxPath: string, { retry }: ExecOptions = {}) =>
-  When.Exec({
-    exec: ({ $ }) => $`test -f ${sandboxPath}`.then(() => true).catch(() => false),
-    retry,
-  });
+export const success =
+  (bash: string): Exec =>
+  ({ $ }) =>
+    $`${bash}`.then(() => true).catch(() => false);
+
+export const fails =
+  (bash: string): Exec =>
+  ({ $ }) =>
+    $`${bash}`.then(() => false).catch(() => true);
+
+export const bash =
+  ({ bash, expect }: { bash: string; expect: string }): Exec =>
+  ({ $ }) =>
+    $`${bash}`.then((stdout) => stdout.trim() === expect).catch(() => false);
+
+export const content =
+  ({ sandboxPath, expect }: { sandboxPath: string; expect: string }): Exec =>
+  ({ $ }) =>
+    $`cat ${sandboxPath}`.then((stdout) => stdout.trim() === expect).catch(() => false);
+
+export const exists =
+  (sandboxPath: string): Exec =>
+  ({ $ }) =>
+    $`test -f ${sandboxPath}`.then(() => true).catch(() => false);

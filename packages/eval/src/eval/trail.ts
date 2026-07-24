@@ -268,7 +268,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
         }
 
         yield* Effect.logDebug("Starting agent session");
-        const agent = yield* agentProvider.runSession({ sandbox });
+        const agentRef = yield* Ref.make(yield* agentProvider.runSession({ sandbox }));
         const stageResults = yield* Ref.make<StageResults>({});
         const {
           writeFile: _writeFile,
@@ -278,9 +278,10 @@ export const createTrail = Effect.fn("exec/createTrail")(
         } = sandboxContext;
 
         const makeTrajContext = Effect.fn("exec/runTrail/makeTrajContext")(function* () {
+          const currentAgent = yield* Ref.get(agentRef);
           const [results, trajectory] = yield* Effect.all([
             Ref.get(stageResults),
-            agent.trajectory(),
+            currentAgent.trajectory(),
           ]);
           return { ...metricSandboxContext, results, trajectory } satisfies TrajMetricContext;
         });
@@ -306,9 +307,9 @@ export const createTrail = Effect.fn("exec/createTrail")(
           );
         });
 
-        const hasExecTrajMetrics = trajMetrics.some(({ when }) => when._tag === "Exec");
-        const runExecTrajMetrics = Effect.fn("exec/runTrail/runExecTrajMetrics")(function* () {
-          if (!hasExecTrajMetrics) {
+        const hasTrajMetrics = trajMetrics.some(({ when }) => when._tag === "Traj");
+        const runTrajMetrics = Effect.fn("exec/runTrail/runTrajMetrics")(function* () {
+          if (!hasTrajMetrics) {
             return;
           }
 
@@ -316,16 +317,11 @@ export const createTrail = Effect.fn("exec/createTrail")(
 
           for (const metric of trajMetrics) {
             const when = metric.when;
-            if (when._tag !== "Exec") {
+            if (when._tag !== "Traj" || !when.on(context.trajectory)) {
               continue;
             }
 
-            const check = Effect.tryPromise(() => when.exec(context));
-            const shouldRun = yield* when.retry === undefined
-              ? check
-              : check.pipe(Effect.retry(when.retry));
-
-            if (shouldRun) {
+            if (yield* Effect.tryPromise(() => Promise.resolve(when.exec(context)))) {
               yield* runTrajMetric(metric, context);
             }
           }
@@ -333,7 +329,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
 
         const scheduledTrajMetrics = trajMetrics.flatMap((metric) => {
           const when = metric.when;
-          return when._tag === "Schedule" ? [{ metric, schedule: when }] : [];
+          return when._tag === "Schedule" ? [{ metric, when }] : [];
         });
 
         // Prompt.Trajectory stores normalized messages and drops response finish parts, so usage
@@ -349,8 +345,9 @@ export const createTrail = Effect.fn("exec/createTrail")(
             );
           }
 
-          const before = yield* agent.trajectory();
-          const finish = yield* agent.prompt({ prompt: [prompt] }).pipe(
+          const currentAgent = yield* Ref.get(agentRef);
+          const before = yield* currentAgent.trajectory();
+          const finish = yield* currentAgent.prompt({ prompt: [prompt] }).pipe(
             Stream.tap((part) =>
               Queue.offer(
                 eventQueue,
@@ -373,19 +370,23 @@ export const createTrail = Effect.fn("exec/createTrail")(
             onSome: ({ usage }) => Effect.succeed(usage),
           });
 
-          const after = yield* agent.trajectory();
+          const after = yield* currentAgent.trajectory();
           for (let round = countToolRounds(before); round < countToolRounds(after); round += 1) {
-            yield* runExecTrajMetrics();
+            yield* runTrajMetrics();
           }
           return usage;
         });
 
-        const runPrompt = Effect.fn("exec/runTrail/runPrompt")(function* (prompt: Task.PromptFn) {
+        const runPrompt = Effect.fn("exec/runTrail/runPrompt")(function* (
+          options: Task.PromptOptions,
+        ) {
+          const prompt = yield* Task.makePrompt(options);
           const initialState: PromptState = { isFirst: true, cursor: 0 };
           const usages = Stream.paginate(
             initialState,
             Effect.fn(function* ({ isFirst, cursor }) {
-              const trajectory = yield* agent.trajectory();
+              const currentAgent = yield* Ref.get(agentRef);
+              const trajectory = yield* currentAgent.trajectory();
               const generated = isFirst ? [] : trajectory.content.slice(cursor);
 
               const next = yield* prompt({ trajectory, generated });
@@ -433,7 +434,8 @@ export const createTrail = Effect.fn("exec/createTrail")(
           results: StageResults,
           retries = 0,
         ) {
-          const trajectory = yield* agent.trajectory();
+          const currentAgent = yield* Ref.get(agentRef);
+          const trajectory = yield* currentAgent.trajectory();
           const grade = yield* Grade.run(grader)({
             ...sandboxContext,
             results,
@@ -475,7 +477,10 @@ export const createTrail = Effect.fn("exec/createTrail")(
           stageIdx: number,
           results: StageResults,
         ) {
-          const { metadata, prompt, grader } = stage;
+          const { metadata, prompt, grader, continue: shouldContinue = true } = stage;
+          if (stageIdx > 0 && !shouldContinue) {
+            yield* Ref.set(agentRef, yield* agentProvider.runSession({ sandbox }));
+          }
           yield* Ref.set(stageResults, results);
           yield* Effect.logDebug(`Starting stage ${stageIdx}`);
           const promptUsage = yield* runPrompt(prompt);
@@ -519,9 +524,10 @@ export const createTrail = Effect.fn("exec/createTrail")(
           Effect.flatMap((grade) =>
             grade === null
               ? Effect.succeed(null)
-              : agent
-                  .trajectory()
-                  .pipe(Effect.map((trajectory) => new TrailResult({ grade, trajectory }))),
+              : Ref.get(agentRef).pipe(
+                  Effect.flatMap((agent) => agent.trajectory()),
+                  Effect.map((trajectory) => new TrailResult({ grade, trajectory })),
+                ),
           ),
         );
 
@@ -529,13 +535,49 @@ export const createTrail = Effect.fn("exec/createTrail")(
           return yield* runStages.pipe(Effect.flatMap(completeTrail));
         }
 
+        const runScheduledTrajMetric = Effect.fn("exec/runTrail/runScheduledTrajMetric")(
+          function* ({ metric, when }: (typeof scheduledTrajMetrics)[number]) {
+            const attempt = Effect.fn(function* () {
+              const context = yield* makeTrajContext();
+              const shouldRun = yield* Effect.tryPromise(() => Promise.resolve(when.exec(context)));
+              if (shouldRun) {
+                yield* runTrajMetric(metric, context);
+              }
+              return shouldRun;
+            });
+
+            const retry = when.retry;
+            const cycle = Effect.fn(function* () {
+              const primary = Stream.fromSchedule(when.schedule).pipe(Stream.mapEffect(attempt));
+              if (retry === undefined) {
+                yield* primary.pipe(Stream.runDrain);
+                return yield* Effect.never;
+              }
+
+              const primaryResult = yield* primary.pipe(
+                Stream.takeUntil((succeeded) => !succeeded),
+                Stream.runLast,
+              );
+              if (Option.isNone(primaryResult) || primaryResult.value) {
+                return yield* Effect.never;
+              }
+
+              const retryResult = yield* Stream.fromSchedule(retry).pipe(
+                Stream.mapEffect(attempt),
+                Stream.takeUntil((succeeded) => succeeded),
+                Stream.runLast,
+              );
+              if (Option.isNone(retryResult) || !retryResult.value) {
+                return yield* Effect.never;
+              }
+            });
+
+            return yield* cycle().pipe(Effect.forever);
+          },
+        );
+
         const runScheduledTrajMetrics = Effect.all(
-          scheduledTrajMetrics.map(({ metric, schedule }) =>
-            makeTrajContext().pipe(
-              Effect.flatMap((context) => runTrajMetric(metric, context)),
-              Effect.schedule(schedule),
-            ),
-          ),
+          scheduledTrajMetrics.map(runScheduledTrajMetric),
           { concurrency: "unbounded", discard: true },
         ).pipe(Effect.andThen(Effect.never));
 

@@ -3,7 +3,7 @@ import { assert, describe, it } from "@effect/vitest";
 import { Agent, Sandbox, Snapshot } from "@open-insight/core";
 import { Crypto, Effect, Layer, Option, Queue, Schedule, Stream } from "effect";
 import { Prompt, Response } from "effect/unstable/ai";
-import { When } from "../metric/when.ts";
+import * as When from "../metric/when.ts";
 import * as Task from "../task/index.ts";
 import { type Event } from "./event/index.ts";
 import { TrailResult } from "./result.ts";
@@ -31,7 +31,10 @@ const sandbox = {
   expose: () => Effect.die("unused sandbox operation"),
 } satisfies Sandbox.Sandbox;
 
-const makeLayer = Effect.fn(function* (agent: Agent.Agent) {
+const makeLayer = Effect.fn(function* (
+  agent: Agent.Agent,
+  runSession: Agent.Provider["runSession"] = () => Effect.succeed(agent),
+) {
   const handle = yield* Snapshot.Handle.make(Snapshot.make({ image: "scratch" }));
   const sandboxProvider = {
     aquireSnapshot: () => Effect.succeed(handle),
@@ -40,7 +43,7 @@ const makeLayer = Effect.fn(function* (agent: Agent.Agent) {
   } satisfies Sandbox.Provider;
   const agentProvider = {
     snapshotExtension: Option.none(),
-    runSession: () => Effect.succeed(agent),
+    runSession,
   } satisfies Agent.Provider;
 
   return Layer.mergeAll(
@@ -173,6 +176,143 @@ describe("createTrail", () => {
       }),
     );
 
+    it.effect("creates a fresh prompt iterator for each trail", () =>
+      Effect.gen(function* () {
+        const usage = makeUsage(10, 2);
+        const message = Prompt.userMessage({
+          content: [Prompt.textPart({ text: "task" })],
+        });
+        const initialInputs: Array<Task.PromptFnInput> = [];
+        const prompt: Task.PromptFactory = async function* (input) {
+          initialInputs.push(input);
+          yield message;
+        };
+        let agentPrompts = 0;
+        const agent = {
+          trajectory: () => Effect.succeed(Prompt.empty),
+          prompt: () => {
+            agentPrompts += 1;
+            return Stream.make(finishPart(usage));
+          },
+        } satisfies Agent.Agent;
+        const layer = yield* makeLayer(agent);
+        const queue = yield* Queue.unbounded<Event>();
+        const task = yield* Task.make({
+          id: "repeatable-prompt",
+          name: "Repeatable prompt",
+          snapshot: Snapshot.make({ image: "scratch" }),
+        }).pipe(
+          Task.stage("only", {
+            prompt,
+            grader: async () => ({ score: 1 }),
+          }),
+        );
+
+        const runTrail = yield* createTrail({
+          task,
+          bench: "bench",
+          harness: "harness",
+          eventQueue: queue,
+        }).pipe(Effect.provide(layer));
+
+        yield* runTrail(0);
+        yield* runTrail(1);
+
+        assert.strictEqual(agentPrompts, 2);
+        assert.strictEqual(initialInputs.length, 2);
+        for (const input of initialInputs) {
+          assert.deepStrictEqual(input, { trajectory: Prompt.empty, generated: [] });
+        }
+      }),
+    );
+
+    it.effect("starts a new agent session when a stage does not continue", () =>
+      Effect.gen(function* () {
+        const usage = makeUsage(10, 2);
+        const firstTrajectory = Prompt.make([
+          Prompt.userMessage({ content: [Prompt.textPart({ text: "first" })] }),
+        ]);
+        const continuedTrajectory = Prompt.make([
+          ...firstTrajectory.content,
+          Prompt.userMessage({ content: [Prompt.textPart({ text: "second" })] }),
+        ]);
+        const resetTrajectory = Prompt.make([
+          Prompt.userMessage({ content: [Prompt.textPart({ text: "third" })] }),
+        ]);
+
+        const makeAgent = (trajectories: ReadonlyArray<Prompt.Prompt>): Agent.Agent => {
+          let promptIdx = 0;
+          let trajectory = Prompt.empty;
+          return {
+            trajectory: () => Effect.succeed(trajectory),
+            prompt: () => {
+              const next = trajectories[promptIdx];
+              promptIdx += 1;
+              if (next === undefined) {
+                return Stream.die("unexpected agent prompt");
+              }
+              trajectory = next;
+              return Stream.make(finishPart(usage));
+            },
+          };
+        };
+
+        const firstAgent = makeAgent([firstTrajectory, continuedTrajectory]);
+        const secondAgent = makeAgent([resetTrajectory]);
+        const agents = [firstAgent, secondAgent];
+        let sessionIdx = 0;
+        const layer = yield* makeLayer(firstAgent, () => {
+          const agent = agents[sessionIdx];
+          sessionIdx += 1;
+          return agent === undefined
+            ? Effect.die("unexpected agent session")
+            : Effect.succeed(agent);
+        });
+        const queue = yield* Queue.unbounded<Event>();
+        const task = yield* Task.make({
+          id: "stage-continuation",
+          name: "Stage continuation",
+          snapshot: Snapshot.make({ image: "scratch" }),
+        }).pipe(
+          Task.stage("first", {
+            prompt: Prompt.userMessage({ content: [Prompt.textPart({ text: "first" })] }),
+            grader: async ({ trajectory }) => {
+              assert.strictEqual(trajectory, firstTrajectory);
+              return { score: 1 };
+            },
+          }),
+          Task.stage("second", {
+            prompt: Prompt.userMessage({ content: [Prompt.textPart({ text: "second" })] }),
+            grader: async ({ trajectory }) => {
+              assert.strictEqual(trajectory, continuedTrajectory);
+              return { score: 2 };
+            },
+          }),
+          Task.stage("third", {
+            continue: false,
+            prompt: Prompt.userMessage({ content: [Prompt.textPart({ text: "third" })] }),
+            grader: async ({ trajectory }) => {
+              assert.strictEqual(trajectory, resetTrajectory);
+              return { score: 3 };
+            },
+          }),
+        );
+
+        const runTrail = yield* createTrail({
+          task,
+          bench: "bench",
+          harness: "harness",
+          eventQueue: queue,
+        }).pipe(Effect.provide(layer));
+
+        assert.deepStrictEqual(
+          yield* runTrail(0),
+          new TrailResult({ grade: { score: 3 }, trajectory: resetTrajectory }),
+        );
+        assert.strictEqual(sessionIdx, 2);
+      }),
+    );
+
     it.effect("runs exec trajectory metrics and publishes matching results", () =>
       Effect.gen(function* () {
         const usage = makeUsage(10, 2);
@@ -210,13 +350,10 @@ describe("createTrail", () => {
           trajMetrics: [
             {
               id: "matching-metric",
-              when: When.Exec({
-                exec: async ({ results, trajectory: current }) => {
-                  assert.deepStrictEqual(results, {});
-                  assert.strictEqual(current, toolTrajectory);
-                  metricChecks += 1;
-                  return true;
-                },
+              when: When.traj((current) => {
+                assert.strictEqual(current, toolTrajectory);
+                metricChecks += 1;
+                return true;
               }),
               exec: async ({ trajectory: current }) => ({
                 messages: current.content.length,
@@ -224,7 +361,7 @@ describe("createTrail", () => {
             },
             {
               id: "skipped-metric",
-              when: When.Exec({ exec: async () => false }),
+              when: When.traj(() => false),
               exec: async () => ({ unexpected: true }),
             },
           ],
@@ -275,14 +412,16 @@ describe("createTrail", () => {
     it.effect("runs scheduled trajectory metrics during the trail", () =>
       Effect.gen(function* () {
         let releasePrompt: (() => void) | undefined;
-        const waitForMetric = new Promise<void>((resolve) => {
+        const waitForMetrics = new Promise<void>((resolve) => {
           releasePrompt = resolve;
         });
+        const scheduleSteps: Array<number> = [];
+        let metricRuns = 0;
         const agent = {
           trajectory: () => Effect.succeed(Prompt.empty),
           prompt: () =>
             Stream.fromEffect(
-              Effect.promise(() => waitForMetric).pipe(Effect.as(finishPart(makeUsage(1, 1)))),
+              Effect.promise(() => waitForMetrics).pipe(Effect.as(finishPart(makeUsage(1, 1)))),
             ),
         } satisfies Agent.Agent;
         const layer = yield* makeLayer(agent);
@@ -294,10 +433,21 @@ describe("createTrail", () => {
           trajMetrics: [
             {
               id: "scheduled-metric",
-              when: When.Schedule(Schedule.recurs(1)),
+              when: When.schedule(
+                Schedule.recurs(2).pipe(
+                  Schedule.tap(({ output }) =>
+                    Effect.sync(() => {
+                      scheduleSteps.push(output);
+                    }),
+                  ),
+                ),
+              ),
               exec: async () => {
-                releasePrompt?.();
-                return { samples: 1 };
+                metricRuns += 1;
+                if (metricRuns === 2) {
+                  releasePrompt?.();
+                }
+                return { samples: metricRuns };
               },
             },
           ],
@@ -318,9 +468,145 @@ describe("createTrail", () => {
 
         const events = yield* Queue.takeAll(queue);
         const metricEvents = events.filter((event) => event._tag === "TrajMetricEvent");
+        assert.deepStrictEqual(scheduleSteps, [0, 1]);
         assert.deepStrictEqual(
           metricEvents.map(({ trailIdx, id, result }) => ({ trailIdx, id, result })),
-          [{ trailIdx: 4, id: "scheduled-metric", result: { samples: 1 } }],
+          [
+            { trailIdx: 4, id: "scheduled-metric", result: { samples: 1 } },
+            { trailIdx: 4, id: "scheduled-metric", result: { samples: 2 } },
+          ],
+        );
+      }),
+    );
+
+    it.effect(
+      "retries false scheduled checks and restarts the primary schedule after success",
+      () =>
+        Effect.gen(function* () {
+          let releasePrompt: (() => void) | undefined;
+          const waitForSecondMetric = new Promise<void>((resolve) => {
+            releasePrompt = resolve;
+          });
+          let checks = 0;
+          let metricRuns = 0;
+          const agent = {
+            trajectory: () => Effect.succeed(Prompt.empty),
+            prompt: () =>
+              Stream.fromEffect(
+                Effect.promise(() => waitForSecondMetric).pipe(
+                  Effect.as(finishPart(makeUsage(1, 1))),
+                ),
+              ),
+          } satisfies Agent.Agent;
+          const layer = yield* makeLayer(agent);
+          const queue = yield* Queue.unbounded<Event>();
+          const task = yield* Task.make({
+            id: "retried-scheduled-trajectory-metric-task",
+            name: "Retried scheduled trajectory metric task",
+            snapshot: Snapshot.make({ image: "scratch" }),
+            trajMetrics: [
+              {
+                id: "retried-scheduled-metric",
+                when: When.schedule(Schedule.recurs(1), {
+                  retry: Schedule.recurs(2),
+                  exec: async () => {
+                    checks += 1;
+                    return checks > 1;
+                  },
+                }),
+                exec: async () => {
+                  metricRuns += 1;
+                  if (metricRuns === 2) {
+                    releasePrompt?.();
+                  }
+                  return { metricRuns };
+                },
+              },
+            ],
+          }).pipe(
+            Task.stage("only", {
+              prompt: Prompt.userMessage({ content: [Prompt.textPart({ text: "task" })] }),
+              grader: async () => ({ score: 1 }),
+            }),
+          );
+
+          const runTrail = yield* createTrail({
+            task,
+            bench: "bench",
+            harness: "harness",
+            eventQueue: queue,
+          }).pipe(Effect.provide(layer));
+          yield* runTrail(5).pipe(Effect.timeout("5 seconds"));
+
+          const events = yield* Queue.takeAll(queue);
+          const metricEvents = events.filter((event) => event._tag === "TrajMetricEvent");
+          assert.strictEqual(checks, 3);
+          assert.strictEqual(metricRuns, 2);
+          assert.deepStrictEqual(
+            metricEvents.map(({ result }) => result),
+            [{ metricRuns: 1 }, { metricRuns: 2 }],
+          );
+        }),
+    );
+
+    it.effect("silently skips a false scheduled check without retry", () =>
+      Effect.gen(function* () {
+        let releasePrompt: (() => void) | undefined;
+        const metricRan = new Promise<void>((resolve) => {
+          releasePrompt = resolve;
+        });
+        let checks = 0;
+        let metricRuns = 0;
+        const agent = {
+          trajectory: () => Effect.succeed(Prompt.empty),
+          prompt: () =>
+            Stream.fromEffect(
+              Effect.promise(() => metricRan).pipe(Effect.as(finishPart(makeUsage(1, 1)))),
+            ),
+        } satisfies Agent.Agent;
+        const layer = yield* makeLayer(agent);
+        const queue = yield* Queue.unbounded<Event>();
+        const task = yield* Task.make({
+          id: "skipped-scheduled-trajectory-metric-task",
+          name: "Skipped scheduled trajectory metric task",
+          snapshot: Snapshot.make({ image: "scratch" }),
+          trajMetrics: [
+            {
+              id: "skipped-scheduled-metric",
+              when: When.schedule(Schedule.recurs(2), {
+                exec: async () => {
+                  checks += 1;
+                  return checks === 2;
+                },
+              }),
+              exec: async () => {
+                metricRuns += 1;
+                releasePrompt?.();
+                return { metricRuns };
+              },
+            },
+          ],
+        }).pipe(
+          Task.stage("only", {
+            prompt: Prompt.userMessage({ content: [Prompt.textPart({ text: "task" })] }),
+            grader: async () => ({ score: 1 }),
+          }),
+        );
+
+        const runTrail = yield* createTrail({
+          task,
+          bench: "bench",
+          harness: "harness",
+          eventQueue: queue,
+        }).pipe(Effect.provide(layer));
+        yield* runTrail(6).pipe(Effect.timeout("5 seconds"));
+
+        const events = yield* Queue.takeAll(queue);
+        assert.strictEqual(checks, 2);
+        assert.strictEqual(metricRuns, 1);
+        assert.lengthOf(
+          events.filter((event) => event._tag === "TrajMetricEvent"),
+          1,
         );
       }),
     );
@@ -335,7 +621,7 @@ describe("createTrail", () => {
         } satisfies Agent.Agent;
         const layer = yield* makeLayer(agent);
         const queue = yield* Queue.unbounded<Event>();
-        const builtTask = yield* Task.make({
+        const task = yield* Task.make({
           id: "task-metric-task",
           name: "Task metric task",
           snapshot: Snapshot.make({ image: "scratch" }),
@@ -362,23 +648,6 @@ describe("createTrail", () => {
             grader: async () => grades[gradeIdx++] ?? { score: 0 },
           }),
         );
-        let promptCalls = 0;
-        const task = {
-          ...builtTask,
-          stages: builtTask.stages.map((stage) => ({
-            ...stage,
-            prompt: () => {
-              promptCalls += 1;
-              return Effect.succeed(
-                promptCalls % 2 === 1
-                  ? Prompt.make([
-                      Prompt.userMessage({ content: [Prompt.textPart({ text: "task" })] }),
-                    ])
-                  : null,
-              );
-            },
-          })),
-        };
 
         const runTrail = yield* createTrail({
           task,

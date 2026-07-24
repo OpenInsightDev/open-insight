@@ -4,7 +4,7 @@ import { castDraft, produce } from "immer";
 import { Error } from "./error.ts";
 import { IDSchema } from "#/utils/id.ts";
 import type { Task } from "./build.ts";
-import { makePrompt, type PromptFn, type PromptOptions } from "./prompt.ts";
+import type { PromptOptions } from "./prompt.ts";
 
 export class StageMetadata extends Schema.Class<StageMetadata>("StageMetadata")({
   id: IDSchema,
@@ -19,7 +19,8 @@ export type Stage<
   S extends Stage = any,
 > = Readonly<{
   metadata: StageMetadata;
-  prompt: PromptFn;
+  continue?: boolean;
+  prompt: PromptOptions;
   grader: Grade.Grader<G, StageResult<S>>;
 }> & { _N?: N; _G?: G; _S?: S };
 
@@ -31,19 +32,21 @@ export type StageOptions<
   S extends Stage = never,
 > = Readonly<{
   name: N;
+  continue?: boolean;
   prompt: PromptOptions;
   grader: Grade.Grader<G, StageResult<S>>;
 }> &
   Omit<StageMetadataEncoded, "name">;
 
 export const makeStage = Effect.fn(function* (options: StageOptions) {
-  const { prompt, grader } = options;
+  const { continue: shouldContinue = true, prompt, grader } = options;
   const metadata = yield* Schema.decodeEffect(StageMetadata)(options).pipe(
     Effect.mapError(Error.metadata),
   );
   return {
     metadata,
-    prompt: yield* makePrompt(prompt),
+    continue: shouldContinue,
+    prompt,
     grader,
   } satisfies Stage;
 });
