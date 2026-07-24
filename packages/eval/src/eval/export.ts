@@ -7,5 +7,5 @@ export {
   type TaskResult,
   type TrailResult,
 } from "./index.ts";
-export * from "./event/export.ts";
+export { transformPrompt as streamPartsToPromptParts } from "./stream.ts";
 export * as Internal from "./index.ts";

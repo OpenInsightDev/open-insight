@@ -18,7 +18,7 @@ import {
   InitEvent,
   TaskScheduleEvent,
   TrailScheduleEvent,
-} from "./event/index.ts";
+} from "#/event/index.ts";
 import { createTrail, type RunTrail } from "./trail.ts";
 
 type BenchMetricInput = Readonly<{

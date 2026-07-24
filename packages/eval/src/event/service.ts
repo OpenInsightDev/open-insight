@@ -1,6 +1,6 @@
 import { Context, Effect, type Scope } from "effect";
+import type { Error } from "./error.ts";
 import type { EventStream } from "./schema.ts";
-import type { Error } from "../error.ts";
 
 export type EventTransport = Readonly<{
   send(stream: EventStream): Effect.Effect<void, Error, Scope.Scope>;

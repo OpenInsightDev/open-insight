@@ -1,40 +1,34 @@
 import { Effect, Random } from "effect";
-import { castDraft, produce } from "immer";
+import { produce } from "immer";
 import type * as Task from "../task/index.ts";
 import type { Bench } from "./build.ts";
+
+const withTasks = <T extends Task.Task>(bench: Bench<T>, tasks: ReadonlyArray<T>): Bench<T> => ({
+  ...bench,
+  metadata: produce(bench.metadata, (draft) => {
+    draft.subset = true;
+  }),
+  tasks,
+});
 
 export const skip =
   (n: number) =>
   <T extends Task.Task, E, R>(self: Effect.Effect<Bench<T>, E, R>) =>
-    Effect.map(self, (bench) =>
-      produce(bench, (draft) => {
-        draft.subset = true;
-        draft.tasks = castDraft(bench.tasks.slice(n));
-      }),
-    );
+    Effect.map(self, (bench) => withTasks(bench, bench.tasks.slice(n)));
 
 export const head =
   (n: number) =>
   <T extends Task.Task, E, R>(self: Effect.Effect<Bench<T>, E, R>) =>
-    Effect.map(self, (bench) =>
-      produce(bench, (draft) => {
-        draft.subset = true;
-        draft.tasks = castDraft(bench.tasks.slice(0, n));
-      }),
-    );
+    Effect.map(self, (bench) => withTasks(bench, bench.tasks.slice(0, n)));
 
 export const select = (ids: ReadonlyArray<Task.ID>) => {
   const selectedIds = new Set(ids);
 
   return <T extends Task.Task, E, R>(self: Effect.Effect<Bench<T>, E, R>) =>
-    Effect.flatMap(self, (bench) =>
-      Effect.map(Effect.all(bench.tasks, { concurrency: "unbounded" }), (tasks) =>
-        produce(bench, (draft) => {
-          draft.subset = true;
-          draft.tasks = castDraft(
-            tasks.filter((task) => selectedIds.has(task.metadata.id)).map(Effect.succeed),
-          );
-        }),
+    Effect.map(self, (bench) =>
+      withTasks(
+        bench,
+        bench.tasks.filter((task) => selectedIds.has(task.metadata.id)),
       ),
     );
 };
@@ -44,9 +38,6 @@ export const randomSelect =
   <T extends Task.Task, E, R>(self: Effect.Effect<Bench<T>, E, R>) =>
     Effect.flatMap(self, (bench) =>
       Effect.map(Random.shuffle(bench.tasks), (tasks) =>
-        produce(bench, (draft) => {
-          draft.subset = true;
-          draft.tasks = castDraft(tasks.slice(0, taskCount));
-        }),
+        withTasks(bench, tasks.slice(0, taskCount)),
       ),
     );

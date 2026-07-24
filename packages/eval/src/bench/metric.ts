@@ -1,4 +1,4 @@
-import { Crypto, Effect } from "effect";
+import { Crypto, Effect, Schema } from "effect";
 import { castDraft, produce } from "immer";
 import * as BenchMetric from "#/metric/bench.ts";
 import * as TaskMetric from "#/metric/task.ts";
@@ -8,7 +8,7 @@ import type { Bench } from "./build.ts";
 import { Error } from "./error.ts";
 
 export const metric =
-  (options: BenchMetric.Options) =>
+  <R extends Schema.JsonObject = Schema.JsonObject>(options: BenchMetric.Options<R>) =>
   <T extends Task.Task, E, Env>(
     bench: Effect.Effect<Bench<T>, E, Env>,
   ): Effect.Effect<Bench<T>, E | Error, Env | Crypto.Crypto> =>
@@ -21,7 +21,10 @@ export const metric =
     );
 
 export const taskMetric =
-  (taskId: Task.ID, options: TaskMetric.Options) =>
+  <R extends Schema.JsonObject = Schema.JsonObject>(
+    taskId: Task.ID,
+    options: TaskMetric.Options<R>,
+  ) =>
   <T extends Task.Task, E, Env>(
     bench: Effect.Effect<Bench<T>, E, Env>,
   ): Effect.Effect<Bench<T>, E | Error, Env | Crypto.Crypto> =>
@@ -46,7 +49,10 @@ export const taskMetric =
     });
 
 export const trajMetric =
-  (taskId: Task.ID, options: TrajMetric.Options) =>
+  <R extends Schema.JsonObject = Schema.JsonObject>(
+    taskId: Task.ID,
+    options: TrajMetric.Options<R>,
+  ) =>
   <T extends Task.Task, E, Env>(
     bench: Effect.Effect<Bench<T>, E, Env>,
   ): Effect.Effect<Bench<T>, E | Error, Env | Crypto.Crypto> =>

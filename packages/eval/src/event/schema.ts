@@ -1,10 +1,10 @@
 import * as Chart from "#/chart/index.ts";
 import { Queue, Schema, Stream } from "effect";
 import * as Grade from "#/grade/index.ts";
-import type { Error } from "../error.ts";
 import * as Bench from "#/bench/index.ts";
 import * as Harness from "#/harness/index.ts";
 import { Response, Toolkit } from "effect/unstable/ai";
+import type * as EventError from "./error.ts";
 
 const EvalFields = {
   bench: Schema.String,
@@ -107,6 +107,6 @@ export const Event = Schema.Union([
 ]);
 export type Event = Schema.Schema.Type<typeof Event>;
 
-export type EventQueue = Queue.Queue<Event, Error>;
-export type EventEnqueue = Queue.Enqueue<Event, Error>;
-export type EventStream = Stream.Stream<Event, Error>;
+export type EventQueue<E = never> = Queue.Queue<Event, E>;
+export type EventEnqueue<E = never> = Queue.Enqueue<Event, E>;
+export type EventStream<E = EventError.Error> = Stream.Stream<Event, E>;

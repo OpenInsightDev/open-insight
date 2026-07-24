@@ -13,7 +13,7 @@ type Results = Record<PropertyKey, Result>;
 export type SandboxContext = Sandbox.SandboxPromise;
 export type Context<Rs extends Results = never> = SandboxContext &
   Readonly<{
-    results: UnionToIntersection<Rs>;
+    results: Rs;
     trajectory: Prompt.Trajectory;
   }>;
 

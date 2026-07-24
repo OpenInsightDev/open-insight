@@ -1,4 +1,5 @@
 export * as Bench from "#/bench/export.ts";
+export * as Event from "#/event/export.ts";
 export * as Eval from "#/eval/export.ts";
 export * as Harness from "#/harness/export.ts";
 export * as Metric from "#/metric/export.ts";

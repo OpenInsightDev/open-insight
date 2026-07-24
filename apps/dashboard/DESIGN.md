@@ -1,49 +1,49 @@
-# Dashboard Design Direction
+# Dashboard 设计方向
 
-This document records the preferred visual direction for the dashboard app. Treat it as the design source of truth when shaping new screens, component states, and visual polish.
+本文档记录 Dashboard 应用首选的视觉方向。在设计新页面、组件状态和视觉细节时，应将其作为设计规范的唯一依据。
 
-## Core Mood
+## 核心气质
 
-The dashboard should feel quiet, focused, and material. It favors calm attention over decorative drama: the interface should recede until the user focuses a region, then that region earns clearer color, stronger contrast, and a little more presence.
+Dashboard 应呈现安静、专注且具有材质感的体验。相比装饰性的戏剧效果，它更强调平静的注意力：在用户聚焦某个区域前，界面应适度退居背景；当用户聚焦后，该区域再获得更清晰的色彩、更强的对比度和更明确的存在感。
 
-## Layering
+## 层级
 
-- Secondary hierarchy must appear as floating layers, not sunken or inset layers.
-- Floating layers should use tasteful shadow, elevation, and separation from the base surface.
-- Secondary-layer backgrounds should use a carefully designed gray glass material: subtle blur, restrained transparency, visible depth, and enough opacity for legibility.
-- Avoid heavy card stacking. Use floating panels only when they clarify hierarchy, state, or focus.
+- 次级层级必须以浮动层呈现，不应使用下沉或内嵌的层级。
+- 浮动层应通过克制的阴影、层次高度以及与基础表面的间距来体现。
+- 次级层级的背景应使用经过细致设计的灰色玻璃材质：轻微模糊、克制的透明度、可感知的深度，以及足以保证可读性的实心度。
+- 避免大量卡片堆叠。只有在能够明确层级、状态或焦点时，才使用浮动面板。
 
-## Shape And Edge
+## 形状与边缘
 
-- All framed elements use small-radius rectangles.
-- Every framed element must have a 1px edge that is slightly darker than the surface it encloses.
-- Avoid pill-shaped or heavily rounded panels, cards, inputs, and menus unless the component's standard affordance truly requires it.
-- Borders should feel material and precise, not decorative.
+- 所有带边框的元素都使用小圆角矩形。
+- 每个带边框的元素都必须有 1px 的边缘，颜色应比其包围的表面略深。
+- 除非组件的标准交互形式确实需要，否则避免使用胶囊形或大圆角的面板、卡片、输入框和菜单。
+- 边框应体现材质感与精确感，而不是装饰性。
 
-## Motion
+## 动效
 
-- Animation should be based on blur transitions: unfocused or entering content resolves from soft blur into clarity.
-- Avoid dynamic slide-in, slide-out, fly-in, or bouncing entrance motion.
-- Prefer short, stateful transitions that change clarity, shadow, contrast, and material presence.
-- Reduced-motion behavior must preserve the state change without movement.
+- 动画应以模糊过渡为基础：未聚焦或刚进入的内容从柔和的模糊状态逐渐变得清晰。
+- 避免动态滑入、滑出、飞入或弹跳式的进入动效。
+- 优先使用短促且有明确状态含义的过渡，改变清晰度、阴影、对比度和材质呈现。
+- 在减少动效模式下，必须保留状态变化，但不应产生位移。
 
-## Zen Focus Model
+## 禅意聚焦模型
 
-- The default page state is zen mode: only the content the user is currently focused on should receive extra visual emphasis.
-- On desktop, hover is the primary focus signal. Hovered regions may gain normal color, sharper text, slightly stronger elevation, or a restrained scale increase.
-- Non-focused content should remain present but quieter: lower contrast, softened color, reduced emphasis, and less visual pull.
-- The focused region should never become loud; it should simply become the clearest thing on the screen.
+- 页面默认处于禅模式：只有用户当前聚焦的内容才应获得额外的视觉强调。
+- 在桌面端，悬停是主要的聚焦信号。悬停区域可以恢复正常色彩、让文字更清晰、略微增强层次高度，或进行克制的缩放。
+- 未聚焦的内容应继续保留，但表现得更安静：降低对比度、柔化色彩、减弱强调，并减少视觉牵引力。
+- 聚焦区域不应变得喧闹，只需成为屏幕上最清晰的区域。
 
-## Color
+## 色彩
 
-- Use `#0077CC` as the single theme color across the dashboard.
-- All other colors must be neutral, or extremely restrained neighboring tones of the theme color.
-- Keep the total color impression tightly controlled. The page should not read as multicolor.
-- Use the theme color for selection, primary action, and meaningful state only, not decoration.
+- 在整个 Dashboard 中使用 `#0077CC` 作为唯一主题色。
+- 其他颜色必须保持中性，或使用主题色相邻且极其克制的色调。
+- 严格控制整体色彩印象，页面不应呈现为多色界面。
+- 主题色仅用于选中态、主要操作和有意义的状态，不用于装饰。
 
-## Typography
+## 字体排版
 
-- Prefer a humanist serif direction.
-- English text should lean toward Linux Libertine or a compatible humanist serif with similar proportions.
-- Chinese text should use a paired Chinese typeface that harmonizes with the English serif instead of fighting it.
-- UI labels, data, and dense controls still need strong legibility; the serif choice must serve repeated dashboard use, not only editorial atmosphere.
+- 采用人文主义衬线字体方向。
+- 英文文本应倾向使用 Linux Libertine，或选择比例相近、兼容的人文主义衬线字体。
+- 中文文本应使用与英文衬线字体相配的中文字体，彼此协调而不是相互冲突。
+- 界面标签、数据和密集控件仍需具备良好的可读性；衬线字体的选择必须服务于 Dashboard 的重复使用场景，而不只是营造编辑感氛围。

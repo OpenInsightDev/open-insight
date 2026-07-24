@@ -4,6 +4,7 @@ import * as Tasks from "#/tasks/index.ts";
 import * as Task from "../task/index.ts";
 import * as Bench from "#/bench/index.ts";
 import * as Harness from "#/harness/index.ts";
+import * as Event from "#/event/index.ts";
 import { Snapshot } from "@open-insight/core/internal";
 
 const NonNegativeInt = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0));
@@ -44,22 +45,6 @@ export class TaskVerifFailed extends Schema.TaggedErrorClass<TaskVerifFailed>()(
   cause: Schema.Defect(),
 }) {}
 
-export class EventTransportInitError extends Schema.TaggedErrorClass<EventTransportInitError>()(
-  "EventTransportInitError",
-  {
-    transport: Schema.String,
-    cause: Schema.Defect(),
-  },
-) {}
-
-export class EventTransportError extends Schema.TaggedErrorClass<EventTransportError>()(
-  "EventTransportError",
-  {
-    transport: Schema.String,
-    cause: Schema.Defect(),
-  },
-) {}
-
 export class SnapshotError extends Schema.TaggedErrorClass<SnapshotError>()("SnapshotError", {
   task: Task.ID,
   snapshot: Snapshot.Snapshot,
@@ -69,8 +54,7 @@ export class SnapshotError extends Schema.TaggedErrorClass<SnapshotError>()("Sna
 export const ErrorReason = Schema.Union([
   InitError,
   Tasks.Error,
-  EventTransportInitError,
-  EventTransportError,
+  Event.Error,
   SnapshotError,
   TaskInitError,
   TaskExecError,
@@ -92,11 +76,7 @@ export class Error extends Schema.TaggedErrorClass<Error>()("EvalError", {
 
   static tasks = (cause: Tasks.Error) => new Error({ reason: cause });
 
-  static eventTransportInit = (transport: string) =>
-    this.mapUnknownError((cause) => new EventTransportInitError({ transport, cause }));
-
-  static eventTransport = (transport: string) =>
-    this.mapUnknownError((cause) => new EventTransportError({ transport, cause }));
+  static event = (cause: Event.Error) => new Error({ reason: cause });
 
   static snapshot = (task: ExecTask) =>
     this.mapUnknownError(

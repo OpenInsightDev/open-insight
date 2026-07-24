@@ -3,15 +3,14 @@ import * as Chart from "#/chart/index.ts";
 import type { TrailResult } from "#/eval/result.ts";
 import { Effect, Schema } from "effect";
 import { Metadata, type MetadataEncoded } from "./metadata.ts";
+import type { BivariantFn } from "../utils/variant.ts";
 
 export type Delta = TrailResult & Readonly<{ task: Task.ID }>;
 export type Results = Readonly<Record<Task.ID, Array<TrailResult>>>;
 
-export type Exec<R extends Schema.JsonObject = Schema.JsonObject> = (
-  results: Results,
-  delta: Delta,
-  prev: R | null,
-) => Promise<R>;
+export type Exec<R extends Schema.JsonObject = Schema.JsonObject> = BivariantFn<
+  (results: Results, delta: Delta, prev: R | null) => Promise<R>
+>;
 
 export type Metric<R extends Schema.JsonObject = Schema.JsonObject> = Readonly<{
   exec: Exec<R>;

@@ -27,11 +27,12 @@ import { Error } from "./error.ts";
 import { TrailResult } from "./result.ts";
 import {
   type Event,
+  type EventEnqueue,
   TaskMetricEvent,
   TrailStagedEvent,
   TrailStreamEvent,
   TrajMetricEvent,
-} from "./event/index.ts";
+} from "#/event/index.ts";
 
 export type RunTrail = (trailIdx: number) => Effect.Effect<TrailResult | null, Error, Scope.Scope>;
 
@@ -68,7 +69,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
     bench: string;
     harness: string;
     config?: Config;
-    eventQueue: Queue.Enqueue<Event>;
+    eventQueue: EventEnqueue;
   }): Effect.fn.Return<
     RunTrail,
     Error,
