@@ -2,6 +2,7 @@ import { NodeServices } from "@effect/platform-node";
 import { assert, beforeEach, describe, it } from "@effect/vitest";
 import { Agent, Sandbox, Snapshot } from "@open-insight/core";
 import { Effect, Layer, Option, Queue, Scope } from "effect";
+import { Prompt } from "effect/unstable/ai";
 import { vi } from "vite-plus/test";
 import * as Bench from "../bench/index.ts";
 import * as Harness from "../harness/index.ts";
@@ -28,14 +29,17 @@ const mockState = vi.hoisted(
 );
 
 const installTrailMock = () => {
-  vi.mocked(createTrail).mockImplementation(({ task }) =>
-    Effect.succeed((trailIdx) =>
-      Effect.gen(function* () {
+  vi.mocked(createTrail).mockImplementation(({ task, onComplete }) =>
+    Effect.succeed(
+      Effect.fn(function* (trailIdx) {
         yield* Scope.Scope;
         mockState.starts.push({
           task: task.metadata.id,
           trailIdx,
         });
+        if (onComplete !== undefined) {
+          yield* onComplete({ grade: { score: trailIdx }, trajectory: Prompt.empty });
+        }
         return undefined;
       }),
     ),
@@ -119,6 +123,59 @@ describe("run", () => {
 
       assert.strictEqual(mockState.starts.length, taskIds.length * trailCount);
       assertFairWaves(mockState.starts, taskIds);
+    }).pipe(Effect.provide(TestLayer)),
+  );
+
+  it.effect("runs bench metrics with accumulated results and offers bench events", () =>
+    Effect.gen(function* () {
+      const taskIds = ["task-a", "task-b"];
+      const tasks = yield* Effect.all(taskIds.map(makeTask));
+      let callCount = 0;
+      const benchmark = yield* Bench.make({
+        id: "bench-metrics",
+        subset: false,
+        tasks: Effect.succeed(tasks),
+        metrics: [
+          {
+            id: "completed-trails",
+            exec: async (results, delta, prev) => {
+              const resultCount = Object.values(results).reduce(
+                (count, taskResults) => count + taskResults.length,
+                0,
+              );
+              assert.strictEqual(resultCount, callCount);
+              assert.deepStrictEqual(prev, callCount === 0 ? null : { count: callCount });
+              assert.include(taskIds, delta.task);
+              callCount += 1;
+              return { count: callCount };
+            },
+          },
+        ],
+      });
+      const eventQueue = yield* Queue.unbounded<Event>();
+
+      yield* run(
+        {
+          trailCount: 2,
+          bench: benchmark,
+          harness: makeHarnessMetadata("harness-metrics"),
+          eventQueue,
+        },
+        { trailConcurrency: 4 },
+      );
+
+      const events = yield* Queue.takeAll(eventQueue);
+      const metricEvents = events.filter((event) => event._tag === "BenchMetricEvent");
+      assert.strictEqual(callCount, 4);
+      assert.deepStrictEqual(
+        metricEvents.map(({ bench, harness, id, result }) => ({ bench, harness, id, result })),
+        [1, 2, 3, 4].map((count) => ({
+          bench: "bench-metrics",
+          harness: "harness-metrics",
+          id: "completed-trails",
+          result: { count },
+        })),
+      );
     }).pipe(Effect.provide(TestLayer)),
   );
 

@@ -124,11 +124,18 @@ describe("createTrail", () => {
           }),
         );
 
+        let completed = 0;
         const runTrail = yield* createTrail({
           task,
           bench: "bench",
           harness: "harness",
           eventQueue: queue,
+          onComplete: ({ grade, trajectory }) =>
+            Effect.sync(() => {
+              assert.deepStrictEqual(grade, secondGrade);
+              assert.strictEqual(trajectory, Prompt.empty);
+              completed += 1;
+            }),
         }).pipe(Effect.provide(layer));
         const result = yield* runTrail(7);
         const events = yield* Queue.takeAll(queue);
@@ -136,6 +143,7 @@ describe("createTrail", () => {
         const stagedEvents = events.filter((event) => event._tag === "TrailStagedEvent");
 
         assert.deepStrictEqual(result, secondGrade);
+        assert.strictEqual(completed, 1);
         assert.strictEqual(streamEvents.length, 3);
         for (const event of streamEvents) {
           assert.strictEqual(event.task, "multi-stage-id");
@@ -317,6 +325,108 @@ describe("createTrail", () => {
         assert.deepStrictEqual(
           metricEvents.map(({ trailIdx, id, result }) => ({ trailIdx, id, result })),
           [{ trailIdx: 4, id: "scheduled-metric", result: { samples: 1 } }],
+        );
+      }),
+    );
+
+    it.effect("runs task metrics with accumulated results and offers task events", () =>
+      Effect.gen(function* () {
+        const grades = [{ score: 1 }, { score: 2 }];
+        let gradeIdx = 0;
+        const agent = {
+          trajectory: () => Effect.succeed(Prompt.empty),
+          prompt: () => Stream.make(finishPart(makeUsage(1, 1))),
+        } satisfies Agent.Agent;
+        const layer = yield* makeLayer(agent);
+        const queue = yield* Queue.unbounded<Event>();
+        const builtTask = yield* Task.make({
+          id: "task-metric-task",
+          name: "Task metric task",
+          snapshot: Snapshot.make({ image: "scratch" }),
+          metrics: [
+            {
+              id: "task-aggregate",
+              exec: async (results, delta, prev) => {
+                assert.strictEqual(delta.trajectory, Prompt.empty);
+                assert.deepStrictEqual(
+                  results.map(({ grade }) => grade),
+                  grades.slice(0, results.length),
+                );
+                return {
+                  count: results.length + 1,
+                  previous: prev,
+                  score: delta.grade.score,
+                };
+              },
+            },
+          ],
+        }).pipe(
+          Task.stage("only", {
+            prompt: Prompt.userMessage({ content: [Prompt.textPart({ text: "task" })] }),
+            grader: async () => grades[gradeIdx++] ?? { score: 0 },
+          }),
+        );
+        let promptCalls = 0;
+        const task = {
+          ...builtTask,
+          stages: builtTask.stages.map((stage) => ({
+            ...stage,
+            prompt: () => {
+              promptCalls += 1;
+              return Effect.succeed(
+                promptCalls % 2 === 1
+                  ? Prompt.make([
+                      Prompt.userMessage({ content: [Prompt.textPart({ text: "task" })] }),
+                    ])
+                  : null,
+              );
+            },
+          })),
+        };
+
+        let completed = 0;
+        const runTrail = yield* createTrail({
+          task,
+          bench: "bench",
+          harness: "harness",
+          eventQueue: queue,
+          onComplete: ({ grade, trajectory }) =>
+            Effect.sync(() => {
+              assert.deepStrictEqual(grade, grades[completed]);
+              assert.strictEqual(trajectory, Prompt.empty);
+              completed += 1;
+            }),
+        }).pipe(Effect.provide(layer));
+        assert.deepStrictEqual(yield* runTrail(0), grades[0]);
+        assert.deepStrictEqual(yield* runTrail(1), grades[1]);
+        assert.strictEqual(completed, 2);
+
+        const events = yield* Queue.takeAll(queue);
+        const metricEvents = events.filter((event) => event._tag === "TaskMetricEvent");
+        assert.deepStrictEqual(
+          metricEvents.map(({ bench, harness, task, id, result }) => ({
+            bench,
+            harness,
+            task,
+            id,
+            result,
+          })),
+          [
+            {
+              bench: "bench",
+              harness: "harness",
+              task: "task-metric-task",
+              id: "task-aggregate",
+              result: { count: 1, previous: null, score: 1 },
+            },
+            {
+              bench: "bench",
+              harness: "harness",
+              task: "task-metric-task",
+              id: "task-aggregate",
+              result: { count: 2, previous: { count: 1, previous: null, score: 1 }, score: 2 },
+            },
+          ],
         );
       }),
     );
