@@ -1,3 +1,4 @@
+import * as Metric from "#/metric/index.ts";
 import {
   Effect,
   Equal,
@@ -49,6 +50,15 @@ type PromptPage = readonly [
   usages: ReadonlyArray<Response.Usage>,
   nextState: Option.Option<PromptState>,
 ];
+type VerifStage = Readonly<{
+  metadata: Task.Stage["metadata"];
+  grader: Grade.VerifGrader;
+  stageIdx: number;
+}>;
+type ScheduledMetric = Readonly<{
+  metric: TrajMetric.Metric;
+  when: Extract<Metric.When.When, { readonly _tag: "Schedule" }>;
+}>;
 const MetricResult = Schema.Record(Schema.String, Schema.Json);
 
 const advanceStage = (results: StageResults, stage: string, grade: Grade.Result): StageResults =>
@@ -93,7 +103,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
 
     yield* Effect.annotateCurrentSpan({ taskName: task.metadata.name });
 
-    const verifStages = verifMode
+    const verifStages: ReadonlyArray<VerifStage> = verifMode
       ? yield* Effect.forEach(stages, ({ metadata, grader }, stageIdx) =>
           isVerifGrader(grader)
             ? Effect.succeed({ metadata, grader, stageIdx })
@@ -134,6 +144,132 @@ export const createTrail = Effect.fn("exec/createTrail")(
       prev: {},
     });
 
+    const runTaskMetric = Effect.fn("exec/runTrail/runTaskMetric")(function* (
+      metric: TaskMetric.Metric,
+      results: ReadonlyArray<TrailResult>,
+      delta: TrailResult,
+      prev: Schema.JsonObject | null,
+    ) {
+      const result = yield* Effect.tryPromise(() => metric.exec(results, delta, prev)).pipe(
+        Effect.flatMap(Schema.decodeEffect(MetricResult)),
+      );
+
+      yield* Queue.offer(
+        eventQueue,
+        TaskMetricEvent.make({
+          bench,
+          harness,
+          task: task.metadata.id,
+          id: metric.metadata.id,
+          result,
+        }),
+      );
+      return result;
+    });
+
+    const runTaskMetrics = Effect.fn("exec/runTrail/runTaskMetrics")(function* (
+      delta: TrailResult,
+    ) {
+      yield* SynchronizedRef.modifyEffect(
+        taskMetricAccu,
+        Effect.fn(function* (accu) {
+          const metricResults = yield* Effect.forEach(metrics, (metric) =>
+            runTaskMetric(metric, accu.results, delta, accu.prev[metric.metadata.id] ?? null).pipe(
+              Effect.map((result) => ({ id: metric.metadata.id, result })),
+            ),
+          );
+
+          return [
+            null,
+            produce(accu, (draft) => {
+              draft.results.push(castDraft(delta));
+              for (const { id, result } of metricResults) {
+                draft.prev[id] = castDraft(result);
+              }
+            }),
+          ] satisfies readonly [null, TaskMetricAccu];
+        }),
+      );
+    });
+
+    const completeTrail = Effect.fn("exec/runTrail/complete")(function* (
+      result: TrailResult | null,
+    ) {
+      if (result === null || metrics.length === 0) {
+        return result;
+      }
+
+      yield* runTaskMetrics(result);
+      return result;
+    });
+
+    const verifyGrader = Effect.fn("exec/runTrail/verifyGrader")(function* (
+      sandboxContext: Grade.SandboxContext,
+      grader: Grade.VerifGrader,
+      results: StageResults,
+    ) {
+      const trajectory = yield* Effect.tryPromise(() => grader.verif(sandboxContext))
+        .pipe(Effect.mapError(Grade.Error.verify))
+        .pipe(Effect.map((traj) => traj ?? Prompt.empty));
+
+      const grade = yield* Grade.run(grader.grade)({
+        ...sandboxContext,
+        results,
+        trajectory,
+      });
+
+      if (!Equal.equals(grade, grader.expect)) {
+        return yield* Effect.fail(
+          Error.taskVerif(
+            task,
+            grader.expect,
+            grade,
+          )(new globalThis.Error("Grader result did not match its expected result")),
+        );
+      }
+
+      return new TrailResult({ grade, trajectory });
+    });
+
+    const runVerifStage = Effect.fn("exec/runTrail/verifyStage")(function* (
+      sandboxContext: Grade.SandboxContext,
+      stage: VerifStage,
+      results: StageResults,
+    ) {
+      yield* Effect.logDebug(`Verifying grader for stage ${stage.stageIdx}`);
+      const result = yield* verifyGrader(sandboxContext, stage.grader, results);
+      yield* Effect.logDebug(`Verified grader for stage ${stage.stageIdx}`);
+      return result;
+    });
+
+    const runTrajMetric = Effect.fn("exec/runTrail/runTrajMetric")(function* (
+      metric: TrajMetric.Metric,
+      context: TrajMetricContext,
+      trailIdx: number,
+    ) {
+      const result = yield* Effect.tryPromise(() => metric.exec(context)).pipe(
+        Effect.flatMap(Schema.decodeEffect(MetricResult)),
+      );
+
+      yield* Queue.offer(
+        eventQueue,
+        TrajMetricEvent.make({
+          bench,
+          harness,
+          task: task.metadata.id,
+          trailIdx,
+          id: metric.metadata.id,
+          result,
+        }),
+      );
+    });
+
+    const hasTrajMetrics = trajMetrics.some(({ when }) => when._tag === "Traj");
+    const scheduledMetrics: ReadonlyArray<ScheduledMetric> = trajMetrics.flatMap((metric) => {
+      const when = metric.when;
+      return when._tag === "Schedule" ? [{ metric, when }] : [];
+    });
+
     const runTrail = Effect.fn(
       function* (trailIdx: number) {
         yield* Effect.annotateCurrentSpan({ taskName: task.metadata.name, trailIdx });
@@ -142,114 +278,13 @@ export const createTrail = Effect.fn("exec/createTrail")(
         const sandbox = yield* sandboxProvider.runSandbox({ handle: trailSnapshot, resources });
         const sandboxContext = yield* Sandbox.asPromise(sandbox);
 
-        const runTaskMetric = Effect.fn("exec/runTrail/runTaskMetric")(function* (
-          metric: TaskMetric.Metric,
-          results: ReadonlyArray<TrailResult>,
-          delta: TrailResult,
-          prev: Schema.JsonObject | null,
-        ) {
-          const result = yield* Effect.tryPromise(() => metric.exec(results, delta, prev)).pipe(
-            Effect.flatMap(Schema.decodeEffect(MetricResult)),
-          );
-
-          yield* Queue.offer(
-            eventQueue,
-            TaskMetricEvent.make({
-              bench,
-              harness,
-              task: task.metadata.id,
-              id: metric.metadata.id,
-              result,
-            }),
-          );
-          return result;
-        });
-
-        const runTaskMetrics = Effect.fn("exec/runTrail/runTaskMetrics")(function* (
-          delta: TrailResult,
-        ) {
-          yield* SynchronizedRef.modifyEffect(
-            taskMetricAccu,
-            Effect.fn(function* (accu) {
-              const metricResults = yield* Effect.forEach(metrics, (metric) =>
-                runTaskMetric(
-                  metric,
-                  accu.results,
-                  delta,
-                  accu.prev[metric.metadata.id] ?? null,
-                ).pipe(Effect.map((result) => ({ id: metric.metadata.id, result }))),
-              );
-
-              return [
-                null,
-                produce(accu, (draft) => {
-                  draft.results.push(castDraft(delta));
-                  for (const { id, result } of metricResults) {
-                    draft.prev[id] = castDraft(result);
-                  }
-                }),
-              ] satisfies readonly [null, TaskMetricAccu];
-            }),
-          );
-        });
-
-        const completeTrail = Effect.fn("exec/runTrail/complete")(function* (
-          result: TrailResult | null,
-        ) {
-          if (result === null || metrics.length === 0) {
-            return result;
-          }
-
-          yield* runTaskMetrics(result);
-          return result;
-        });
-
-        const verifyGrader = Effect.fn("exec/runTrail/verifyGrader")(function* (
-          grader: Grade.VerifGrader,
-          results: StageResults,
-        ) {
-          const trajectory = yield* Effect.tryPromise(() => grader.verif(sandboxContext))
-            .pipe(Effect.mapError(Grade.Error.verify))
-            .pipe(Effect.map((traj) => traj ?? Prompt.empty));
-
-          const grade = yield* Grade.run(grader.grade)({
-            ...sandboxContext,
-            results,
-            trajectory,
-          });
-
-          if (!Equal.equals(grade, grader.expect)) {
-            return yield* Effect.fail(
-              Error.taskVerif(
-                task,
-                grader.expect,
-                grade,
-              )(new globalThis.Error("Grader result did not match its expected result")),
-            );
-          }
-
-          return new TrailResult({ grade, trajectory });
-        });
-
         if (verifMode) {
           yield* Effect.logDebug("Starting grader verification");
-          const runVerifStage = Effect.fn("exec/runTrail/verifyStage")(function* (
-            stage: (typeof verifStages)[number],
-            results: StageResults,
-          ) {
-            const { grader, stageIdx } = stage;
-
-            yield* Effect.logDebug(`Verifying grader for stage ${stageIdx}`);
-            const result = yield* verifyGrader(grader, results);
-            yield* Effect.logDebug(`Verified grader for stage ${stageIdx}`);
-            return result;
-          });
-
           const result = yield* Stream.fromIterable(verifStages).pipe(
             Stream.mapAccumEffect(
               (): StageResults => ({}),
               (results, stage) =>
-                runVerifStage(stage, results).pipe(
+                runVerifStage(sandboxContext, stage, results).pipe(
                   Effect.map(
                     (result) =>
                       [
@@ -286,35 +321,12 @@ export const createTrail = Effect.fn("exec/createTrail")(
           return { ...metricSandboxContext, results, trajectory } satisfies TrajMetricContext;
         });
 
-        const runTrajMetric = Effect.fn("exec/runTrail/runTrajMetric")(function* (
-          metric: TrajMetric.Metric,
-          context: TrajMetricContext,
-        ) {
-          const result = yield* Effect.tryPromise(() => metric.exec(context)).pipe(
-            Effect.flatMap(Schema.decodeEffect(MetricResult)),
-          );
-
-          yield* Queue.offer(
-            eventQueue,
-            TrajMetricEvent.make({
-              bench,
-              harness,
-              task: task.metadata.id,
-              trailIdx,
-              id: metric.metadata.id,
-              result,
-            }),
-          );
-        });
-
-        const hasTrajMetrics = trajMetrics.some(({ when }) => when._tag === "Traj");
         const runTrajMetrics = Effect.fn("exec/runTrail/runTrajMetrics")(function* () {
           if (!hasTrajMetrics) {
             return;
           }
 
           const context = yield* makeTrajContext();
-
           for (const metric of trajMetrics) {
             const when = metric.when;
             if (when._tag !== "Traj" || !when.on(context.trajectory)) {
@@ -322,14 +334,50 @@ export const createTrail = Effect.fn("exec/createTrail")(
             }
 
             if (yield* Effect.tryPromise(() => Promise.resolve(when.exec(context)))) {
-              yield* runTrajMetric(metric, context);
+              yield* runTrajMetric(metric, context, trailIdx);
             }
           }
         });
 
-        const scheduledTrajMetrics = trajMetrics.flatMap((metric) => {
-          const when = metric.when;
-          return when._tag === "Schedule" ? [{ metric, when }] : [];
+        const pollMetric = Effect.fn("exec/runTrail/pollMetric")(function* ({
+          metric,
+          when,
+        }: ScheduledMetric) {
+          const context = yield* makeTrajContext();
+          const shouldRun = yield* Effect.tryPromise(() => Promise.resolve(when.exec(context)));
+          if (shouldRun) {
+            yield* runTrajMetric(metric, context, trailIdx);
+          }
+          return shouldRun;
+        });
+
+        const runSchedule = Effect.fn("exec/runTrail/runSchedule")(function* (
+          scheduled: ScheduledMetric,
+        ) {
+          const poll = () => pollMetric(scheduled);
+          const primary = Stream.fromSchedule(scheduled.when.schedule).pipe(Stream.mapEffect(poll));
+          const retry = scheduled.when.retry;
+          if (retry === undefined) {
+            yield* primary.pipe(Stream.runDrain);
+            return yield* Effect.never;
+          }
+
+          const primaryResult = yield* primary.pipe(
+            Stream.takeUntil((succeeded) => !succeeded),
+            Stream.runLast,
+          );
+          if (Option.isNone(primaryResult) || primaryResult.value) {
+            return yield* Effect.never;
+          }
+
+          const retryResult = yield* Stream.fromSchedule(retry).pipe(
+            Stream.mapEffect(poll),
+            Stream.takeUntil((succeeded) => succeeded),
+            Stream.runLast,
+          );
+          if (Option.isNone(retryResult) || !retryResult.value) {
+            return yield* Effect.never;
+          }
         });
 
         // Prompt.Trajectory stores normalized messages and drops response finish parts, so usage
@@ -380,7 +428,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
         const runPrompt = Effect.fn("exec/runTrail/runPrompt")(function* (
           options: Task.PromptOptions,
         ) {
-          const prompt = yield* Task.makePrompt(options);
+          const prompt = Task.makePrompt(options);
           const initialState: PromptState = { isFirst: true, cursor: 0 };
           const usages = Stream.paginate(
             initialState,
@@ -531,57 +579,16 @@ export const createTrail = Effect.fn("exec/createTrail")(
           ),
         );
 
-        if (scheduledTrajMetrics.length === 0) {
+        if (scheduledMetrics.length === 0) {
           return yield* runStages.pipe(Effect.flatMap(completeTrail));
         }
 
-        const runScheduledTrajMetric = Effect.fn("exec/runTrail/runScheduledTrajMetric")(
-          function* ({ metric, when }: (typeof scheduledTrajMetrics)[number]) {
-            const attempt = Effect.fn(function* () {
-              const context = yield* makeTrajContext();
-              const shouldRun = yield* Effect.tryPromise(() => Promise.resolve(when.exec(context)));
-              if (shouldRun) {
-                yield* runTrajMetric(metric, context);
-              }
-              return shouldRun;
-            });
-
-            const retry = when.retry;
-            const cycle = Effect.fn(function* () {
-              const primary = Stream.fromSchedule(when.schedule).pipe(Stream.mapEffect(attempt));
-              if (retry === undefined) {
-                yield* primary.pipe(Stream.runDrain);
-                return yield* Effect.never;
-              }
-
-              const primaryResult = yield* primary.pipe(
-                Stream.takeUntil((succeeded) => !succeeded),
-                Stream.runLast,
-              );
-              if (Option.isNone(primaryResult) || primaryResult.value) {
-                return yield* Effect.never;
-              }
-
-              const retryResult = yield* Stream.fromSchedule(retry).pipe(
-                Stream.mapEffect(attempt),
-                Stream.takeUntil((succeeded) => succeeded),
-                Stream.runLast,
-              );
-              if (Option.isNone(retryResult) || !retryResult.value) {
-                return yield* Effect.never;
-              }
-            });
-
-            return yield* cycle().pipe(Effect.forever);
-          },
-        );
-
-        const runScheduledTrajMetrics = Effect.all(
-          scheduledTrajMetrics.map(runScheduledTrajMetric),
+        const metricSchedules = Effect.all(
+          scheduledMetrics.map((scheduled) => runSchedule(scheduled).pipe(Effect.forever)),
           { concurrency: "unbounded", discard: true },
         ).pipe(Effect.andThen(Effect.never));
 
-        return yield* Effect.raceFirst(runStages, runScheduledTrajMetrics).pipe(
+        return yield* Effect.raceFirst(runStages, metricSchedules).pipe(
           Effect.flatMap(completeTrail),
         );
       },

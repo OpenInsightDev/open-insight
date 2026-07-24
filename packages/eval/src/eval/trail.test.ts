@@ -203,7 +203,7 @@ describe("createTrail", () => {
           snapshot: Snapshot.make({ image: "scratch" }),
         }).pipe(
           Task.stage("only", {
-            prompt,
+            prompt: { followUp: prompt },
             grader: async () => ({ score: 1 }),
           }),
         );

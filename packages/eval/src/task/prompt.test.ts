@@ -26,12 +26,36 @@ describe("makePrompt", () => {
         yield secondMessage;
       };
 
-      const prompt = yield* makePrompt(factory);
+      const prompt = makePrompt({ followUp: factory });
 
       assert.deepStrictEqual(yield* prompt(initialInput), Prompt.make([firstMessage]));
       assert.deepStrictEqual(yield* prompt(subsequentInput), Prompt.make([secondMessage]));
       assert.isNull(yield* prompt(subsequentInput));
       assert.deepStrictEqual(received, [initialInput, subsequentInput]);
+    }),
+  );
+
+  it.effect("derives messages from the full trajectory until the callback returns null", () =>
+    Effect.gen(function* () {
+      const message = userMessage("next");
+      const trajectories: Array<Prompt.Trajectory> = [];
+      const initialInput: PromptFnInput = {
+        trajectory: Prompt.empty,
+        generated: [],
+      };
+      const nextTrajectory = Prompt.make([message]);
+      const subsequentInput: PromptFnInput = {
+        trajectory: nextTrajectory,
+        generated: [message],
+      };
+      const prompt = makePrompt(async (trajectory) => {
+        trajectories.push(trajectory);
+        return trajectories.length === 1 ? message : null;
+      });
+
+      assert.deepStrictEqual(yield* prompt(initialInput), Prompt.make([message]));
+      assert.isNull(yield* prompt(subsequentInput));
+      assert.deepStrictEqual(trajectories, [Prompt.empty, nextTrajectory]);
     }),
   );
 
@@ -53,7 +77,7 @@ describe("makePrompt", () => {
         yield followUpMessage;
       };
 
-      const prompt = yield* makePrompt({ init, followUp });
+      const prompt = makePrompt({ init, followUp });
 
       assert.deepStrictEqual(yield* prompt(initialInput), Prompt.make([init]));
       assert.isEmpty(received);
