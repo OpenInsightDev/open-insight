@@ -41,6 +41,14 @@ type TaskMetricAccu = Readonly<{
   results: ReadonlyArray<TrailResult>;
   prev: Readonly<Record<string, Schema.JsonObject>>;
 }>;
+type PromptState = Readonly<{
+  isFirst: boolean;
+  cursor: number;
+}>;
+type PromptPage = readonly [
+  usages: ReadonlyArray<Response.Usage>,
+  nextState: Option.Option<PromptState>,
+];
 const MetricResult = Schema.Record(Schema.String, Schema.Json);
 
 const advanceStage = (results: StageResults, stage: string, grade: Grade.Result): StageResults =>
@@ -162,7 +170,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
         ) {
           yield* SynchronizedRef.modifyEffect(
             taskMetricAccu,
-            Effect.fn(function* (accu: TaskMetricAccu) {
+            Effect.fn(function* (accu) {
               const metricResults = yield* Effect.forEach(metrics, (metric) =>
                 runTaskMetric(
                   metric,
@@ -373,35 +381,42 @@ export const createTrail = Effect.fn("exec/createTrail")(
         });
 
         const runPrompt = Effect.fn("exec/runTrail/runPrompt")(function* (prompt: Task.PromptFn) {
-          let first = true;
-          let cursor = 0;
-          let lastUsage = Option.none<Response.Usage>();
+          const initialState: PromptState = { isFirst: true, cursor: 0 };
+          const usages = Stream.paginate(
+            initialState,
+            Effect.fn(function* ({ isFirst, cursor }) {
+              const trajectory = yield* agent.trajectory();
+              const generated = isFirst ? [] : trajectory.content.slice(cursor);
 
-          while (true) {
-            const trajectory = yield* agent.trajectory();
-            const generated = first ? [] : trajectory.content.slice(cursor);
-            cursor = trajectory.content.length;
+              const next = yield* prompt({ trajectory, generated });
+              if (next === null) {
+                return [[], Option.none<PromptState>()] satisfies PromptPage;
+              }
 
-            const next = yield* prompt({ trajectory, generated });
-            if (next === null) {
-              return yield* Option.match(lastUsage, {
+              const usage = yield* Stream.fromIterable(next.content).pipe(
+                Stream.mapEffect(promptAgent),
+                Stream.runLast,
+              );
+
+              return [
+                Option.toArray(usage),
+                Option.some({ isFirst: false, cursor: trajectory.content.length }),
+              ] satisfies PromptPage;
+            }),
+          );
+
+          return yield* usages.pipe(
+            Stream.runLast,
+            Effect.flatMap(
+              Option.match({
                 onNone: () =>
                   Effect.fail(
                     new globalThis.Error("Stage prompt did not produce an agent response"),
                   ),
                 onSome: Effect.succeed,
-              });
-            }
-
-            const usage = yield* Stream.fromIterable(next.content).pipe(
-              Stream.mapEffect(promptAgent),
-              Stream.runLast,
-            );
-            if (Option.isSome(usage)) {
-              lastUsage = usage;
-            }
-            first = false;
-          }
+              }),
+            ),
+          );
         });
 
         const runGrader: (

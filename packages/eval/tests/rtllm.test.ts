@@ -140,7 +140,7 @@ const run = Effect.fn("run")(function* () {
   const sandbox = yield* Sandbox.Docker.make({});
 
   const harness = yield* Harness.make({
-    name: "rtllm",
+    id: "rtllm",
   }).pipe(
     Effect.provideService(Agent.ProviderService, agent),
     Effect.provideService(Sandbox.ProviderService, sandbox),

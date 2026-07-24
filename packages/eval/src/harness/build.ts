@@ -3,30 +3,31 @@ import { Agent, Sandbox } from "@open-insight/core/internal";
 import { Effect, Layer, Schema } from "effect";
 import type { Config } from "./config.ts";
 
-export class Metadata extends Schema.Class<Metadata>("HarnessMetadata")({
+export class BaseMetadata extends Schema.Class<BaseMetadata>("HarnessBaseMetadata")({
   id: Schema.String,
-  name: Schema.String,
-  description: Schema.OptionFromOptionalNullOr(Schema.String),
+  extras: Schema.optional(Schema.Record(Schema.String, Schema.Json)),
 }) {}
-type MetadataEncoded = Schema.Codec.Encoded<typeof Metadata>;
+type BaseMetadataEncoded = Schema.Codec.Encoded<typeof BaseMetadata>;
+
+export class Metadata extends Schema.Class<Metadata>("HarnessMetadata")({
+  base: BaseMetadata,
+}) {}
 
 export type Harness = Readonly<{
-  metadata: Metadata;
+  metadata: BaseMetadata;
   config: Config;
   layer: Layer.Layer<Agent.ProviderService | Sandbox.ProviderService>;
 }>;
 
-type Options = MetadataEncoded &
+type Options = BaseMetadataEncoded &
   Readonly<{
     config?: Config;
   }>;
 
-export const make = Effect.fn(function* (
-  options: Options,
-): Effect.fn.Return<Harness, never, Agent.ProviderService | Sandbox.ProviderService> {
+export const make = Effect.fn(function* (options: Options) {
   const agent = yield* Agent.ProviderService;
   const sandbox = yield* Sandbox.ProviderService;
-  const metadata = Schema.decodeSync(Metadata)(options);
+  const metadata = yield* Schema.decodeEffect(BaseMetadata)(options).pipe();
 
   const { config = {} } = options;
 
@@ -39,5 +40,8 @@ export const make = Effect.fn(function* (
     metadata,
     config,
     layer,
-  };
+  } satisfies Harness;
 });
+
+export const metadata = (harness: Harness): Metadata =>
+  Metadata.make({ base: harness.metadata }, { parseOptions: { onExcessProperty: "ignore" } });

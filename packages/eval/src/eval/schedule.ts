@@ -2,29 +2,28 @@ import { Array as Arr, Effect, FileSystem, Path, Queue, Schema, Scope, Stream } 
 import { isNotNull } from "effect/Predicate";
 import type { ChildProcessSpawner } from "effect/unstable/process";
 import { Agent, Sandbox } from "@open-insight/core";
+import { castDraft, produce } from "immer";
 import * as Bench from "#/bench/index.ts";
-import { type TrailResult } from "#/eval/result.ts";
 import * as Harness from "#/harness/index.ts";
+import type * as BenchMetric from "#/metric/bench.ts";
 import * as Task from "#/task/index.ts";
+import * as Metric from "#/metric/index.ts";
 import type { Config } from "./config.ts";
 import { Error } from "./error.ts";
 import {
   BenchMetricEvent,
   EvalScheduleEvent,
   type Event,
+  type EventEnqueue,
   InitEvent,
   TaskScheduleEvent,
   TrailScheduleEvent,
 } from "./event/index.ts";
 import { createTrail, type RunTrail } from "./trail.ts";
 
-type BenchResults = Readonly<Record<Task.ID, Array<TrailResult>>>;
-
 type BenchMetricInput = Readonly<{
-  task: Task.Task;
-  trailIdx: number;
-  results: BenchResults;
-  delta: TrailResult & Readonly<{ task: Task.ID }>;
+  results: BenchMetric.Results;
+  delta: BenchMetric.Delta;
 }>;
 
 const MetricResult = Schema.Record(Schema.String, Schema.Json);
@@ -39,25 +38,16 @@ type ScheduledTrail = ScheduledTask &
     trailIdx: number;
   }>;
 
-type CompletedTrail = Readonly<{
-  task: Task.Task;
-  trailIdx: number;
-  result: TrailResult;
+type Options = Readonly<{
+  trailCount: number;
+  bench: Bench.Bench;
+  harness: Harness.Harness;
+  eventQueue: EventEnqueue;
 }>;
 
 export const run = Effect.fn("exec/schedule")(
   function* (
-    {
-      trailCount,
-      bench,
-      harness,
-      eventQueue,
-    }: Readonly<{
-      trailCount: number;
-      bench: Bench.Bench;
-      harness: Harness.Metadata;
-      eventQueue: Queue.Enqueue<Event>;
-    }>,
+    { trailCount, bench, harness, eventQueue }: Options,
     config: Config,
   ): Effect.fn.Return<
     void,
@@ -71,8 +61,9 @@ export const run = Effect.fn("exec/schedule")(
   > {
     const { snapshotConcurrency = 32, trailConcurrency = 32 } = config;
     const offerEvent = (event: Event) => Queue.offer(eventQueue, event);
+
     const benchId = bench.metadata.id;
-    const harnessId = harness.id;
+    const harnessId = harness.metadata.id;
     const evalEventFields = { bench: benchId, harness: harnessId };
     const taskEventFields = (task: Task.Task) => ({
       ...evalEventFields,
@@ -87,7 +78,7 @@ export const run = Effect.fn("exec/schedule")(
     yield* Effect.logDebug("Starting evaluation schedule");
 
     const runBenchMetric = Effect.fn("exec/runBenchMetric")(function* (
-      metric: (typeof bench.metrics)[number],
+      metric: Metric.Bench.Metric,
       input: BenchMetricInput,
       prev: Schema.JsonObject | null,
     ) {
@@ -176,7 +167,7 @@ export const run = Effect.fn("exec/schedule")(
             ),
         );
 
-        return result === null ? null : ({ task, trailIdx, result } satisfies CompletedTrail);
+        return result === null ? null : { task, result };
       },
       (effect, { task }) =>
         effect.pipe(
@@ -208,7 +199,7 @@ export const run = Effect.fn("exec/schedule")(
       InitEvent.make({
         ...evalEventFields,
         benchMetadata: Bench.metadata(bench),
-        harnessMetadata: harness,
+        harnessMetadata: Harness.metadata(harness),
       }),
     );
     yield* Effect.acquireRelease(
@@ -245,12 +236,10 @@ export const run = Effect.fn("exec/schedule")(
     } else {
       const metricInputs = completedTrails.pipe(
         Stream.mapAccum(
-          (): BenchResults => ({}),
-          (results, { task, trailIdx, result }) => {
+          (): BenchMetric.Results => ({}),
+          (results, { task, result }) => {
             const taskId = task.metadata.id;
             const input = {
-              task,
-              trailIdx,
               results,
               delta: {
                 grade: result.grade,
@@ -258,13 +247,12 @@ export const run = Effect.fn("exec/schedule")(
                 task: taskId,
               },
             } satisfies BenchMetricInput;
-            const nextResults = {
-              ...results,
-              [taskId]: [...(results[taskId] ?? []), result],
-            } satisfies BenchResults;
+            const nextResults = produce(results, (draft) => {
+              (draft[taskId] ??= []).push(castDraft(result));
+            });
 
             return [nextResults, [input]] satisfies readonly [
-              BenchResults,
+              BenchMetric.Results,
               ReadonlyArray<BenchMetricInput>,
             ];
           },

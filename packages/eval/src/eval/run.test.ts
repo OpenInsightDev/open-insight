@@ -43,7 +43,7 @@ const mockState = vi.hoisted<MockState>(() => ({
 const installScheduleMock = () => {
   vi.mocked(runSchedule).mockImplementation(
     ({ bench: benchmark, eventQueue, harness, metrics, trailCount }) => {
-      const id = `${benchmark.name}/${harness.name}`;
+      const id = `${benchmark.name}/${harness.base.id}`;
 
       return Effect.gen(function* () {
         mockState.calls.push({
@@ -58,7 +58,7 @@ const installScheduleMock = () => {
           eventQueue,
           BenchScheduleEvent.make({
             bench: benchmark.name,
-            harness: harness.name,
+            harness: harness.base.id,
             op: "start",
           }),
         );
@@ -105,15 +105,15 @@ const unusedSandboxProvider: Sandbox.Provider = {
   runSandbox: () => Effect.die("sandbox provider should not be used by run test"),
 };
 
-const makeHarness = (name: string) =>
-  new Harness.Harness(
-    new Harness.Metadata({ name, description: null }),
-    {},
-    Layer.mergeAll(
+const makeHarness = (id: string) =>
+  ({
+    metadata: new Harness.BaseMetadata({ id }),
+    config: {},
+    layer: Layer.mergeAll(
       Layer.succeed(Agent.ProviderService)(unusedAgentProvider),
       Layer.succeed(Sandbox.ProviderService)(unusedSandboxProvider),
     ),
-  );
+  }) satisfies Harness.Harness;
 
 const makeBenchmark = (name: string) => Bench.make({ name, tasks: [] });
 
@@ -252,7 +252,7 @@ describe("runMatrix", () => {
 
       assert.strictEqual(error.reason._tag, "InitError");
       assert.strictEqual(error.benchmark?.name, "bench-a");
-      assert.strictEqual(error.harness?.name, "harness-a");
+        assert.strictEqual(error.harness?.base.id, "harness-a");
       assert.strictEqual(mockState.active, 0);
       assert.strictEqual(events.length, 2);
     }),
@@ -325,7 +325,7 @@ describe("runMatrix", () => {
       }).pipe(provideTransport, Effect.flip);
       const harnessError = yield* runMatrix({
         benchmarks: [{ benchmark: benchmarkA }],
-        harnesses: [harnessA, makeHarness(harnessA.name), harnessB],
+          harnesses: [harnessA, makeHarness(harnessA.metadata.id), harnessB],
       }).pipe(provideTransport, Effect.flip);
 
       assert.strictEqual(benchmarkError.reason._tag, "InitError");

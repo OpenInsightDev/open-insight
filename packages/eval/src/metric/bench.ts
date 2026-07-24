@@ -4,9 +4,9 @@ import type { TrailResult } from "#/eval/result.ts";
 import { Effect, Schema } from "effect";
 import { Metadata, type MetadataEncoded } from "./metadata.ts";
 
-type Delta = TrailResult & Readonly<{ task: Task.ID }>;
+export type Delta = TrailResult & Readonly<{ task: Task.ID }>;
 
-type Results = Readonly<Record<Task.ID, Array<TrailResult>>>;
+export type Results = Readonly<Record<Task.ID, Array<TrailResult>>>;
 
 export type Exec<R extends Schema.JsonObject = Schema.JsonObject> = (
   results: Results,

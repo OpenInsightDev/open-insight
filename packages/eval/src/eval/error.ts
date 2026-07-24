@@ -1,6 +1,5 @@
 import { Schema } from "effect";
 import * as Grade from "#/grade/index.ts";
-import * as Metric from "#/metric/index.ts";
 import * as Tasks from "#/tasks/index.ts";
 import * as Task from "../task/index.ts";
 import * as Bench from "#/bench/index.ts";
@@ -93,8 +92,8 @@ export class Error extends Schema.TaggedErrorClass<Error>()("EvalError", {
 
   static tasks = (cause: Tasks.Error) => new Error({ reason: cause });
 
-  static eventTransportInit = (transport: string, url: string) =>
-    this.mapUnknownError((cause) => new EventTransportInitError({ transport, url, cause }));
+  static eventTransportInit = (transport: string) =>
+    this.mapUnknownError((cause) => new EventTransportInitError({ transport, cause }));
 
   static eventTransport = (transport: string) =>
     this.mapUnknownError((cause) => new EventTransportError({ transport, cause }));

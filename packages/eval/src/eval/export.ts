@@ -1,9 +1,6 @@
 export {
   Error,
   make,
-  run,
-  runMatrix,
-  runPromise,
   type Config,
   type Executor,
   type Result,

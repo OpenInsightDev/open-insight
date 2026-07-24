@@ -70,9 +70,9 @@ const makeTask = (id: string) =>
 
 const makeHarnessMetadata = (id: string) =>
   new Harness.Metadata({
-    id,
-    name: `Harness ${id}`,
-    description: Option.none(),
+    base: new Harness.BaseMetadata({
+      id,
+    }),
   });
 
 const makeBench = Effect.fn(function* (id: string, taskIds: ReadonlyArray<string>) {
@@ -256,7 +256,7 @@ describe("run", () => {
       assert.strictEqual(init?.bench, "bench-a");
       assert.strictEqual(init?.harness, "harness-a");
       assert.strictEqual(init?.benchMetadata.base.id, "bench-a");
-      assert.strictEqual(init?.harnessMetadata.id, "harness-a");
+      assert.strictEqual(init?.harnessMetadata.base.id, "harness-a");
 
       assert.deepStrictEqual(
         evalEvents.map(({ op }) => op),
