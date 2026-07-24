@@ -1,13 +1,14 @@
 import { NodeServices } from "@effect/platform-node";
 import { assert, beforeEach, describe, it } from "@effect/vitest";
 import { Agent, Sandbox, Snapshot } from "@open-insight/core";
-import { Effect, Layer, Option, Queue, Scope } from "effect";
+import { Effect, Layer, Option, Queue, Schema, Scope } from "effect";
 import { Prompt } from "effect/unstable/ai";
 import { vi } from "vite-plus/test";
 import * as Bench from "../bench/index.ts";
 import * as Harness from "../harness/index.ts";
 import * as Task from "../task/index.ts";
 import type { Event } from "./event/index.ts";
+import { TrailResult } from "./result.ts";
 import { run } from "./schedule.ts";
 import { createTrail } from "./trail.ts";
 
@@ -29,7 +30,7 @@ const mockState = vi.hoisted(
 );
 
 const installTrailMock = () => {
-  vi.mocked(createTrail).mockImplementation(({ task, onComplete }) =>
+  vi.mocked(createTrail).mockImplementation(({ task }) =>
     Effect.succeed(
       Effect.fn(function* (trailIdx) {
         yield* Scope.Scope;
@@ -37,10 +38,7 @@ const installTrailMock = () => {
           task: task.metadata.id,
           trailIdx,
         });
-        if (onComplete !== undefined) {
-          yield* onComplete({ grade: { score: trailIdx }, trajectory: Prompt.empty });
-        }
-        return undefined;
+        return new TrailResult({ grade: { score: trailIdx }, trajectory: Prompt.empty });
       }),
     ),
   );
@@ -176,6 +174,51 @@ describe("run", () => {
           result: { count },
         })),
       );
+    }).pipe(Effect.provide(TestLayer)),
+  );
+
+  it.effect("runs different bench metrics concurrently while preserving each metric's prev", () =>
+    Effect.gen(function* () {
+      const task = yield* makeTask("task-concurrent-metrics");
+      const firstCalls = Promise.withResolvers<void>();
+      const calls = { left: 0, right: 0 };
+      let arrivals = 0;
+      const makeMetric = (id: "left" | "right") => ({
+        id,
+        exec: async (_results: unknown, _delta: unknown, prev: Schema.JsonObject | null) => {
+          assert.deepStrictEqual(prev, calls[id] === 0 ? null : { count: calls[id] });
+          calls[id] += 1;
+
+          if (calls[id] === 1) {
+            arrivals += 1;
+            if (arrivals === 2) {
+              firstCalls.resolve();
+            }
+            await firstCalls.promise;
+          }
+
+          return { count: calls[id] };
+        },
+      });
+      const benchmark = yield* Bench.make({
+        id: "concurrent-metrics",
+        subset: false,
+        tasks: Effect.succeed([task]),
+        metrics: [makeMetric("left"), makeMetric("right")],
+      });
+      const eventQueue = yield* Queue.unbounded<Event>();
+
+      yield* run(
+        {
+          trailCount: 2,
+          bench: benchmark,
+          harness: makeHarnessMetadata("harness-concurrent-metrics"),
+          eventQueue,
+        },
+        { trailConcurrency: 2 },
+      ).pipe(Effect.timeout("5 seconds"));
+
+      assert.deepStrictEqual(calls, { left: 2, right: 2 });
     }).pipe(Effect.provide(TestLayer)),
   );
 

@@ -1,10 +1,10 @@
-import { Effect, FileSystem, Path, Queue, Schema, Scope, Stream, SynchronizedRef } from "effect";
+import { Array as Arr, Effect, FileSystem, Path, Queue, Schema, Scope, Stream } from "effect";
+import { isNotNull } from "effect/Predicate";
 import type { ChildProcessSpawner } from "effect/unstable/process";
 import { Agent, Sandbox } from "@open-insight/core";
-import { castDraft, produce } from "immer";
 import * as Bench from "#/bench/index.ts";
+import { type TrailResult } from "#/eval/result.ts";
 import * as Harness from "#/harness/index.ts";
-import type * as TaskMetric from "#/metric/task.ts";
 import * as Task from "#/task/index.ts";
 import type { Config } from "./config.ts";
 import { Error } from "./error.ts";
@@ -18,9 +18,13 @@ import {
 } from "./event/index.ts";
 import { createTrail, type RunTrail } from "./trail.ts";
 
-type BenchMetricAccu = Readonly<{
-  results: Readonly<Record<Task.ID, Array<TaskMetric.Result>>>;
-  prev: Readonly<Record<string, Schema.JsonObject>>;
+type BenchResults = Readonly<Record<Task.ID, Array<TrailResult>>>;
+
+type BenchMetricInput = Readonly<{
+  task: Task.Task;
+  trailIdx: number;
+  results: BenchResults;
+  delta: TrailResult & Readonly<{ task: Task.ID }>;
 }>;
 
 const MetricResult = Schema.Record(Schema.String, Schema.Json);
@@ -34,6 +38,12 @@ type ScheduledTrail = ScheduledTask &
   Readonly<{
     trailIdx: number;
   }>;
+
+type CompletedTrail = Readonly<{
+  task: Task.Task;
+  trailIdx: number;
+  result: TrailResult;
+}>;
 
 export const run = Effect.fn("exec/schedule")(
   function* (
@@ -76,21 +86,14 @@ export const run = Effect.fn("exec/schedule")(
     yield* Effect.annotateCurrentSpan({ benchmark: benchId });
     yield* Effect.logDebug("Starting evaluation schedule");
 
-    const benchMetricAccu = yield* SynchronizedRef.make<BenchMetricAccu>({
-      results: {},
-      prev: {},
-    });
-
     const runBenchMetric = Effect.fn("exec/runBenchMetric")(function* (
       metric: (typeof bench.metrics)[number],
-      results: BenchMetricAccu["results"],
-      delta: TaskMetric.Result & Readonly<{ task: Task.ID }>,
+      input: BenchMetricInput,
       prev: Schema.JsonObject | null,
     ) {
-      const result = yield* Effect.tryPromise(() => metric.exec(results, delta, prev)).pipe(
-        Effect.flatMap(Schema.decodeEffect(MetricResult)),
-        Effect.mapError(Error.init),
-      );
+      const result = yield* Effect.tryPromise(() =>
+        metric.exec(input.results, input.delta, prev),
+      ).pipe(Effect.flatMap(Schema.decodeEffect(MetricResult)), Effect.mapError(Error.init));
 
       yield* offerEvent(
         BenchMetricEvent.make({
@@ -100,38 +103,6 @@ export const run = Effect.fn("exec/schedule")(
         }),
       );
       return result;
-    });
-
-    const runBenchMetrics = Effect.fn("exec/runBenchMetrics")(function* (
-      task: Task.Task,
-      result: TaskMetric.Result,
-    ) {
-      if (bench.metrics.length === 0) {
-        return;
-      }
-
-      yield* SynchronizedRef.modifyEffect(
-        benchMetricAccu,
-        Effect.fn(function* (accu: BenchMetricAccu) {
-          const taskId = task.metadata.id;
-          const delta = { ...result, task: taskId };
-          const metricResults = yield* Effect.forEach(bench.metrics, (metric) =>
-            runBenchMetric(metric, accu.results, delta, accu.prev[metric.metadata.id] ?? null).pipe(
-              Effect.map((result) => ({ id: metric.metadata.id, result })),
-            ),
-          );
-
-          return [
-            undefined,
-            produce(accu, (draft) => {
-              (draft.results[taskId] ??= []).push(castDraft(result));
-              for (const { id, result } of metricResults) {
-                draft.prev[id] = castDraft(result);
-              }
-            }),
-          ] satisfies readonly [undefined, BenchMetricAccu];
-        }),
-      );
     });
 
     const prepareTask = Effect.fn("exec/prepareTask")(
@@ -165,7 +136,6 @@ export const run = Effect.fn("exec/schedule")(
           harness: harnessId,
           eventQueue,
           config,
-          onComplete: (result) => runBenchMetrics(task, result),
         });
 
         yield* Effect.logDebug("Prepared task");
@@ -189,7 +159,7 @@ export const run = Effect.fn("exec/schedule")(
           trailCount,
         });
 
-        yield* Effect.acquireUseRelease(
+        const result = yield* Effect.acquireUseRelease(
           offerEvent(
             TrailScheduleEvent.make({
               ...trailEventFields(task, trailIdx),
@@ -205,6 +175,8 @@ export const run = Effect.fn("exec/schedule")(
               }),
             ),
         );
+
+        return result === null ? null : ({ task, trailIdx, result } satisfies CompletedTrail);
       },
       (effect, { task }) =>
         effect.pipe(
@@ -260,13 +232,63 @@ export const run = Effect.fn("exec/schedule")(
     });
     yield* Effect.logDebug("Prepared all tasks");
 
-    yield* makeTrailStream(scheduledTasks).pipe(
+    const completedTrails = makeTrailStream(scheduledTasks).pipe(
       Stream.mapEffect(runScheduledTrail, {
         concurrency: trailConcurrency,
         unordered: true,
       }),
-      Stream.runDrain,
+      Stream.filter(isNotNull),
     );
+
+    if (bench.metrics.length === 0) {
+      yield* Stream.runDrain(completedTrails);
+    } else {
+      const metricInputs = completedTrails.pipe(
+        Stream.mapAccum(
+          (): BenchResults => ({}),
+          (results, { task, trailIdx, result }) => {
+            const taskId = task.metadata.id;
+            const input = {
+              task,
+              trailIdx,
+              results,
+              delta: {
+                grade: result.grade,
+                trajectory: result.trajectory,
+                task: taskId,
+              },
+            } satisfies BenchMetricInput;
+            const nextResults = {
+              ...results,
+              [taskId]: [...(results[taskId] ?? []), result],
+            } satisfies BenchResults;
+
+            return [nextResults, [input]] satisfies readonly [
+              BenchResults,
+              ReadonlyArray<BenchMetricInput>,
+            ];
+          },
+        ),
+      );
+      const metricStreams = yield* metricInputs.pipe(
+        Stream.broadcastN({
+          n: bench.metrics.length,
+          capacity: Math.max(1, trailConcurrency),
+        }),
+      );
+
+      yield* Effect.forEach(
+        Arr.zip(bench.metrics, metricStreams),
+        ([metric, stream]) =>
+          stream.pipe(
+            Stream.runFoldEffect(
+              (): Schema.JsonObject | null => null,
+              (prev, input) => runBenchMetric(metric, input, prev),
+            ),
+          ),
+        { concurrency: "unbounded", discard: true },
+      );
+    }
 
     yield* Effect.logDebug("Completed evaluation schedule");
   },

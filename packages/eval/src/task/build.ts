@@ -69,8 +69,8 @@ export type Options<E extends Schema.JsonObject = EmptyRecord> = BaseMetadataEnc
     extras?: E;
   }>;
 
-const makeMetric = <G extends Grade.Result, R extends Schema.JsonObject = Schema.JsonObject>(
-  options: TaskMetric.Options<G, R>,
+const makeMetric = <R extends Schema.JsonObject = Schema.JsonObject>(
+  options: TaskMetric.Options<R>,
 ) => TaskMetric.make(options).pipe(Effect.mapError(Error.metadata));
 
 const makeTrajMetric = <R extends Schema.JsonObject = Schema.JsonObject>(
@@ -108,10 +108,8 @@ export const make = Effect.fn(function* <E extends Schema.JsonObject = EmptyReco
 });
 
 export const metric =
-  <G extends Grade.Result, R extends Schema.JsonObject = Schema.JsonObject>(
-    options: TaskMetric.Options<G, R>,
-  ) =>
-  <Ex extends Schema.JsonObject, S extends Stage, E, Env>(
+  <R extends Schema.JsonObject = Schema.JsonObject>(options: TaskMetric.Options<R>) =>
+  <G extends Grade.Result, Ex extends Schema.JsonObject, S extends Stage, E, Env>(
     task: Effect.Effect<Task<G, Ex, S>, E, Env>,
   ): Effect.Effect<Task<G, Ex, S>, E | Error, Env | Crypto.Crypto> =>
     Effect.all([task, makeMetric(options)]).pipe(

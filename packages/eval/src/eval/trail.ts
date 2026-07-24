@@ -25,6 +25,7 @@ import type { Context as TrajMetricContext } from "#/metric/when.ts";
 import * as Task from "../task/index.ts";
 import type { Config } from "./config.ts";
 import { Error } from "./error.ts";
+import { TrailResult } from "./result.ts";
 import {
   type Event,
   TaskMetricEvent,
@@ -33,24 +34,19 @@ import {
   TrajMetricEvent,
 } from "./event/index.ts";
 
-export type RunTrail = (
-  trailIdx: number,
-) => Effect.Effect<Grade.Result | undefined, Error, Scope.Scope>;
+export type RunTrail = (trailIdx: number) => Effect.Effect<TrailResult | null, Error, Scope.Scope>;
 
 type StageResults = Readonly<Record<string, Grade.Result>>;
-type StageAccuStep = readonly [results: StageResults, grades: ReadonlyArray<Grade.Result>];
 type TaskMetricAccu = Readonly<{
-  results: ReadonlyArray<TaskMetric.Result>;
+  results: ReadonlyArray<TrailResult>;
   prev: Readonly<Record<string, Schema.JsonObject>>;
 }>;
 const MetricResult = Schema.Record(Schema.String, Schema.Json);
 
-const advanceStage = (results: StageResults, stage: string, grade: Grade.Result): StageAccuStep => [
+const advanceStage = (results: StageResults, stage: string, grade: Grade.Result): StageResults =>
   produce(results, (draft) => {
     draft[stage] = grade;
-  }),
-  [grade],
-];
+  });
 
 const isVerifGrader = (grader: Grade.Grader): grader is Grade.VerifGrader => !isFunction(grader);
 
@@ -64,14 +60,12 @@ export const createTrail = Effect.fn("exec/createTrail")(
     harness,
     config = {},
     eventQueue,
-    onComplete,
   }: {
     task: Task.Task<Grade.Result, Schema.JsonObject>;
     bench: string;
     harness: string;
     config?: Config;
     eventQueue: Queue.Enqueue<Event>;
-    onComplete?: (result: TaskMetric.Result) => Effect.Effect<void, Error>;
   }): Effect.fn.Return<
     RunTrail,
     Error,
@@ -140,6 +134,68 @@ export const createTrail = Effect.fn("exec/createTrail")(
         const sandbox = yield* sandboxProvider.runSandbox({ handle: trailSnapshot, resources });
         const sandboxContext = yield* Sandbox.asPromise(sandbox);
 
+        const runTaskMetric = Effect.fn("exec/runTrail/runTaskMetric")(function* (
+          metric: TaskMetric.Metric,
+          results: ReadonlyArray<TrailResult>,
+          delta: TrailResult,
+          prev: Schema.JsonObject | null,
+        ) {
+          const result = yield* Effect.tryPromise(() => metric.exec(results, delta, prev)).pipe(
+            Effect.flatMap(Schema.decodeEffect(MetricResult)),
+          );
+
+          yield* Queue.offer(
+            eventQueue,
+            TaskMetricEvent.make({
+              bench,
+              harness,
+              task: task.metadata.id,
+              id: metric.metadata.id,
+              result,
+            }),
+          );
+          return result;
+        });
+
+        const runTaskMetrics = Effect.fn("exec/runTrail/runTaskMetrics")(function* (
+          delta: TrailResult,
+        ) {
+          yield* SynchronizedRef.modifyEffect(
+            taskMetricAccu,
+            Effect.fn(function* (accu: TaskMetricAccu) {
+              const metricResults = yield* Effect.forEach(metrics, (metric) =>
+                runTaskMetric(
+                  metric,
+                  accu.results,
+                  delta,
+                  accu.prev[metric.metadata.id] ?? null,
+                ).pipe(Effect.map((result) => ({ id: metric.metadata.id, result }))),
+              );
+
+              return [
+                null,
+                produce(accu, (draft) => {
+                  draft.results.push(castDraft(delta));
+                  for (const { id, result } of metricResults) {
+                    draft.prev[id] = castDraft(result);
+                  }
+                }),
+              ] satisfies readonly [null, TaskMetricAccu];
+            }),
+          );
+        });
+
+        const completeTrail = Effect.fn("exec/runTrail/complete")(function* (
+          result: TrailResult | null,
+        ) {
+          if (result === null || metrics.length === 0) {
+            return result;
+          }
+
+          yield* runTaskMetrics(result);
+          return result;
+        });
+
         const verifyGrader = Effect.fn("exec/runTrail/verifyGrader")(function* (
           grader: Grade.VerifGrader,
           results: StageResults,
@@ -164,7 +220,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
             );
           }
 
-          return grade;
+          return new TrailResult({ grade, trajectory });
         });
 
         if (verifMode) {
@@ -176,24 +232,31 @@ export const createTrail = Effect.fn("exec/createTrail")(
             const { grader, stageIdx } = stage;
 
             yield* Effect.logDebug(`Verifying grader for stage ${stageIdx}`);
-            const grade = yield* verifyGrader(grader, results);
+            const result = yield* verifyGrader(grader, results);
             yield* Effect.logDebug(`Verified grader for stage ${stageIdx}`);
-            return grade;
+            return result;
           });
 
-          return yield* Stream.fromIterable(verifStages).pipe(
+          const result = yield* Stream.fromIterable(verifStages).pipe(
             Stream.mapAccumEffect(
               (): StageResults => ({}),
               (results, stage) =>
                 runVerifStage(stage, results).pipe(
-                  Effect.map((grade) => advanceStage(results, stage.metadata.name, grade)),
+                  Effect.map(
+                    (result) =>
+                      [
+                        advanceStage(results, stage.metadata.name, result.grade),
+                        [result],
+                      ] satisfies readonly [StageResults, ReadonlyArray<TrailResult>],
+                  ),
                   Effect.annotateLogs({ stageIdx: stage.stageIdx }),
                   Effect.mapError(Error.taskVerifExec(task)),
                 ),
             ),
             Stream.run(Sink.last()),
-            Effect.map(Option.getOrUndefined),
+            Effect.map(Option.getOrNull),
           );
+          return yield* completeTrail(result);
         }
 
         yield* Effect.logDebug("Starting agent session");
@@ -263,57 +326,6 @@ export const createTrail = Effect.fn("exec/createTrail")(
         const scheduledTrajMetrics = trajMetrics.flatMap((metric) => {
           const when = metric.when;
           return when._tag === "Schedule" ? [{ metric, schedule: when }] : [];
-        });
-
-        const runTaskMetric = Effect.fn("exec/runTrail/runTaskMetric")(function* (
-          metric: TaskMetric.Metric,
-          results: ReadonlyArray<TaskMetric.Result>,
-          delta: TaskMetric.Result,
-          prev: Schema.JsonObject | null,
-        ) {
-          const result = yield* Effect.tryPromise(() => metric.exec(results, delta, prev)).pipe(
-            Effect.flatMap(Schema.decodeEffect(MetricResult)),
-          );
-
-          yield* Queue.offer(
-            eventQueue,
-            TaskMetricEvent.make({
-              bench,
-              harness,
-              task: task.metadata.id,
-              id: metric.metadata.id,
-              result,
-            }),
-          );
-          return result;
-        });
-
-        const runTaskMetrics = Effect.fn("exec/runTrail/runTaskMetrics")(function* (
-          delta: TaskMetric.Result,
-        ) {
-          yield* SynchronizedRef.modifyEffect(
-            taskMetricAccu,
-            Effect.fn(function* (accu: TaskMetricAccu) {
-              const metricResults = yield* Effect.forEach(metrics, (metric) =>
-                runTaskMetric(
-                  metric,
-                  accu.results,
-                  delta,
-                  accu.prev[metric.metadata.id] ?? null,
-                ).pipe(Effect.map((result) => ({ id: metric.metadata.id, result }))),
-              );
-
-              return [
-                undefined,
-                produce(accu, (draft) => {
-                  draft.results.push(castDraft(delta));
-                  for (const { id, result } of metricResults) {
-                    draft.prev[id] = castDraft(result);
-                  }
-                }),
-              ] satisfies readonly [undefined, TaskMetricAccu];
-            }),
-          );
         });
 
         // Prompt.Trajectory stores normalized messages and drops response finish parts, so usage
@@ -477,30 +489,29 @@ export const createTrail = Effect.fn("exec/createTrail")(
             (): StageResults => ({}),
             (results, [stage, stageIdx]) =>
               runStage(stage, stageIdx, results).pipe(
-                Effect.map((grade) => advanceStage(results, stage.metadata.name, grade)),
+                Effect.map(
+                  (grade) =>
+                    [
+                      advanceStage(results, stage.metadata.name, grade),
+                      [grade],
+                    ] satisfies readonly [StageResults, ReadonlyArray<Grade.Result>],
+                ),
                 Effect.annotateLogs({ stageIdx }),
               ),
           ),
           Stream.run(Sink.last()),
-          Effect.map(Option.getOrUndefined),
-          Effect.tap((grade) =>
-            grade === undefined || (metrics.length === 0 && onComplete === undefined)
-              ? Effect.void
-              : agent.trajectory().pipe(
-                  Effect.flatMap((trajectory) => {
-                    const result = { grade, trajectory } satisfies TaskMetric.Result;
-                    const taskMetricEffect =
-                      metrics.length === 0 ? Effect.void : runTaskMetrics(result);
-                    return onComplete === undefined
-                      ? taskMetricEffect
-                      : taskMetricEffect.pipe(Effect.andThen(onComplete(result)));
-                  }),
-                ),
+          Effect.map(Option.getOrNull),
+          Effect.flatMap((grade) =>
+            grade === null
+              ? Effect.succeed(null)
+              : agent
+                  .trajectory()
+                  .pipe(Effect.map((trajectory) => new TrailResult({ grade, trajectory }))),
           ),
         );
 
         if (scheduledTrajMetrics.length === 0) {
-          return yield* runStages;
+          return yield* runStages.pipe(Effect.flatMap(completeTrail));
         }
 
         const runScheduledTrajMetrics = Effect.all(
@@ -513,7 +524,9 @@ export const createTrail = Effect.fn("exec/createTrail")(
           { concurrency: "unbounded", discard: true },
         ).pipe(Effect.andThen(Effect.never));
 
-        return yield* Effect.raceFirst(runStages, runScheduledTrajMetrics);
+        return yield* Effect.raceFirst(runStages, runScheduledTrajMetrics).pipe(
+          Effect.flatMap(completeTrail),
+        );
       },
       (effect, trailIdx) =>
         effect.pipe(

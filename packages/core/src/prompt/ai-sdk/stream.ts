@@ -1,5 +1,12 @@
-import type { GeneratedFile, LanguageModelUsage, TextStreamPart, ToolSet } from "ai";
-import { Effect, Option, Schema, Stream } from "effect";
+import { DefaultGeneratedFile } from "ai";
+import type {
+  GeneratedFile,
+  LanguageModelUsage,
+  ProviderMetadata,
+  TextStreamPart,
+  ToolSet,
+} from "ai";
+import { DateTime, Effect, Option, Schema, Stream } from "effect";
 import { Response, Tool } from "effect/unstable/ai";
 
 export class AiSdkStreamError extends Schema.TaggedErrorClass<AiSdkStreamError>()(
@@ -419,3 +426,535 @@ export const fromAiStream = Effect.fn(function* (
     Stream.fromAsyncIterable(stream, (cause) => AiSdkStreamError.make({ cause })).pipe(transform),
   );
 }, Stream.unwrap);
+
+// =============================================================================
+// Effect -> AI SDK
+// =============================================================================
+
+export class EffectToAiSdkStreamError extends Schema.TaggedErrorClass<EffectToAiSdkStreamError>()(
+  "EffectToAiSdkStreamError",
+  {
+    reason: Schema.String,
+    partType: Schema.optional(Schema.String),
+    id: Schema.optional(Schema.String),
+  },
+) {}
+
+export type ToolCallContext = Extract<AiSdkStreamPart, { readonly type: "tool-call" }>;
+
+export type ToAiSdkStreamOptions = Readonly<{
+  initialToolCalls?: ReadonlyMap<string, ToolCallContext>;
+}>;
+
+type Terminal =
+  | Readonly<{ type: "finish"; part: Extract<StreamPart, { readonly type: "finish" }> }>
+  | Readonly<{ type: "abort"; reason?: string; metadata?: unknown }>;
+
+type ConversionState = Readonly<{
+  activeText: ReadonlySet<string>;
+  activeReasoning: ReadonlySet<string>;
+  activeToolParams: ReadonlySet<string>;
+  toolCalls: ReadonlyMap<string, ToolCallContext>;
+  pendingTerminal: Terminal | undefined;
+  lastPartWasError: boolean;
+}>;
+
+type EndSentinel = Readonly<{ type: "__effect_stream_end__" }>;
+type InputPart = StreamPart | EndSentinel;
+
+const endSentinel: EndSentinel = { type: "__effect_stream_end__" };
+const decodeJson = Schema.decodeUnknownOption(Schema.Json);
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const metadataRecord = (metadata: unknown): Record<string, unknown> =>
+  isRecord(metadata) ? metadata : {};
+
+const aiSdkPartMetadata = (metadata: unknown): Record<string, unknown> => {
+  const aiSdk = metadataRecord(metadata).aiSdk;
+  return isRecord(aiSdk) && isRecord(aiSdk.part) ? aiSdk.part : {};
+};
+
+const metadataIsEmpty = (metadata: unknown): boolean =>
+  Object.keys(metadataRecord(metadata)).length === 0;
+
+const providerMetadata = (metadata: unknown): ProviderMetadata | undefined => {
+  if (metadataIsEmpty(metadata)) return undefined;
+  const record = metadataRecord(metadata);
+  const aiSdk = record.aiSdk;
+  if (isRecord(aiSdk) && "providerMetadata" in aiSdk) {
+    const candidate = aiSdk.providerMetadata;
+    if (isRecord(candidate)) {
+      const valid = Object.values(candidate).every((value) => {
+        const decoded = Option.getOrUndefined(decodeJson(value));
+        return isRecord(decoded);
+      });
+      if (valid) return candidate as ProviderMetadata;
+    }
+    return { effect: { metadata: record } } as ProviderMetadata;
+  }
+  if (isRecord(aiSdk)) {
+    const nativeMetadata = Object.fromEntries(
+      Object.entries(record).filter(([key]) => key !== "aiSdk"),
+    );
+    return Object.keys(nativeMetadata).length === 0
+      ? undefined
+      : ({ effect: { metadata: nativeMetadata } } as ProviderMetadata);
+  }
+  return { effect: { metadata: record } } as ProviderMetadata;
+};
+
+const jsonObject = (value: unknown): Record<string, unknown> | undefined => {
+  const decoded = Option.getOrUndefined(decodeJson(value));
+  return isRecord(decoded) && !(decoded.omitted === true && decoded.reason === "non_json_value")
+    ? decoded
+    : undefined;
+};
+
+const encodeRequest = (request: unknown): unknown => {
+  try {
+    return request === undefined
+      ? undefined
+      : Schema.encodeUnknownSync(Response.HttpRequestDetails)(request);
+  } catch {
+    return undefined;
+  }
+};
+
+const encodeResponse = (response: unknown): unknown => {
+  try {
+    return response === undefined
+      ? undefined
+      : Schema.encodeUnknownSync(Response.HttpResponseDetails)(response);
+  } catch {
+    return undefined;
+  }
+};
+
+const customPart = (
+  kind: `${string}.${string}`,
+  metadata: unknown,
+  details: Record<string, unknown> = {},
+): AiSdkStreamPart => {
+  const restored = providerMetadata(metadata) ?? {};
+  const effectMetadata = isRecord(restored.effect) ? restored.effect : {};
+  return {
+    type: "custom",
+    kind,
+    providerMetadata: {
+      ...restored,
+      ...(Object.keys(details).length === 0 ? {} : { effect: { ...effectMetadata, ...details } }),
+    } as ProviderMetadata,
+  };
+};
+
+const companion = (
+  type: string,
+  metadata: unknown,
+  details: Record<string, unknown> = {},
+): ReadonlyArray<AiSdkStreamPart> =>
+  providerMetadata(metadata) === undefined && Object.keys(details).length === 0
+    ? []
+    : [customPart(`effect.${type}-metadata`, metadata, details)];
+
+const unsafePart = (part: unknown): AiSdkStreamPart => part as AiSdkStreamPart;
+const unsafeToolCall = (part: unknown): ToolCallContext => part as ToolCallContext;
+
+const usageToAiSdk = (usage: Response.Usage): LanguageModelUsage => {
+  const input = usage.inputTokens;
+  const output = usage.outputTokens;
+  const totalTokens =
+    input.total === undefined && output.total === undefined
+      ? undefined
+      : (input.total ?? 0) + (output.total ?? 0);
+  return {
+    inputTokens: input.total,
+    inputTokenDetails: {
+      noCacheTokens: input.uncached,
+      cacheReadTokens: input.cacheRead,
+      cacheWriteTokens: input.cacheWrite,
+    },
+    outputTokens: output.total,
+    outputTokenDetails: {
+      textTokens: output.text,
+      reasoningTokens: output.reasoning,
+    },
+    totalTokens,
+  };
+};
+
+const finishReasonToAiSdk = (
+  reason: Extract<StreamPart, { readonly type: "finish" }>["reason"],
+  metadata: unknown,
+): Pick<
+  Extract<AiSdkStreamPart, { readonly type: "finish" }>,
+  "finishReason" | "rawFinishReason"
+> => {
+  const details = aiSdkPartMetadata(metadata);
+  const raw = typeof details.rawFinishReason === "string" ? details.rawFinishReason : undefined;
+  if (reason === "pause" || reason === "unknown") {
+    return { finishReason: "other", rawFinishReason: reason };
+  }
+  return { finishReason: reason, rawFinishReason: raw };
+};
+
+const error = (
+  reason: string,
+  part: { readonly type: string; readonly id?: string },
+): Effect.Effect<never, EffectToAiSdkStreamError> =>
+  Effect.fail(
+    EffectToAiSdkStreamError.make({
+      reason,
+      partType: part.type,
+      id: part.id,
+    }),
+  );
+
+const stateWithSet = (
+  state: ConversionState,
+  key: "activeText" | "activeReasoning" | "activeToolParams",
+  id: string,
+  add: boolean,
+): ConversionState => {
+  const set = new Set(state[key]);
+  if (add) set.add(id);
+  else set.delete(id);
+  return { ...state, [key]: set };
+};
+
+const toolCallFromPart = (
+  part: Extract<StreamPart, { readonly type: "tool-call" }>,
+): ToolCallContext => {
+  const details = aiSdkPartMetadata(part.metadata);
+  const toolMetadata = jsonObject(details.toolMetadata);
+  return unsafeToolCall({
+    type: "tool-call",
+    toolCallId: part.id,
+    toolName: part.name,
+    input: part.params,
+    dynamic: true,
+    providerExecuted: part.providerExecuted,
+    providerMetadata: providerMetadata(part.metadata),
+    ...(typeof details.title === "string" ? { title: details.title } : {}),
+    ...(toolMetadata === undefined ? {} : { toolMetadata }),
+  });
+};
+
+const convertPart = (
+  state: ConversionState,
+  part: InputPart,
+): Effect.Effect<
+  readonly [ConversionState, ReadonlyArray<AiSdkStreamPart>],
+  EffectToAiSdkStreamError
+> => {
+  if (part.type === "__effect_stream_end__") {
+    if (state.pendingTerminal?.type === "abort") {
+      return Effect.succeed([
+        state,
+        [
+          ...companion("finish", state.pendingTerminal.metadata),
+          unsafePart({ type: "abort", reason: state.pendingTerminal.reason }),
+        ],
+      ]);
+    }
+    if (state.pendingTerminal?.type === "finish") {
+      if (
+        state.activeText.size > 0 ||
+        state.activeReasoning.size > 0 ||
+        state.activeToolParams.size > 0
+      ) {
+        const unclosed =
+          state.activeText.values().next().value ??
+          state.activeReasoning.values().next().value ??
+          state.activeToolParams.values().next().value;
+        return error("UnclosedPart", { type: "block", id: unclosed });
+      }
+      const finish = state.pendingTerminal.part;
+      const reason = finishReasonToAiSdk(finish.reason, finish.metadata);
+      const response = encodeResponse(finish.response);
+      return Effect.succeed([
+        state,
+        [
+          ...companion("finish", finish.metadata, response === undefined ? {} : { response }),
+          unsafePart({
+            type: "finish",
+            ...reason,
+            totalUsage: usageToAiSdk(finish.usage),
+          }),
+        ],
+      ]);
+    }
+    if (state.lastPartWasError) return Effect.succeed([state, []]);
+    return error("MissingTerminal", { type: "stream" });
+  }
+
+  if (state.pendingTerminal?.type === "abort") return error("PartAfterTerminal", part);
+  if (state.pendingTerminal?.type === "finish" && part.type === "finish") {
+    return error("DuplicateTerminal", part);
+  }
+  if (
+    state.pendingTerminal?.type === "finish" &&
+    part.type !== "text-end" &&
+    part.type !== "reasoning-end" &&
+    part.type !== "tool-params-end"
+  ) {
+    return error("PartAfterTerminal", part);
+  }
+
+  if (part.type !== "error") state = { ...state, lastPartWasError: false };
+  const metadata = providerMetadata(part.metadata);
+  switch (part.type) {
+    case "text-start":
+      if (state.activeText.has(part.id)) return error("DuplicateStart", part);
+      return Effect.succeed([
+        stateWithSet(state, "activeText", part.id, true),
+        [{ type: "text-start", id: part.id, providerMetadata: metadata }],
+      ]);
+    case "text-delta":
+      if (!state.activeText.has(part.id)) return error("MissingStart", part);
+      return Effect.succeed([
+        state,
+        [{ type: "text-delta", id: part.id, text: part.delta, providerMetadata: metadata }],
+      ]);
+    case "text-end":
+      if (!state.activeText.has(part.id)) return error("MissingStart", part);
+      return Effect.succeed([
+        stateWithSet(state, "activeText", part.id, false),
+        [{ type: "text-end", id: part.id, providerMetadata: metadata }],
+      ]);
+    case "reasoning-start":
+      if (state.activeReasoning.has(part.id)) return error("DuplicateStart", part);
+      return Effect.succeed([
+        stateWithSet(state, "activeReasoning", part.id, true),
+        [{ type: "reasoning-start", id: part.id, providerMetadata: metadata }],
+      ]);
+    case "reasoning-delta":
+      if (!state.activeReasoning.has(part.id)) return error("MissingStart", part);
+      return Effect.succeed([
+        state,
+        [{ type: "reasoning-delta", id: part.id, text: part.delta, providerMetadata: metadata }],
+      ]);
+    case "reasoning-end":
+      if (!state.activeReasoning.has(part.id)) return error("MissingStart", part);
+      return Effect.succeed([
+        stateWithSet(state, "activeReasoning", part.id, false),
+        [{ type: "reasoning-end", id: part.id, providerMetadata: metadata }],
+      ]);
+    case "tool-params-start":
+      if (state.activeToolParams.has(part.id)) return error("DuplicateStart", part);
+      return Effect.succeed([
+        stateWithSet(state, "activeToolParams", part.id, true),
+        [
+          unsafePart({
+            type: "tool-input-start",
+            id: part.id,
+            toolName: part.name,
+            providerExecuted: part.providerExecuted,
+            dynamic: true,
+            providerMetadata: metadata,
+            ...(typeof aiSdkPartMetadata(part.metadata).title === "string"
+              ? { title: aiSdkPartMetadata(part.metadata).title }
+              : {}),
+            ...(jsonObject(aiSdkPartMetadata(part.metadata).toolMetadata) === undefined
+              ? {}
+              : { toolMetadata: jsonObject(aiSdkPartMetadata(part.metadata).toolMetadata) }),
+          }),
+        ],
+      ]);
+    case "tool-params-delta":
+      if (!state.activeToolParams.has(part.id)) return error("MissingStart", part);
+      return Effect.succeed([
+        state,
+        [{ type: "tool-input-delta", id: part.id, delta: part.delta, providerMetadata: metadata }],
+      ]);
+    case "tool-params-end":
+      if (!state.activeToolParams.has(part.id)) return error("MissingStart", part);
+      return Effect.succeed([
+        stateWithSet(state, "activeToolParams", part.id, false),
+        [{ type: "tool-input-end", id: part.id, providerMetadata: metadata }],
+      ]);
+    case "tool-call": {
+      if (state.toolCalls.has(part.id)) return error("DuplicateToolCall", part);
+      const call = toolCallFromPart(part);
+      return Effect.succeed([
+        { ...state, toolCalls: new Map(state.toolCalls).set(part.id, call) },
+        [call],
+      ]);
+    }
+    case "tool-result": {
+      const call = state.toolCalls.get(part.id);
+      if (call === undefined) return error("MissingToolCall", part);
+      if (call.toolName !== part.name) return error("ToolNameMismatch", part);
+      const details = aiSdkPartMetadata(part.metadata);
+      const base = {
+        toolCallId: part.id,
+        toolName: part.name,
+        input: call.input,
+        dynamic: true as const,
+        providerExecuted: part.providerExecuted,
+        providerMetadata: metadata,
+        preliminary: part.preliminary,
+        ...(typeof details.title === "string" ? { title: details.title } : {}),
+        ...(jsonObject(details.toolMetadata) === undefined
+          ? {}
+          : { toolMetadata: jsonObject(details.toolMetadata) }),
+      };
+      if (part.isFailure) {
+        const denied =
+          (isRecord(part.encodedResult) && part.encodedResult.type === "execution-denied") ||
+          (isRecord(part.encodedResult) && part.encodedResult.denied === true) ||
+          aiSdkPartMetadata(part.metadata).type === "tool-output-denied";
+        if (denied) {
+          return Effect.succeed([
+            state,
+            [
+              ...companion("tool-output-denied", part.metadata),
+              unsafePart({
+                type: "tool-output-denied",
+                toolCallId: part.id,
+                toolName: part.name,
+                dynamic: true,
+                providerExecuted: part.providerExecuted,
+              }),
+            ],
+          ]);
+        }
+        const { preliminary: _preliminary, ...errorBase } = base;
+        return Effect.succeed([
+          { ...state, lastPartWasError: false },
+          [unsafePart({ type: "tool-error", ...errorBase, error: part.encodedResult })],
+        ]);
+      }
+      return Effect.succeed([
+        { ...state, lastPartWasError: false },
+        [unsafePart({ type: "tool-result", ...base, output: part.encodedResult })],
+      ]);
+    }
+    case "tool-approval-request": {
+      const call = state.toolCalls.get(part.toolCallId);
+      if (call === undefined) return error("MissingToolCall", part);
+      const details = aiSdkPartMetadata(part.metadata);
+      return Effect.succeed([
+        state,
+        [
+          ...companion("tool-approval-request", part.metadata),
+          unsafePart({
+            type: "tool-approval-request",
+            approvalId: part.approvalId,
+            toolCall: call,
+            ...(typeof details.isAutomatic === "boolean"
+              ? { isAutomatic: details.isAutomatic }
+              : {}),
+            ...(typeof details.signature === "string" ? { signature: details.signature } : {}),
+          }),
+        ],
+      ]);
+    }
+    case "file": {
+      const reasoning = aiSdkPartMetadata(part.metadata).type === "reasoning-file";
+      return Effect.succeed([
+        state,
+        [
+          unsafePart({
+            type: reasoning ? "reasoning-file" : "file",
+            file: new DefaultGeneratedFile({ data: part.data, mediaType: part.mediaType }),
+            providerMetadata: metadata,
+          }),
+        ],
+      ]);
+    }
+    case "source":
+      return Effect.succeed([
+        state,
+        [
+          unsafePart(
+            part.sourceType === "url"
+              ? {
+                  type: "source",
+                  sourceType: "url",
+                  id: part.id,
+                  url: part.url.toString(),
+                  title: part.title,
+                  providerMetadata: metadata,
+                }
+              : {
+                  type: "source",
+                  sourceType: "document",
+                  id: part.id,
+                  mediaType: part.mediaType,
+                  title: part.title,
+                  filename: part.fileName,
+                  providerMetadata: metadata,
+                },
+          ),
+        ],
+      ]);
+    case "response-metadata": {
+      const request = encodeRequest(part.request);
+      return Effect.succeed([
+        state,
+        [
+          customPart("effect.response-metadata", part.metadata, {
+            part: {
+              type: "response-metadata",
+              ...(part.id === undefined ? {} : { id: part.id }),
+              ...(part.modelId === undefined ? {} : { modelId: part.modelId }),
+              ...(part.timestamp === undefined
+                ? {}
+                : { timestamp: DateTime.formatIso(part.timestamp) }),
+              ...(request === undefined ? {} : { request }),
+            },
+          }),
+        ],
+      ]);
+    }
+    case "finish":
+      if (state.pendingTerminal !== undefined) return error("DuplicateTerminal", part);
+      if (aiSdkPartMetadata(part.metadata).type === "abort") {
+        const reason = aiSdkPartMetadata(part.metadata).reason;
+        return Effect.succeed([
+          {
+            ...state,
+            pendingTerminal: {
+              type: "abort",
+              reason: typeof reason === "string" ? reason : undefined,
+              metadata: part.metadata,
+            },
+          },
+          [],
+        ]);
+      }
+      return Effect.succeed([{ ...state, pendingTerminal: { type: "finish", part } }, []]);
+    case "error":
+      return Effect.succeed([
+        { ...state, lastPartWasError: true },
+        [...companion("error", part.metadata), unsafePart({ type: "error", error: part.error })],
+      ]);
+  }
+};
+
+const initialState = (options?: ToAiSdkStreamOptions): ConversionState => ({
+  activeText: new Set(),
+  activeReasoning: new Set(),
+  activeToolParams: new Set(),
+  toolCalls: new Map(options?.initialToolCalls ?? []),
+  pendingTerminal: undefined,
+  lastPartWasError: false,
+});
+
+export const toAiSdkParts = <Tools extends Record<string, Tool.Any>, E, R>(
+  stream: Stream.Stream<Response.StreamPart<Tools>, E, R>,
+  options?: ToAiSdkStreamOptions,
+): Stream.Stream<AiSdkStreamPart, E | EffectToAiSdkStreamError, R> => {
+  const mapped = Stream.concat(stream, Stream.succeed(endSentinel)).pipe(
+    Stream.mapAccumEffect(() => initialState(options), convertPart),
+  );
+  return Stream.concat(Stream.succeed<AiSdkStreamPart>({ type: "start" }), mapped);
+};
+
+export const toAiSdkStream = <Tools extends Record<string, Tool.Any>, E, R>(
+  stream: Stream.Stream<Response.StreamPart<Tools>, E, R>,
+  options?: ToAiSdkStreamOptions,
+): Effect.Effect<ReadableStream<AiSdkStreamPart>, never, R> =>
+  Stream.toReadableStreamEffect(toAiSdkParts(stream, options));

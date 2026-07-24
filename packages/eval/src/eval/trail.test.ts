@@ -6,6 +6,7 @@ import { Prompt, Response } from "effect/unstable/ai";
 import { When } from "../metric/when.ts";
 import * as Task from "../task/index.ts";
 import { type Event } from "./event/index.ts";
+import { TrailResult } from "./result.ts";
 import { createTrail } from "./trail.ts";
 
 const TestCrypto = Layer.succeed(
@@ -124,26 +125,21 @@ describe("createTrail", () => {
           }),
         );
 
-        let completed = 0;
         const runTrail = yield* createTrail({
           task,
           bench: "bench",
           harness: "harness",
           eventQueue: queue,
-          onComplete: ({ grade, trajectory }) =>
-            Effect.sync(() => {
-              assert.deepStrictEqual(grade, secondGrade);
-              assert.strictEqual(trajectory, Prompt.empty);
-              completed += 1;
-            }),
         }).pipe(Effect.provide(layer));
         const result = yield* runTrail(7);
         const events = yield* Queue.takeAll(queue);
         const streamEvents = events.filter((event) => event._tag === "TrailStreamEvent");
         const stagedEvents = events.filter((event) => event._tag === "TrailStagedEvent");
 
-        assert.deepStrictEqual(result, secondGrade);
-        assert.strictEqual(completed, 1);
+        assert.deepStrictEqual(
+          result,
+          new TrailResult({ grade: secondGrade, trajectory: Prompt.empty }),
+        );
         assert.strictEqual(streamEvents.length, 3);
         for (const event of streamEvents) {
           assert.strictEqual(event.task, "multi-stage-id");
@@ -384,22 +380,20 @@ describe("createTrail", () => {
           })),
         };
 
-        let completed = 0;
         const runTrail = yield* createTrail({
           task,
           bench: "bench",
           harness: "harness",
           eventQueue: queue,
-          onComplete: ({ grade, trajectory }) =>
-            Effect.sync(() => {
-              assert.deepStrictEqual(grade, grades[completed]);
-              assert.strictEqual(trajectory, Prompt.empty);
-              completed += 1;
-            }),
         }).pipe(Effect.provide(layer));
-        assert.deepStrictEqual(yield* runTrail(0), grades[0]);
-        assert.deepStrictEqual(yield* runTrail(1), grades[1]);
-        assert.strictEqual(completed, 2);
+        assert.deepStrictEqual(
+          yield* runTrail(0),
+          new TrailResult({ grade: grades[0], trajectory: Prompt.empty }),
+        );
+        assert.deepStrictEqual(
+          yield* runTrail(1),
+          new TrailResult({ grade: grades[1], trajectory: Prompt.empty }),
+        );
 
         const events = yield* Queue.takeAll(queue);
         const metricEvents = events.filter((event) => event._tag === "TaskMetricEvent");
@@ -435,6 +429,10 @@ describe("createTrail", () => {
       Effect.gen(function* () {
         const firstGrade = { score: 1 };
         const secondGrade = { score: 2 };
+        const verifiedTrajectory = Prompt.make([
+          Prompt.assistantMessage({ content: [Prompt.textPart({ text: "verified" })] }),
+        ]);
+        let metricCalls = 0;
         const agent = {
           trajectory: () => Effect.succeed(Prompt.empty),
           prompt: () => Stream.die("agent should not run in verification mode"),
@@ -445,6 +443,19 @@ describe("createTrail", () => {
           id: "multi-stage-verification",
           name: "multi-stage-verification",
           snapshot: Snapshot.make({ image: "scratch" }),
+          metrics: [
+            {
+              id: "verification-task-metric",
+              exec: async (results, delta, prev) => {
+                assert.isEmpty(results);
+                assert.deepStrictEqual(delta.grade, secondGrade);
+                assert.strictEqual(delta.trajectory, verifiedTrajectory);
+                assert.strictEqual(prev, null);
+                metricCalls += 1;
+                return { count: metricCalls };
+              },
+            },
+          ],
         }).pipe(
           Task.stage("first", {
             prompt: Prompt.userMessage({ content: [Prompt.textPart({ text: "first" })] }),
@@ -460,7 +471,7 @@ describe("createTrail", () => {
           Task.stage("second", {
             prompt: Prompt.userMessage({ content: [Prompt.textPart({ text: "second" })] }),
             grader: {
-              verif: async () => null,
+              verif: async () => verifiedTrajectory,
               grade: async ({ results }) => {
                 assert.deepStrictEqual(results, { first: firstGrade });
                 return secondGrade;
@@ -478,7 +489,37 @@ describe("createTrail", () => {
           config: { verifMode: true },
         }).pipe(Effect.provide(layer));
 
-        assert.deepStrictEqual(yield* runTrail(0), secondGrade);
+        assert.deepStrictEqual(
+          yield* runTrail(0),
+          new TrailResult({ grade: secondGrade, trajectory: verifiedTrajectory }),
+        );
+        assert.strictEqual(metricCalls, 1);
+      }),
+    );
+
+    it.effect("returns null when there are no stages", () =>
+      Effect.gen(function* () {
+        const agent = {
+          trajectory: () => Effect.die("agent should not run in verification mode"),
+          prompt: () => Stream.die("agent should not run in verification mode"),
+        } satisfies Agent.Agent;
+        const layer = yield* makeLayer(agent);
+        const queue = yield* Queue.unbounded<Event>();
+        const task = yield* Task.make({
+          id: "no-stages",
+          name: "no-stages",
+          snapshot: Snapshot.make({ image: "scratch" }),
+        });
+
+        const runTrail = yield* createTrail({
+          task,
+          bench: "bench",
+          harness: "harness",
+          eventQueue: queue,
+          config: { verifMode: true },
+        }).pipe(Effect.provide(layer));
+
+        assert.strictEqual(yield* runTrail(0), null);
       }),
     );
 
