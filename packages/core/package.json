@@ -1,0 +1,80 @@
+{
+  "name": "@open-insight/core",
+  "version": "0.0.21",
+  "description": "Core sandbox provider abstraction layer for Open Insight.",
+  "homepage": "https://github.com/open-insight/open-insight#readme",
+  "bugs": {
+    "url": "https://github.com/open-insight/open-insight/issues"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/open-insight/open-insight.git",
+    "directory": "packages/core"
+  },
+  "files": [
+    "dist/**/*.mjs",
+    "dist/**/*.mjs.map",
+    "src/**/*.ts"
+  ],
+  "type": "module",
+  "types": "./src/export.ts",
+  "imports": {
+    "#/*": "./src/*"
+  },
+  "exports": {
+    ".": "./src/export.ts",
+    "./internal": "./src/index.ts",
+    "./utils": "./src/utils/export.ts",
+    "./package.json": "./package.json"
+  },
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./src/export.ts",
+        "import": "./dist/index.mjs"
+      },
+      "./internal": {
+        "types": "./src/index.ts",
+        "import": "./dist/internal.mjs"
+      },
+      "./utils": {
+        "types": "./src/utils/export.ts",
+        "import": "./dist/utils.mjs"
+      },
+      "./package.json": "./package.json"
+    },
+    "access": "public"
+  },
+  "scripts": {
+    "build": "vp pack",
+    "dev": "vp pack --watch",
+    "test": "vp test",
+    "check": "vp check",
+    "prepublishOnly": "vp run build"
+  },
+  "dependencies": {
+    "@agentclientprotocol/sdk": "catalog:",
+    "@effect/ai-anthropic": "catalog:",
+    "@effect/ai-openai": "catalog:",
+    "@effect/opentelemetry": "catalog:",
+    "ai": "catalog:",
+    "openai": "catalog:",
+    "picomatch": "catalog:",
+    "semver": "catalog:"
+  },
+  "devDependencies": {
+    "@effect/vitest": "catalog:",
+    "@types/node": "catalog:",
+    "@types/picomatch": "catalog:",
+    "@types/semver": "catalog:",
+    "bumpp": "catalog:",
+    "typescript": "catalog:",
+    "vite-plus": "catalog:",
+    "vitest": "catalog:"
+  },
+  "peerDependencies": {
+    "@effect/platform-node": "catalog:",
+    "effect": "catalog:"
+  }
+}
