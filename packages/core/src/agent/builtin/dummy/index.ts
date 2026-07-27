@@ -1,7 +1,8 @@
-import { Chat, LanguageModel, Response, Toolkit } from "effect/unstable/ai";
-import { Effect, Option, Ref, Stream } from "effect";
 import * as Agent from "#/agent/index.ts";
-import * as Sandbox from "#/sandbox/index.ts";
+import { Effect, Stream } from "effect";
+import { LanguageModel, Response, Tool } from "effect/unstable/ai";
+import * as EffectAgent from "../effect/index.ts";
+import * as SandboxToolkit from "../effect/toolkit.ts";
 
 const randomText = Effect.fn(function* () {
   return yield* Effect.sync(() => crypto.randomUUID().replaceAll("-", ""));
@@ -26,15 +27,41 @@ const finishPart: Response.FinishPartEncoded = {
   response: undefined,
 };
 
+const toolCall = <T extends Tool.Any>(
+  tool: T,
+  id: string,
+  params: Tool.ParametersEncoded<T>,
+): Response.ToolCallPartEncoded => ({
+  type: "tool-call",
+  id,
+  name: tool.name,
+  params,
+});
+
+const toolCalls = [
+  toolCall(SandboxToolkit.WriteFile, "dummy-write-file", {
+    sandboxPath: "/tmp/open-insight-dummy.txt",
+    content: "open-insight dummy agent",
+  }),
+  toolCall(SandboxToolkit.ReadFile, "dummy-read-file", { sandboxPath: "/etc/hosts" }),
+  toolCall(SandboxToolkit.Execute, "dummy-execute", {
+    command: "printf",
+    args: ["open-insight dummy agent"],
+  }),
+];
+
 const makeDummyLanguageModel = Effect.fn(function* () {
   return yield* LanguageModel.make({
     generateText: () =>
-      randomText().pipe(Effect.map((text) => [{ type: "text", text }, finishPart])),
+      randomText().pipe(
+        Effect.map((text) => [...toolCalls, { type: "text", text } as const, finishPart]),
+      ),
     streamText: () =>
       Stream.unwrap(
         randomText().pipe(
           Effect.map((text) =>
             Stream.fromIterable([
+              ...toolCalls,
               { type: "text-start", id: "dummy" } as const,
               { type: "text-delta", id: "dummy", delta: text } as const,
               { type: "text-end", id: "dummy" } as const,
@@ -46,48 +73,11 @@ const makeDummyLanguageModel = Effect.fn(function* () {
   });
 });
 
-type EmptyToolkit = Toolkit.Toolkit<{}>;
-
-export const makeAgent = Effect.fn(function* ({
-  chat = Chat.empty,
-  toolkit = Toolkit.empty,
-}: {
-  chat?: Effect.Effect<Chat.Service>;
-  toolkit?: EmptyToolkit;
-}): Effect.fn.Return<Agent.Agent, Agent.Error, never> {
+export const make = Effect.fn(function* (): Effect.fn.Return<
+  Agent.Provider<SandboxToolkit.Tools>,
+  Agent.Error,
+  never
+> {
   const llm = yield* makeDummyLanguageModel();
-  const service = yield* chat;
-
-  return {
-    trajectory: () => Ref.get(service.history),
-    prompt: ({ prompt }) =>
-      service
-        .streamText({ prompt, toolkit })
-        .pipe(
-          Stream.mapError(Agent.Error.stream),
-          Stream.provideService(LanguageModel.LanguageModel, llm),
-        ),
-  } satisfies Agent.Agent;
-});
-
-export const make = Effect.fn(function* ({
-  chat = Chat.empty,
-  toolkit = Toolkit.empty,
-}: {
-  chat?: Effect.Effect<Chat.Service>;
-  toolkit?: EmptyToolkit;
-}): Effect.fn.Return<Agent.Provider, Agent.Error, never> {
-  const llm = yield* makeDummyLanguageModel();
-
-  const runSession = Effect.fn(
-    function* ({ sandbox: _sandbox }: { sandbox: Sandbox.Sandbox }) {
-      return yield* makeAgent({ chat, toolkit });
-    },
-    (effect) => effect.pipe(Effect.provideService(LanguageModel.LanguageModel, llm)),
-  ) satisfies Agent.Provider["runSession"];
-
-  return {
-    snapshotExtension: Option.none(),
-    runSession,
-  } satisfies Agent.Provider;
+  return yield* EffectAgent.make().pipe(Effect.provideService(LanguageModel.LanguageModel, llm));
 });

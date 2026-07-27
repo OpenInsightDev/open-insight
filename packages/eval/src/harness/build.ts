@@ -14,15 +14,17 @@ export class Metadata extends Schema.Class<Metadata>("HarnessMetadata")({
 
 export type Harness = Readonly<{
   metadata: BaseMetadata;
-
   layer: Layer.Layer<Agent.ProviderService | Sandbox.ProviderService>;
 }>;
 
-type Options = BaseMetadataEncoded;
+type Options = Readonly<{
+  agent: Agent.Provider;
+  sandbox: Sandbox.Provider;
+}> &
+  BaseMetadataEncoded;
 
 export const make = Effect.fn(function* (options: Options) {
-  const agent = yield* Agent.ProviderService;
-  const sandbox = yield* Sandbox.ProviderService;
+  const { agent, sandbox } = options;
   const metadata = yield* Schema.decodeEffect(BaseMetadata)(options).pipe();
 
   const layer = Layer.mergeAll(

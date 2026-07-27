@@ -7,7 +7,7 @@ export {
   type TaskResult,
   type TrailResult,
   run,
-  runPromise,
+  toPromise,
 } from "./index.ts";
 
 export * as Internal from "./index.ts";

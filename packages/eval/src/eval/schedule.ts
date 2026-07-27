@@ -27,8 +27,6 @@ type Options = Readonly<{
   eventQueue: Event.EventEnqueue;
 }>;
 
-const encodeEvent = Schema.encodeEffect(Event.Event);
-
 export const run = Effect.fn("exec/schedule")(
   function* (
     { bench, harness, eventQueue }: Options,

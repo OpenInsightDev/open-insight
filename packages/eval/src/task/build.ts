@@ -62,13 +62,11 @@ export type Options<E extends Schema.JsonObject = EmptyRecord> = BaseMetadataEnc
   Readonly<{
     snapshot: Snapshot.Snapshot;
     resources?: Sandbox.Resources;
-    metrics?: ReadonlyArray<Metric.Task.Metric>;
-    trajMetrics?: ReadonlyArray<Metric.Traj.Metric>;
     extras?: E;
   }>;
 
-const makeMetric = <R extends Schema.JsonObject = Schema.JsonObject>(
-  options: Metric.Task.Options<Grade.Result, R>,
+const makeMetric = <G extends Grade.Result, R extends Schema.JsonObject = Schema.JsonObject>(
+  options: Metric.Task.Options<G, R>,
 ) => Metric.Task.make(options).pipe(Effect.mapError(Error.metadata));
 
 const makeTrajMetric = <R extends Schema.JsonObject = Schema.JsonObject>(
@@ -78,13 +76,7 @@ const makeTrajMetric = <R extends Schema.JsonObject = Schema.JsonObject>(
 export const make = Effect.fn(function* <E extends Schema.JsonObject = EmptyRecord>(
   options: Options<E>,
 ): Effect.fn.Return<Task<never, E, never>, Error, Crypto.Crypto | Scope.Scope> {
-  const {
-    snapshot,
-    resources = new Sandbox.Resources(),
-    metrics = [],
-    trajMetrics = [],
-    extras = {} as E,
-  } = options;
+  const { snapshot, resources = new Sandbox.Resources(), extras = {} as E } = options;
 
   const metadata = yield* Schema.decodeEffect(BaseMetadata)(options).pipe(
     Effect.mapError(Error.metadata),
@@ -96,17 +88,17 @@ export const make = Effect.fn(function* <E extends Schema.JsonObject = EmptyReco
     resources,
     extras,
     stages: [],
-    metrics,
-    trajMetrics,
+    metrics: [],
+    trajMetrics: [],
   } satisfies Task<never, E, never>;
 });
 
 export const metric =
-  <R extends Schema.JsonObject = Schema.JsonObject>(
-    exec: Metric.Task.Exec<Grade.Result, R>,
-    options: Omit<Metric.Task.Options<Grade.Result, R>, "exec"> = {},
+  <G extends Grade.Result, R extends Schema.JsonObject = Schema.JsonObject>(
+    exec: Metric.Task.Exec<G, R>,
+    options: Omit<Metric.Task.Options<G, R>, "exec"> = {},
   ) =>
-  <G extends Grade.Result, Ex extends Schema.JsonObject, S extends Stage, E, Env>(
+  <Ex extends Schema.JsonObject, S extends Stage, E, Env>(
     task: Effect.Effect<Task<G, Ex, S>, E, Env>,
   ): Effect.Effect<Task<G, Ex, S>, E | Error, Env | Crypto.Crypto> =>
     task.pipe(

@@ -4,7 +4,6 @@ import { Spawn } from "@open-insight/core/utils";
 import { Effect, FileSystem, Layer } from "effect";
 import { ChildProcess as CP } from "effect/unstable/process";
 import path from "node:path";
-import type * as Task from "#/task/index.ts";
 import { Error } from "./error.ts";
 import { withGitRepo } from "./git.ts";
 
@@ -40,7 +39,7 @@ describe("withGitRepo postInit", () => {
           yield* fs.realPath(path.dirname(target)),
           "target",
         );
-        const load = withGitRepo<Task.Task>(source, {
+        const load = withGitRepo(source, {
           directory: target,
           postInit: 'printf "%s" "$PWD" > post-init.txt',
         });
@@ -63,7 +62,7 @@ describe("withGitRepo postInit", () => {
       Effect.gen(function* () {
         const { source, target } = yield* makeRepository();
         let loaderCalled = false;
-        const load = withGitRepo<Task.Task>(source, {
+        const load = withGitRepo(source, {
           directory: target,
           postInit: "exit 7",
         });

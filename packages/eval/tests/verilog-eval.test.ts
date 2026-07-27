@@ -1,66 +1,88 @@
-import { NodeServices } from "@effect/platform-node";
-import { assert, it } from "@effect/vitest";
 import {
   Agent,
   Bench,
-  Chart,
   Eval,
-  Event,
   Grade,
   Harness,
-  Metric,
   Sandbox,
   Snapshot,
   Task,
+  Tasks,
 } from "@open-insight/eval";
-import { Spawn } from "@open-insight/core/utils";
-import { Effect, Layer, Queue } from "effect";
+import { Effect } from "effect";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 
 const datasetDirName = "dataset_spec-to-rtl";
 const promptSuffix = "_prompt.txt";
-const taskCount = 4;
-const trailCount = 3;
 
-const testLayer = Layer.merge(
-  NodeServices.layer,
-  Spawn.Service.layer.pipe(Layer.provide(NodeServices.layer)),
-);
+const current = import.meta.dirname!;
 
-const hasNoMismatches = (output: string): boolean =>
-  /Mismatches:\s*0\s+in\s+\d+\s+samples/.test(output);
+// const snapshot = Snapshot.make({
+//   image: "ubuntu:24.04",
+//   context: path.resolve(current),
+//   instructions: [
+//     Snapshot.run(
+//       `DEBIAN_FRONTEND=noninteractive apt-get update && \\
+//        apt-get install -y --no-install-recommends \\
+//             build-essential git curl ca-certificates \\
+//             python3 python3-dev python3-pip python3-venv \\
+//             gperf flex bison autoconf automake libtool make perl help2man \\
+//             libfl2 libfl-dev zlib1g zlib1g-dev \\
+//             tcl-dev libreadline-dev libffi-dev pkg-config \\
+//             && rm -rf /var/lib/apt/lists/*`,
+//     ),
+//     Snapshot.run(
+//       `git clone --depth 1 --branch v12_0 \\
+//        https://github.com/steveicarus/iverilog.git /tmp/iverilog && \\
+//        cd /tmp/iverilog && sh autoconf.sh && \\
+//        ./configure --prefix=/usr/local && make -j$(nproc) && make install && \\
+//        rm -rf /tmp/iverilog`,
+//     ),
+//     Snapshot.workdir(`/workspace`),
+//   ],
+// });
+const snapshot = Snapshot.make({
+  image: "ubuntu:24.04",
+  context: path.resolve(current),
+  instructions: [
+    Snapshot.run(
+      `DEBIAN_FRONTEND=noninteractive apt-get update && \\ 
+       apt-get install -y --no-install-recommends \\
+            iverilog && \\
+       rm -rf /var/lib/apt/lists/*`,
+    ),
+    Snapshot.workdir(`/workspace`),
+  ],
+});
 
-async function loadTasks(repoPath: string) {
-  const datasetDir = path.join(repoPath, datasetDirName);
-  const promptFiles = (await fs.readdir(datasetDir)).filter((file) => file.endsWith(promptSuffix));
+type GradeResult = Readonly<{ simPass: boolean }>;
+type Extras = Readonly<{ category: string }>;
 
-  const snapshot = Snapshot.make({
-    image: "ubuntu:latest",
-    instructions: [
-      Snapshot.run("apt-get update && apt-get install -y iverilog && rm -rf /var/lib/apt/lists/*"),
-    ],
-  });
+async function* loadTasks(repoPath: string) {
+  const datasetDir = path.resolve(repoPath, datasetDirName);
 
-  const tasks = promptFiles.map(async (promptFile) => {
+  for await (const dir of await fs.opendir(datasetDir)) {
+    if (!dir.isFile() || !dir.name.endsWith(promptSuffix)) {
+      continue;
+    }
+
+    const promptFile = dir.name;
     const id = promptFile.slice(0, -promptSuffix.length);
+    const prompt = await fs.readFile(path.resolve(datasetDir, promptFile), "utf8");
 
-    const refPath = path.join(datasetDir, `${id}_ref.sv`);
-    const testPath = path.join(datasetDir, `${id}_test.sv`);
+    const refPath = path.resolve(datasetDir, `${id}_ref.sv`);
+    const testPath = path.resolve(datasetDir, `${id}_test.sv`);
 
-    return Task.make({
+    yield* Task.make({
       id,
       name: id,
       snapshot,
       extras: { category: "verilog-eval" },
     })
       .pipe(
-        Task.metric(async () => ({ score: 1 })),
-        Task.trajMetric(async () => ({ category: "verilog-eval" })),
-      )
-      .pipe(
         Task.stage("solve", {
-          prompt: await fs.readFile(path.join(datasetDir, promptFile), "utf8"),
+          prompt,
           grader: Grade.make(
             async ({ upload, $ }) => {
               await $`mkdir -p /tmp/verilog-eval`;
@@ -73,9 +95,15 @@ async function loadTasks(repoPath: string) {
                 sandboxPath: "/tmp/verilog-eval/test.sv",
               });
 
-              const output =
-                await $`cp top.v /tmp/verilog-eval/top.v && cd /tmp/verilog-eval && iverilog -g2012 -s tb -o simv top.v ref.sv test.sv && vvp simv`;
-              return { simPass: hasNoMismatches(output) };
+              const hasNoMismatches = (output: string): boolean =>
+                /Mismatches:\s*0\s+in\s+\d+\s+samples/.test(output);
+
+              const output = await $`cp top.v /tmp/verilog-eval/top.v && \\
+                  cd /tmp/verilog-eval && \\
+                  iverilog -g2012 -s tb -o simv top.v ref.sv test.sv && \\
+                  vvp simv`;
+
+              return { simPass: hasNoMismatches(output) } satisfies GradeResult;
             },
             {
               verif: async ({ upload, $ }) => {
@@ -88,65 +116,45 @@ async function loadTasks(repoPath: string) {
           ),
         }),
       )
-      .pipe(Task.satisfies<{ simPass: boolean }, { category: string }>());
-  });
-
-  return Promise.all(tasks);
+      .pipe(Task.satisfies<GradeResult, Extras>())
+      .pipe(
+        Task.metric(async () => ({ score: 1 })),
+        Task.trajMetric(async () => ({ category: "verilog-eval" }), {}),
+      );
+  }
 }
 
-// it.live(
-//   "passes the reference implementation through the Verilog simulator",
-//   () =>
-//     Effect.gen(function* () {
-//       const repoPath = path.resolve(import.meta.dirname, "../../../.repos/verilog-eval");
-//       const tasks = yield* Effect.promise(() => loadTasks(repoPath)).pipe(
-//         Effect.flatMap((effects) => Effect.all(effects)),
-//       );
-//       const benchmark = yield* Bench.make({
-//         id: "verilog-eval",
-//         tasks: Effect.succeed(tasks),
-//         metrics: [benchMetric("average-pass-at-1", 1), benchMetric("average-pass-at-3", 3)],
-//       }).pipe(Bench.head(taskCount));
+export const makeBench = Effect.fn(function* () {
+  const tasks = yield* Tasks.withGithub("NVlabs/verilog-eval", {
+    branch: "main",
+    commit: "c498220d0a52248f8e3fdffe279075215bde2da6",
+  })((repoPath) => Tasks.fromAsyncIter(loadTasks(repoPath)));
+  return yield* Bench.make({
+    id: "verilog-eval",
+    tasks,
+  });
+});
 
-//       const agent = yield* Agent.Dummy.make({});
-//       const sandbox = yield* Sandbox.Docker.make({});
-//       const harness = yield* Harness.make({ id: "verilog-eval-verifier" }).pipe(
-//         Effect.provideService(Agent.ProviderService, agent),
-//         Effect.provideService(Sandbox.ProviderService, sandbox),
-//       );
-//       const executor = yield* Eval.make({ benchmark, harness, trailCount });
-//       const eventQueue = yield* Queue.unbounded<Event.Event, Event.Error>();
+export const main = async () => {
+  const result = await Effect.gen(function* () {
+    const bench = yield* makeBench();
 
-//       yield* Eval.Schedule.run(
-//         {
-//           trailCount: executor.trailCount,
-//           bench: executor.benchmark,
-//           harness: executor.harness,
-//           eventQueue,
-//         },
-//         {
-//           cacheTaskSnapshot: true,
-//           cacheAgentSnapshot: true,
-//           otel: {},
-//           snapshotConcurrency: 1,
-//           taskConcurrency: 1,
-//           trailConcurrency: 1,
-//           graderMaxRetries: 0,
-//           verifMode: true,
-//         },
-//       ).pipe(Effect.provide(harness.layer));
+    // const config = OpenAiClient.layerConfig({
+    //   apiKey: Config.redacted("OPENAI_API_KEY"),
+    // }).pipe(Layer.provide(FetchHttpClient.layer));
+    // const model = OpenAiLanguageModel.model("gpt-5.6-luna").pipe(Layer.provide(config));
+    // const agent = yield* Agent.Effect.make().pipe(Effect.provide(model));
 
-//       const events = yield* Queue.takeAll(eventQueue);
-//       const stageEvents = events.filter((event) => event._tag === "TrailStagedEvent");
-//       const taskMetricEvents = events.filter((event) => event._tag === "TaskMetricEvent");
-//       const benchMetricEvents = events.filter((event) => event._tag === "BenchMetricEvent");
+    const agent = yield* Agent.Dummy.make();
 
-//       assert.lengthOf(stageEvents, taskCount * trailCount);
-//       assert.isTrue(stageEvents.every(({ grade }) => grade.simPass === true));
-//       assert.lengthOf(taskMetricEvents, taskCount * trailCount * 2);
-//       assert.isTrue(taskMetricEvents.every(({ result }) => result.score === 1));
-//       assert.lengthOf(benchMetricEvents, taskCount * trailCount * 2);
-//       assert.isTrue(benchMetricEvents.every(({ result }) => result.score === 1));
-//     }).pipe(Effect.provide(testLayer)),
-//   { timeout: 180_000 },
-// );
+    const harness = yield* Harness.make({
+      id: "dummy-agent",
+      agent,
+      sandbox: yield* Sandbox.Docker.make({}),
+    });
+
+    return yield* Eval.run({ bench, harness });
+  }).pipe(Eval.toPromise);
+
+  console.log(result);
+};

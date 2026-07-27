@@ -7,6 +7,7 @@ export {
   withGitRepo,
   withGithub,
   withHuggingface,
+  withParquetDir,
   type Load,
 } from "./index.ts";
 export * as Harbor from "./harbor/export.ts";

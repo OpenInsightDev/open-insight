@@ -1,4 +1,4 @@
-import { Crypto, Effect } from "effect";
+import { Context, Crypto, Effect } from "effect";
 import { Error } from "../error.ts";
 import { type Command, type Handle, type Spawn } from "./service.ts";
 
@@ -27,6 +27,8 @@ export type Sandbox = Spawn &
       options: Readonly<{ sandboxPort: number; hostPort?: number }>,
     ): Effect.Effect<{ hostUrl: string }, Error>;
   }>;
+
+export class Current extends Context.Service<Current, Sandbox>()("sandbox/Current") {}
 
 export * from "./promise.ts";
 export * from "./service.ts";

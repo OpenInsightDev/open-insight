@@ -132,9 +132,11 @@ const loadGitRepo = Effect.fn(function* (repoPath: string, repoURL: string, opti
   }
 });
 
-export const withGitRepo = <T extends Task.Task>(repoURL: string, options: Options = {}) =>
+export const withGitRepo = (repoURL: string, options: Options = {}) =>
   Effect.fn(
-    function* (exec: (repoPath: string) => Load<T> | Promise<Load<T>>) {
+    function* <T extends Task.Task, E, R>(
+      exec: (repoPath: string) => Load<T, E, R> | Promise<Load<T, E, R>>,
+    ) {
       const fs = yield* FileSystem.FileSystem;
 
       let repoPath = options.directory;
@@ -165,8 +167,8 @@ export const withGitRepo = <T extends Task.Task>(repoURL: string, options: Optio
     (effect) => effect.pipe(Effect.mapError(Error.source), Effect.provide(Spawn.Service.layer)),
   );
 
-export const withGithub = <T extends Task.Task>(id: string, options?: Options) =>
-  withGitRepo<T>(`https://github.com/${id}.git`, options);
+export const withGithub = (id: string, options?: Options) =>
+  withGitRepo(`https://github.com/${id}.git`, options);
 
-export const withHuggingface = <T extends Task.Task>(id: string, options?: Options) =>
-  withGitRepo<T>(`https://huggingface.co/datasets/${id}.git`, options);
+export const withHuggingface = (id: string, options?: Options) =>
+  withGitRepo(`https://huggingface.co/datasets/${id}.git`, options);
