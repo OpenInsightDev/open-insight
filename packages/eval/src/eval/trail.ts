@@ -251,12 +251,11 @@ export const createTrail = Effect.fn("exec/createTrail")(
           );
         });
 
-        const runGrader = Effect.fn("exec/runTrail/runGrader")(function* (
+        const executeGrader = Effect.fn("exec/runTrail/executeGrader")(function* (
           grader: Grade.Grader,
           results: StageResults,
+          trajectory: Prompt.Trajectory,
         ): Effect.fn.Return<Grade.Result, Error | Grade.Retry, Scope.Scope> {
-          const trajectory = yield* getTrajectory;
-
           return yield* Grade.run(grader)({
             ...ctx,
             results,
@@ -269,6 +268,14 @@ export const createTrail = Effect.fn("exec/createTrail")(
           );
         });
 
+        const runGrader = Effect.fn("exec/runTrail/runGrader")(function* (
+          grader: Grade.Grader,
+          results: StageResults,
+        ): Effect.fn.Return<Grade.Result, Error | Grade.Retry, Scope.Scope> {
+          const trajectory = yield* getTrajectory;
+          return yield* executeGrader(grader, results, trajectory);
+        });
+
         const runStage = Effect.fn("exec/runTrail/runStage")(function* (
           { metadata, prompt: promptOptions, grader, init, resume }: Task.Stage,
           results: StageResults,
@@ -277,6 +284,15 @@ export const createTrail = Effect.fn("exec/createTrail")(
 
           if (verifMode) {
             Grade.assertVerifiable(grader);
+
+            const initialGrade = yield* executeGrader(grader, results, Prompt.empty).pipe(
+              Effect.map(Option.some),
+              Effect.catchTag("Retry", () => Effect.succeed(Option.none())),
+            );
+            if (Option.isSome(initialGrade) && Equal.equals(initialGrade.value, grader.expect)) {
+              return yield* Effect.fail(Error.verifInitialMatch(task, grader.expect));
+            }
+
             const session = Grade.makeVerifAgent({ verifier: grader.verif, sandbox: ctx });
             yield* Ref.set(sessionRef, Option.some(session));
           } else {

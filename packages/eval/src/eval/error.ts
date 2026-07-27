@@ -44,6 +44,14 @@ export class VerifMismatch extends Schema.TaggedErrorClass<VerifMismatch>()("Ver
   actual: Schema.Union([Grade.Result, Prompt.Prompt]),
 }) {}
 
+export class VerifInitialMatch extends Schema.TaggedErrorClass<VerifInitialMatch>()(
+  "VerifInitialMatch",
+  {
+    task: Task.ID,
+    expect: Grade.Result,
+  },
+) {}
+
 export class SnapshotError extends Schema.TaggedErrorClass<SnapshotError>()("SnapshotError", {
   task: Task.ID,
   snapshot: Snapshot.Snapshot,
@@ -61,6 +69,7 @@ export const ErrorReason = Schema.Union([
   TaskExecError,
   MissingVerifier,
   VerifMismatch,
+  VerifInitialMatch,
   TaskVerifExecError,
 ]);
 export type ErrorReason = Schema.Schema.Type<typeof ErrorReason>;
@@ -102,6 +111,9 @@ export class Error extends Schema.TaggedErrorClass<Error>()("EvalError", {
     expect: Grade.Result,
     actual: Grade.Result | Prompt.Prompt,
   ) => new Error({ reason: new VerifMismatch({ task: task.metadata.id, expect, actual }) });
+
+  static verifInitialMatch = (task: ExecTask, expect: Grade.Result) =>
+    new Error({ reason: new VerifInitialMatch({ task: task.metadata.id, expect }) });
 
   static verifExec = (task: ExecTask) =>
     this.mapUnknownError((cause) => new TaskVerifExecError({ task: task.metadata.id, cause }));

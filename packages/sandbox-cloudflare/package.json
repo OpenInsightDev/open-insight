@@ -30,6 +30,9 @@
     "check": "vp check",
     "prepublishOnly": "vp run build"
   },
+  "dependencies": {
+    "@cloudflare/sandbox": "catalog:"
+  },
   "devDependencies": {
     "@types/node": "catalog:",
     "bumpp": "catalog:",
@@ -39,8 +42,5 @@
   },
   "peerDependencies": {
     "@open-insight/core": "workspace:*"
-  },
-  "dependencies": {
-    "@cloudflare/sandbox": "catalog:"
   }
 }
