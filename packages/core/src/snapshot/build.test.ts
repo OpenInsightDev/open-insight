@@ -20,7 +20,7 @@ describe("Snapshot", () => {
         assert.strictEqual(snapshot._tag, "Instructions");
         assert.strictEqual(
           Snapshot.encode(snapshot),
-          "FROM alpine:3.22\nENV A=first B=second\nRUN echo ready\n",
+          'FROM alpine:3.22\nENV A="first" B="second"\nRUN echo ready\n',
         );
       }),
     );

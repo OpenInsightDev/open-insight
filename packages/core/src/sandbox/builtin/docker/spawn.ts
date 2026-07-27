@@ -11,7 +11,7 @@ export const makeSandboxSpawner = Effect.fn(function* (
   const spawner = yield* Spawn.Service;
 
   const fn: Sandbox.Spawn.Fn = Effect.fn(function* ({ command, args, cwd, env }, options) {
-    const execArgs: string[] = [sandboxName];
+    const execArgs: string[] = [];
     for (const [key, value] of Object.entries(env ?? {})) {
       if (value !== undefined) {
         execArgs.push("-e", `${key}=${value}`);
@@ -22,6 +22,7 @@ export const makeSandboxSpawner = Effect.fn(function* (
       execArgs.push("--workdir", cwd);
     }
 
+    execArgs.push(sandboxName);
     execArgs.push(command);
     execArgs.push(...(args ?? []));
 

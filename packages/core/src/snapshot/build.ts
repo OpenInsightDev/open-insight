@@ -45,7 +45,7 @@ const encodeInstruction = (instruction: Instruction): string =>
     Run: ({ cmd }) => `RUN ${cmd}`,
     Env: ({ env }) => {
       const keys = Object.keys(env).sort();
-      return `ENV ${keys.map((key) => `${key}=${env[key]}`).join(" ")}`;
+      return `ENV ${keys.map((key) => `${key}=${JSON.stringify(env[key])}`).join(" ")}`;
     },
     Copy: ({ src, dest }) => `COPY ${JSON.stringify([...src, dest])}`,
   });

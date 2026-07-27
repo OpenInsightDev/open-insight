@@ -1,13 +1,16 @@
 import {
   Agent,
   Bench,
+  Chart,
   Eval,
   Grade,
   Harness,
+  Metric,
   Sandbox,
   Snapshot,
   Task,
   Tasks,
+  When,
 } from "@open-insight/eval";
 import { Effect } from "effect";
 import * as fs from "node:fs/promises";
@@ -15,6 +18,7 @@ import * as path from "node:path";
 
 const datasetDirName = "dataset_spec-to-rtl";
 const promptSuffix = "_prompt.txt";
+const trailCount = 5;
 
 const current = import.meta.dirname!;
 
@@ -58,6 +62,62 @@ const snapshot = Snapshot.make({
 
 type GradeResult = Readonly<{ simPass: boolean }>;
 type Extras = Readonly<{ category: string }>;
+type PassAtKResult = Readonly<{ "pass@k": number }>;
+type PassPowKResult = Readonly<{ "pass^k": number }>;
+
+const probabilityChart = (value: number, success: string, failure: string) => [
+  Chart.Pie.make({ legend: success, value }),
+  Chart.Pie.make({ legend: failure, value: 1 - value }),
+];
+
+const passAtKChart = (result: PassAtKResult) => probabilityChart(result["pass@k"], "Pass", "Fail");
+
+const passPowKChart = (result: PassPowKResult) =>
+  probabilityChart(result["pass^k"], "All pass", "Not all pass");
+
+const toolCallCountChart = ({ count }: Metric.Traj.Count) => [
+  Chart.Bar.make({ legend: "Tool calls", x: "Completed", y: count }),
+];
+
+const toolCallSuccessRateChart = ({ rate }: Metric.Traj.Rate) =>
+  probabilityChart(rate, "Succeeded", "Failed");
+
+const toPassTrail = (trail: Eval.TrailResult<GradeResult>) => ({
+  ...trail,
+  grade: { pass: trail.grade.simPass },
+});
+
+const passAtK =
+  (k: number): Metric.Task.Exec<GradeResult, PassAtKResult> =>
+  async (results, delta) =>
+    Metric.Task.passAtK(k)(results.map(toPassTrail), toPassTrail(delta), null);
+
+const passPowK =
+  (k: number): Metric.Task.Exec<GradeResult, PassPowKResult> =>
+  async (results, delta) =>
+    Metric.Task.passPowK(k)(results.map(toPassTrail), toPassTrail(delta), null);
+
+const avgPassAtK =
+  (k: number): Metric.Bench.Exec<GradeResult, PassAtKResult> =>
+  async (results, delta) =>
+    Metric.Bench.avgPassAtK(k)(
+      Object.fromEntries(
+        Object.entries(results).map(([task, trails]) => [task, trails.map(toPassTrail)]),
+      ),
+      { ...toPassTrail(delta), task: delta.task },
+      null,
+    );
+
+const avgPassPowK =
+  (k: number): Metric.Bench.Exec<GradeResult, PassPowKResult> =>
+  async (results, delta) =>
+    Metric.Bench.avgPassPowK(k)(
+      Object.fromEntries(
+        Object.entries(results).map(([task, trails]) => [task, trails.map(toPassTrail)]),
+      ),
+      { ...toPassTrail(delta), task: delta.task },
+      null,
+    );
 
 async function* loadTasks(repoPath: string) {
   const datasetDir = path.resolve(repoPath, datasetDirName);
@@ -118,8 +178,33 @@ async function* loadTasks(repoPath: string) {
       )
       .pipe(Task.satisfies<GradeResult, Extras>())
       .pipe(
-        Task.metric(async () => ({ score: 1 })),
-        Task.trajMetric(async () => ({ category: "verilog-eval" }), {}),
+        Task.metric(passAtK(1), {
+          name: "Pass at 1",
+          description: "Estimated probability that one generated RTL solution passes simulation.",
+          chart: passAtKChart,
+        }),
+        Task.metric(passAtK(trailCount), {
+          name: `Pass at ${trailCount}`,
+          description: `Estimated probability that at least one of ${trailCount} solutions passes.`,
+          chart: passAtKChart,
+        }),
+        Task.metric(passPowK(trailCount), {
+          name: `Pass power ${trailCount}`,
+          description: `Estimated probability that all ${trailCount} solutions pass.`,
+          chart: passPowKChart,
+        }),
+        Task.trajMetric(Metric.Traj.toolCallCount(), {
+          name: "Tool call count",
+          description: "Cumulative number of tool calls made while solving the task.",
+          chart: toolCallCountChart,
+          when: When.traj(When.toolCall()),
+        }),
+        Task.trajMetric(Metric.Traj.toolCallSuccessRate(), {
+          name: "Tool call success rate",
+          description: "Share of completed tool calls that succeeded.",
+          chart: toolCallSuccessRateChart,
+          when: When.traj(When.toolCall()),
+        }),
       );
   }
 }
@@ -132,7 +217,26 @@ export const makeBench = Effect.fn(function* () {
   return yield* Bench.make({
     id: "verilog-eval",
     tasks,
-  });
+  }).pipe(
+    Bench.metric({
+      name: "Average pass at 1",
+      description: "Mean pass@1 estimate across evaluated tasks.",
+      exec: avgPassAtK(1),
+      chart: passAtKChart,
+    }),
+    Bench.metric({
+      name: `Average pass at ${trailCount}`,
+      description: `Mean pass@${trailCount} estimate across evaluated tasks.`,
+      exec: avgPassAtK(trailCount),
+      chart: passAtKChart,
+    }),
+    Bench.metric({
+      name: `Average pass power ${trailCount}`,
+      description: `Mean pass^${trailCount} estimate across evaluated tasks.`,
+      exec: avgPassPowK(trailCount),
+      chart: passPowKChart,
+    }),
+  );
 });
 
 export const main = async () => {
@@ -153,7 +257,11 @@ export const main = async () => {
       sandbox: yield* Sandbox.Docker.make({}),
     });
 
-    return yield* Eval.run({ bench, harness });
+    return yield* Eval.run({
+      bench,
+      harness,
+      config: { trailCount },
+    });
   }).pipe(Eval.toPromise);
 
   console.log(result);

@@ -7,10 +7,10 @@ import type { Bench } from "./build.ts";
 import { Error } from "./error.ts";
 
 export const metric =
-  <R extends Schema.JsonObject = Schema.JsonObject>(
-    options: Metric.Bench.Options<Grade.Result, R>,
+  <G extends Grade.Result, R extends Schema.JsonObject = Schema.JsonObject>(
+    options: Metric.Bench.Options<G, R>,
   ) =>
-  <T extends Task.Task, E, Env>(
+  <T extends Task.Task<G>, E, Env>(
     bench: Effect.Effect<Bench<T>, E, Env>,
   ): Effect.Effect<Bench<T>, E | Error, Env | Crypto.Crypto> =>
     Effect.all([bench, Metric.Bench.make(options).pipe(Effect.mapError(Error.init))]).pipe(

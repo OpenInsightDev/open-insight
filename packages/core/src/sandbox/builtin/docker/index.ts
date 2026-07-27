@@ -60,7 +60,7 @@ export const make = Effect.fn("sandbox/provider/docker")(
       );
 
     const getHostPort = Effect.fn(function* (name: string, sandboxPort: number) {
-      const command = CP.make`port ${name} ${sandboxPort}`;
+      const command = CP.make`port ${name} ${sandboxPort}`.pipe(runtime);
       const output = yield* spawner
         .string(command)
         .pipe(Effect.mapError(Sandbox.Error.sandboxExpose(name, sandboxPort)));
@@ -118,7 +118,7 @@ export const make = Effect.fn("sandbox/provider/docker")(
               });
               yield* fs.writeFileString(
                 filePath,
-                Snapshot.encode({ image: "scratch", instructions }),
+                Snapshot.encode({ image: snapshot.image, instructions }),
               );
               return filePath;
             }),
@@ -232,11 +232,11 @@ export const make = Effect.fn("sandbox/provider/docker")(
 
         const portMappingArgs = formatPortMappings(portMappings);
         const resourceArgs = formatResources(resources);
-        const run = CP.make`run --rm --detach \\
-          --name ${name} \\
-          ${portMappingArgs} \\
-          ${resourceArgs} \\
-          ${handle.name} \\
+        const run = CP.make`run --rm --detach
+          --name ${name}
+          ${portMappingArgs}
+          ${resourceArgs}
+          ${handle.name}
           sleep infinity`.pipe(runtime);
         yield* spawner
           .success(run)
