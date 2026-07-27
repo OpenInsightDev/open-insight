@@ -32,11 +32,22 @@ const resources = Sandbox.Resources.make({
   runTimeoutSec: 120,
 });
 
+const networkedResources = Sandbox.Resources.make({
+  numCPUs: 0.5,
+  numGPUs: 0,
+  memoryMiB: 64,
+  storageMiB: 64,
+  network: true,
+  buildTimeoutSec: 120,
+  runTimeoutSec: 120,
+});
+
 const dockerCommand = (args: ReadonlyArray<string>) => CP.make("docker", args);
 
 const dockerExitCode = Effect.fn(function* (args: ReadonlyArray<string>) {
   const spawner = yield* Spawn.Service;
-  return yield* spawner.exitCode(dockerCommand(args));
+  const result = yield* spawner.exec(dockerCommand(args), { errorOnNonZeroExit: false });
+  return result.exitCode;
 });
 
 const dockerString = Effect.fn(function* (args: ReadonlyArray<string>) {
@@ -60,10 +71,7 @@ const containerNameForImage = Effect.fn(function* (image: string) {
   return names[0];
 });
 
-const assertDockerObjectMissing = Effect.fn(function* (
-  kind: "container" | "image",
-  name: string,
-) {
+const assertDockerObjectMissing = Effect.fn(function* (kind: "container" | "image", name: string) {
   const exitCode = yield* dockerExitCode([kind, "inspect", name]);
   assert.notStrictEqual(exitCode, 0);
 });
@@ -104,7 +112,10 @@ describe.skipIf(!dockerAvailable)("Docker sandbox end-to-end", () => {
                   Snapshot.run("printf derived > /workspace/derived.txt"),
                 ],
               });
-              const sandbox = yield* provider.runSandbox({ handle: derived, resources });
+              const sandbox = yield* provider.runSandbox({
+                handle: derived,
+                resources: networkedResources,
+              });
               const containerName = yield* containerNameForImage(derived.name);
 
               const command = yield* sandbox.spawn({
@@ -123,14 +134,17 @@ describe.skipIf(!dockerAvailable)("Docker sandbox end-to-end", () => {
                 "/workspace|snapshot value|derived value|request value|argument with spaces",
               );
 
-              const nonZero = yield* sandbox
-                .spawn(
-                  { command: "sh", args: ["-c", "printf out; printf err >&2; exit 7"] },
-                  { errorOnNonZeroExit: false },
-                );
+              const nonZero = yield* sandbox.spawn(
+                { command: "sh", args: ["-c", "printf out; printf err >&2; exit 7"] },
+                { errorOnNonZeroExit: false },
+              );
               assert.strictEqual(nonZero.exitCode, 7);
               assert.strictEqual(nonZero.stdout, "out");
               assert.strictEqual(nonZero.stderr, "err");
+              assert.strictEqual(
+                yield* sandbox.exitCode({ command: "sh", args: ["-c", "exit 6"] }),
+                6,
+              );
 
               const commandError = yield* sandbox
                 .cmd({ command: "sh", args: ["-c", "exit 9"] })
@@ -152,7 +166,13 @@ describe.skipIf(!dockerAvailable)("Docker sandbox end-to-end", () => {
                 '{{.HostConfig.NanoCpus}}|{{.HostConfig.Memory}}|{{.HostConfig.NetworkMode}}|{{index .HostConfig.StorageOpt "size"}}',
                 containerName,
               ]);
-              assert.strictEqual(resourceConfig.trim(), "500000000|67108864|none|64m");
+              const [nanoCPUs, memoryBytes, networkMode, storageSize] = resourceConfig
+                .trim()
+                .split("|");
+              assert.strictEqual(nanoCPUs, "500000000");
+              assert.strictEqual(memoryBytes, "67108864");
+              assert.notStrictEqual(networkMode, "none");
+              assert.strictEqual(storageSize, "64m");
 
               yield* sandbox.writeFile({
                 sandboxPath: "/www/index.html",
@@ -163,7 +183,9 @@ describe.skipIf(!dockerAvailable)("Docker sandbox end-to-end", () => {
                 args: ["-p", "8080", "-h", "/www"],
               });
               const { hostUrl } = yield* sandbox.expose({ sandboxPort: 8080 });
-              const response = yield* Effect.tryPromise(() => fetch(hostUrl).then((res) => res.text()));
+              const response = yield* Effect.tryPromise(() =>
+                fetch(hostUrl).then((res) => res.text()),
+              );
               assert.strictEqual(response, "docker sandbox response");
 
               const exposeError = yield* sandbox.expose({ sandboxPort: 9090 }).pipe(Effect.flip);
@@ -216,6 +238,16 @@ describe.skipIf(!dockerAvailable)("Docker sandbox end-to-end", () => {
               const containerName = yield* containerNameForImage(handle.name);
 
               assert.strictEqual(
+                (yield* dockerString([
+                  "inspect",
+                  "--format",
+                  "{{.HostConfig.NetworkMode}}",
+                  containerName,
+                ])).trim(),
+                "none",
+              );
+
+              assert.strictEqual(
                 yield* sandbox.readFile({ sandboxPath: "/seed/seed.txt" }),
                 "containerfile seed\n",
               );
@@ -263,9 +295,7 @@ describe.skipIf(!dockerAvailable)("Docker sandbox end-to-end", () => {
           const context = yield* fs.makeTempDirectoryScoped();
           const snapshot = Snapshot.make({ image: "busybox:latest", context });
           const provider = yield* Docker.make({});
-          const handle = yield* Effect.scoped(
-            provider.aquireSnapshot({ snapshot, cache: true }),
-          );
+          const handle = yield* Effect.scoped(provider.aquireSnapshot({ snapshot, cache: true }));
 
           yield* Effect.addFinalizer(() =>
             dockerExitCode(["image", "rm", "--force", handle.name]).pipe(Effect.ignore),

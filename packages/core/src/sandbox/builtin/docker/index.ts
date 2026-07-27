@@ -111,15 +111,12 @@ export const make = Effect.fn("sandbox/provider/docker")(
           Match.tag("Containerfile", ({ filePath }) => Effect.succeed(filePath)),
           Match.tag(
             "Instructions",
-            Effect.fn(function* ({ instructions }) {
+            Effect.fn(function* ({ image, instructions }) {
               const filePath = yield* fs.makeTempFile({
                 prefix: "open-insight-",
                 suffix: ".Containerfile",
               });
-              yield* fs.writeFileString(
-                filePath,
-                Snapshot.encode({ image: snapshot.image, instructions }),
-              );
+              yield* fs.writeFileString(filePath, Snapshot.encode({ image, instructions }));
               return filePath;
             }),
           ),
