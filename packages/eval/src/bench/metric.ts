@@ -6,20 +6,40 @@ import * as Grade from "#/grade/index.ts";
 import type { Bench } from "./build.ts";
 import { Error } from "./error.ts";
 
-export const metric =
-  <G extends Grade.Result, R extends Schema.JsonObject = Schema.JsonObject>(
-    options: Metric.Bench.Options<G, R>,
-  ) =>
-  <T extends Task.Task<G>, E, Env>(
+type MetricOptions<G extends Grade.Result, R extends Schema.JsonObject> = Omit<
+  Metric.Bench.Options<G, R>,
+  "exec"
+>;
+
+export function metric<G extends Grade.Result, R extends Schema.JsonObject>(
+  exec: Metric.Bench.Exec<G, R>,
+  options?: MetricOptions<G, R>,
+): <T extends Task.Task<G>, E, Env>(
+  bench: Effect.Effect<Bench<T>, E, Env>,
+) => Effect.Effect<Bench<T>, E | Error, Env | Crypto.Crypto>;
+export function metric<G extends Grade.Result, R extends Schema.JsonObject>(
+  options: Metric.Bench.Options<G, R>,
+): <T extends Task.Task<G>, E, Env>(
+  bench: Effect.Effect<Bench<T>, E, Env>,
+) => Effect.Effect<Bench<T>, E | Error, Env | Crypto.Crypto>;
+export function metric<G extends Grade.Result, R extends Schema.JsonObject>(
+  execOrOptions: Metric.Bench.Exec<G, R> | Metric.Bench.Options<G, R>,
+  options: MetricOptions<G, R> = {},
+) {
+  const metricOptions =
+    typeof execOrOptions === "function" ? { ...options, exec: execOrOptions } : execOrOptions;
+
+  return <T extends Task.Task<G>, E, Env>(
     bench: Effect.Effect<Bench<T>, E, Env>,
   ): Effect.Effect<Bench<T>, E | Error, Env | Crypto.Crypto> =>
-    Effect.all([bench, Metric.Bench.make(options).pipe(Effect.mapError(Error.init))]).pipe(
+    Effect.all([bench, Metric.Bench.make(metricOptions).pipe(Effect.mapError(Error.init))]).pipe(
       Effect.map(([bench, metric]) =>
         produce(bench, (draft) => {
           draft.metrics.push(castDraft(metric));
         }),
       ),
     );
+}
 
 export const taskMetric =
   <R extends Schema.JsonObject = Schema.JsonObject>(

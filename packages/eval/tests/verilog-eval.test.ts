@@ -176,28 +176,25 @@ export const makeBench = Effect.fn(function* () {
     id: "verilog-eval",
     tasks,
   }).pipe(
-    Bench.metric({
+    Bench.metric(Metric.Bench.avgPassAtK(1, "simPass"), {
       name: "Average pass at 1",
       description: "Mean pass@1 estimate across evaluated tasks.",
-      exec: Metric.Bench.avgPassAtK(1, "simPass"),
       chart: (result) => [
         Chart.Pie.make({ legend: "Pass", value: result["pass@k"] }),
         Chart.Pie.make({ legend: "Fail", value: 1 - result["pass@k"] }),
       ],
     }),
-    Bench.metric({
+    Bench.metric(Metric.Bench.avgPassAtK(trailCount, "simPass"), {
       name: `Average pass at ${trailCount}`,
       description: `Mean pass@${trailCount} estimate across evaluated tasks.`,
-      exec: Metric.Bench.avgPassAtK(trailCount, "simPass"),
       chart: (result) => [
         Chart.Pie.make({ legend: "Pass", value: result["pass@k"] }),
         Chart.Pie.make({ legend: "Fail", value: 1 - result["pass@k"] }),
       ],
     }),
-    Bench.metric({
+    Bench.metric(Metric.Bench.avgPassPowK(trailCount, "simPass"), {
       name: `Average pass power ${trailCount}`,
       description: `Mean pass^${trailCount} estimate across evaluated tasks.`,
-      exec: Metric.Bench.avgPassPowK(trailCount, "simPass"),
       chart: (result) => [
         Chart.Pie.make({ legend: "All pass", value: result["pass^k"] }),
         Chart.Pie.make({ legend: "Not all pass", value: 1 - result["pass^k"] }),
