@@ -45,14 +45,6 @@ describe("passAtK", () => {
       ),
     ).resolves.toEqual({ "pass@k": 0.5 });
   });
-
-  it("accepts a custom boolean grade field", async () => {
-    const customTrail = (simPass: boolean) => ({ grade: { simPass }, trajectory: Prompt.empty });
-
-    await expect(
-      passAtK(1, "simPass")([customTrail(false), customTrail(true)], customTrail(true), null),
-    ).resolves.toEqual({ "pass@k": 0.5 });
-  });
 });
 
 describe("passPowK", () => {
@@ -80,17 +72,5 @@ describe("passPowK", () => {
         null,
       ),
     ).resolves.toEqual({ "pass^k": 0.3 });
-  });
-
-  it("accepts a custom boolean grade field", async () => {
-    const customTrail = (simPass: boolean) => ({ grade: { simPass }, trajectory: Prompt.empty });
-
-    await expect(
-      passPowK(2, "simPass")(
-        [customTrail(true), customTrail(false), customTrail(true)],
-        customTrail(true),
-        null,
-      ),
-    ).resolves.toEqual({ "pass^k": 1 / 3 });
   });
 });

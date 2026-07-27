@@ -1,13 +1,7 @@
 export type Pass = Readonly<{ pass: boolean }>;
-export type BooleanField<Key extends string> = Readonly<Record<Key, boolean>>;
-
-export const countCorrectBy = <G>(
-  results: ReadonlyArray<Readonly<{ grade: G }>>,
-  isCorrect: (grade: G) => boolean,
-) => results.reduce((count, result) => count + Number(isCorrect(result.grade)), 0);
 
 export const countCorrect = (results: ReadonlyArray<Readonly<{ grade: Pass }>>) =>
-  countCorrectBy(results, (grade) => grade.pass);
+  results.reduce((count, result) => count + Number(result.grade.pass), 0);
 
 export const estimatePassAtK = (total: number, correct: number, k: number) => {
   if (total - correct < k) {

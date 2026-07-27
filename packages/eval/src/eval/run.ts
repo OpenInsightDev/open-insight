@@ -1,4 +1,4 @@
-import { Effect, Fiber, Option, Scope, Stream } from "effect";
+import { Effect, Option, Queue, Scope, Stream } from "effect";
 import * as Event from "#/event/index.ts";
 import { type Config, make as makeConfig } from "./config.ts";
 import * as Bench from "#/bench/index.ts";
@@ -33,14 +33,13 @@ export const run = Effect.fn(function* ({
       onSome: (transport) =>
         transport.send(eventStream).pipe(Effect.mapError(Error.event), Effect.scoped),
     }),
-    Effect.andThen(Effect.never),
   );
 
-  return yield* consume.pipe(
-    Effect.forkScoped({ startImmediately: true }),
-    Effect.flatMap((consumerFiber) => Effect.raceFirst(evaluation, Fiber.join(consumerFiber))),
-    Effect.scoped,
+  const [result] = yield* Effect.all(
+    [evaluation.pipe(Effect.ensuring(Queue.end(eventQueue))), consume],
+    { concurrency: "unbounded" },
   );
+  return result;
 });
 
 export const toPromise = <T, E>(

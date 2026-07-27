@@ -1,5 +1,5 @@
 import * as Chart from "#/chart/index.ts";
-import { Schema } from "effect";
+import { Schema, SchemaTransformation } from "effect";
 import * as Grade from "#/grade/index.ts";
 import * as Bench from "#/bench/index.ts";
 import * as Harness from "#/harness/index.ts";
@@ -63,7 +63,63 @@ export class TrailStagedEvent extends Schema.TaggedClass<TrailStagedEvent>()("Tr
   usage: Response.Usage,
 }) {}
 
-export const StreamPart = Response.StreamPart(Toolkit.empty);
+const GenericToolCallPart = Schema.Struct({
+  ...Response.ToolCallPart("DynamicTool", Schema.Json).fields,
+  name: Schema.String,
+});
+
+const responsePartTypeId = "~effect/ai/Content/Part";
+const GenericToolResultPart = Schema.Struct({
+  [responsePartTypeId]: Schema.Literal(responsePartTypeId),
+  metadata: Response.ProviderMetadata,
+  type: Schema.Literal("tool-result"),
+  id: Schema.String,
+  name: Schema.String,
+  result: Schema.Json,
+  encodedResult: Schema.Json,
+  isFailure: Schema.Boolean,
+  providerExecuted: Schema.Boolean,
+  preliminary: Schema.Boolean,
+}).pipe(
+  Schema.encodeTo(
+    Schema.Struct({
+      metadata: Schema.optional(Response.ProviderMetadata),
+      type: Schema.Literal("tool-result"),
+      id: Schema.String,
+      name: Schema.String,
+      result: Schema.Json,
+      isFailure: Schema.Boolean,
+      providerExecuted: Schema.optional(Schema.Boolean),
+      preliminary: Schema.optional(Schema.Boolean),
+    }),
+    SchemaTransformation.transform({
+      decode: (encoded) => ({
+        ...encoded,
+        [responsePartTypeId]: responsePartTypeId,
+        metadata: encoded.metadata ?? {},
+        encodedResult: encoded.result,
+        providerExecuted: encoded.providerExecuted ?? false,
+        preliminary: encoded.preliminary ?? false,
+      }),
+      encode: (decoded) => ({
+        metadata: decoded.metadata,
+        type: decoded.type,
+        id: decoded.id,
+        name: decoded.name,
+        result: decoded.encodedResult,
+        isFailure: decoded.isFailure,
+        providerExecuted: decoded.providerExecuted,
+        preliminary: decoded.preliminary,
+      }),
+    }),
+  ),
+);
+
+export const StreamPart = Schema.Union([
+  Response.StreamPart(Toolkit.empty),
+  GenericToolCallPart,
+  GenericToolResultPart,
+]);
 export type StreamPart = typeof StreamPart.Type;
 export type StreamPartEncoded = typeof StreamPart.Encoded;
 

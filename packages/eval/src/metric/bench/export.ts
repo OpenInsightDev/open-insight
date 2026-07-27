@@ -1,5 +1,6 @@
 export {
   make,
+  mapGrade,
   run,
   type Delta,
   type Exec,

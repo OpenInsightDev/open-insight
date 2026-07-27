@@ -173,7 +173,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
                 task: task.metadata.id,
                 part,
                 trailIdx: idx,
-              }),
+              }).pipe(offer),
             ),
             Stream.tap((part) =>
               part.type === "finish" ? Ref.set(usageRef, Option.some(part.usage)) : Effect.void,

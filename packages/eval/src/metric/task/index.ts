@@ -37,6 +37,21 @@ export type Options<
 }> &
   MetadataEncoded;
 
+/** Maps task grade results before passing them to another metric executor. */
+export const mapGrade =
+  <Input extends Grade.Result>() =>
+  <Mapped extends Grade.Result, R extends Schema.JsonObject>(
+    exec: Exec<Mapped, R>,
+    map: (grade: Input) => Mapped,
+  ): Exec<Input, R> => {
+    const mapTrail = (trail: TrailResult<Input>): TrailResult<Mapped> => ({
+      ...trail,
+      grade: map(trail.grade),
+    });
+
+    return async (results, delta, prev) => exec(results.map(mapTrail), mapTrail(delta), prev);
+  };
+
 export const make = Effect.fn(function* <
   G extends Grade.Result = Grade.Result,
   R extends Schema.JsonObject = Schema.JsonObject,
