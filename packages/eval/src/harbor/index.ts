@@ -7,6 +7,7 @@ import { addStages, makeStages } from "./stages.ts";
 import type { HarborTask } from "./types.ts";
 
 export * from "./config.ts";
+export * from "./result.ts";
 export { GradeResult } from "./reward.ts";
 export { makeGrader, makeVerifier } from "./runtime.ts";
 export { makeSnapshot } from "./mapping.ts";

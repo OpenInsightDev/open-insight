@@ -1,4 +1,5 @@
 import {
+  DateTime,
   Effect,
   Equal,
   FileSystem,
@@ -128,6 +129,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
 
     const runTrail = Effect.fn(
       function* (idx: number): Effect.fn.Return<TrailResult, Error, Scope.Scope> {
+        const startedAt = yield* DateTime.now;
         yield* Effect.annotateCurrentSpan({ taskName: task.metadata.name, trailIdx: idx });
         yield* Effect.logDebug("Starting sandbox for trail");
 
@@ -279,7 +281,11 @@ export const createTrail = Effect.fn("exec/createTrail")(
         const runStage = Effect.fn("exec/runTrail/runStage")(function* (
           { metadata, prompt: promptOptions, grader, init, resume }: Task.Stage,
           results: StageResults,
-        ): Effect.fn.Return<Grade.Result, Error, Scope.Scope> {
+        ): Effect.fn.Return<
+          Readonly<{ grade: Grade.Result; usage: Response.Usage }>,
+          Error,
+          Scope.Scope
+        > {
           yield* Effect.logDebug(`Starting stage ${metadata.id}`);
 
           if (init !== null) {
@@ -389,24 +395,30 @@ export const createTrail = Effect.fn("exec/createTrail")(
           }).pipe(offer);
 
           yield* Effect.logDebug(`Completed stage ${metadata.id}`);
-          return grade;
+          return { grade, usage };
         });
 
         type StagesState = Readonly<{
           results: StageResults;
           grade: Option.Option<Grade.Result>;
+          usage: Option.Option<Response.Usage>;
         }>;
 
         const state = yield* stageStream.pipe(
           Stream.runFoldEffect(
-            (): StagesState => ({ results: {}, grade: Option.none() }),
+            (): StagesState => ({
+              results: {},
+              grade: Option.none(),
+              usage: Option.none(),
+            }),
             (state, stage) =>
               runStage(stage, state.results).pipe(
-                Effect.map((grade) => ({
+                Effect.map(({ grade, usage }) => ({
                   results: produce(state.results, (draft) => {
                     draft[stage.metadata.name] = grade;
                   }),
                   grade: Option.some(grade),
+                  usage: Option.some(usage),
                 })),
               ),
           ),
@@ -423,7 +435,17 @@ export const createTrail = Effect.fn("exec/createTrail")(
         );
 
         const trajectory = yield* getTrajectory;
-        return TrailResult.make({ grade, trajectory });
+        const usage = yield* state.usage.pipe(
+          Option.match({
+            onNone: () =>
+              Effect.fail(
+                Error.taskExec(task, idx)(new globalThis.Error("Stage did not produce usage")),
+              ),
+            onSome: Effect.succeed,
+          }),
+        );
+        const finishedAt = yield* DateTime.now;
+        return TrailResult.make({ startedAt, finishedAt, grade, trajectory, usage });
       },
       (effect, trailIdx) =>
         effect.pipe(

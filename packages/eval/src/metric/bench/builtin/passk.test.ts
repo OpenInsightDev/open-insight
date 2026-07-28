@@ -1,9 +1,20 @@
 import { Prompt } from "@open-insight/core/internal";
-import { Effect } from "effect";
+import { DateTime, Effect } from "effect";
+import { Response } from "effect/unstable/ai";
 import { describe, expect, it } from "vite-plus/test";
+import type { TrailResult } from "#/eval/result.ts";
 import { avgPassAtK, avgPassPowK } from "./passk.ts";
 
-const trail = (pass: boolean) => ({ grade: { pass }, trajectory: Prompt.empty });
+type PassTrail = TrailResult<Readonly<{ pass: boolean }>>;
+const timestamp = DateTime.nowUnsafe();
+const usage = Response.Usage.make({ inputTokens: {}, outputTokens: {} });
+const trail = (pass: boolean): PassTrail => ({
+  startedAt: timestamp,
+  finishedAt: timestamp,
+  usage,
+  grade: { pass },
+  trajectory: Prompt.empty,
+});
 const delta = (task: string, pass: boolean) => ({ ...trail(pass), task });
 
 describe("avgPassAtK", () => {

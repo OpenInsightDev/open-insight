@@ -1,7 +1,7 @@
 import { NodeServices } from "@effect/platform-node";
 import { assert, describe, layer } from "@effect/vitest";
 import { Agent, Prompt, Sandbox, Snapshot } from "@open-insight/core/internal";
-import { Effect, Option, Schema, Stream } from "effect";
+import { DateTime, Effect, Option, Schema, Stream } from "effect";
 import { Response } from "effect/unstable/ai";
 import { ExitCode } from "effect/unstable/process/ChildProcessSpawner";
 import * as Event from "#/event/index.ts";
@@ -166,6 +166,7 @@ describe("verification trail", () => {
 
         assert.deepStrictEqual(calls, ["init", "agent", "grader"]);
         assert.deepStrictEqual(result.grade, { initialized: true });
+        assert.isTrue(DateTime.isLessThanOrEqualTo(result.startedAt, result.finishedAt));
       }),
     );
 

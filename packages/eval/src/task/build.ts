@@ -3,7 +3,6 @@ import { type EmptyRecord } from "#/utils/type.ts";
 import * as Grade from "#/grade/index.ts";
 import * as Metric from "#/metric/index.ts";
 import { Crypto, Effect, Schema, Scope } from "effect";
-import { castDraft, produce } from "immer";
 import { Error } from "./error.ts";
 import { StageMetadata } from "./stage.ts";
 import type { Stage } from "./stage.ts";
@@ -65,14 +64,6 @@ export type Options<E extends Schema.JsonObject = EmptyRecord> = BaseMetadataEnc
     extras?: E;
   }>;
 
-const makeMetric = <G extends Grade.Result, R extends Schema.JsonObject = Schema.JsonObject>(
-  options: Metric.Task.Options<G, R>,
-) => Metric.Task.make(options).pipe(Effect.mapError(Error.metadata));
-
-const makeTrajMetric = <R extends Schema.JsonObject = Schema.JsonObject>(
-  options: Metric.Traj.Options<R>,
-) => Metric.Traj.make(options).pipe(Effect.mapError(Error.metadata));
-
 export const make = Effect.fn(function* <E extends Schema.JsonObject = EmptyRecord>(
   options: Options<E>,
 ): Effect.fn.Return<Task<never, E, never>, Error, Crypto.Crypto | Scope.Scope> {
@@ -92,44 +83,6 @@ export const make = Effect.fn(function* <E extends Schema.JsonObject = EmptyReco
     trajMetrics: [],
   } satisfies Task<never, E, never>;
 });
-
-export const metric =
-  <G extends Grade.Result, R extends Schema.JsonObject = Schema.JsonObject>(
-    exec: Metric.Task.ExecEffect<G, R>,
-    options: Omit<Metric.Task.Options<G, R>, "exec"> = {},
-  ) =>
-  <Ex extends Schema.JsonObject, S extends Stage, E, Env>(
-    task: Effect.Effect<Task<G, Ex, S>, E, Env>,
-  ): Effect.Effect<Task<G, Ex, S>, E | Error, Env | Crypto.Crypto> =>
-    task.pipe(
-      Effect.flatMap(
-        Effect.fn(function* (task) {
-          const metric = yield* makeMetric({ ...options, exec: yield* exec });
-          return produce(task, (draft) => {
-            draft.metrics.push(castDraft(metric));
-          });
-        }),
-      ),
-    );
-
-export const trajMetric =
-  <R extends Schema.JsonObject = Schema.JsonObject>(
-    exec: Metric.Traj.Exec<R>,
-    options: Omit<Metric.Traj.Options<R>, "exec"> = {},
-  ) =>
-  <G extends Grade.Result, Ex extends Schema.JsonObject, S extends Stage, E, Env>(
-    task: Effect.Effect<Task<G, Ex, S>, E, Env>,
-  ): Effect.Effect<Task<G, Ex, S>, E | Error, Env | Crypto.Crypto> =>
-    task.pipe(
-      Effect.flatMap(
-        Effect.fn(function* (task) {
-          const metric = yield* makeTrajMetric({ ...options, exec });
-          return produce(task, (draft) => {
-            draft.trajMetrics.push(castDraft(metric));
-          });
-        }),
-      ),
-    );
 
 export const satisfies = <G extends Grade.Result, E extends Schema.JsonObject = EmptyRecord>() =>
   Effect.satisfiesSuccessType<Task<G, E>>();

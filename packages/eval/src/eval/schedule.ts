@@ -1,4 +1,4 @@
-import { Crypto, Effect, FileSystem, Path, Ref, Schema, Scope, Stream } from "effect";
+import { Crypto, DateTime, Effect, FileSystem, Path, Ref, Scope, Stream } from "effect";
 import type { ChildProcessSpawner } from "effect/unstable/process";
 import { castDraft, produce } from "immer";
 import * as Bench from "#/bench/index.ts";
@@ -9,7 +9,7 @@ import type { Config } from "./config.ts";
 import { Error } from "./error.ts";
 import * as Event from "#/event/index.ts";
 import { createTrail, type RunTrail } from "./trail.ts";
-import type { BenchResult } from "./result.ts";
+import { BenchResult, TaskResult } from "./result.ts";
 
 type ScheduledTask = Readonly<{
   task: Task.Task;
@@ -58,7 +58,14 @@ export const run = Effect.fn("exec/schedule")(
     yield* Effect.annotateCurrentSpan({ benchmark: benchId });
     yield* Effect.logDebug("Starting evaluation schedule");
 
-    const resultRef = yield* Ref.make<BenchResult>({ tasks: {} });
+    const startedAt = yield* DateTime.now;
+    const resultRef = yield* Ref.make<BenchResult>(
+      BenchResult.make({
+        startedAt,
+        finishedAt: startedAt,
+        tasks: {},
+      }),
+    );
 
     const prepareTask = Effect.fn("exec/prepareTask")(
       function* (task: Task.Task) {
@@ -149,6 +156,11 @@ export const run = Effect.fn("exec/schedule")(
 
     if (tasks.length === 0) {
       yield* Effect.logWarning("No tasks to schedule");
+      const finishedAt = yield* DateTime.now;
+      yield* Ref.update(resultRef, (result) => ({
+        ...result,
+        finishedAt,
+      }));
       return yield* Ref.get(resultRef);
     }
 
@@ -192,9 +204,21 @@ export const run = Effect.fn("exec/schedule")(
           produce(benchResult, (draft) => {
             const taskResult = draft.tasks[task.metadata.id];
             if (taskResult) {
+              taskResult.startedAt = castDraft(
+                DateTime.min(taskResult.startedAt, result.startedAt),
+              );
+              taskResult.finishedAt = castDraft(
+                DateTime.max(taskResult.finishedAt, result.finishedAt),
+              );
               taskResult.trails.push(castDraft(result));
             } else {
-              draft.tasks[task.metadata.id] = { trails: [castDraft(result)] };
+              draft.tasks[task.metadata.id] = castDraft(
+                TaskResult.make({
+                  startedAt: result.startedAt,
+                  finishedAt: result.finishedAt,
+                  trails: [castDraft(result)],
+                }),
+              );
             }
           }),
         ).pipe(
@@ -204,8 +228,7 @@ export const run = Effect.fn("exec/schedule")(
               (run) =>
                 run({
                   task: task.metadata.id,
-                  grade: result.grade,
-                  trajectory: result.trajectory,
+                  ...result,
                 }).pipe(
                   Effect.flatMap(({ id, result, chart }) =>
                     Event.BenchMetricEvent.makeEffect({
@@ -223,6 +246,11 @@ export const run = Effect.fn("exec/schedule")(
       ),
     );
 
+    const finishedAt = yield* DateTime.now;
+    yield* Ref.update(resultRef, (result) => ({
+      ...result,
+      finishedAt,
+    }));
     yield* Effect.logDebug("Completed evaluation schedule");
     return yield* Ref.get(resultRef);
   },
