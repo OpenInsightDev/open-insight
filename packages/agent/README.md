@@ -41,6 +41,10 @@ or a scoped layer. Configuring a skills directory requires `FileSystem` and `Pat
 provide `NodeServices.layer`. Skill files are copied into the sandbox snapshot and advertised to
 the model for progressive loading.
 
+Each `agent.prompt` call performs one model turn and resolves the tool calls emitted in that turn.
+Reuse the same session for follow-up turns when a workflow needs additional model decisions; the
+session keeps the full conversation and tool-result history.
+
 ## Development
 
 - Install dependencies:

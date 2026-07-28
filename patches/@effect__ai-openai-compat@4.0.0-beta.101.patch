@@ -1,0 +1,75 @@
+diff --git a/dist/OpenAiLanguageModel.js b/dist/OpenAiLanguageModel.js
+index 13bb809f394c357387084b96bcdff24f7fb260dc..4781ff5e095596034d17b5f716f23ba3b53a9855 100644
+--- a/dist/OpenAiLanguageModel.js
++++ b/dist/OpenAiLanguageModel.js
+@@ -1118,10 +1118,28 @@ const toChatMessages = input => {
+       content: input
+     }];
+   }
+-  const messages = [];
+-  for (const item of input) {
+-    messages.push(...toChatMessagesFromItem(item));
+-  }
++    const messages = [];
++    let toolCalls = [];
++    const flushToolCalls = () => {
++        if (toolCalls.length > 0) {
++            messages.push({ role: "assistant", content: null, tool_calls: toolCalls });
++            toolCalls = [];
++        }
++    };
++    for (const item of input) {
++        if (item.type === "function_call") {
++            toolCalls.push({
++                id: item.call_id,
++                type: "function",
++                function: { name: item.name, arguments: item.arguments }
++            });
++        }
++        else {
++            flushToolCalls();
++            messages.push(...toChatMessagesFromItem(item));
++        }
++    }
++    flushToolCalls();
+   return messages;
+ };
+ const toChatMessagesFromItem = item => {
+diff --git a/src/OpenAiLanguageModel.ts b/src/OpenAiLanguageModel.ts
+index f4fa699196325a19ab6464968f3333cbbd987bca..6866e51b18f2f8fcf450f6659df214f9720ece35 100644
+--- a/src/OpenAiLanguageModel.ts
++++ b/src/OpenAiLanguageModel.ts
+@@ -1721,10 +1721,32 @@ const toChatMessages = (
+   }
+ 
+   const messages: Array<CreateResponseRequestJson["messages"][number]> = []
++  let toolCalls: Array<{
++    readonly id: string
++    readonly type: "function"
++    readonly function: { readonly name: string; readonly arguments: string }
++  }> = []
++
++  const flushToolCalls = () => {
++    if (toolCalls.length > 0) {
++      messages.push({ role: "assistant", content: null, tool_calls: toolCalls })
++      toolCalls = []
++    }
++  }
+ 
+   for (const item of input) {
+-    messages.push(...toChatMessagesFromItem(item))
++    if (item.type === "function_call") {
++      toolCalls.push({
++        id: item.call_id,
++        type: "function",
++        function: { name: item.name, arguments: item.arguments }
++      })
++    } else {
++      flushToolCalls()
++      messages.push(...toChatMessagesFromItem(item))
++    }
+   }
++  flushToolCalls()
+ 
+   return messages
+ }
