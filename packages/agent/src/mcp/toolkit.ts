@@ -1,5 +1,5 @@
 import type { Tool as McpTool } from "@modelcontextprotocol/sdk/types.js";
-import { Effect, Layer, Schema } from "effect";
+import { Effect, Exit, Layer, Schema, Scope } from "effect";
 import { Tool, Toolkit } from "effect/unstable/ai";
 import type { Server } from "./config.ts";
 import { callTool, connectScoped, listTools, type ConnectedClient } from "./client.ts";
@@ -77,28 +77,36 @@ export const make = Effect.fn(function* (
   servers: ReadonlyArray<Server>,
   options?: { readonly reservedToolNames?: ReadonlyArray<string> },
 ) {
-  const discovered = yield* discover(servers);
-  yield* ensureUniqueNames(discovered, options?.reservedToolNames ?? []);
+  const parentScope = yield* Scope.Scope;
+  const childScope = yield* Scope.fork(parentScope);
 
-  const tools = discovered.map(({ definition }) => makeTool(definition));
-  const toolkit: Toolkit.Toolkit<Tools> = Toolkit.make(...tools);
-  const handlers = Object.fromEntries(
-    discovered.map(({ client, definition }) => [
-      definition.name,
-      (parameters: unknown) =>
-        decodeParameters(parameters).pipe(
-          Effect.mapError((error) => error.message),
-          Effect.flatMap((decoded) =>
-            callTool(client, definition.name, decoded).pipe(
-              Effect.mapError((error) => error.message),
+  return yield* Effect.gen(function* () {
+    const discovered = yield* discover(servers);
+    yield* ensureUniqueNames(discovered, options?.reservedToolNames ?? []);
+
+    const tools = discovered.map(({ definition }) => makeTool(definition));
+    const toolkit: Toolkit.Toolkit<Tools> = Toolkit.make(...tools);
+    const handlers = Object.fromEntries(
+      discovered.map(({ client, definition }) => [
+        definition.name,
+        (parameters: unknown) =>
+          decodeParameters(parameters).pipe(
+            Effect.mapError((error) => error.message),
+            Effect.flatMap((decoded) =>
+              callTool(client, definition.name, decoded).pipe(
+                Effect.mapError((error) => error.message),
+              ),
             ),
           ),
-        ),
-    ]),
-  );
+      ]),
+    );
 
-  return {
-    toolkit,
-    layer: toolkit.toLayer(handlers),
-  } satisfies ConnectedToolkit;
+    return {
+      toolkit,
+      layer: toolkit.toLayer(handlers),
+    } satisfies ConnectedToolkit;
+  }).pipe(
+    Effect.provideService(Scope.Scope, childScope),
+    Effect.onError((cause) => Scope.close(childScope, Exit.failCause(cause))),
+  );
 });

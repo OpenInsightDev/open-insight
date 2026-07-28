@@ -76,16 +76,10 @@ const validateNetwork = (
 
 export const validateConfig = Effect.fn("Task.Load.validateHarborConfig")(function* (
   config: TaskConfig,
-  hasCompose: boolean,
 ) {
   const env = config.environment;
   if (env?.os === "windows") {
     return yield* Effect.fail(unsupported("Windows Harbor tasks are not supported"));
-  }
-  if (hasCompose) {
-    return yield* Effect.fail(
-      unsupported("Harbor docker-compose environments and sidecars are not supported"),
-    );
   }
   if (env?.tpu !== undefined) {
     return yield* Effect.fail(unsupported("Harbor TPU requirements are not supported"));

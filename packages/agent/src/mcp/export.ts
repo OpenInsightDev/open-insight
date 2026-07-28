@@ -9,6 +9,5 @@ export {
   type HttpOptions,
   type StdioOptions,
 } from "./config.ts";
-export { ClientError, type Error, ToolNameConflictError } from "./error.ts";
-export { make, type ConnectedToolkit, type Tools } from "./toolkit.ts";
+export { ClientError, Error, ToolNameConflictError } from "./error.ts";
 export * as Internal from "./index.ts";

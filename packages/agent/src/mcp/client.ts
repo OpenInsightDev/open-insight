@@ -25,32 +25,49 @@ const makeTransport = (server: Server) =>
   Match.value(server).pipe(
     Match.tag("Custom", ({ transport }) => Effect.succeed(transport)),
     Match.tag("Stdio", (server) =>
-      Effect.succeed(
-        new StdioClientTransport({
-          command: server.command,
-          args: server.args === undefined ? undefined : Array.from(server.args),
-          cwd: server.cwd,
-          env: server.env === undefined ? undefined : { ...server.env },
-        }),
-      ),
+      Effect.try({
+        try: () =>
+          new StdioClientTransport({
+            command: server.command,
+            args: server.args === undefined ? undefined : Array.from(server.args),
+            cwd: server.cwd,
+            env: server.env === undefined ? undefined : { ...server.env },
+          }),
+        catch: clientError(server.name, "create-transport"),
+      }),
     ),
     Match.tag("Http", (server) =>
       makeUrl(server.name, server.url).pipe(
-        Effect.map(
-          (url) =>
-            new StreamableHTTPClientTransport(url, {
-              requestInit:
-                server.headers === undefined ? undefined : { headers: { ...server.headers } },
-            }),
+        Effect.flatMap((url) =>
+          Effect.try({
+            try: () =>
+              new StreamableHTTPClientTransport(url, {
+                requestInit:
+                  server.headers === undefined ? undefined : { headers: { ...server.headers } },
+              }),
+            catch: clientError(server.name, "create-transport"),
+          }),
         ),
       ),
     ),
     Match.exhaustive,
   );
 
-export const connect = Effect.fn(function* (server: Server) {
+const close = (server: string, client: Client) =>
+  Effect.tryPromise({
+    try: () => client.close(),
+    catch: clientError(server, "close"),
+  }).pipe(Effect.ignore({ log: "Warn", message: `Failed to close MCP server ${server}` }));
+
+export const connectScoped = Effect.fn(function* (server: Server) {
   const transport: Transport = yield* makeTransport(server);
-  const client = new Client({ name: "open-insight-agent", version: "0.0.0" });
+  const client = yield* Effect.acquireRelease(
+    Effect.try({
+      try: () => new Client({ name: "open-insight-agent", version: "0.0.0" }),
+      catch: clientError(server.name, "create-client"),
+    }),
+    (client) => close(server.name, client),
+  );
 
   yield* Effect.tryPromise({
     try: () => client.connect(transport),
@@ -59,14 +76,6 @@ export const connect = Effect.fn(function* (server: Server) {
 
   return { server: server.name, client } satisfies ConnectedClient;
 });
-
-export const connectScoped = (server: Server) =>
-  Effect.acquireRelease(connect(server), ({ client }) =>
-    Effect.tryPromise({
-      try: () => client.close(),
-      catch: clientError(server.name, "close"),
-    }).pipe(Effect.ignore({ log: "Warn", message: `Failed to close MCP server ${server.name}` })),
-  );
 
 export const listTools = Effect.fn(function* ({ client, server }: ConnectedClient) {
   const tools: Array<McpTool> = [];

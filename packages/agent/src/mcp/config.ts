@@ -15,9 +15,9 @@ const Transport = Schema.declare(
 const StdioFields = {
   name: Schema.String,
   command: Schema.String,
-  args: Schema.optional(Schema.Array(Schema.String)),
-  cwd: Schema.optional(Schema.String),
-  env: Schema.optional(Schema.Record(Schema.String, Schema.String)),
+  args: Schema.optionalKey(Schema.Array(Schema.String)),
+  cwd: Schema.optionalKey(Schema.String),
+  env: Schema.optionalKey(Schema.Record(Schema.String, Schema.String)),
 };
 export type StdioOptions = Schema.Struct.MakeIn<typeof StdioFields>;
 
@@ -29,7 +29,7 @@ export class StdioServer extends Schema.TaggedClass<StdioServer>("McpStdioServer
 const HttpFields = {
   name: Schema.String,
   url: Schema.String,
-  headers: Schema.optional(Schema.Record(Schema.String, Schema.String)),
+  headers: Schema.optionalKey(Schema.Record(Schema.String, Schema.String)),
 };
 export type HttpOptions = Schema.Struct.MakeIn<typeof HttpFields>;
 
@@ -46,9 +46,9 @@ export class CustomServer extends Schema.TaggedClass<CustomServer>("McpCustomSer
 export const Server = Schema.Union([StdioServer, HttpServer, CustomServer]);
 export type Server = Schema.Schema.Type<typeof Server>;
 
-export const stdio = (options: StdioOptions): StdioServer => new StdioServer(options);
+export const stdio = (options: StdioOptions): StdioServer => StdioServer.make(options);
 
-export const http = (options: HttpOptions): HttpServer => new HttpServer(options);
+export const http = (options: HttpOptions): HttpServer => HttpServer.make(options);
 
 export const fromTransport = (name: string, transport: Transport): CustomServer =>
-  new CustomServer({ name, transport });
+  CustomServer.make({ name, transport });

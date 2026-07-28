@@ -14,4 +14,5 @@ export class ToolNameConflictError extends Schema.TaggedErrorClass<ToolNameConfl
   },
 ) {}
 
-export type Error = ClientError | ToolNameConflictError;
+export const Error = Schema.Union([ClientError, ToolNameConflictError]);
+export type Error = Schema.Schema.Type<typeof Error>;

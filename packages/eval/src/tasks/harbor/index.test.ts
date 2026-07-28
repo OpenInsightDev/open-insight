@@ -243,6 +243,26 @@ env = { MODE = "test" }
       }),
     );
 
+    it.effect("rejects Compose before parsing task.toml", () =>
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const root = yield* fs.makeTempDirectoryScoped();
+        yield* fs.makeDirectory(path.join(root, "environment"), { recursive: true });
+        yield* fs.writeFileString(path.join(root, "task.toml"), "invalid = [");
+        yield* fs.writeFileString(
+          path.join(root, "environment", "docker-compose.yml"),
+          "services: {}\n",
+        );
+
+        const error = yield* makeTask(root).pipe(Effect.flip);
+
+        assert.instanceOf(error, Error);
+        assert.strictEqual(error.reason._tag, "UnsupportedTaskError");
+        assert.match(String(error.reason.cause), /docker-compose environments are not supported/);
+      }),
+    );
+
     it.effect("recursively loads Harbor task directories", () =>
       Effect.gen(function* () {
         const fs = yield* FileSystem.FileSystem;

@@ -18,11 +18,23 @@ export const makeTask = Effect.fn("Task.Load.makeHarborTask")(function* (taskDir
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const root = path.resolve(taskDir);
+  const composeDir = path.join(root, "environment");
+  const hasCompose = yield* Effect.all(
+    ["docker-compose.yaml", "docker-compose.yml"].map((file) =>
+      fs.exists(path.join(composeDir, file)),
+    ),
+  ).pipe(
+    Effect.map((found) => found.some(Boolean)),
+    Effect.mapError(TasksError.source),
+  );
+  if (hasCompose) {
+    return yield* Effect.fail(
+      TasksError.unsupported(new Error("Harbor docker-compose environments are not supported")),
+    );
+  }
+
   const config = yield* readConfig(root);
-  const hasCompose = yield* fs
-    .exists(path.join(root, "environment", "docker-compose.yaml"))
-    .pipe(Effect.mapError(TasksError.source));
-  yield* validateConfig(config, hasCompose);
+  yield* validateConfig(config);
 
   const snapshot = yield* makeSnapshot(root, config);
   const stages = yield* makeStages(root, config);

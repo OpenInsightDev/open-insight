@@ -191,6 +191,46 @@ it.effect("creates isolated chat history for each session", () =>
 );
 
 testLayer(NodeServices.layer)("configured agent", (it) => {
+  it.effect("adds skill instructions once across multiple prompts", () =>
+    Effect.gen(function* () {
+      const fs = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      const root = yield* fs.makeTempDirectoryScoped();
+      const skillsDirectory = path.join(root, "skills");
+      const skillDirectory = path.join(skillsDirectory, "review-code");
+      yield* fs.makeDirectory(skillDirectory, { recursive: true });
+      yield* fs.writeFileString(
+        path.join(skillDirectory, "SKILL.md"),
+        [
+          "---",
+          "name: review-code",
+          "description: Review code for correctness and regressions.",
+          "---",
+          "",
+        ].join("\n"),
+      );
+
+      const prompts: Array<string> = [];
+      const llm = yield* LanguageModel.make({
+        generateText: () => Effect.succeed([finishPart]),
+        streamText: ({ prompt }) => {
+          prompts.push(JSON.stringify(prompt));
+          return Stream.fromIterable([finishPart]);
+        },
+      });
+      const provider = yield* make({ skills: directory(skillsDirectory) }).pipe(
+        Effect.provideService(LanguageModel.LanguageModel, llm),
+      );
+      const agent = yield* provider.runSession(makeSandbox(new Map()));
+
+      yield* agent.prompt(Prompt.make("first")).pipe(Stream.runDrain);
+      yield* agent.prompt(Prompt.make("second")).pipe(Stream.runDrain);
+
+      assert.lengthOf(prompts, 2);
+      assert.strictEqual(prompts[1].split("Available skills:").length - 1, 1);
+    }),
+  );
+
   it.effect("combines custom tools, skills, and MCP servers", () =>
     Effect.gen(function* () {
       const fs = yield* FileSystem.FileSystem;
@@ -309,21 +349,20 @@ testLayer(NodeServices.layer)("configured agent", (it) => {
         generateText: () => Effect.succeed([finishPart]),
         streamText: () => Stream.fromIterable([finishPart]),
       });
-      const error = yield* Effect.scoped(
-        make({
-          toolkit: userToolkit,
-          mcp: [fromTransport("conflicting-server", clientTransport)],
-        }).pipe(
-          Effect.provide(userLayer),
-          Effect.provideService(Prefix, "prefix:"),
-          Effect.provideService(LanguageModel.LanguageModel, llm),
-          Effect.flip,
-        ),
+      const error = yield* make({
+        toolkit: userToolkit,
+        mcp: [fromTransport("conflicting-server", clientTransport)],
+      }).pipe(
+        Effect.provide(userLayer),
+        Effect.provideService(Prefix, "prefix:"),
+        Effect.provideService(LanguageModel.LanguageModel, llm),
+        Effect.flip,
       );
 
       assert.instanceOf(error, ToolNameConflictError);
       assert.strictEqual(error.toolName, "ReadUppercase");
       assert.deepStrictEqual(error.sources, ["agent", "conflicting-server"]);
+      assert.isFalse(mcpServer.isConnected());
     }),
   );
 });

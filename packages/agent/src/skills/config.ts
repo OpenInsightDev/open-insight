@@ -1,24 +1,32 @@
-import { Agent, Snapshot } from "@open-insight/core";
-import { Effect, Path } from "effect";
+import { Snapshot } from "@open-insight/core";
+import { Effect, Path, Schema } from "effect";
 import { fromDir } from "./from-dir.ts";
 
-export type Config = Readonly<{
-  directory: string;
-  sandboxDirectory: string;
-}>;
+const defaultSandboxDirectory = "/opt/open-insight/skills";
 
-export type Prepared = Readonly<{
-  snapshotExtension: Agent.SnapshotExtension;
-  systemInstructions: string;
-}>;
+export class Config extends Schema.Class<Config>("SkillsConfig")({
+  directory: Schema.String,
+  sandboxDirectory: Schema.String.pipe(
+    Schema.withConstructorDefault(Effect.succeed(defaultSandboxDirectory)),
+  ),
+}) {}
+
+export class Prepared extends Schema.Class<Prepared>("PreparedSkills")({
+  snapshotExtension: Schema.Struct({
+    instructions: Snapshot.Instructions,
+    context: Schema.optionalKey(Schema.String),
+  }),
+  systemInstructions: Schema.String,
+}) {}
 
 export const directory = (
   source: string,
   options?: { readonly sandboxDirectory?: string },
-): Config => ({
-  directory: source,
-  sandboxDirectory: options?.sandboxDirectory ?? "/opt/open-insight/skills",
-});
+): Config =>
+  Config.make({
+    directory: source,
+    sandboxDirectory: options?.sandboxDirectory,
+  });
 
 export const prepare = Effect.fn(function* (config: Config) {
   const path = yield* Path.Path;
@@ -31,7 +39,7 @@ export const prepare = Effect.fn(function* (config: Config) {
       `- ${name}: ${description} Read ${path.join(config.sandboxDirectory, name, "SKILL.md")} when this skill is relevant.`,
   );
 
-  return {
+  return Prepared.make({
     snapshotExtension: {
       context,
       instructions: [Snapshot.copy([sourceName], config.sandboxDirectory)],
@@ -41,5 +49,5 @@ export const prepare = Effect.fn(function* (config: Config) {
       ...skillLines,
       "Read a skill's SKILL.md before following it. Only load skills relevant to the current task.",
     ].join("\n"),
-  } satisfies Prepared;
+  });
 });
