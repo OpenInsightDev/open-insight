@@ -1,6 +1,6 @@
 import { parquetReadObjects } from "hyparquet";
 import { parquetWriteBuffer } from "hyparquet-writer";
-import { Effect, FileSystem, Layer, Path, Schema, Stream } from "effect";
+import { Effect, FileSystem, Layer, Path, Schema, Semaphore, Stream } from "effect";
 import { Error as EventError } from "../../../error.ts";
 import type { EventStream } from "../../../queue.ts";
 import { Event } from "../../../schema.ts";
@@ -112,9 +112,10 @@ export const make = Effect.fn("Persist.Parquet.make")(function* (
 ): Effect.fn.Return<Transport, never, FileSystem.FileSystem | Path.Path> {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
+  const lock = yield* Semaphore.make(1);
 
   return {
-    send: (stream) => writeWith(fs, path, options, stream),
+    send: (stream) => Semaphore.withPermit(lock, writeWith(fs, path, options, stream)),
   } satisfies Transport;
 });
 

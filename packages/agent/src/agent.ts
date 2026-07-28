@@ -1,6 +1,4 @@
-import * as Agent from "#/agent/index.ts";
-import { Error } from "#/agent/error.ts";
-import * as Sandbox from "#/sandbox/index.ts";
+import { Agent, Sandbox } from "@open-insight/core";
 import { Context, Effect, Option, Ref, Stream } from "effect";
 import { Chat, LanguageModel, Tool, Toolkit } from "effect/unstable/ai";
 import * as SandboxToolkit from "./toolkit.ts";
@@ -32,7 +30,7 @@ const makeAgent = Effect.fn(function* <Tools extends Record<string, Tool.Any>>({
       chat
         .streamText({ prompt, toolkit })
         .pipe(
-          Stream.mapError(Error.stream),
+          Stream.mapError(Agent.Error.stream),
           Stream.provideService(LanguageModel.LanguageModel, llm),
           Stream.provideService(Sandbox.Current, sandbox),
           Stream.provideContext(toolkitContext),

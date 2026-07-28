@@ -1,4 +1,4 @@
-import * as Sandbox from "#/sandbox/index.ts";
+import { Sandbox } from "@open-insight/core";
 import { Effect, Schema } from "effect";
 import { Tool, Toolkit } from "effect/unstable/ai";
 

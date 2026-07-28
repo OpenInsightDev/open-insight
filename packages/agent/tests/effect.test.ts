@@ -1,10 +1,10 @@
+import { Sandbox } from "@open-insight/core";
 import { assert, it } from "@effect/vitest";
-import * as Sandbox from "#/sandbox/index.ts";
 import { Context, Effect, Schema, Stream } from "effect";
 import { LanguageModel, Prompt, Response, Tool, Toolkit } from "effect/unstable/ai";
 import { ExitCode } from "effect/unstable/process/ChildProcessSpawner";
-import { make, makeWithToolkit } from "./index.ts";
-import { layer, toolkit } from "./toolkit.ts";
+import { make, makeWithToolkit } from "../src/agent.ts";
+import { layer, toolkit } from "../src/toolkit.ts";
 
 const makeSandbox = (files: Map<string, string>): Sandbox.Sandbox => ({
   spawn: ({ command, args, cwd, env }, options) =>
