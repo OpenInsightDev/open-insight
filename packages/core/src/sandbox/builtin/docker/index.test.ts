@@ -4,7 +4,7 @@ import { execFileSync } from "node:child_process";
 import { Deferred, Effect, Fiber, FileSystem, Layer, Path, Ref, Sink, Stream } from "effect";
 import { ChildProcess as CP } from "effect/unstable/process";
 import * as ChildProcessSpawner from "effect/unstable/process/ChildProcessSpawner";
-import * as Sandbox from "#/sandbox/export.ts";
+import * as Resource from "#/resource/export.ts";
 import * as Snapshot from "#/snapshot/export.ts";
 import { Spawn } from "#/utils/export.ts";
 import * as Docker from "./index.ts";
@@ -23,22 +23,22 @@ const testLayer = Layer.merge(
   Spawn.Service.layer.pipe(Layer.provide(NodeServices.layer)),
 );
 
-const resources = Sandbox.Resources.make({
+const resources = Resource.Resources.make({
   numCPUs: 0.5,
   numGPUs: 0,
   memoryMiB: 64,
   storageMiB: 64,
-  network: false,
+  network: Resource.Network.noNetwork(),
   buildTimeoutSec: 120,
   runTimeoutSec: 120,
 });
 
-const networkedResources = Sandbox.Resources.make({
+const networkedResources = Resource.Resources.make({
   numCPUs: 0.5,
   numGPUs: 0,
   memoryMiB: 64,
   storageMiB: 64,
-  network: true,
+  network: Resource.Network.publicAccess(),
   buildTimeoutSec: 120,
   runTimeoutSec: 120,
 });
@@ -149,7 +149,7 @@ it.effect("acquires startup before removing an interrupted container", () =>
     );
 
     const fiber = yield* provider
-      .runSandbox({ handle, resources: new Sandbox.Resources() })
+      .runSandbox({ handle, resources: Resource.Resources.make({}) })
       .pipe(Effect.scoped, Effect.forkChild);
 
     yield* Deferred.await(started);

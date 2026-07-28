@@ -23,23 +23,21 @@ type StoredValue = Readonly<{
   expiresAt: number | null;
 }>;
 
-export interface JsonlBackingOptions {
+export interface Options {
   /** Directory containing one JSONL file per `BackingPersistence` store id. */
   readonly directory: string;
 }
 
-export const jsonlFileName = (storeId: string) => `${encodeURIComponent(storeId)}.jsonl`;
+export const fileName = (storeId: string) => `${encodeURIComponent(storeId)}.jsonl`;
 
 /** Creates a file-backed `BackingPersistence` service without wrapping it in a Layer. */
-export const makeBackingJsonl = Effect.fn("EventJsonl.makeBacking")(function* (
-  options: JsonlBackingOptions,
-) {
+export const make = Effect.fn("Persist.Jsonl.make")(function* (options: Options) {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const stores = new Map<string, Persistence.BackingPersistenceStore>();
 
   const makeStore = (storeId: string): Persistence.BackingPersistenceStore => {
-    const filePath = path.join(options.directory, jsonlFileName(storeId));
+    const filePath = path.join(options.directory, fileName(storeId));
     const lock = Semaphore.makeUnsafe(1);
     const values = new Map<string, StoredValue>();
     let loaded = false;
@@ -255,7 +253,7 @@ export const makeBackingJsonl = Effect.fn("EventJsonl.makeBacking")(function* (
  * Store instances created by this Layer are synchronized in-process. A store id must not have
  * multiple writer processes because the portable FileSystem service does not expose file locks.
  */
-export const layerBackingJsonl = (
-  options: JsonlBackingOptions,
+export const layer = (
+  options: Options,
 ): Layer.Layer<Persistence.BackingPersistence, never, FileSystem.FileSystem | Path.Path> =>
-  Layer.effect(Persistence.BackingPersistence)(makeBackingJsonl(options));
+  Layer.effect(Persistence.BackingPersistence)(make(options));

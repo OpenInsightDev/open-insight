@@ -41,9 +41,9 @@ it.effect("publishes events when an event transport is provided", () =>
     const transport = {
       send: (stream: Event.EventStream) =>
         Ref.update(sends, (count) => count + 1).pipe(Effect.andThen(Stream.runDrain(stream))),
-    } satisfies Event.EventTransport;
+    } satisfies Event.Transport.Transport;
 
-    yield* run(options).pipe(Effect.provideService(Event.EventTransportService, transport));
+    yield* run(options).pipe(Effect.provideService(Event.Transport.Service, transport));
 
     assert.strictEqual(yield* Ref.get(sends), 1);
   }),

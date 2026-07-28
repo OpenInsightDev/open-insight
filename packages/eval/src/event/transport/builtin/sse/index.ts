@@ -1,10 +1,10 @@
 import { Effect, Schema, Stream } from "effect";
-import type { EventTransport } from "../service.ts";
-import { Error } from "../error.ts";
+import type { Transport } from "../../schema.ts";
+import { Error } from "../../../error.ts";
 import { HttpBody, HttpClient, HttpClientResponse } from "effect/unstable/http";
 import { Sse } from "effect/unstable/encoding";
-import { Event } from "../schema.ts";
-import { type EventStream } from "../queue.ts";
+import { Event } from "../../../schema.ts";
+import { type EventStream } from "../../../queue.ts";
 
 const joinUrl = (baseURL: string, path: string): string =>
   new URL(path, baseURL.endsWith("/") ? baseURL : `${baseURL}/`).toString();
@@ -32,7 +32,7 @@ export const make = Effect.fn(function* ({
 }: Readonly<{
   baseUrl?: string;
   endpoint?: string;
-}> = {}): Effect.fn.Return<EventTransport, never, HttpClient.HttpClient> {
+}> = {}): Effect.fn.Return<Transport, never, HttpClient.HttpClient> {
   const client = yield* HttpClient.HttpClient;
 
   return {
@@ -44,5 +44,5 @@ export const make = Effect.fn(function* ({
         .post(url, { body })
         .pipe(Effect.flatMap(HttpClientResponse.filterStatusOk), Effect.mapError(Error.send));
     }),
-  } satisfies EventTransport;
+  } satisfies Transport;
 });

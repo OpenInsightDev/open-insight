@@ -1,4 +1,4 @@
-import { Sandbox as CoreSandbox, Snapshot } from "@open-insight/core/internal";
+import { Resource, Sandbox as CoreSandbox, Snapshot } from "@open-insight/core/internal";
 import { Effect, FileSystem, FiberSet, Path } from "effect";
 import type { BivariantFn } from "#/utils/variant.ts";
 import { Error, Retry } from "../error.ts";
@@ -41,14 +41,14 @@ export type GradeFn<R extends Result = Result, Rs extends Results = never> = Biv
 export type Grader<R extends Result = Result, Rs extends Results = never> = Readonly<{
   [TypeId]: TypeId;
   snapshot: Snapshot.Snapshot;
-  resources: CoreSandbox.Resources;
+  resources: Resource.Resources;
   cacheSnapshot: boolean;
   grade: GradeFn<R, Rs>;
 }>;
 
 export type Options<R extends Result = Result, Rs extends Results = never> = Readonly<{
   snapshot: Snapshot.Snapshot;
-  resources?: CoreSandbox.Resources;
+  resources?: Resource.Resources;
   /** Cache the prepared grade image while still starting a fresh sandbox per execution. */
   cacheSnapshot?: boolean;
   grade: GradeFn<R, Rs>;
@@ -77,7 +77,7 @@ export type Options<R extends Result = Result, Rs extends Results = never> = Rea
  */
 export const make = <R extends Result = Result, Rs extends Results = never>({
   snapshot,
-  resources = new CoreSandbox.Resources(),
+  resources = Resource.Resources.make({}),
   cacheSnapshot = true,
   grade,
 }: Options<R, Rs>): Grader<R, Rs> => ({

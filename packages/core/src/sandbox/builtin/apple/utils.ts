@@ -1,4 +1,4 @@
-import * as Sandbox from "#/sandbox/export.ts";
+import * as Resource from "#/resource/index.ts";
 import { ChildProcess as CP } from "effect/unstable/process";
 
 export const containerOptions = { detached: false } satisfies CP.CommandOptions;
@@ -9,18 +9,18 @@ export type PortMapping = Readonly<{
   hostPort: number;
 }>;
 
-export const formatResources = (resources: Sandbox.Resources | null): Array<string> => {
+export const formatResources = (resources: Resource.Resources | null): Array<string> => {
   if (!resources) {
     return [];
   }
 
   const { numCPUs, memoryMiB } = resources;
   const resourceArgs: Array<string> = [];
-  if (!Sandbox.isUnlimited(numCPUs)) {
+  if (!Resource.Limit.isUnlimited(numCPUs)) {
     resourceArgs.push("--cpus", `${numCPUs}`);
   }
 
-  if (!Sandbox.isUnlimited(memoryMiB)) {
+  if (!Resource.Limit.isUnlimited(memoryMiB)) {
     resourceArgs.push("--memory", `${memoryMiB}M`);
   }
 

@@ -1,4 +1,4 @@
-import { Prompt, Sandbox, Snapshot } from "@open-insight/core/internal";
+import { Prompt, Resource, Snapshot } from "@open-insight/core/internal";
 import { Effect, FileSystem, Path, Schema } from "effect";
 import type * as Grade from "#/grade/index.ts";
 import * as Task from "#/task/index.ts";
@@ -77,18 +77,28 @@ export const makeSnapshot = Effect.fn("Task.Load.makeSnapshot")(function* (
   });
 });
 
-const makeResources = (config: TaskConfig): Sandbox.Resources => {
+const makeNetworkPolicy = (environment: EnvConfig | undefined): Resource.Network.Policy => {
+  switch (environment?.network_mode ?? "public") {
+    case "no-network":
+      return Resource.Network.noNetwork();
+    case "allowlist":
+      return Resource.Network.allowlist(environment?.allowed_hosts ?? []);
+    case "public":
+      return Resource.Network.publicAccess();
+  }
+};
+
+const makeResources = (config: TaskConfig): Resource.Resources => {
   const environment = config.environment;
   const agentTimeout = config.agent?.timeout_sec ?? 600;
   const verifierTimeout = config.verifier?.timeout_sec ?? 600;
-  const networkMode = environment?.network_mode ?? "public";
 
-  return Sandbox.Resources.make({
+  return Resource.Resources.make({
     numCPUs: environment?.cpus ?? 1,
     numGPUs: environment?.gpus ?? 0,
     memoryMiB: environment?.memory_mb ?? 2048,
     storageMiB: environment?.storage_mb ?? 10240,
-    network: networkMode !== "no-network",
+    network: makeNetworkPolicy(environment),
     buildTimeoutSec: Math.ceil(environment?.build_timeout_sec ?? 600),
     runTimeoutSec: Math.ceil(Math.max(agentTimeout, verifierTimeout)),
   });

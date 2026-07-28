@@ -2,8 +2,8 @@ import { assert, it } from "@effect/vitest";
 import { NodeCrypto } from "@effect/platform-node";
 import { Effect, Layer, Stream } from "effect";
 import { Persistence } from "effect/unstable/persistence";
-import { EvalScheduleEvent, type Event } from "./schema.ts";
-import { make } from "./persist.ts";
+import { EvalScheduleEvent, type Event } from "../schema.ts";
+import { make } from "./service.ts";
 
 const event = (op: "start" | "stop" | "pause") =>
   new EvalScheduleEvent({ bench: "bench", harness: "harness", op });
@@ -11,7 +11,7 @@ const event = (op: "start" | "stop" | "pause") =>
 const operations = (events: ReadonlyArray<Event>) =>
   events.flatMap((item) => (item._tag === "EvalScheduleEvent" ? [item.op] : []));
 
-it.layer(Layer.merge(Persistence.layerBackingMemory, NodeCrypto.layer))("EventJournal", (it) => {
+it.layer(Layer.merge(Persistence.layerBackingMemory, NodeCrypto.layer))("Persist", (it) => {
   it.effect("persists, reopens, and replays events in order", () =>
     Effect.gen(function* () {
       const first = yield* make({ storeId: "replay" });
@@ -51,13 +51,13 @@ it.layer(Layer.merge(Persistence.layerBackingMemory, NodeCrypto.layer))("EventJo
       yield* store.remove("event:1");
 
       const error = yield* Stream.runCollect(journal.replay).pipe(Effect.flip);
-      assert.strictEqual(error._tag, "EventJournalError");
+      assert.strictEqual(error._tag, "PersistError");
       assert.strictEqual(error.operation, "replay");
       assert.strictEqual(error.sequence, 1);
     }),
   );
 
-  it.effect("adapts the journal to EventTransport", () =>
+  it.effect("adapts the journal to Transport", () =>
     Effect.gen(function* () {
       const journal = yield* make({ storeId: "transport" });
       yield* journal.transport.send(Stream.make(event("start"), event("stop")));

@@ -1,4 +1,5 @@
 import * as Sandbox from "#/sandbox/export.ts";
+import * as Resource from "#/resource/index.ts";
 import * as Snapshot from "#/snapshot/export.ts";
 import { Bash, Spawn } from "#/utils/export.ts";
 import { Duration, Effect, FileSystem } from "effect";
@@ -17,7 +18,7 @@ import {
 type RunOptions = Readonly<{
   handle: Snapshot.Handle.Handle;
   portMappings: ReadonlyArray<PortMapping>;
-  resources: Sandbox.Resources;
+  resources: Resource.Resources;
   timeout: Duration.Input;
 }>;
 
@@ -30,8 +31,11 @@ const timedStart = (name: string, timeout: Duration.Input, command: Command) =>
     yield* spawner.success(command);
   }).pipe(Effect.timeout(timeout), Effect.mapError(Sandbox.Error.sandboxStart(name)));
 
-const ensureSupportedResources = (handle: Snapshot.Handle.Handle, resources: Sandbox.Resources) => {
-  if (Sandbox.isUnlimited(resources.memoryMiB) || resources.memoryMiB >= minimumMemoryMiB) {
+const ensureSupportedResources = (
+  handle: Snapshot.Handle.Handle,
+  resources: Resource.Resources,
+) => {
+  if (Resource.Limit.isUnlimited(resources.memoryMiB) || resources.memoryMiB >= minimumMemoryMiB) {
     return Effect.void;
   }
 
@@ -88,7 +92,7 @@ const createContainer = Effect.fn(function* ({
   name: string;
   networkArgs: ReadonlyArray<string>;
   portMappings: ReadonlyArray<PortMapping>;
-  resources: Sandbox.Resources;
+  resources: Resource.Resources;
   timeout: Duration.Input;
 }>) {
   const spawner = yield* Spawn.Service;
@@ -156,9 +160,9 @@ export const runSandbox = Effect.fn(
 
     yield* ensureSupportedResources(handle, resources);
 
-    const networkArgs = resources.network
-      ? []
-      : yield* createInternalNetwork({ name, networkName, timeout });
+    const networkArgs = Resource.Network.isNoNetwork(resources.network)
+      ? yield* createInternalNetwork({ name, networkName, timeout })
+      : [];
 
     yield* createContainer({
       handle,

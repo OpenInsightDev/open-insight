@@ -10,13 +10,13 @@ const fields = {
   trailIdx: 0,
 };
 
-it.effect("round-trips dynamic tool stream events", () =>
+it.effect("round-trips tool stream events", () =>
   Effect.gen(function* () {
     const toolCall = TrailStreamEvent.make({
       ...fields,
       part: Response.toolCallPart({
         id: "call",
-        name: "DynamicTool",
+        name: "terminal",
         params: { input: "value" },
         providerExecuted: false,
       }),
@@ -27,16 +27,17 @@ it.effect("round-trips dynamic tool stream events", () =>
     if (decodedCall.part.type !== "tool-call") {
       return assert.fail(`Expected tool-call, received ${decodedCall.part.type}`);
     }
-    assert.strictEqual(decodedCall.part.name, "DynamicTool");
+    assert.isTrue(Response.isPart(decodedCall.part));
+    assert.strictEqual(decodedCall.part.name, "terminal");
     assert.deepStrictEqual(decodedCall.part.params, { input: "value" });
 
     const toolResult = TrailStreamEvent.make({
       ...fields,
       part: Response.toolResultPart({
         id: "call",
-        name: "DynamicTool",
-        result: { output: "value" },
-        encodedResult: { output: "value" },
+        name: "terminal",
+        result: { decoded: "value" },
+        encodedResult: { encoded: "value" },
         isFailure: false,
         providerExecuted: false,
         preliminary: false,
@@ -48,7 +49,9 @@ it.effect("round-trips dynamic tool stream events", () =>
     if (decodedResult.part.type !== "tool-result") {
       return assert.fail(`Expected tool-result, received ${decodedResult.part.type}`);
     }
-    assert.strictEqual(decodedResult.part.name, "DynamicTool");
-    assert.deepStrictEqual(decodedResult.part.result, { output: "value" });
+    assert.isTrue(Response.isPart(decodedResult.part));
+    assert.strictEqual(decodedResult.part.name, "terminal");
+    assert.deepStrictEqual(decodedResult.part.result, { decoded: "value" });
+    assert.deepStrictEqual(decodedResult.part.encodedResult, { encoded: "value" });
   }),
 );

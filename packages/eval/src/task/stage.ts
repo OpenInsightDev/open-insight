@@ -15,6 +15,7 @@ export class StageMetadata extends Schema.Class<StageMetadata>("StageMetadata")(
 }) {}
 type StageMetadataEncoded = Schema.Codec.Encoded<typeof StageMetadata>;
 
+/** Runs once at the start of the stage, before verifier checks or agent interaction. */
 export type Init = BivariantFn<(sandbox: Sandbox.SandboxPromise) => PromiseLike<void>>;
 
 export type Stage<

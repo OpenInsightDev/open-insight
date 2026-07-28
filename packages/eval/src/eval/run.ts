@@ -20,7 +20,7 @@ export const run = Effect.fn(function* ({
   config: configOptions = {},
 }: Options): Effect.fn.Return<BenchResult, Error, Crypto.Crypto> {
   const config = makeConfig(configOptions);
-  const transport = yield* Effect.serviceOption(Event.EventTransportService);
+  const transport = yield* Effect.serviceOption(Event.Transport.Service);
   const eventQueue = yield* Event.makeQueue();
   const eventStream = Stream.fromQueue(eventQueue);
 

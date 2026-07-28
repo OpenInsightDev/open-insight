@@ -1,7 +1,8 @@
 import { NodeServices } from "@effect/platform-node";
 import { assert, describe, layer } from "@effect/vitest";
-import { Agent, Sandbox, Snapshot } from "@open-insight/core/internal";
-import { Effect, Option } from "effect";
+import { Agent, Prompt, Sandbox, Snapshot } from "@open-insight/core/internal";
+import { Effect, Option, Schema, Stream } from "effect";
+import { Response } from "effect/unstable/ai";
 import { ExitCode } from "effect/unstable/process/ChildProcessSpawner";
 import * as Event from "#/event/index.ts";
 import * as Grade from "#/grade/index.ts";
@@ -29,6 +30,24 @@ const makeSandbox = (files: Map<string, string>): Sandbox.Sandbox => {
     expose: () => Effect.succeed({ hostUrl: "http://localhost" }),
   };
 };
+
+const finishPart = Response.makePart("finish", {
+  reason: "stop",
+  usage: Schema.decodeSync(Response.Usage)({
+    inputTokens: {
+      uncached: 0,
+      total: 0,
+      cacheRead: 0,
+      cacheWrite: 0,
+    },
+    outputTokens: {
+      total: 0,
+      text: 0,
+      reasoning: 0,
+    },
+  }),
+  response: undefined,
+});
 
 const makeRunTrail = Effect.fn(function* ({ initiallySolved }: { initiallySolved: boolean }) {
   const solutionPath = "/workspace/solution.txt";
@@ -91,6 +110,65 @@ const makeRunTrail = Effect.fn(function* ({ initiallySolved }: { initiallySolved
 
 describe("verification trail", () => {
   layer(NodeServices.layer)((it) => {
+    it.effect("initializes the stage before starting the agent", () =>
+      Effect.gen(function* () {
+        const initializedPath = "/workspace/initialized.txt";
+        const files = new Map<string, string>();
+        const calls: Array<string> = [];
+        const snapshot = Snapshot.make({ image: "test-image" });
+        const handle = yield* Snapshot.Handle.make(snapshot);
+        const task = yield* Task.make({ id: "test-task", name: "Test task", snapshot }).pipe(
+          Task.stage("solve", {
+            id: "solve",
+            prompt: "Solve the task",
+            init: async ({ writeFile }) => {
+              calls.push("init");
+              await writeFile({ sandboxPath: initializedPath, content: "ready" });
+            },
+            grader: async ({ readFile }) => {
+              calls.push("grader");
+              return {
+                initialized: (await readFile({ sandboxPath: initializedPath })) === "ready",
+              };
+            },
+          }),
+        );
+        const sandboxProvider = {
+          aquireSnapshot: () => Effect.succeed(handle),
+          deriveSnapshot: () => Effect.die("agent snapshot derivation is not expected"),
+          runSandbox: () => Effect.succeed(makeSandbox(files)),
+        } satisfies Sandbox.Provider;
+        const agentProvider = {
+          snapshotExtension: Option.none(),
+          runSession: () =>
+            Effect.sync(() => {
+              assert.strictEqual(files.get(initializedPath), "ready");
+              calls.push("agent");
+              return {
+                trajectory: () => Effect.succeed(Prompt.make("completed")),
+                prompt: () => Stream.make(finishPart),
+              } satisfies Agent.Agent;
+            }),
+        } satisfies Agent.Provider;
+        const eventQueue = yield* Event.makeQueue();
+        const runTrail = yield* createTrail({
+          task,
+          bench: "test-bench",
+          harness: "test-harness",
+          config: Config.make(),
+          eventQueue,
+        }).pipe(
+          Effect.provideService(Agent.ProviderService, agentProvider),
+          Effect.provideService(Sandbox.ProviderService, sandboxProvider),
+        );
+
+        const result = yield* runTrail(0);
+
+        assert.deepStrictEqual(calls, ["init", "agent", "grader"]);
+        assert.deepStrictEqual(result.grade, { initialized: true });
+      }),
+    );
+
     it.effect("grades the untouched sandbox before running the verifier", () =>
       Effect.gen(function* () {
         const { runTrail, grades, verifierRuns } = yield* makeRunTrail({ initiallySolved: false });

@@ -286,7 +286,7 @@ layer(testLayer, { excludeTestServices: true })((it) => {
             events.pipe(
               Stream.runForEach((event) => Ref.update(eventsRef, (current) => [...current, event])),
             ),
-        } satisfies Event.EventTransport;
+        } satisfies Event.Transport.Transport;
 
         const bench = yield* makeBench();
         const agent = yield* Agent.Dummy.make();
@@ -299,7 +299,7 @@ layer(testLayer, { excludeTestServices: true })((it) => {
           bench,
           harness,
           config: { trailCount, verifMode: true },
-        }).pipe(Effect.provideService(Event.EventTransportService, transport));
+        }).pipe(Effect.provideService(Event.Transport.Service, transport));
         const events = yield* Ref.get(eventsRef);
         const taskResults = Object.values(result.tasks);
 

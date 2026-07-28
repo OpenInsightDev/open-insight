@@ -282,6 +282,13 @@ export const createTrail = Effect.fn("exec/createTrail")(
         ): Effect.fn.Return<Grade.Result, Error, Scope.Scope> {
           yield* Effect.logDebug(`Starting stage ${metadata.id}`);
 
+          if (init !== null) {
+            yield* Effect.tryPromise({
+              try: () => init(ctx),
+              catch: Error.taskExec(task, idx),
+            });
+          }
+
           if (verifMode) {
             Grade.assertVerifiable(grader);
 
@@ -358,13 +365,6 @@ export const createTrail = Effect.fn("exec/createTrail")(
               );
             },
           );
-
-          if (init !== null) {
-            yield* Effect.tryPromise({
-              try: () => init(ctx),
-              catch: Error.taskExec(task, idx),
-            });
-          }
 
           const grade = yield* runGrader(grader, results).pipe(
             Effect.retry(gradeRetrySchedule),

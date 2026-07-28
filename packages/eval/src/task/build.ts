@@ -1,4 +1,4 @@
-import { Sandbox, Snapshot } from "@open-insight/core/internal";
+import { Resource, Snapshot } from "@open-insight/core/internal";
 import { type EmptyRecord } from "#/utils/type.ts";
 import * as Grade from "#/grade/index.ts";
 import * as Metric from "#/metric/index.ts";
@@ -36,7 +36,7 @@ export type Task<
 > = Readonly<{
   metadata: BaseMetadata;
   snapshot: Snapshot.Snapshot;
-  resources: Sandbox.Resources;
+  resources: Resource.Resources;
 
   /**
    * Execution stages of the task.
@@ -61,7 +61,7 @@ export type Array<
 export type Options<E extends Schema.JsonObject = EmptyRecord> = BaseMetadataEncoded &
   Readonly<{
     snapshot: Snapshot.Snapshot;
-    resources?: Sandbox.Resources;
+    resources?: Resource.Resources;
     extras?: E;
   }>;
 
@@ -76,7 +76,7 @@ const makeTrajMetric = <R extends Schema.JsonObject = Schema.JsonObject>(
 export const make = Effect.fn(function* <E extends Schema.JsonObject = EmptyRecord>(
   options: Options<E>,
 ): Effect.fn.Return<Task<never, E, never>, Error, Crypto.Crypto | Scope.Scope> {
-  const { snapshot, resources = new Sandbox.Resources(), extras = {} as E } = options;
+  const { snapshot, resources = Resource.Resources.make({}), extras = {} as E } = options;
 
   const metadata = yield* Schema.decodeEffect(BaseMetadata)(options).pipe(
     Effect.mapError(Error.metadata),

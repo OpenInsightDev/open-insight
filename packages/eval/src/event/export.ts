@@ -3,8 +3,6 @@ export {
   Error,
   EvalScheduleEvent,
   Event,
-  EventJournalError,
-  EventTransportService,
   InitEvent,
   TaskMetricEvent,
   TaskScheduleEvent,
@@ -12,16 +10,10 @@ export {
   TrailStagedEvent,
   TrailStreamEvent,
   TrajMetricEvent,
-  jsonlFileName,
-  layerBackingJsonl,
-  make as makeJournal,
-  makeBackingJsonl,
   type EventEnqueue,
-  type EventJournal,
-  type JsonlBackingOptions,
   type EventQueue,
   type EventStream,
-  type EventTransport,
 } from "./index.ts";
-export * as Sse from "./sse/export.ts";
+export * as Persist from "./persist/export.ts";
+export * as Transport from "./transport/export.ts";
 export * as Internal from "./index.ts";

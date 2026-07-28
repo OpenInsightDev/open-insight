@@ -1,34 +1,34 @@
-import { isUnlimited, type Resources } from "#/sandbox/resource.ts";
+import * as Resource from "#/resource/index.ts";
 
 type PortMapping = Readonly<{
   sandboxPort: number;
   hostPort?: number;
 }>;
 
-export const formatResources = (resources: Resources | null): Array<string> => {
+export const formatResources = (resources: Resource.Resources | null): Array<string> => {
   if (!resources) {
     return [];
   }
 
   const { numCPUs, memoryMiB, numGPUs, storageMiB, network } = resources;
   const resourceArgs: Array<string> = [];
-  if (!isUnlimited(numCPUs)) {
+  if (!Resource.Limit.isUnlimited(numCPUs)) {
     resourceArgs.push("--cpus", `${numCPUs}`);
   }
 
-  if (!isUnlimited(memoryMiB)) {
+  if (!Resource.Limit.isUnlimited(memoryMiB)) {
     resourceArgs.push("--memory", `${memoryMiB}m`);
   }
 
-  if (!isUnlimited(numGPUs) && numGPUs > 0) {
+  if (!Resource.Limit.isUnlimited(numGPUs) && numGPUs > 0) {
     resourceArgs.push("--gpus", `count=${numGPUs}`);
   }
 
-  if (!isUnlimited(storageMiB)) {
+  if (!Resource.Limit.isUnlimited(storageMiB)) {
     resourceArgs.push("--storage-opt", `size=${storageMiB}m`);
   }
 
-  if (!network) {
+  if (Resource.Network.isNoNetwork(network)) {
     resourceArgs.push("--network", "none");
   }
 
