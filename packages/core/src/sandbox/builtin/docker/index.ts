@@ -84,6 +84,21 @@ export const make = Effect.fn("sandbox/provider/docker")(
       return port;
     });
 
+    const removeContainer = (name: string) =>
+      spawner.success(CP.make`rm --force ${name}`.pipe(runtime)).pipe(
+        Effect.tap(() =>
+          Effect.logDebug("Removed Docker sandbox container", {
+            containerName: name,
+          }),
+        ),
+        Effect.catch((error) =>
+          Effect.logWarning("Failed to remove Docker sandbox container", {
+            containerName: name,
+            error,
+          }),
+        ),
+      );
+
     const aquireSnapshot = Effect.fn(
       function* ({ snapshot, cache = false }) {
         const handle = yield* Snapshot.Handle.make(snapshot);
@@ -235,30 +250,19 @@ export const make = Effect.fn("sandbox/provider/docker")(
           ${resourceArgs}
           ${handle.name}
           sleep infinity`.pipe(runtime);
-        yield* spawner
-          .success(run)
-          .pipe(Effect.timeout(timeout))
-          .pipe(Effect.mapError(Sandbox.Error.sandboxStart(name)));
+
+        yield* Effect.acquireRelease(
+          spawner.success(run).pipe(
+            Effect.timeout(timeout),
+            Effect.tapError(() => removeContainer(name)),
+            Effect.mapError(Sandbox.Error.sandboxStart(name)),
+          ),
+          () => removeContainer(name),
+        );
         yield* Effect.logDebug("Docker sandbox container was created", {
           image: handle.name,
           containerName: name,
         });
-
-        yield* Effect.addFinalizer(() =>
-          spawner.success(CP.make`rm --force ${name}`.pipe(runtime)).pipe(
-            Effect.tap(() =>
-              Effect.logDebug("Removed Docker sandbox container", {
-                containerName: name,
-              }),
-            ),
-            Effect.catch((error) =>
-              Effect.logWarning("Failed to remove Docker sandbox container", {
-                containerName: name,
-                error,
-              }),
-            ),
-          ),
-        );
 
         const isRunning = yield* spawner
           .string(CP.make`inspect --format {{.State.Running}} ${name}`.pipe(runtime))

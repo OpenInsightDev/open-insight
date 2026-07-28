@@ -1,8 +1,9 @@
-import { NodeServices } from "@effect/platform-node";
-import { assert, describe, layer } from "@effect/vitest";
+import { NodeCrypto, NodeFileSystem, NodeServices } from "@effect/platform-node";
+import { assert, describe, it, layer } from "@effect/vitest";
 import { execFileSync } from "node:child_process";
-import { Effect, FileSystem, Layer, Path } from "effect";
+import { Deferred, Effect, Fiber, FileSystem, Layer, Path, Ref, Sink, Stream } from "effect";
 import { ChildProcess as CP } from "effect/unstable/process";
+import * as ChildProcessSpawner from "effect/unstable/process/ChildProcessSpawner";
 import * as Sandbox from "#/sandbox/export.ts";
 import * as Snapshot from "#/snapshot/export.ts";
 import { Spawn } from "#/utils/export.ts";
@@ -75,6 +76,97 @@ const assertDockerObjectMissing = Effect.fn(function* (kind: "container" | "imag
   const exitCode = yield* dockerExitCode([kind, "inspect", name]);
   assert.notStrictEqual(exitCode, 0);
 });
+
+const makeHandle = (
+  stdout: string,
+  exitCode: Effect.Effect<ChildProcessSpawner.ExitCode>,
+): ChildProcessSpawner.ChildProcessHandle => {
+  const output = stdout.length === 0 ? Stream.empty : Stream.make(new TextEncoder().encode(stdout));
+
+  return ChildProcessSpawner.makeHandle({
+    pid: ChildProcessSpawner.ProcessId(1),
+    exitCode,
+    isRunning: Effect.succeed(true),
+    kill: () => Effect.void,
+    stdin: Sink.drain,
+    stdout: output,
+    stderr: Stream.empty,
+    all: output,
+    getInputFd: () => Sink.drain,
+    getOutputFd: () => Stream.empty,
+    unref: Effect.succeed(Effect.void),
+  });
+};
+
+it.effect("acquires startup before removing an interrupted container", () =>
+  Effect.gen(function* () {
+    const exists = yield* Ref.make(false);
+    const started = yield* Deferred.make<void>();
+    const finishStartup = yield* Deferred.make<void>();
+    const created = yield* Deferred.make<void>();
+    const exitCode = ChildProcessSpawner.ExitCode(0);
+
+    const childProcessSpawner = ChildProcessSpawner.make((command) => {
+      if (command._tag !== "StandardCommand") {
+        return Effect.die("Unexpected piped command");
+      }
+
+      const [operation, ...args] = command.args;
+      if (command.command === "command" && operation === "-v") {
+        return Effect.succeed(
+          makeHandle(
+            args[0] === "docker" ? "/usr/bin/docker\n" : "",
+            Effect.succeed(ChildProcessSpawner.ExitCode(args[0] === "docker" ? 0 : 1)),
+          ),
+        );
+      }
+      if (command.command === "/usr/bin/docker" && operation === "run") {
+        return Effect.succeed(
+          makeHandle(
+            "",
+            Deferred.succeed(started, void 0).pipe(
+              Effect.andThen(Deferred.await(finishStartup)),
+              Effect.andThen(Ref.set(exists, true)),
+              Effect.andThen(Deferred.succeed(created, void 0)),
+              Effect.as(exitCode),
+            ),
+          ),
+        );
+      }
+      if (command.command === "/usr/bin/docker" && operation === "rm") {
+        return Effect.succeed(makeHandle("", Ref.set(exists, false).pipe(Effect.as(exitCode))));
+      }
+
+      return Effect.die(`Unexpected command: ${command.command} ${command.args.join(" ")}`);
+    });
+
+    const provider = yield* Docker.make({}).pipe(
+      Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, childProcessSpawner),
+      Effect.provide([NodeCrypto.layer, NodeFileSystem.layer]),
+    );
+    const handle = yield* Snapshot.Handle.make(Snapshot.make({ image: "busybox:latest" })).pipe(
+      Effect.provide(NodeCrypto.layer),
+    );
+
+    const fiber = yield* provider
+      .runSandbox({ handle, resources: new Sandbox.Resources() })
+      .pipe(Effect.scoped, Effect.forkChild);
+
+    yield* Deferred.await(started);
+    assert.isFalse(yield* Ref.get(exists));
+
+    const interruption = yield* Fiber.interrupt(fiber).pipe(
+      Effect.forkChild({ startImmediately: true }),
+    );
+    yield* Effect.yieldNow;
+    assert.isUndefined(interruption.pollUnsafe());
+
+    yield* Deferred.succeed(finishStartup, void 0);
+    yield* Deferred.await(created);
+    yield* Fiber.join(interruption);
+    assert.isFalse(yield* Ref.get(exists));
+  }),
+);
 
 describe.skipIf(!dockerAvailable)("Docker sandbox end-to-end", () => {
   layer(testLayer, { excludeTestServices: true })((it) => {
