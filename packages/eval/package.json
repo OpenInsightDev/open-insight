@@ -59,12 +59,14 @@
     "@opentelemetry/sdk-metrics": "catalog:",
     "@opentelemetry/sdk-trace-node": "catalog:",
     "@opentelemetry/sdk-trace-web": "catalog:",
+    "@types/tar-stream": "catalog:",
     "ai": "catalog:",
     "hyparquet": "catalog:",
     "hyparquet-writer": "catalog:",
     "immer": "catalog:",
     "picomatch": "catalog:",
     "smol-toml": "catalog:",
+    "tar-stream": "catalog:",
     "uuid": "catalog:"
   },
   "devDependencies": {

@@ -39,6 +39,7 @@
   },
   "peerDependencies": {
     "@open-insight/core": "workspace:*",
-    "@open-insight/eval": "workspace:*"
+    "@open-insight/eval": "workspace:*",
+    "@open-insight/agent": "workspace:*"
   }
 }
