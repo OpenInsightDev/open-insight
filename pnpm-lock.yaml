@@ -307,12 +307,18 @@ catalogs:
     hyparquet:
       specifier: ^1.26.2
       version: 1.26.2
+    hyparquet-writer:
+      specifier: ^0.16.1
+      version: 0.16.1
     idb-keyval:
       specifier: ^6.3.0
       version: 6.3.0
     immer:
       specifier: ^11.1.15
       version: 11.1.15
+    ipaddr.js:
+      specifier: ^2.4.0
+      version: 2.4.0
     openai:
       specifier: ^6.49.0
       version: 6.49.0
@@ -498,6 +504,9 @@ importers:
       effect:
         specifier: 'catalog:'
         version: 4.0.0-beta.102
+      ipaddr.js:
+        specifier: 'catalog:'
+        version: 2.4.0
       openai:
         specifier: 'catalog:'
         version: 6.49.0(ws@8.21.1)(zod@4.4.3)
@@ -577,6 +586,9 @@ importers:
       hyparquet:
         specifier: 'catalog:'
         version: 1.26.2
+      hyparquet-writer:
+        specifier: 'catalog:'
+        version: 0.16.1
       immer:
         specifier: 'catalog:'
         version: 11.1.15
@@ -3176,6 +3188,12 @@ packages:
     resolution: {integrity: sha512-K3GbkIWqyvvlpfhBPlbEvD97TtqBpAYA4kt+cn2lD2x2HuohzZCibcA2nOlnJT6exqvJLggoB5nv2dNf192nEA==}
     hasBin: true
 
+  hyparquet-writer@0.16.1:
+    resolution: {integrity: sha512-vb87T2ub06kbEKZOQoHTbVwN0kXQPM5mnMuyTNqQPsOzf85qYBzyFG6R83CnXNhrlncdpRtXeKrbF3ZoLj26pg==}
+
+  hyparquet@1.26.1:
+    resolution: {integrity: sha512-Me2psKksCqJGR8+TbalUYUyK4Ao+ReA6XmMSiOVPhOBswULbl3ojT06PQajyTafbNPW1vD0tCA7H6dXJAC1TPw==}
+
   hyparquet@1.26.2:
     resolution: {integrity: sha512-6qjyK7R2tZ4vnYP1J8NpcCeDPK1UIYk3xh5XgtQUnUM1iwkYbvI6Mz3xtmpMd6AfCCeoUoJVbEq29k5GReZRWA==}
 
@@ -3224,6 +3242,10 @@ packages:
   ipaddr.js@1.9.1:
     resolution: {integrity: sha512-0KI/607xoxSToH7GjN1FfSbLoU0+btTicjsQSWQlh/hZykN8KpmMf7uYwPW3R+akZ6R/w18ZlXSHBYXiYUPO3g==}
     engines: {node: '>= 0.10'}
+
+  ipaddr.js@2.4.0:
+    resolution: {integrity: sha512-9VGk3HGanVE6JoZXHiCpnGy5X0jYDnN4EA4lntFPj+1vIWlFhIylq2CrrCOJH9EAhc5CYhq18F2Av2tgoAPsYQ==}
+    engines: {node: '>= 10'}
 
   is-extglob@2.1.1:
     resolution: {integrity: sha512-SbKbANkN603Vi4jEZv49LeVJMn4yGwsbzZworEoyEiutsN3nJYdbO36zfhGJ6QEDpOZIFkDtnq5JRxmvl3jsoQ==}
@@ -6457,6 +6479,12 @@ snapshots:
 
   human-id@4.2.0: {}
 
+  hyparquet-writer@0.16.1:
+    dependencies:
+      hyparquet: 1.26.1
+
+  hyparquet@1.26.1: {}
+
   hyparquet@1.26.2: {}
 
   iconv-lite@0.7.3:
@@ -6504,6 +6532,8 @@ snapshots:
 
   ipaddr.js@1.9.1:
     optional: true
+
+  ipaddr.js@2.4.0: {}
 
   is-extglob@2.1.1: {}
 

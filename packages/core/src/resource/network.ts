@@ -1,4 +1,5 @@
-import { Option, Schema } from "effect";
+import { Schema } from "effect";
+import ipaddr from "ipaddr.js";
 
 export const Mode = Schema.Union([
   Schema.Literal("public"),
@@ -13,27 +14,8 @@ const HostnameLabel = Schema.String.check(
 );
 const isHostnameLabel = Schema.is(HostnameLabel);
 
-const IPv4Text = Schema.String.check(Schema.isPattern(/^\d{1,3}(?:\.\d{1,3}){3}$/));
-const isIPv4Text = Schema.is(IPv4Text);
-
 const DottedDecimalText = Schema.String.check(Schema.isPattern(/^\d+(?:\.\d+){3}$/));
 const isDottedDecimalText = Schema.is(DottedDecimalText);
-
-const PrefixText = Schema.String.check(Schema.isPattern(/^\d+$/));
-const isPrefixText = Schema.is(PrefixText);
-
-const IPv4Prefix = Schema.NumberFromString.check(
-  Schema.isInt(),
-  Schema.isBetween({ minimum: 0, maximum: 32 }),
-);
-const IPv6Prefix = Schema.NumberFromString.check(
-  Schema.isInt(),
-  Schema.isBetween({ minimum: 0, maximum: 128 }),
-);
-
-const decodeUrl = Schema.decodeUnknownOption(Schema.URLFromString);
-const decodeIPv4Prefix = Schema.decodeUnknownOption(IPv4Prefix);
-const decodeIPv6Prefix = Schema.decodeUnknownOption(IPv6Prefix);
 
 const isHostname = (value: string): boolean => {
   const hostname = value.endsWith(".") ? value.slice(0, -1) : value;
@@ -42,31 +24,31 @@ const isHostname = (value: string): boolean => {
   );
 };
 
-const isIPv4 = (value: string): boolean =>
-  isIPv4Text(value) &&
-  decodeUrl(`http://${value}`).pipe(Option.exists((url) => url.hostname === value));
+const isIPv4 = (value: string): boolean => ipaddr.IPv4.isValidFourPartDecimal(value);
 
 const looksLikeIPv4 = (value: string): boolean => isDottedDecimalText(value);
 
-const isIPv6 = (value: string): boolean =>
-  value.includes(":") && !value.includes("%") && Option.isSome(decodeUrl(`http://[${value}]`));
+const isIPv6 = (value: string): boolean => !value.includes("%") && ipaddr.IPv6.isValid(value);
 
 const isIpAddress = (value: string): boolean => isIPv4(value) || isIPv6(value);
 
-const isCidr = (value: string): boolean => {
-  const separator = value.indexOf("/");
-  if (separator <= 0 || separator !== value.lastIndexOf("/")) {
+const isIPv4Cidr = (value: string): boolean => {
+  if (!ipaddr.IPv4.isValidCIDRFourPartDecimal(value)) {
     return false;
   }
-  const address = value.slice(0, separator);
-  const prefixText = value.slice(separator + 1);
-  if (!isPrefixText(prefixText)) {
-    return false;
-  }
-  return isIPv4(address)
-    ? Option.isSome(decodeIPv4Prefix(prefixText))
-    : isIPv6(address) && Option.isSome(decodeIPv6Prefix(prefixText));
+  const [address] = ipaddr.IPv4.parseCIDR(value);
+  return address.toString() === ipaddr.IPv4.networkAddressFromCIDR(value).toString();
 };
+
+const isIPv6Cidr = (value: string): boolean => {
+  if (value.includes("%") || !ipaddr.IPv6.isValidCIDR(value)) {
+    return false;
+  }
+  const [address] = ipaddr.IPv6.parseCIDR(value);
+  return address.toString() === ipaddr.IPv6.networkAddressFromCIDR(value).toString();
+};
+
+const isCidr = (value: string): boolean => isIPv4Cidr(value) || isIPv6Cidr(value);
 
 export const isAllowedHost = (value: string): boolean => {
   const host = value.trim();

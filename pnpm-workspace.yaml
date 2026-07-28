@@ -72,6 +72,8 @@ catalog:
   yaml: ^2.9.0
   '@cloudflare/sandbox': ^0.12.4
   '@typescript/native-preview': 7.0.0-dev.20260707.2
+  ipaddr.js: ^2.4.0
+  hyparquet-writer: ^0.16.1
 overrides:
   vite: "catalog:"
   vitest: "catalog:"

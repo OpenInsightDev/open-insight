@@ -59,6 +59,7 @@
     "@effect/ai-openai": "catalog:",
     "@effect/opentelemetry": "catalog:",
     "ai": "catalog:",
+    "ipaddr.js": "catalog:",
     "openai": "catalog:",
     "picomatch": "catalog:",
     "semver": "catalog:"

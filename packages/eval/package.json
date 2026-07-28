@@ -61,6 +61,7 @@
     "@opentelemetry/sdk-trace-web": "catalog:",
     "ai": "catalog:",
     "hyparquet": "catalog:",
+    "hyparquet-writer": "catalog:",
     "immer": "catalog:",
     "picomatch": "catalog:",
     "smol-toml": "catalog:",
