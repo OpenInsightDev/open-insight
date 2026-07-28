@@ -31,12 +31,12 @@ export type Config<Tools extends Record<string, Tool.Any> = {}> = Readonly<{
   mcp?: ReadonlyArray<McpConfig.Server>;
 }>;
 
-const combineSystemInstructions = (...instructions: ReadonlyArray<string | undefined>) => {
+const joinInstructions = (...instructions: ReadonlyArray<string | undefined>) => {
   const defined = instructions.filter((instruction) => instruction !== undefined);
   return defined.length === 0 ? undefined : defined.join("\n\n");
 };
 
-const makeAgent = Effect.fn(function* <Tools extends Record<string, Tool.Any>>({
+const makeSession = Effect.fn(function* <Tools extends Record<string, Tool.Any>>({
   sandbox,
   toolkit,
   toolkitContext,
@@ -80,13 +80,13 @@ const makeProvider = Effect.fn(function* <Tools extends Record<string, Tool.Any>
 > {
   const llm = yield* LanguageModel.LanguageModel;
   const toolkitContext = yield* Effect.context<ToolkitServices<Tools>>();
-  const configuredToolkit = yield* toolkit;
+  const configured = yield* toolkit;
 
   const runSession = Effect.fn(
     function* (sandbox: Sandbox.Sandbox) {
-      return yield* makeAgent({
+      return yield* makeSession({
         sandbox,
-        toolkit: configuredToolkit,
+        toolkit: configured,
         toolkitContext,
         systemInstructions: Option.fromUndefinedOr(options?.systemInstructions),
       });
@@ -100,7 +100,7 @@ const makeProvider = Effect.fn(function* <Tools extends Record<string, Tool.Any>
   } satisfies Agent.Provider<Tools>;
 });
 
-const makeToolkit = Effect.fn(function* <Tools extends Record<string, Tool.Any>>(
+const makeCustom = Effect.fn(function* <Tools extends Record<string, Tool.Any>>(
   toolkit: Toolkit.Toolkit<Tools>,
 ): Effect.fn.Return<
   Agent.Provider<ToolkitTools<Tools>>,
@@ -111,40 +111,40 @@ const makeToolkit = Effect.fn(function* <Tools extends Record<string, Tool.Any>>
   return yield* makeProvider(combinedToolkit).pipe(Effect.provide(SandboxToolkit.layer));
 });
 
-const makeDefault = Effect.fn(function* (): Effect.fn.Return<
+const makeBase = Effect.fn(function* (): Effect.fn.Return<
   Agent.Provider<SandboxToolkit.Tools>,
   Agent.Error,
   LanguageModel.LanguageModel
 > {
-  return yield* makeToolkit(Toolkit.empty);
+  return yield* makeCustom(Toolkit.empty);
 });
 
-const makeWithSkills = Effect.fn(function* <Tools extends Record<string, Tool.Any>>(config: {
+const makeSkills = Effect.fn(function* <Tools extends Record<string, Tool.Any>>(config: {
   readonly toolkit?: Toolkit.Toolkit<Tools>;
   readonly skills: SkillsConfig.Config;
 }) {
   const toolkit = config.toolkit ?? Toolkit.empty;
-  const baseToolkit = Toolkit.merge(SandboxToolkit.toolkit, toolkit);
+  const base = Toolkit.merge(SandboxToolkit.toolkit, toolkit);
   const skills = yield* Skills.prepare(config.skills);
 
-  return yield* makeProvider(baseToolkit, {
+  return yield* makeProvider(base, {
     snapshotExtension: skills.snapshotExtension,
     systemInstructions: skills.systemInstructions,
   }).pipe(Effect.provide(SandboxToolkit.layer));
 });
 
-const makeWithMcp = Effect.fn(function* <Tools extends Record<string, Tool.Any>>(config: {
+const makeMcp = Effect.fn(function* <Tools extends Record<string, Tool.Any>>(config: {
   readonly toolkit?: Toolkit.Toolkit<Tools>;
   readonly mcp: ReadonlyArray<McpConfig.Server>;
 }) {
   const toolkit = config.toolkit ?? Toolkit.empty;
-  const baseToolkit = Toolkit.merge(SandboxToolkit.toolkit, toolkit);
+  const base = Toolkit.merge(SandboxToolkit.toolkit, toolkit);
   const mcp = yield* McpToolkit.make(config.mcp, {
-    reservedToolNames: Object.keys(baseToolkit.tools),
+    reservedNames: Object.keys(base.tools),
   });
-  const combinedToolkit = Toolkit.merge(baseToolkit, mcp.toolkit);
+  const combined = Toolkit.merge(base, mcp.toolkit);
 
-  return yield* makeProvider(combinedToolkit, {
+  return yield* makeProvider(combined, {
     systemInstructions: mcp.systemInstructions,
   }).pipe(
     Effect.provide(SandboxToolkit.layer),
@@ -153,25 +153,22 @@ const makeWithMcp = Effect.fn(function* <Tools extends Record<string, Tool.Any>>
   );
 });
 
-const makeFullyConfigured = Effect.fn(function* <Tools extends Record<string, Tool.Any>>(config: {
+const makeCombined = Effect.fn(function* <Tools extends Record<string, Tool.Any>>(config: {
   readonly toolkit?: Toolkit.Toolkit<Tools>;
   readonly skills: SkillsConfig.Config;
   readonly mcp: ReadonlyArray<McpConfig.Server>;
 }) {
   const toolkit = config.toolkit ?? Toolkit.empty;
-  const baseToolkit = Toolkit.merge(SandboxToolkit.toolkit, toolkit);
+  const base = Toolkit.merge(SandboxToolkit.toolkit, toolkit);
   const skills = yield* Skills.prepare(config.skills);
   const mcp = yield* McpToolkit.make(config.mcp, {
-    reservedToolNames: Object.keys(baseToolkit.tools),
+    reservedNames: Object.keys(base.tools),
   });
-  const combinedToolkit = Toolkit.merge(baseToolkit, mcp.toolkit);
+  const combined = Toolkit.merge(base, mcp.toolkit);
 
-  return yield* makeProvider(combinedToolkit, {
+  return yield* makeProvider(combined, {
     snapshotExtension: skills.snapshotExtension,
-    systemInstructions: combineSystemInstructions(
-      skills.systemInstructions,
-      mcp.systemInstructions,
-    ),
+    systemInstructions: joinInstructions(skills.systemInstructions, mcp.systemInstructions),
   }).pipe(
     Effect.provide(SandboxToolkit.layer),
     Effect.provide(mcp.layer),
@@ -179,19 +176,19 @@ const makeFullyConfigured = Effect.fn(function* <Tools extends Record<string, To
   );
 });
 
-type DefaultAgent = Effect.Effect<
+type Base = Effect.Effect<
   Agent.Provider<SandboxToolkit.Tools>,
   Agent.Error,
   LanguageModel.LanguageModel
 >;
 
-type ToolkitAgent<Tools extends Record<string, Tool.Any>> = Effect.Effect<
+type Custom<Tools extends Record<string, Tool.Any>> = Effect.Effect<
   Agent.Provider<ToolkitTools<Tools>>,
   Agent.Error,
   LanguageModel.LanguageModel | Tool.HandlersFor<Tools> | ToolkitServices<ToolkitTools<Tools>>
 >;
 
-type SkillsAgent<Tools extends Record<string, Tool.Any>> = Effect.Effect<
+type Skilled<Tools extends Record<string, Tool.Any>> = Effect.Effect<
   Agent.Provider<ToolkitTools<Tools>>,
   Agent.Error | Skills.Error,
   | LanguageModel.LanguageModel
@@ -201,7 +198,7 @@ type SkillsAgent<Tools extends Record<string, Tool.Any>> = Effect.Effect<
   | Path.Path
 >;
 
-type McpAgent<Tools extends Record<string, Tool.Any>> = Effect.Effect<
+type Mcp<Tools extends Record<string, Tool.Any>> = Effect.Effect<
   Agent.Provider<ToolsWithMcp<Tools>>,
   Agent.Error | McpError,
   | LanguageModel.LanguageModel
@@ -210,7 +207,7 @@ type McpAgent<Tools extends Record<string, Tool.Any>> = Effect.Effect<
   | Scope.Scope
 >;
 
-type FullyConfiguredAgent<Tools extends Record<string, Tool.Any>> = Effect.Effect<
+type Combined<Tools extends Record<string, Tool.Any>> = Effect.Effect<
   Agent.Provider<ToolsWithMcp<Tools>>,
   Agent.Error | McpError | Skills.Error,
   | LanguageModel.LanguageModel
@@ -221,46 +218,46 @@ type FullyConfiguredAgent<Tools extends Record<string, Tool.Any>> = Effect.Effec
   | Scope.Scope
 >;
 
-export function make(): DefaultAgent;
+export function make(): Base;
 export function make(config: {
   readonly toolkit?: undefined;
   readonly skills?: undefined;
   readonly mcp?: undefined;
-}): DefaultAgent;
+}): Base;
 export function make<Tools extends Record<string, Tool.Any>>(config: {
   readonly toolkit: Toolkit.Toolkit<Tools>;
   readonly skills?: undefined;
   readonly mcp?: undefined;
-}): ToolkitAgent<Tools>;
+}): Custom<Tools>;
 export function make<Tools extends Record<string, Tool.Any> = {}>(config: {
   readonly toolkit?: Toolkit.Toolkit<Tools>;
   readonly skills: SkillsConfig.Config;
   readonly mcp?: undefined;
-}): SkillsAgent<Tools>;
+}): Skilled<Tools>;
 export function make<Tools extends Record<string, Tool.Any> = {}>(config: {
   readonly toolkit?: Toolkit.Toolkit<Tools>;
   readonly skills?: undefined;
   readonly mcp: ReadonlyArray<McpConfig.Server>;
-}): McpAgent<Tools>;
+}): Mcp<Tools>;
 export function make<Tools extends Record<string, Tool.Any> = {}>(config: {
   readonly toolkit?: Toolkit.Toolkit<Tools>;
   readonly skills: SkillsConfig.Config;
   readonly mcp: ReadonlyArray<McpConfig.Server>;
-}): FullyConfiguredAgent<Tools>;
+}): Combined<Tools>;
 export function make<Tools extends Record<string, Tool.Any>>(config?: Config<Tools>) {
   if (config === undefined) {
-    return makeDefault();
+    return makeBase();
   }
   if (config.skills === undefined) {
     if (config.mcp === undefined) {
-      return config.toolkit === undefined ? makeDefault() : makeToolkit(config.toolkit);
+      return config.toolkit === undefined ? makeBase() : makeCustom(config.toolkit);
     }
-    return makeWithMcp({ toolkit: config.toolkit, mcp: config.mcp });
+    return makeMcp({ toolkit: config.toolkit, mcp: config.mcp });
   }
   if (config.mcp === undefined) {
-    return makeWithSkills({ toolkit: config.toolkit, skills: config.skills });
+    return makeSkills({ toolkit: config.toolkit, skills: config.skills });
   }
-  return makeFullyConfigured({
+  return makeCombined({
     toolkit: config.toolkit,
     skills: config.skills,
     mcp: config.mcp,

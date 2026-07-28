@@ -1,13 +1,13 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import { StdioClientTransport as StdioTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { StreamableHTTPClientTransport as HttpTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import type { Tool as McpTool } from "@modelcontextprotocol/sdk/types.js";
 import { Effect, Match } from "effect";
 import type { Server } from "./config.ts";
 import { ClientError } from "./error.ts";
 
-export type ConnectedClient = Readonly<{
+export type Connection = Readonly<{
   server: string;
   client: Client;
 }>;
@@ -27,7 +27,7 @@ const makeTransport = (server: Server) =>
     Match.tag("Stdio", (server) =>
       Effect.try({
         try: () =>
-          new StdioClientTransport({
+          new StdioTransport({
             command: server.command,
             args: server.args === undefined ? undefined : Array.from(server.args),
             cwd: server.cwd,
@@ -41,7 +41,7 @@ const makeTransport = (server: Server) =>
         Effect.flatMap((url) =>
           Effect.try({
             try: () =>
-              new StreamableHTTPClientTransport(url, {
+              new HttpTransport(url, {
                 requestInit:
                   server.headers === undefined ? undefined : { headers: { ...server.headers } },
               }),
@@ -74,10 +74,10 @@ export const connectScoped = Effect.fn(function* (server: Server) {
     catch: clientError(server.name, "connect"),
   });
 
-  return { server: server.name, client } satisfies ConnectedClient;
+  return { server: server.name, client } satisfies Connection;
 });
 
-export const listTools = Effect.fn(function* ({ client, server }: ConnectedClient) {
+export const listTools = Effect.fn(function* ({ client, server }: Connection) {
   const tools: Array<McpTool> = [];
   const seenCursors = new Set<string>();
   let cursor: string | undefined;
@@ -106,7 +106,7 @@ export const listTools = Effect.fn(function* ({ client, server }: ConnectedClien
 });
 
 export const callTool = (
-  { client, server }: ConnectedClient,
+  { client, server }: Connection,
   name: string,
   parameters: Record<string, unknown>,
 ) =>

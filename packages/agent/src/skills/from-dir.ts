@@ -1,12 +1,12 @@
 import { Effect, FileSystem, Path, Schema } from "effect";
 import { parse as parseYaml } from "yaml";
-import { InvalidMetadataError, SourceError } from "./error.ts";
+import { InvalidMetadata, SourceError } from "./error.ts";
 import { Metadata } from "./metadata.ts";
 
 const frontmatterPattern = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/;
 
 const invalid = (filePath: string, cause: unknown) =>
-  new InvalidMetadataError({ path: filePath, cause });
+  new InvalidMetadata({ path: filePath, cause });
 
 const parseFrontmatter = Effect.fn("Skills.parseFrontmatter")(function* (
   source: string,

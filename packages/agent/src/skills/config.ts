@@ -2,12 +2,12 @@ import { Snapshot } from "@open-insight/core";
 import { Effect, Path, Schema } from "effect";
 import { fromDir } from "./from-dir.ts";
 
-const defaultSandboxDirectory = "/opt/open-insight/skills";
+const defaultSandboxDir = "/opt/open-insight/skills";
 
 export class Config extends Schema.Class<Config>("SkillsConfig")({
   directory: Schema.NonEmptyString,
   sandboxDirectory: Schema.NonEmptyString.pipe(
-    Schema.withConstructorDefault(Effect.succeed(defaultSandboxDirectory)),
+    Schema.withConstructorDefault(Effect.succeed(defaultSandboxDir)),
   ),
 }) {}
 
@@ -30,10 +30,10 @@ export const directory = (
 
 export const prepare = Effect.fn(function* (config: Config) {
   const path = yield* Path.Path;
-  const resolvedDirectory = path.resolve(config.directory);
-  const metadata = yield* fromDir(resolvedDirectory);
-  const sourceName = path.basename(resolvedDirectory);
-  const context = path.dirname(resolvedDirectory);
+  const dir = path.resolve(config.directory);
+  const metadata = yield* fromDir(dir);
+  const source = path.basename(dir);
+  const context = path.dirname(dir);
   const skillLines = metadata.map(
     ({ name, description }) =>
       `- ${name}: ${description} Read ${path.join(config.sandboxDirectory, name, "SKILL.md")} when this skill is relevant.`,
@@ -42,7 +42,7 @@ export const prepare = Effect.fn(function* (config: Config) {
   return Prepared.make({
     snapshotExtension: {
       context,
-      instructions: [Snapshot.copy([sourceName], config.sandboxDirectory)],
+      instructions: [Snapshot.copy([source], config.sandboxDirectory)],
     },
     systemInstructions: [
       "Available skills:",

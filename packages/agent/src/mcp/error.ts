@@ -6,13 +6,10 @@ export class ClientError extends Schema.TaggedErrorClass<ClientError>()("McpClie
   cause: Schema.Defect(),
 }) {}
 
-export class ToolNameConflictError extends Schema.TaggedErrorClass<ToolNameConflictError>()(
-  "McpToolNameConflictError",
-  {
-    toolName: Schema.String,
-    sources: Schema.Array(Schema.String),
-  },
-) {}
+export class ToolConflict extends Schema.TaggedErrorClass<ToolConflict>()("McpToolConflict", {
+  toolName: Schema.String,
+  sources: Schema.Array(Schema.String),
+}) {}
 
-export const Error = Schema.Union([ClientError, ToolNameConflictError]);
+export const Error = Schema.Union([ClientError, ToolConflict]);
 export type Error = Schema.Schema.Type<typeof Error>;

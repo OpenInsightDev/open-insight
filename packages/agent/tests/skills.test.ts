@@ -180,7 +180,7 @@ layer(NodeServices.layer)("Skills.fromDir", (it) => {
 
       const error = yield* Skills.fromDir(root).pipe(Effect.flip);
 
-      assert.instanceOf(error, Skills.InvalidMetadataError);
+      assert.instanceOf(error, Skills.InvalidMetadata);
       assert.strictEqual(error.path, path.join(root, "actual-directory", "SKILL.md"));
     }),
   );
@@ -200,7 +200,7 @@ layer(NodeServices.layer)("Skills.fromDir", (it) => {
 
       const error = yield* Skills.fromDir(root).pipe(Effect.flip);
 
-      assert.instanceOf(error, Skills.InvalidMetadataError);
+      assert.instanceOf(error, Skills.InvalidMetadata);
       assert.strictEqual(error.path, skillFile);
     }),
   );

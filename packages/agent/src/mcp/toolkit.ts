@@ -2,8 +2,8 @@ import type { Tool as McpTool } from "@modelcontextprotocol/sdk/types.js";
 import { Effect, Exit, Layer, Schema, Scope } from "effect";
 import { Tool, Toolkit } from "effect/unstable/ai";
 import type { Server } from "./config.ts";
-import { callTool, connectScoped, listTools, type ConnectedClient } from "./client.ts";
-import { ToolNameConflictError } from "./error.ts";
+import { callTool, connectScoped, listTools, type Connection } from "./client.ts";
+import { ToolConflict } from "./error.ts";
 
 export type Tools = Record<
   string,
@@ -18,19 +18,19 @@ export type Tools = Record<
   >
 >;
 
-export type ConnectedToolkit = Readonly<{
+export type Runtime = Readonly<{
   toolkit: Toolkit.Toolkit<Tools>;
   layer: Layer.Layer<Tool.HandlersFor<Tools>>;
   systemInstructions?: string;
   close: (exit: Exit.Exit<unknown, unknown>) => Effect.Effect<void>;
 }>;
 
-type DiscoveredTool = Readonly<{
-  client: ConnectedClient;
+type Discovered = Readonly<{
+  client: Connection;
   definition: McpTool;
 }>;
 
-const decodeParameters = Schema.decodeUnknownEffect(Schema.Record(Schema.String, Schema.Unknown));
+const decode = Schema.decodeUnknownEffect(Schema.Record(Schema.String, Schema.Unknown));
 
 const discover = Effect.fn(function* (servers: ReadonlyArray<Server>) {
   const clients = yield* Effect.forEach(servers, connectScoped);
@@ -43,12 +43,12 @@ const discover = Effect.fn(function* (servers: ReadonlyArray<Server>) {
 });
 
 const ensureUniqueNames = Effect.fn(function* (
-  discovered: ReadonlyArray<DiscoveredTool>,
-  reservedToolNames: ReadonlyArray<string>,
+  discovered: ReadonlyArray<Discovered>,
+  reservedNames: ReadonlyArray<string>,
 ) {
   const sources = new Map<string, Array<string>>();
 
-  for (const name of reservedToolNames) {
+  for (const name of reservedNames) {
     sources.set(name, ["agent"]);
   }
   for (const { client, definition } of discovered) {
@@ -62,7 +62,7 @@ const ensureUniqueNames = Effect.fn(function* (
 
   for (const [toolName, toolSources] of sources) {
     if (toolSources.length > 1) {
-      return yield* ToolNameConflictError.make({ toolName, sources: toolSources });
+      return yield* ToolConflict.make({ toolName, sources: toolSources });
     }
   }
 });
@@ -76,7 +76,7 @@ const makeTool = (definition: McpTool): Tools[string] =>
     failureMode: "return",
   });
 
-const makeSystemInstructions = (clients: ReadonlyArray<ConnectedClient>) => {
+const instructions = (clients: ReadonlyArray<Connection>) => {
   const sections = clients.flatMap(({ client, server }) => {
     const instructions = client.getInstructions()?.trim();
     return instructions === undefined || instructions.length === 0
@@ -88,14 +88,14 @@ const makeSystemInstructions = (clients: ReadonlyArray<ConnectedClient>) => {
 
 export const make = Effect.fn(function* (
   servers: ReadonlyArray<Server>,
-  options?: { readonly reservedToolNames?: ReadonlyArray<string> },
+  options?: { readonly reservedNames?: ReadonlyArray<string> },
 ) {
   const parentScope = yield* Scope.Scope;
   const childScope = yield* Scope.fork(parentScope);
 
   return yield* Effect.gen(function* () {
     const discovered = yield* discover(servers);
-    yield* ensureUniqueNames(discovered.tools, options?.reservedToolNames ?? []);
+    yield* ensureUniqueNames(discovered.tools, options?.reservedNames ?? []);
 
     const tools = discovered.tools.map(({ definition }) => makeTool(definition));
     const toolkit: Toolkit.Toolkit<Tools> = Toolkit.make(...tools);
@@ -103,7 +103,7 @@ export const make = Effect.fn(function* (
       discovered.tools.map(({ client, definition }) => [
         definition.name,
         (parameters: unknown) =>
-          decodeParameters(parameters).pipe(
+          decode(parameters).pipe(
             Effect.mapError((error) => error.message),
             Effect.flatMap((decoded) =>
               callTool(client, definition.name, decoded).pipe(
@@ -117,9 +117,9 @@ export const make = Effect.fn(function* (
     return {
       toolkit,
       layer: toolkit.toLayer(handlers),
-      systemInstructions: makeSystemInstructions(discovered.clients),
+      systemInstructions: instructions(discovered.clients),
       close: (exit) => Scope.close(childScope, exit),
-    } satisfies ConnectedToolkit;
+    } satisfies Runtime;
   }).pipe(
     Effect.provideService(Scope.Scope, childScope),
     Effect.onError((cause) => Scope.close(childScope, Exit.failCause(cause))),

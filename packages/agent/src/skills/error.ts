@@ -7,13 +7,13 @@ export class SourceError extends Schema.TaggedErrorClass<SourceError>()("SkillSo
 }) {}
 
 /** A discovered SKILL.md file does not conform to the Agent Skills specification. */
-export class InvalidMetadataError extends Schema.TaggedErrorClass<InvalidMetadataError>()(
-  "InvalidSkillMetadataError",
+export class InvalidMetadata extends Schema.TaggedErrorClass<InvalidMetadata>()(
+  "InvalidSkillMetadata",
   {
     path: Schema.String,
     cause: Schema.Defect(),
   },
 ) {}
 
-export const Error = Schema.Union([SourceError, InvalidMetadataError]);
+export const Error = Schema.Union([SourceError, InvalidMetadata]);
 export type Error = Schema.Schema.Type<typeof Error>;

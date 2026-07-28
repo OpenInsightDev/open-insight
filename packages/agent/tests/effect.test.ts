@@ -9,7 +9,7 @@ import { ExitCode } from "effect/unstable/process/ChildProcessSpawner";
 import { z } from "zod";
 import { make } from "../src/agent.ts";
 import { fromTransport } from "../src/mcp/config.ts";
-import { ToolNameConflictError } from "../src/mcp/error.ts";
+import { ToolConflict } from "../src/mcp/error.ts";
 import { directory } from "../src/skills/config.ts";
 import { layer, toolkit } from "../src/toolkit.ts";
 
@@ -364,7 +364,7 @@ testLayer(NodeServices.layer)("configured agent", (it) => {
         Effect.flip,
       );
 
-      assert.instanceOf(error, ToolNameConflictError);
+      assert.instanceOf(error, ToolConflict);
       assert.strictEqual(error.toolName, "ReadUppercase");
       assert.deepStrictEqual(error.sources, ["agent", "conflicting-server"]);
       assert.isFalse(mcpServer.isConnected());
