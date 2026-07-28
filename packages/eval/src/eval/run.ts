@@ -1,4 +1,4 @@
-import { Effect, Option, Queue, Scope, Stream } from "effect";
+import { Effect, Option, Queue, Scope, Stream, Crypto } from "effect";
 import * as Event from "#/event/index.ts";
 import { type Config, make as makeConfig } from "./config.ts";
 import * as Bench from "#/bench/index.ts";
@@ -17,15 +17,13 @@ type Options = Readonly<{
 export const run = Effect.fn(function* ({
   bench,
   harness,
-  config = {},
-}: Options): Effect.fn.Return<BenchResult, Error, never> {
-  const resolvedConfig = makeConfig(config);
+  config: configOptions = {},
+}: Options): Effect.fn.Return<BenchResult, Error, Crypto.Crypto> {
+  const config = makeConfig(configOptions);
   const transport = yield* Effect.serviceOption(Event.EventTransportService);
   const eventQueue = yield* Event.makeQueue();
   const eventStream = Stream.fromQueue(eventQueue);
-  const evaluation = runSchedule({ bench, harness, eventQueue }, resolvedConfig).pipe(
-    Effect.provide(NodeServices.layer),
-  );
+
   const consume = transport.pipe(
     Option.match({
       onNone: () => Stream.runDrain(eventStream).pipe(Effect.mapError(Error.event)),
@@ -34,11 +32,14 @@ export const run = Effect.fn(function* ({
     }),
   );
 
-  const [result] = yield* Effect.all(
-    [evaluation.pipe(Effect.ensuring(Queue.end(eventQueue))), consume],
-    { concurrency: "unbounded" },
-  );
-  return result;
+  return yield* Effect.zipWith(
+    runSchedule({ bench, harness, eventQueue }, config).pipe(
+      Effect.ensuring(Queue.end(eventQueue)),
+    ),
+    consume,
+    (result) => result,
+    { concurrent: true },
+  ).pipe(Effect.provide(NodeServices.layer));
 });
 
 export const toPromise = <T, E>(
