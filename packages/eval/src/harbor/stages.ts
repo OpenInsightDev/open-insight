@@ -1,7 +1,7 @@
 import { Crypto, Effect, FileSystem, Path, Scope } from "effect";
 import type * as Grade from "#/grade/index.ts";
 import * as Task from "#/task/index.ts";
-import { Error as TasksError } from "../error.ts";
+import { Error as TasksError } from "#/tasks/error.ts";
 import type { StepConfig, TaskConfig } from "./config.ts";
 import { type GradeResult, wrapGrader } from "./reward.ts";
 import { makeGrader, makeInit, makeVerifier } from "./runtime.ts";

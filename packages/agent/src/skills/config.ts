@@ -5,8 +5,8 @@ import { fromDir } from "./from-dir.ts";
 const defaultSandboxDirectory = "/opt/open-insight/skills";
 
 export class Config extends Schema.Class<Config>("SkillsConfig")({
-  directory: Schema.String,
-  sandboxDirectory: Schema.String.pipe(
+  directory: Schema.NonEmptyString,
+  sandboxDirectory: Schema.NonEmptyString.pipe(
     Schema.withConstructorDefault(Effect.succeed(defaultSandboxDirectory)),
   ),
 }) {}

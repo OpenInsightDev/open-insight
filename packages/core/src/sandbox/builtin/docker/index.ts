@@ -1,6 +1,6 @@
 import * as Sandbox from "#/sandbox/export.ts";
 import * as Snapshot from "#/snapshot/export.ts";
-import { Spawn, Bash } from "#/utils/index.ts";
+import { Spawn, Bash } from "#/utils/export.ts";
 import { Crypto, Duration, Effect, FileSystem, Match } from "effect";
 import { ChildProcess as CP } from "effect/unstable/process";
 import { formatPortMappings, formatResources, matchesPortMapping } from "./utils.ts";

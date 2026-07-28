@@ -252,7 +252,10 @@ testLayer(NodeServices.layer)("configured agent", (it) => {
         ].join("\n"),
       );
 
-      const mcpServer = new McpServer({ name: "test-server", version: "1.0.0" });
+      const mcpServer = new McpServer(
+        { name: "test-server", version: "1.0.0" },
+        { instructions: "Use McpEcho when text must be echoed by the remote server." },
+      );
       mcpServer.registerTool(
         "McpEcho",
         {
@@ -320,6 +323,8 @@ testLayer(NodeServices.layer)("configured agent", (it) => {
           assert.include(JSON.stringify(parts), "prefix:HELLO FROM SANDBOX");
           assert.include(JSON.stringify(parts), "mcp:hello");
           assert.include(prompts[0], "/opt/open-insight/skills/review-code/SKILL.md");
+          assert.include(prompts[0], "MCP server test-server instructions:");
+          assert.include(prompts[0], "Use McpEcho when text must be echoed");
           assert.strictEqual(snapshotExtension.context, root);
           assert.deepStrictEqual(snapshotExtension.instructions, [
             {

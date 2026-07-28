@@ -1,6 +1,6 @@
 import { Resource, Snapshot } from "@open-insight/core/internal";
 import { Effect, FileSystem, Path } from "effect";
-import { Error as TasksError } from "../error.ts";
+import { Error as TasksError } from "#/tasks/error.ts";
 import type {
   AgentConfig,
   EnvConfig,

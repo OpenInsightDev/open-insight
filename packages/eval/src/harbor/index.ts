@@ -1,6 +1,6 @@
 import { Crypto, Effect, FileSystem, Path, Scope } from "effect";
 import * as Task from "#/task/index.ts";
-import { Error as TasksError } from "../error.ts";
+import { Error as TasksError } from "#/tasks/error.ts";
 import { readConfig } from "./config.ts";
 import { author, makeResources, makeSnapshot, validateConfig } from "./mapping.ts";
 import { addStages, makeStages } from "./stages.ts";

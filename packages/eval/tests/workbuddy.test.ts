@@ -1,4 +1,4 @@
-import { Bench, Tasks } from "@open-insight/eval";
+import { Bench, Harbor, Tasks } from "@open-insight/eval";
 import { NodeServices } from "@effect/platform-node";
 import { assert, layer } from "@effect/vitest";
 import { Spawn } from "@open-insight/core/utils";
@@ -19,7 +19,7 @@ export const makeBench = Effect.fn(function* () {
       return yield* Effect.all(
         entries
           .filter((entry) => entry.isDirectory())
-          .map((entry) => Tasks.Harbor.makeTask(path.resolve(tasksDir, entry.name))),
+          .map((entry) => Harbor.makeTask(path.resolve(tasksDir, entry.name))),
       );
     }),
   );

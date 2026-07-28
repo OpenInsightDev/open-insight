@@ -1,6 +1,6 @@
 import { Effect, FileSystem, Path, Schema } from "effect";
 import { parse } from "smol-toml";
-import { Error } from "../error.ts";
+import { Error } from "#/tasks/error.ts";
 
 export const StringMap = Schema.Record(Schema.String, Schema.String);
 export const JsonMap = Schema.Record(Schema.String, Schema.Json);

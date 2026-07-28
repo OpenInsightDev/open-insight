@@ -1,5 +1,5 @@
 import { Effect, FileSystem, Path } from "effect";
-import { Error } from "../error.ts";
+import { Error } from "#/tasks/error.ts";
 import { makeTask } from "./index.ts";
 
 /** Loads one Harbor task or recursively discovers Harbor tasks below a directory. */

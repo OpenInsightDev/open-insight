@@ -1,7 +1,7 @@
 {
   "name": "@open-insight/agent",
   "version": "0.0.21",
-  "description": "A starter for creating a TypeScript package.",
+  "description": "Effect-based agent provider with sandbox tools, Agent Skills, and MCP support.",
   "homepage": "https://github.com/author/library#readme",
   "bugs": {
     "url": "https://github.com/author/library/issues"

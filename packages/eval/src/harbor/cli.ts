@@ -1,7 +1,7 @@
 import { Spawn } from "@open-insight/core/utils";
 import { Effect } from "effect";
 import { ChildProcess as CP } from "effect/unstable/process";
-import { Error } from "../error.ts";
+import { Error } from "#/tasks/error.ts";
 
 export interface DownloadOptions {
   /** Harbor executable name or absolute path. Defaults to `harbor`. */

@@ -21,6 +21,8 @@ export type Tools = Record<
 export type ConnectedToolkit = Readonly<{
   toolkit: Toolkit.Toolkit<Tools>;
   layer: Layer.Layer<Tool.HandlersFor<Tools>>;
+  systemInstructions?: string;
+  close: (exit: Exit.Exit<unknown, unknown>) => Effect.Effect<void>;
 }>;
 
 type DiscoveredTool = Readonly<{
@@ -32,11 +34,12 @@ const decodeParameters = Schema.decodeUnknownEffect(Schema.Record(Schema.String,
 
 const discover = Effect.fn(function* (servers: ReadonlyArray<Server>) {
   const clients = yield* Effect.forEach(servers, connectScoped);
-  return yield* Effect.forEach(clients, (client) =>
+  const tools = yield* Effect.forEach(clients, (client) =>
     listTools(client).pipe(
       Effect.map((tools) => tools.map((definition) => ({ client, definition }))),
     ),
   ).pipe(Effect.map((groups) => groups.flat()));
+  return { clients, tools };
 });
 
 const ensureUniqueNames = Effect.fn(function* (
@@ -73,6 +76,16 @@ const makeTool = (definition: McpTool): Tools[string] =>
     failureMode: "return",
   });
 
+const makeSystemInstructions = (clients: ReadonlyArray<ConnectedClient>) => {
+  const sections = clients.flatMap(({ client, server }) => {
+    const instructions = client.getInstructions()?.trim();
+    return instructions === undefined || instructions.length === 0
+      ? []
+      : [`MCP server ${server} instructions:\n${instructions}`];
+  });
+  return sections.length === 0 ? undefined : sections.join("\n\n");
+};
+
 export const make = Effect.fn(function* (
   servers: ReadonlyArray<Server>,
   options?: { readonly reservedToolNames?: ReadonlyArray<string> },
@@ -82,12 +95,12 @@ export const make = Effect.fn(function* (
 
   return yield* Effect.gen(function* () {
     const discovered = yield* discover(servers);
-    yield* ensureUniqueNames(discovered, options?.reservedToolNames ?? []);
+    yield* ensureUniqueNames(discovered.tools, options?.reservedToolNames ?? []);
 
-    const tools = discovered.map(({ definition }) => makeTool(definition));
+    const tools = discovered.tools.map(({ definition }) => makeTool(definition));
     const toolkit: Toolkit.Toolkit<Tools> = Toolkit.make(...tools);
     const handlers = Object.fromEntries(
-      discovered.map(({ client, definition }) => [
+      discovered.tools.map(({ client, definition }) => [
         definition.name,
         (parameters: unknown) =>
           decodeParameters(parameters).pipe(
@@ -104,6 +117,8 @@ export const make = Effect.fn(function* (
     return {
       toolkit,
       layer: toolkit.toLayer(handlers),
+      systemInstructions: makeSystemInstructions(discovered.clients),
+      close: (exit) => Scope.close(childScope, exit),
     } satisfies ConnectedToolkit;
   }).pipe(
     Effect.provideService(Scope.Scope, childScope),

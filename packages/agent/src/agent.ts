@@ -1,5 +1,5 @@
 import { Agent, Sandbox } from "@open-insight/core";
-import { Context, Effect, FileSystem, Option, Path, Ref, Scope, Stream } from "effect";
+import { Context, Effect, Exit, FileSystem, Option, Path, Ref, Scope, Stream } from "effect";
 import { Chat, LanguageModel, Tool, Toolkit } from "effect/unstable/ai";
 import type * as McpConfig from "./mcp/config.ts";
 import type { Error as McpError } from "./mcp/error.ts";
@@ -30,6 +30,11 @@ export type Config<Tools extends Record<string, Tool.Any> = {}> = Readonly<{
   skills?: SkillsConfig.Config;
   mcp?: ReadonlyArray<McpConfig.Server>;
 }>;
+
+const combineSystemInstructions = (...instructions: ReadonlyArray<string | undefined>) => {
+  const defined = instructions.filter((instruction) => instruction !== undefined);
+  return defined.length === 0 ? undefined : defined.join("\n\n");
+};
 
 const makeAgent = Effect.fn(function* <Tools extends Record<string, Tool.Any>>({
   sandbox,
@@ -139,9 +144,12 @@ const makeWithMcp = Effect.fn(function* <Tools extends Record<string, Tool.Any>>
   });
   const combinedToolkit = Toolkit.merge(baseToolkit, mcp.toolkit);
 
-  return yield* makeProvider(combinedToolkit).pipe(
+  return yield* makeProvider(combinedToolkit, {
+    systemInstructions: mcp.systemInstructions,
+  }).pipe(
     Effect.provide(SandboxToolkit.layer),
     Effect.provide(mcp.layer),
+    Effect.onError((cause) => mcp.close(Exit.failCause(cause))),
   );
 });
 
@@ -160,8 +168,15 @@ const makeFullyConfigured = Effect.fn(function* <Tools extends Record<string, To
 
   return yield* makeProvider(combinedToolkit, {
     snapshotExtension: skills.snapshotExtension,
-    systemInstructions: skills.systemInstructions,
-  }).pipe(Effect.provide(SandboxToolkit.layer), Effect.provide(mcp.layer));
+    systemInstructions: combineSystemInstructions(
+      skills.systemInstructions,
+      mcp.systemInstructions,
+    ),
+  }).pipe(
+    Effect.provide(SandboxToolkit.layer),
+    Effect.provide(mcp.layer),
+    Effect.onError((cause) => mcp.close(Exit.failCause(cause))),
+  );
 });
 
 type DefaultAgent = Effect.Effect<

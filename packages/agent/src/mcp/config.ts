@@ -13,8 +13,8 @@ const Transport = Schema.declare(
 );
 
 const StdioFields = {
-  name: Schema.String,
-  command: Schema.String,
+  name: Schema.NonEmptyString,
+  command: Schema.NonEmptyString,
   args: Schema.optionalKey(Schema.Array(Schema.String)),
   cwd: Schema.optionalKey(Schema.String),
   env: Schema.optionalKey(Schema.Record(Schema.String, Schema.String)),
@@ -27,8 +27,8 @@ export class StdioServer extends Schema.TaggedClass<StdioServer>("McpStdioServer
 ) {}
 
 const HttpFields = {
-  name: Schema.String,
-  url: Schema.String,
+  name: Schema.NonEmptyString,
+  url: Schema.NonEmptyString,
   headers: Schema.optionalKey(Schema.Record(Schema.String, Schema.String)),
 };
 export type HttpOptions = Schema.Struct.MakeIn<typeof HttpFields>;
@@ -39,7 +39,7 @@ export class HttpServer extends Schema.TaggedClass<HttpServer>("McpHttpServer")(
 ) {}
 
 export class CustomServer extends Schema.TaggedClass<CustomServer>("McpCustomServer")("Custom", {
-  name: Schema.String,
+  name: Schema.NonEmptyString,
   transport: Transport,
 }) {}
 
