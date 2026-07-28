@@ -38,6 +38,7 @@
     "vite-plus": "catalog:"
   },
   "peerDependencies": {
-    "@open-insight/core": "workspace:*"
+    "@open-insight/core": "workspace:*",
+    "effect": "catalog:"
   }
 }
