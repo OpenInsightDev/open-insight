@@ -7,7 +7,6 @@ import { run as runSchedule } from "./schedule.ts";
 import type { BenchResult } from "./result.ts";
 import { NodeServices } from "@effect/platform-node";
 import { Error } from "./error.ts";
-import { Spawn } from "@open-insight/core/utils";
 
 type Options = Readonly<{
   bench: Bench.Bench;
@@ -43,11 +42,5 @@ export const run = Effect.fn(function* ({
 });
 
 export const toPromise = <T, E>(
-  effect: Effect.Effect<T, E, NodeServices.NodeServices | Spawn.Service | Scope.Scope>,
-) =>
-  Effect.runPromise(
-    effect
-      .pipe(Effect.scoped)
-      .pipe(Effect.provide(Spawn.Service.layer))
-      .pipe(Effect.provide(NodeServices.layer)),
-  );
+  effect: Effect.Effect<T, E, NodeServices.NodeServices | Scope.Scope>,
+) => Effect.runPromise(effect.pipe(Effect.scoped).pipe(Effect.provide(NodeServices.layer)));

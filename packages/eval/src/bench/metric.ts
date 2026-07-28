@@ -11,35 +11,28 @@ type MetricOptions<G extends Grade.Result, R extends Schema.JsonObject> = Omit<
   "exec"
 >;
 
-export function metric<G extends Grade.Result, R extends Schema.JsonObject>(
-  exec: Metric.Bench.Exec<G, R>,
-  options?: MetricOptions<G, R>,
-): <T extends Task.Task<G>, E, Env>(
-  bench: Effect.Effect<Bench<T>, E, Env>,
-) => Effect.Effect<Bench<T>, E | Error, Env | Crypto.Crypto>;
-export function metric<G extends Grade.Result, R extends Schema.JsonObject>(
+const makeMetric = <G extends Grade.Result, R extends Schema.JsonObject>(
   options: Metric.Bench.Options<G, R>,
-): <T extends Task.Task<G>, E, Env>(
-  bench: Effect.Effect<Bench<T>, E, Env>,
-) => Effect.Effect<Bench<T>, E | Error, Env | Crypto.Crypto>;
-export function metric<G extends Grade.Result, R extends Schema.JsonObject>(
-  execOrOptions: Metric.Bench.Exec<G, R> | Metric.Bench.Options<G, R>,
-  options: MetricOptions<G, R> = {},
-) {
-  const metricOptions =
-    typeof execOrOptions === "function" ? { ...options, exec: execOrOptions } : execOrOptions;
+) => Metric.Bench.make(options).pipe(Effect.mapError(Error.init));
 
-  return <T extends Task.Task<G>, E, Env>(
-    bench: Effect.Effect<Bench<T>, E, Env>,
-  ): Effect.Effect<Bench<T>, E | Error, Env | Crypto.Crypto> =>
-    Effect.all([bench, Metric.Bench.make(metricOptions).pipe(Effect.mapError(Error.init))]).pipe(
-      Effect.map(([bench, metric]) =>
-        produce(bench, (draft) => {
-          draft.metrics.push(castDraft(metric));
+export const metric =
+  <G extends Grade.Result, R extends Schema.JsonObject>(
+    exec: Metric.Bench.ExecEffect<G, R>,
+    options: MetricOptions<G, R> = {},
+  ) =>
+  <Extras extends Schema.JsonObject, Stage extends Task.Stage, E, Env>(
+    bench: Effect.Effect<Bench<Task.Task<G, Extras, Stage>>, E, Env>,
+  ): Effect.Effect<Bench<Task.Task<G, Extras, Stage>>, E | Error, Env | Crypto.Crypto> =>
+    bench.pipe(
+      Effect.flatMap(
+        Effect.fn(function* (bench) {
+          const metric = yield* makeMetric({ ...options, exec: yield* exec });
+          return produce(bench, (draft) => {
+            draft.metrics.push(castDraft(metric));
+          });
         }),
       ),
     );
-}
 
 export const taskMetric =
   <R extends Schema.JsonObject = Schema.JsonObject>(

@@ -1,10 +1,9 @@
 import type { Prompt } from "@open-insight/core/internal";
-import type { Exec } from "../index.ts";
 
 type PartType = Prompt.Part["type"];
 type ToolCallPart = Extract<Prompt.Part, { type: "tool-call" }>;
 type ToolResultPart = Extract<Prompt.Part, { type: "tool-result" }>;
-type Context = Pick<Parameters<Exec>[0], "parts" | "prevTrajectory">;
+type Context = Readonly<{ parts: Prompt.Parts; prevTrajectory: Prompt.Trajectory }>;
 
 export type Count = Readonly<{ count: number }>;
 export type Rate = Readonly<{ rate: number }>;

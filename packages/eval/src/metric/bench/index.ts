@@ -26,6 +26,18 @@ export type Exec<
   R extends Schema.JsonObject = Schema.JsonObject,
 > = (results: Results<G>, delta: Delta<G>, prev: R | null) => Promise<R>;
 
+export type ExecEffect<
+  G extends Grade.Result = Grade.Result,
+  R extends Schema.JsonObject = Schema.JsonObject,
+> = Effect.Effect<Exec<G, R>>;
+
+export const exec = <
+  G extends Grade.Result = Grade.Result,
+  R extends Schema.JsonObject = Schema.JsonObject,
+>(
+  fn: Exec<G, R>,
+): ExecEffect<G, R> => Effect.succeed(fn);
+
 export type Metric<
   G extends Grade.Result = Grade.Result,
   R extends Schema.JsonObject = Schema.JsonObject,
@@ -45,28 +57,29 @@ export type Options<
   MetadataEncoded;
 
 /** Maps benchmark grade results before passing them to another metric executor. */
-export const mapGrade = <
-  Input extends Grade.Result,
-  Mapped extends Grade.Result,
-  R extends Schema.JsonObject,
->(
-  exec: Exec<Mapped, R>,
-  map: (grade: Input) => Mapped,
-): Exec<Input, R> => {
-  const mapTrail = (trail: TrailResult<Input>): TrailResult<Mapped> => ({
-    ...trail,
-    grade: map(trail.grade),
-  });
+export const mapGrade =
+  <Input extends Grade.Result, Mapped extends Grade.Result, R extends Schema.JsonObject>(
+    map: (grade: Input) => Mapped,
+  ) =>
+  (exec: ExecEffect<Mapped, R>): ExecEffect<Input, R> => {
+    const mapTrail = (trail: TrailResult<Input>): TrailResult<Mapped> => ({
+      ...trail,
+      grade: map(trail.grade),
+    });
 
-  return async (results, delta, prev) =>
-    exec(
-      Object.fromEntries(
-        Object.entries(results).map(([task, trails]) => [task, trails.map(mapTrail)]),
+    return exec.pipe(
+      Effect.map(
+        (exec) => async (results, delta, prev) =>
+          exec(
+            Object.fromEntries(
+              Object.entries(results).map(([task, trails]) => [task, trails.map(mapTrail)]),
+            ),
+            { ...mapTrail(delta), task: delta.task },
+            prev,
+          ),
       ),
-      { ...mapTrail(delta), task: delta.task },
-      prev,
     );
-};
+  };
 
 export const make = Effect.fn(function* <
   G extends Grade.Result = Grade.Result,

@@ -24,6 +24,13 @@ export type ExecEffect<
   R extends Schema.JsonObject = Schema.JsonObject,
 > = Effect.Effect<Exec<G, R>>;
 
+export const exec = <
+  G extends Grade.Result = Grade.Result,
+  R extends Schema.JsonObject = Schema.JsonObject,
+>(
+  fn: Exec<G, R>,
+): ExecEffect<G, R> => Effect.succeed(fn);
+
 export type Metric<
   G extends Grade.Result = Grade.Result,
   R extends Schema.JsonObject = Schema.JsonObject,
@@ -42,20 +49,6 @@ export type Options<
 }> &
   MetadataEncoded;
 
-// export const mapGrade = <
-//   Input extends Grade.Result,
-//   Mapped extends Grade.Result,
-//   R extends Schema.JsonObject,
-// >(
-//   exec: Exec<Mapped, R>,
-//   map: (grade: Input) => Mapped,
-// ): Exec<Input, R> => {
-//   const mapTrail = (trail: TrailResult<Input>): TrailResult<Mapped> => ({
-//     ...trail,
-//     grade: map(trail.grade),
-//   });
-//   return async (results, delta, prev) => exec(results.map(mapTrail), mapTrail(delta), prev);
-// };
 export const mapGrade =
   <Input extends Grade.Result, Mapped extends Grade.Result, R extends Schema.JsonObject>(
     map: (grade: Input) => Mapped,

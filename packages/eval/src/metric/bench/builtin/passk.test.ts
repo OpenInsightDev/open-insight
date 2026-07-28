@@ -1,4 +1,5 @@
 import { Prompt } from "@open-insight/core/internal";
+import { Effect } from "effect";
 import { describe, expect, it } from "vite-plus/test";
 import { avgPassAtK, avgPassPowK } from "./passk.ts";
 
@@ -12,7 +13,9 @@ describe("avgPassAtK", () => {
       second: [trail(true), trail(true), trail(true), trail(true), trail(true)],
     };
 
-    await expect(avgPassAtK(2)(results, delta("second", true), null)).resolves.toEqual({
+    const metric = await Effect.runPromise(avgPassAtK(2));
+
+    await expect(metric(results, delta("second", true), null)).resolves.toEqual({
       "pass@k": 0.85,
     });
   });
@@ -25,7 +28,9 @@ describe("avgPassPowK", () => {
       second: [trail(true), trail(true), trail(true), trail(true), trail(true)],
     };
 
-    await expect(avgPassPowK(2)(results, delta("second", true), null)).resolves.toEqual({
+    const metric = await Effect.runPromise(avgPassPowK(2));
+
+    await expect(metric(results, delta("second", true), null)).resolves.toEqual({
       "pass^k": 0.65,
     });
   });

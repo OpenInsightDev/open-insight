@@ -4,7 +4,7 @@ import {
   estimatePassPowK,
   type Pass,
 } from "#/metric/common/passk.ts";
-import type { Exec, Results } from "../index.ts";
+import { exec, type ExecEffect, type Results } from "../index.ts";
 
 export type AvgPassAtK = Readonly<{ "pass@k": number }>;
 export type AvgPassPowK = Readonly<{ "pass^k": number }>;
@@ -16,10 +16,12 @@ const mean = (values: ReadonlyArray<number>) =>
 const averageEstimate = (results: Results<Pass>, k: number, estimate: Estimate) =>
   mean(Object.values(results).map((trails) => estimate(trails.length, countCorrect(trails), k)));
 
-export const avgPassAtK =
-  <G extends Pass>(k: number): Exec<G, AvgPassAtK> =>
-  async (results) => ({ "pass@k": averageEstimate(results, k, estimatePassAtK) });
+export const avgPassAtK = <G extends Pass>(k: number): ExecEffect<G, AvgPassAtK> =>
+  exec<G, AvgPassAtK>(async (results) => ({
+    "pass@k": averageEstimate(results, k, estimatePassAtK),
+  }));
 
-export const avgPassPowK =
-  <G extends Pass>(k: number): Exec<G, AvgPassPowK> =>
-  async (results) => ({ "pass^k": averageEstimate(results, k, estimatePassPowK) });
+export const avgPassPowK = <G extends Pass>(k: number): ExecEffect<G, AvgPassPowK> =>
+  exec<G, AvgPassPowK>(async (results) => ({
+    "pass^k": averageEstimate(results, k, estimatePassPowK),
+  }));

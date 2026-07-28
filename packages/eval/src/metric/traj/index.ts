@@ -8,7 +8,7 @@ import { Result, type StreamResult } from "../result.ts";
 import * as When from "../when/index.ts";
 import { Error } from "../error.ts";
 
-type Context = When.SandboxContext &
+export type Context = When.SandboxContext &
   Readonly<{ parts: Prompt.Parts; prevTrajectory: Prompt.Trajectory }>;
 
 /**

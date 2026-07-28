@@ -1,22 +1,24 @@
 import {
   Agent,
   Bench,
+  BenchMetric,
   Chart,
   Eval,
   Event,
   Grade,
   Harness,
-  Metric,
   Sandbox,
   Snapshot,
   Task,
+  TaskMetric,
   Tasks,
+  TrajMetric,
   When,
 } from "@open-insight/eval";
 import { NodeServices } from "@effect/platform-node";
 import { assert, layer } from "@effect/vitest";
 import { Spawn } from "@open-insight/core/utils";
-import { Effect, Layer, pipe, Ref, Stream } from "effect";
+import { Effect, Layer, Ref, Stream } from "effect";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 
@@ -134,7 +136,7 @@ async function* loadTasks(repoPath: string) {
       .pipe(Task.satisfies<GradeResult, Extras>())
       .pipe(
         Task.metric(
-          Metric.Task.passAtK(1).pipe(Metric.Task.mapGrade(({ simPass }) => ({ pass: simPass }))),
+          TaskMetric.passAtK(1).pipe(TaskMetric.mapGrade(({ simPass }) => ({ pass: simPass }))),
           {
             name: "Pass@1",
             description: "Estimated probability that one generated RTL solution passes simulation.",
@@ -145,8 +147,8 @@ async function* loadTasks(repoPath: string) {
           },
         ),
         Task.metric(
-          Metric.Task.passAtK(trailCount).pipe(
-            Metric.Task.mapGrade(({ simPass }) => ({ pass: simPass })),
+          TaskMetric.passAtK(trailCount).pipe(
+            TaskMetric.mapGrade(({ simPass }) => ({ pass: simPass })),
           ),
           {
             name: `Pass@${trailCount}`,
@@ -158,8 +160,8 @@ async function* loadTasks(repoPath: string) {
           },
         ),
         Task.metric(
-          Metric.Task.passPowK(trailCount).pipe(
-            Metric.Task.mapGrade(({ simPass }) => ({ pass: simPass })),
+          TaskMetric.passPowK(trailCount).pipe(
+            TaskMetric.mapGrade(({ simPass }) => ({ pass: simPass })),
           ),
           {
             name: `Pass power ${trailCount}`,
@@ -170,7 +172,7 @@ async function* loadTasks(repoPath: string) {
             ],
           },
         ),
-        Task.trajMetric(Metric.Traj.toolCallCount(), {
+        Task.trajMetric(TrajMetric.toolCallCount(), {
           name: "Tool call count",
           description: "Cumulative number of tool calls made while solving the task.",
           chart: ({ count }) => [
@@ -178,7 +180,7 @@ async function* loadTasks(repoPath: string) {
           ],
           when: When.traj(When.toolCall()),
         }),
-        Task.trajMetric(Metric.Traj.toolCallSuccessRate(), {
+        Task.trajMetric(TrajMetric.toolCallSuccessRate(), {
           name: "Tool call success rate",
           description: "Share of completed tool calls that succeeded.",
           chart: ({ rate }) => [
@@ -201,7 +203,7 @@ export const makeBench = Effect.fn(function* () {
     tasks,
   }).pipe(
     Bench.metric(
-      Metric.Bench.mapGrade(Metric.Bench.avgPassAtK(1), ({ simPass }) => ({ pass: simPass })),
+      BenchMetric.avgPassAtK(1).pipe(BenchMetric.mapGrade(({ simPass }) => ({ pass: simPass }))),
       {
         name: "Average pass at 1",
         description: "Mean pass@1 estimate across evaluated tasks.",
@@ -212,8 +214,8 @@ export const makeBench = Effect.fn(function* () {
       },
     ),
     Bench.metric(
-      Metric.Bench.avgPassAtK(trailCount).pipe(
-        Metric.Bench.mapGrade(({ simPass }) => ({ pass: simPass })),
+      BenchMetric.avgPassAtK(trailCount).pipe(
+        BenchMetric.mapGrade(({ simPass }) => ({ pass: simPass })),
       ),
       {
         name: `Average pass at ${trailCount}`,
@@ -225,8 +227,8 @@ export const makeBench = Effect.fn(function* () {
       },
     ),
     Bench.metric(
-      Metric.Bench.avgPassPowK(trailCount).pipe(
-        Metric.Bench.mapGrade(({ simPass }) => ({ pass: simPass })),
+      BenchMetric.avgPassPowK(trailCount).pipe(
+        BenchMetric.mapGrade(({ simPass }) => ({ pass: simPass })),
       ),
       {
         name: `Average pass power ${trailCount}`,
