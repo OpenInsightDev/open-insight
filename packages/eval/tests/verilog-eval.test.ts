@@ -16,7 +16,7 @@ import {
 import { NodeServices } from "@effect/platform-node";
 import { assert, layer } from "@effect/vitest";
 import { Spawn } from "@open-insight/core/utils";
-import { Effect, Layer, Ref, Stream } from "effect";
+import { Effect, Layer, pipe, Ref, Stream } from "effect";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 
@@ -66,9 +66,6 @@ const snapshot = Snapshot.make({
 
 type GradeResult = Readonly<{ simPass: boolean }>;
 type Extras = Readonly<{ category: string }>;
-
-const mapTaskGrade = Metric.Task.mapGrade<GradeResult>();
-const mapBenchGrade = Metric.Bench.mapGrade<GradeResult>();
 
 async function* loadTasks(repoPath: string) {
   const datasetDir = path.resolve(repoPath, datasetDirName);
@@ -137,11 +134,9 @@ async function* loadTasks(repoPath: string) {
       .pipe(Task.satisfies<GradeResult, Extras>())
       .pipe(
         Task.metric(
-          mapTaskGrade(Metric.Task.passAtK(1), ({ simPass }) => ({
-            pass: simPass,
-          })),
+          Metric.Task.passAtK(1).pipe(Metric.Task.mapGrade(({ simPass }) => ({ pass: simPass }))),
           {
-            name: "Pass at 1",
+            name: "Pass@1",
             description: "Estimated probability that one generated RTL solution passes simulation.",
             chart: (result) => [
               Chart.Pie.make({ legend: "Pass", value: result["pass@k"] }),
@@ -150,11 +145,11 @@ async function* loadTasks(repoPath: string) {
           },
         ),
         Task.metric(
-          mapTaskGrade(Metric.Task.passAtK(trailCount), ({ simPass }) => ({
-            pass: simPass,
-          })),
+          Metric.Task.passAtK(trailCount).pipe(
+            Metric.Task.mapGrade(({ simPass }) => ({ pass: simPass })),
+          ),
           {
-            name: `Pass at ${trailCount}`,
+            name: `Pass@${trailCount}`,
             description: `Estimated probability that at least one of ${trailCount} solutions passes.`,
             chart: (result) => [
               Chart.Pie.make({ legend: "Pass", value: result["pass@k"] }),
@@ -163,9 +158,9 @@ async function* loadTasks(repoPath: string) {
           },
         ),
         Task.metric(
-          mapTaskGrade(Metric.Task.passPowK(trailCount), ({ simPass }) => ({
-            pass: simPass,
-          })),
+          Metric.Task.passPowK(trailCount).pipe(
+            Metric.Task.mapGrade(({ simPass }) => ({ pass: simPass })),
+          ),
           {
             name: `Pass power ${trailCount}`,
             description: `Estimated probability that all ${trailCount} solutions pass.`,
@@ -206,9 +201,7 @@ export const makeBench = Effect.fn(function* () {
     tasks,
   }).pipe(
     Bench.metric(
-      mapBenchGrade(Metric.Bench.avgPassAtK(1), ({ simPass }) => ({
-        pass: simPass,
-      })),
+      Metric.Bench.mapGrade(Metric.Bench.avgPassAtK(1), ({ simPass }) => ({ pass: simPass })),
       {
         name: "Average pass at 1",
         description: "Mean pass@1 estimate across evaluated tasks.",
@@ -219,9 +212,9 @@ export const makeBench = Effect.fn(function* () {
       },
     ),
     Bench.metric(
-      mapBenchGrade(Metric.Bench.avgPassAtK(trailCount), ({ simPass }) => ({
-        pass: simPass,
-      })),
+      Metric.Bench.avgPassAtK(trailCount).pipe(
+        Metric.Bench.mapGrade(({ simPass }) => ({ pass: simPass })),
+      ),
       {
         name: `Average pass at ${trailCount}`,
         description: `Mean pass@${trailCount} estimate across evaluated tasks.`,
@@ -232,9 +225,9 @@ export const makeBench = Effect.fn(function* () {
       },
     ),
     Bench.metric(
-      mapBenchGrade(Metric.Bench.avgPassPowK(trailCount), ({ simPass }) => ({
-        pass: simPass,
-      })),
+      Metric.Bench.avgPassPowK(trailCount).pipe(
+        Metric.Bench.mapGrade(({ simPass }) => ({ pass: simPass })),
+      ),
       {
         name: `Average pass power ${trailCount}`,
         description: `Mean pass^${trailCount} estimate across evaluated tasks.`,

@@ -19,6 +19,11 @@ export type Exec<
   R extends Schema.JsonObject = Schema.JsonObject,
 > = (results: ReadonlyArray<TrailResult<G>>, delta: TrailResult<G>, prev: R | null) => Promise<R>;
 
+export type ExecEffect<
+  G extends Grade.Result = Grade.Result,
+  R extends Schema.JsonObject = Schema.JsonObject,
+> = Effect.Effect<Exec<G, R>>;
+
 export type Metric<
   G extends Grade.Result = Grade.Result,
   R extends Schema.JsonObject = Schema.JsonObject,
@@ -37,19 +42,35 @@ export type Options<
 }> &
   MetadataEncoded;
 
-/** Maps task grade results before passing them to another metric executor. */
+// export const mapGrade = <
+//   Input extends Grade.Result,
+//   Mapped extends Grade.Result,
+//   R extends Schema.JsonObject,
+// >(
+//   exec: Exec<Mapped, R>,
+//   map: (grade: Input) => Mapped,
+// ): Exec<Input, R> => {
+//   const mapTrail = (trail: TrailResult<Input>): TrailResult<Mapped> => ({
+//     ...trail,
+//     grade: map(trail.grade),
+//   });
+//   return async (results, delta, prev) => exec(results.map(mapTrail), mapTrail(delta), prev);
+// };
 export const mapGrade =
-  <Input extends Grade.Result>() =>
-  <Mapped extends Grade.Result, R extends Schema.JsonObject>(
-    exec: Exec<Mapped, R>,
+  <Input extends Grade.Result, Mapped extends Grade.Result, R extends Schema.JsonObject>(
     map: (grade: Input) => Mapped,
-  ): Exec<Input, R> => {
+  ) =>
+  (exec: ExecEffect<Mapped, R>): ExecEffect<Input, R> => {
     const mapTrail = (trail: TrailResult<Input>): TrailResult<Mapped> => ({
       ...trail,
       grade: map(trail.grade),
     });
-
-    return async (results, delta, prev) => exec(results.map(mapTrail), mapTrail(delta), prev);
+    return exec.pipe(
+      Effect.map(
+        (exec) => async (results, delta, prev) =>
+          exec(results.map(mapTrail), mapTrail(delta), prev),
+      ),
+    );
   };
 
 export const make = Effect.fn(function* <

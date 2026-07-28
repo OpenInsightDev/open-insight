@@ -95,7 +95,7 @@ export const make = Effect.fn(function* <E extends Schema.JsonObject = EmptyReco
 
 export const metric =
   <G extends Grade.Result, R extends Schema.JsonObject = Schema.JsonObject>(
-    exec: Metric.Task.Exec<G, R>,
+    exec: Metric.Task.ExecEffect<G, R>,
     options: Omit<Metric.Task.Options<G, R>, "exec"> = {},
   ) =>
   <Ex extends Schema.JsonObject, S extends Stage, E, Env>(
@@ -104,7 +104,7 @@ export const metric =
     task.pipe(
       Effect.flatMap(
         Effect.fn(function* (task) {
-          const metric = yield* makeMetric({ ...options, exec });
+          const metric = yield* makeMetric({ ...options, exec: yield* exec });
           return produce(task, (draft) => {
             draft.metrics.push(castDraft(metric));
           });
