@@ -1,9 +1,16 @@
+import * as NodeServices from "@effect/platform-node/NodeServices";
+import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { Sandbox } from "@open-insight/core";
-import { assert, it } from "@effect/vitest";
-import { Context, Effect, Schema, Stream } from "effect";
+import { assert, it, layer as testLayer } from "@effect/vitest";
+import { Context, Effect, FileSystem, Option, Path, Schema, Stream } from "effect";
 import { LanguageModel, Prompt, Response, Tool, Toolkit } from "effect/unstable/ai";
 import { ExitCode } from "effect/unstable/process/ChildProcessSpawner";
-import { make, makeWithToolkit } from "../src/agent.ts";
+import { z } from "zod";
+import { make } from "../src/agent.ts";
+import { fromTransport } from "../src/mcp/config.ts";
+import { ToolNameConflictError } from "../src/mcp/error.ts";
+import { directory } from "../src/skills/config.ts";
 import { layer, toolkit } from "../src/toolkit.ts";
 
 const makeSandbox = (files: Map<string, string>): Sandbox.Sandbox => ({
@@ -138,7 +145,7 @@ it.effect("injects the session sandbox into custom tools", () =>
         ]);
       },
     });
-    const provider = yield* makeWithToolkit(userToolkit).pipe(
+    const provider = yield* make({ toolkit: userToolkit }).pipe(
       Effect.provide(userLayer),
       Effect.provideService(Prefix, "prefix:"),
       Effect.provideService(LanguageModel.LanguageModel, llm),
@@ -182,3 +189,141 @@ it.effect("creates isolated chat history for each session", () =>
     assert.strictEqual(secondTrajectory.content.length, 0);
   }),
 );
+
+testLayer(NodeServices.layer)("configured agent", (it) => {
+  it.effect("combines custom tools, skills, and MCP servers", () =>
+    Effect.gen(function* () {
+      const fs = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      const root = yield* fs.makeTempDirectoryScoped();
+      const skillsDirectory = path.join(root, "skills");
+      const skillDirectory = path.join(skillsDirectory, "review-code");
+      yield* fs.makeDirectory(skillDirectory, { recursive: true });
+      yield* fs.writeFileString(
+        path.join(skillDirectory, "SKILL.md"),
+        [
+          "---",
+          "name: review-code",
+          "description: Review code for correctness and regressions.",
+          "---",
+          "",
+          "# Review Code",
+          "",
+        ].join("\n"),
+      );
+
+      const mcpServer = new McpServer({ name: "test-server", version: "1.0.0" });
+      mcpServer.registerTool(
+        "McpEcho",
+        {
+          description: "Echo text through MCP.",
+          inputSchema: { text: z.string() },
+        },
+        ({ text }) => ({ content: [{ type: "text", text: `mcp:${text}` }] }),
+      );
+      const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+      yield* Effect.acquireRelease(
+        Effect.tryPromise(() => mcpServer.connect(serverTransport)),
+        () => Effect.promise(() => mcpServer.close()),
+      );
+
+      const exposedTools: Array<string> = [];
+      const prompts: Array<string> = [];
+      const llm = yield* LanguageModel.make({
+        generateText: () => Effect.succeed([finishPart]),
+        streamText: ({ prompt, tools }) => {
+          exposedTools.push(...tools.map((tool) => tool.name));
+          prompts.push(JSON.stringify(prompt));
+          return Stream.fromIterable([
+            {
+              type: "tool-call",
+              id: "read-uppercase",
+              name: "ReadUppercase",
+              params: { sandboxPath: "/workspace/message.txt" },
+            } as const,
+            {
+              type: "tool-call",
+              id: "mcp-echo",
+              name: "McpEcho",
+              params: { text: "hello" },
+            } as const,
+            finishPart,
+          ]);
+        },
+      });
+
+      yield* Effect.scoped(
+        Effect.gen(function* () {
+          const provider = yield* make({
+            toolkit: userToolkit,
+            skills: directory(skillsDirectory),
+            mcp: [fromTransport("test-server", clientTransport)],
+          }).pipe(
+            Effect.provide(userLayer),
+            Effect.provideService(Prefix, "prefix:"),
+            Effect.provideService(LanguageModel.LanguageModel, llm),
+          );
+          const snapshotExtension = Option.getOrThrow(provider.snapshotExtension);
+          const sandbox = makeSandbox(new Map([["/workspace/message.txt", "hello from sandbox"]]));
+          const agent = yield* provider.runSession(sandbox);
+          const parts = yield* agent
+            .prompt(Prompt.make("use every configured capability"))
+            .pipe(Stream.runCollect);
+
+          assert.deepStrictEqual(exposedTools, [
+            "SandboxExecute",
+            "SandboxReadFile",
+            "SandboxWriteFile",
+            "ReadUppercase",
+            "McpEcho",
+          ]);
+          assert.include(JSON.stringify(parts), "prefix:HELLO FROM SANDBOX");
+          assert.include(JSON.stringify(parts), "mcp:hello");
+          assert.include(prompts[0], "/opt/open-insight/skills/review-code/SKILL.md");
+          assert.strictEqual(snapshotExtension.context, root);
+          assert.deepStrictEqual(snapshotExtension.instructions, [
+            {
+              _tag: "Copy",
+              src: ["skills"],
+              dest: "/opt/open-insight/skills",
+            },
+          ]);
+        }),
+      );
+    }),
+  );
+
+  it.effect("rejects MCP tools that collide with configured tools", () =>
+    Effect.gen(function* () {
+      const mcpServer = new McpServer({ name: "conflicting-server", version: "1.0.0" });
+      mcpServer.registerTool("ReadUppercase", { inputSchema: { sandboxPath: z.string() } }, () => ({
+        content: [{ type: "text", text: "unexpected" }],
+      }));
+      const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+      yield* Effect.acquireRelease(
+        Effect.tryPromise(() => mcpServer.connect(serverTransport)),
+        () => Effect.promise(() => mcpServer.close()),
+      );
+
+      const llm = yield* LanguageModel.make({
+        generateText: () => Effect.succeed([finishPart]),
+        streamText: () => Stream.fromIterable([finishPart]),
+      });
+      const error = yield* Effect.scoped(
+        make({
+          toolkit: userToolkit,
+          mcp: [fromTransport("conflicting-server", clientTransport)],
+        }).pipe(
+          Effect.provide(userLayer),
+          Effect.provideService(Prefix, "prefix:"),
+          Effect.provideService(LanguageModel.LanguageModel, llm),
+          Effect.flip,
+        ),
+      );
+
+      assert.instanceOf(error, ToolNameConflictError);
+      assert.strictEqual(error.toolName, "ReadUppercase");
+      assert.deepStrictEqual(error.sources, ["agent", "conflicting-server"]);
+    }),
+  );
+});

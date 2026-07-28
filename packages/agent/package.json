@@ -31,9 +31,11 @@
     "prepublishOnly": "vp run build"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "catalog:",
     "@open-insight/core": "workspace:^",
     "effect": "catalog:",
-    "yaml": "catalog:"
+    "yaml": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@effect/platform-node": "catalog:",

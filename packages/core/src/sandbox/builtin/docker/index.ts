@@ -254,7 +254,7 @@ export const make = Effect.fn("sandbox/provider/docker")(
         yield* Effect.acquireRelease(
           spawner.success(run).pipe(
             Effect.timeout(timeout),
-            Effect.tapError(() => removeContainer(name)),
+            Effect.onError(() => removeContainer(name)),
             Effect.mapError(Sandbox.Error.sandboxStart(name)),
           ),
           () => removeContainer(name),

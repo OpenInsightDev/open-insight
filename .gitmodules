@@ -49,3 +49,6 @@
 [submodule ".repos/effect"]
 	path = .repos/effect
 	url = https://github.com/Effect-TS/effect.git
+[submodule ".repos/workbuddy-bench"]
+	path = .repos/workbuddy-bench
+	url = https://github.com/OpenInsightDev/workbuddy-bench.git

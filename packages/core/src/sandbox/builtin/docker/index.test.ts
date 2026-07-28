@@ -168,6 +168,56 @@ it.effect("acquires startup before removing an interrupted container", () =>
   }),
 );
 
+it.effect("removes a container when startup exits with a defect", () =>
+  Effect.gen(function* () {
+    const exists = yield* Ref.make(false);
+    const exitCode = ChildProcessSpawner.ExitCode(0);
+
+    const childProcessSpawner = ChildProcessSpawner.make((command) => {
+      if (command._tag !== "StandardCommand") {
+        return Effect.die("Unexpected piped command");
+      }
+
+      const [operation, ...args] = command.args;
+      if (command.command === "command" && operation === "-v") {
+        return Effect.succeed(
+          makeHandle(
+            args[0] === "docker" ? "/usr/bin/docker\n" : "",
+            Effect.succeed(ChildProcessSpawner.ExitCode(args[0] === "docker" ? 0 : 1)),
+          ),
+        );
+      }
+      if (command.command === "/usr/bin/docker" && operation === "run") {
+        return Effect.succeed(
+          makeHandle(
+            "",
+            Ref.set(exists, true).pipe(Effect.andThen(Effect.die("Docker startup output failed"))),
+          ),
+        );
+      }
+      if (command.command === "/usr/bin/docker" && operation === "rm") {
+        return Effect.succeed(makeHandle("", Ref.set(exists, false).pipe(Effect.as(exitCode))));
+      }
+
+      return Effect.die(`Unexpected command: ${command.command} ${command.args.join(" ")}`);
+    });
+
+    const provider = yield* Docker.make({}).pipe(
+      Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, childProcessSpawner),
+      Effect.provide([NodeCrypto.layer, NodeFileSystem.layer]),
+    );
+    const handle = yield* Snapshot.Handle.make(Snapshot.make({ image: "busybox:latest" })).pipe(
+      Effect.provide(NodeCrypto.layer),
+    );
+
+    yield* provider
+      .runSandbox({ handle, resources: Resource.Resources.make({}) })
+      .pipe(Effect.scoped, Effect.exit);
+
+    assert.isFalse(yield* Ref.get(exists));
+  }),
+);
+
 describe.skipIf(!dockerAvailable)("Docker sandbox end-to-end", () => {
   layer(testLayer, { excludeTestServices: true })((it) => {
     it.effect(
