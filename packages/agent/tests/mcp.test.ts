@@ -2,9 +2,9 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import { assert, it } from "@effect/vitest";
 import { Effect, Exit, Schema } from "effect";
-import { connectScoped } from "../src/mcp/client.ts";
-import { CustomServer, fromTransport, Server, StdioServer } from "../src/mcp/config.ts";
-import { ClientError } from "../src/mcp/error.ts";
+import { connectScoped } from "#/mcp/client.ts";
+import { CustomServer, fromTransport, Server, StdioServer } from "#/mcp/config.ts";
+import { ClientError } from "#/mcp/error.ts";
 
 it("decodes schema-backed MCP server configuration", () => {
   const server = Schema.decodeUnknownSync(Server)({

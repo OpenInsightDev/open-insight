@@ -1,12 +1,12 @@
 import { Agent, Sandbox } from "@open-insight/core";
 import { Context, Effect, Exit, FileSystem, Option, Path, Ref, Scope, Stream } from "effect";
 import { Chat, LanguageModel, Tool, Toolkit } from "effect/unstable/ai";
-import type * as McpConfig from "./mcp/config.ts";
-import type { Error as McpError } from "./mcp/error.ts";
-import * as McpToolkit from "./mcp/toolkit.ts";
-import type * as SkillsConfig from "./skills/config.ts";
-import * as Skills from "./skills/index.ts";
-import * as SandboxToolkit from "./toolkit.ts";
+import type * as McpConfig from "#/mcp/config.ts";
+import type { Error as McpError } from "#/mcp/error.ts";
+import * as McpToolkit from "#/mcp/toolkit.ts";
+import type * as SkillsConfig from "#/skills/config.ts";
+import * as Skills from "#/skills/index.ts";
+import * as SandboxToolkit from "#/toolkit.ts";
 
 type ToolkitServices<Tools extends Record<string, Tool.Any>> = Exclude<
   Tool.HandlerServices<Tools[keyof Tools]> | Tool.ResultDecodingServices<Tools[keyof Tools]>,

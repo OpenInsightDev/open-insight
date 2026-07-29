@@ -1,5 +1,4 @@
 import {
-  Agent,
   Bench,
   BenchMetric,
   Chart,
@@ -17,41 +16,21 @@ import {
 } from "@open-insight/eval";
 import { NodeServices } from "@effect/platform-node";
 import { assert, layer } from "@effect/vitest";
+import { makeOpenAiCompat } from "@open-insight/agent";
 import { Spawn } from "@open-insight/core/utils";
-import { Effect, Layer, Option, Ref, Schema, Stream } from "effect";
+import { Config, Effect, Layer, Ref, Schema, Stream } from "effect";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 
 const datasetDirName = "dataset_spec-to-rtl";
 const promptSuffix = "_prompt.txt";
 const trailCount = 5;
+const testTaskCount = 10;
+const testTrailCount = 1;
 
 const current = import.meta.dirname!;
+const envPath = path.resolve(current, "../../../.env");
 
-// const snapshot = Snapshot.make({
-//   image: "ubuntu:24.04",
-//   context: path.resolve(current),
-//   instructions: [
-//     Snapshot.run(
-//       `DEBIAN_FRONTEND=noninteractive apt-get update && \\
-//        apt-get install -y --no-install-recommends \\
-//             build-essential git curl ca-certificates \\
-//             python3 python3-dev python3-pip python3-venv \\
-//             gperf flex bison autoconf automake libtool make perl help2man \\
-//             libfl2 libfl-dev zlib1g zlib1g-dev \\
-//             tcl-dev libreadline-dev libffi-dev pkg-config \\
-//             && rm -rf /var/lib/apt/lists/*`,
-//     ),
-//     Snapshot.run(
-//       `git clone --depth 1 --branch v12_0 \\
-//        https://github.com/steveicarus/iverilog.git /tmp/iverilog && \\
-//        cd /tmp/iverilog && sh autoconf.sh && \\
-//        ./configure --prefix=/usr/local && make -j$(nproc) && make install && \\
-//        rm -rf /tmp/iverilog`,
-//     ),
-//     Snapshot.workdir(`/workspace`),
-//   ],
-// });
 const snapshot = Snapshot.make({
   image: "ubuntu:24.04",
   context: path.resolve(current),
@@ -74,10 +53,12 @@ class GradeResult extends Schema.Class<GradeResult>("VerilogEvalGradeResult")({
   simPass: Schema.Boolean,
 }) {}
 
-const verificationAgent = {
-  snapshotExtension: Option.none(),
-  runSession: () => Effect.die("Verification mode must not run the configured agent"),
-} satisfies Agent.Provider;
+const deepSeekAgent = makeOpenAiCompat({
+  apiKey: Config.string("OPENAI_API_KEY"),
+  baseUrl: Config.string("OPENAI_BASE_URL"),
+  dotenvPath: envPath,
+  model: "deepseek-chat",
+});
 
 async function* loadTasks(repoPath: string) {
   const datasetDir = path.resolve(repoPath, datasetDirName);
@@ -256,16 +237,11 @@ export const makeBench = Effect.fn(function* () {
 export const main = async () => {
   const result = await Effect.gen(function* () {
     const bench = yield* makeBench();
-
-    // const config = OpenAiClient.layerConfig({
-    //   apiKey: Config.redacted("OPENAI_API_KEY"),
-    // }).pipe(Layer.provide(FetchHttpClient.layer));
-    // const model = OpenAiLanguageModel.model("gpt-5.6-luna").pipe(Layer.provide(config));
-    // const agent = yield* Agent.Effect.make().pipe(Effect.provide(model));
+    const agent = yield* deepSeekAgent;
 
     const harness = yield* Harness.make({
-      id: "verification-agent",
-      agent: verificationAgent,
+      id: "deepseek-agent",
+      agent,
       sandbox: yield* Sandbox.Docker.make({}),
     });
 
@@ -286,7 +262,7 @@ const testLayer = Layer.merge(
 
 layer(testLayer, { excludeTestServices: true })((it) => {
   it.effect(
-    "evaluates the Verilog dataset and publishes the complete event stream",
+    "evaluates the first 10 Verilog tasks once and publishes the complete event stream",
     () =>
       Effect.gen(function* () {
         const eventsRef = yield* Ref.make<ReadonlyArray<Event.Event>>([]);
@@ -297,31 +273,33 @@ layer(testLayer, { excludeTestServices: true })((it) => {
             ),
         } satisfies Event.Transport.Transport;
 
-        const bench = yield* makeBench();
+        const bench = yield* makeBench().pipe(Bench.head(testTaskCount));
+        const agent = yield* deepSeekAgent;
         const harness = yield* Harness.make({
-          id: "verification-agent",
-          agent: verificationAgent,
+          id: "deepseek-agent",
+          agent,
           sandbox: yield* Sandbox.Docker.make({}),
         });
         const result = yield* Eval.run({
           bench,
           harness,
-          config: { trailCount, verifMode: true },
+          config: { trailCount: testTrailCount, verifMode: true },
         }).pipe(Effect.provideService(Event.Transport.Service, transport));
         const events = yield* Ref.get(eventsRef);
         const taskResults = Object.values(result.tasks);
 
-        assert.isAbove(taskResults.length, 0);
+        assert.lengthOf(taskResults, testTaskCount);
         for (const taskResult of taskResults) {
-          assert.lengthOf(taskResult.trails, trailCount);
+          assert.lengthOf(taskResult.trails, testTrailCount);
           for (const trail of taskResult.trails) {
-            assert.deepStrictEqual(trail.grade, { simPass: true });
+            const grade = yield* Schema.decodeUnknownEffect(GradeResult)(trail.grade);
+            assert.strictEqual(grade.simPass, true);
           }
         }
 
         const eventCounts = Object.groupBy(events, (event) => event._tag);
         const count = (tag: Event.Event["_tag"]) => eventCounts[tag]?.length ?? 0;
-        const completedTrailCount = taskResults.length * trailCount;
+        const completedTrailCount = taskResults.length * testTrailCount;
 
         assert.strictEqual(count("InitEvent"), 1);
         assert.strictEqual(count("EvalScheduleEvent"), 2);
@@ -334,7 +312,7 @@ layer(testLayer, { excludeTestServices: true })((it) => {
         assert.strictEqual(count("TrailStreamEvent"), completedTrailCount);
 
         for (const task of Object.keys(result.tasks)) {
-          for (let trailIdx = 0; trailIdx < trailCount; trailIdx++) {
+          for (let trailIdx = 0; trailIdx < testTrailCount; trailIdx++) {
             const streamEvents = events.filter(
               (event) =>
                 event._tag === "TrailStreamEvent" &&

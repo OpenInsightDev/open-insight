@@ -1,7 +1,7 @@
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, describe, it, layer } from "@effect/vitest";
 import { Effect, Exit, FileSystem, Path, Schema } from "effect";
-import { Skills } from "../src/index.ts";
+import { Skills } from "#/index.ts";
 
 const decodeMetadata = Schema.decodeUnknownExit(Skills.Metadata, {
   onExcessProperty: "ignore",

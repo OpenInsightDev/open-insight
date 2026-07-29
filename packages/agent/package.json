@@ -16,6 +16,9 @@
     "dist"
   ],
   "type": "module",
+  "imports": {
+    "#/*": "./src/*"
+  },
   "exports": {
     ".": "./dist/index.mjs",
     "./package.json": "./package.json"
@@ -31,6 +34,9 @@
     "prepublishOnly": "vp run build"
   },
   "dependencies": {
+    "@effect/ai-openai": "catalog:",
+    "@effect/ai-openai-compat": "catalog:",
+    "@effect/platform-node": "catalog:",
     "@modelcontextprotocol/sdk": "catalog:",
     "@open-insight/core": "workspace:^",
     "effect": "catalog:",
@@ -38,7 +44,6 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@effect/platform-node": "catalog:",
     "@effect/vitest": "catalog:",
     "@types/node": "catalog:",
     "bumpp": "catalog:",

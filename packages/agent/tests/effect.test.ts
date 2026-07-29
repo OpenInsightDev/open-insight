@@ -7,11 +7,11 @@ import { Context, Effect, FileSystem, Option, Path, Schema, Stream } from "effec
 import { LanguageModel, Prompt, Response, Tool, Toolkit } from "effect/unstable/ai";
 import { ExitCode } from "effect/unstable/process/ChildProcessSpawner";
 import { z } from "zod";
-import { make } from "../src/agent.ts";
-import { fromTransport } from "../src/mcp/config.ts";
-import { ToolConflict } from "../src/mcp/error.ts";
-import { directory } from "../src/skills/config.ts";
-import { layer, toolkit } from "../src/toolkit.ts";
+import { make } from "#/agent.ts";
+import { fromTransport } from "#/mcp/config.ts";
+import { ToolConflict } from "#/mcp/error.ts";
+import { directory } from "#/skills/config.ts";
+import { layer, toolkit } from "#/toolkit.ts";
 
 const makeSandbox = (files: Map<string, string>): Sandbox.Sandbox => ({
   spawn: ({ command, args, cwd, env }, options) =>
