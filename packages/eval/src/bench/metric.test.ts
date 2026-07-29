@@ -2,12 +2,15 @@ import { assert, it } from "@effect/vitest";
 import { NodeCrypto } from "@effect/platform-node";
 import { Snapshot } from "@open-insight/core/internal";
 import * as Metric from "#/metric/index.ts";
+import * as Grade from "#/grade/index.ts";
 import * as Task from "#/task/index.ts";
-import { Effect } from "effect";
+import { Effect, Schema } from "effect";
 import { make } from "./build.ts";
 import { metric, taskMetric, trajMetric } from "./metric.ts";
 
-type GradeResult = Readonly<{ pass: boolean }>;
+class GradeResult extends Schema.Class<GradeResult>("BenchMetricGradeResult")({
+  pass: Schema.Boolean,
+}) {}
 
 it.effect("accepts raw and Effect metric executors", () =>
   Effect.gen(function* () {
@@ -22,8 +25,13 @@ it.effect("accepts raw and Effect metric executors", () =>
     const task = yield* Task.make({
       id: "bench-metric-task",
       name: "Bench metric task",
-      snapshot: Snapshot.make({ image: "test-image" }),
-    }).pipe(Task.satisfies<GradeResult>());
+      snapshot: Snapshot.make("test-image"),
+    }).pipe(
+      Task.stage("grade", {
+        prompt: "Grade the task",
+        grader: Grade.make(GradeResult, async () => ({ pass: true })),
+      }),
+    );
 
     const bench = yield* make({ id: "bench-metric-exec-inputs", tasks: [task] }).pipe(
       metric(exec, { id: "raw-bench" }),

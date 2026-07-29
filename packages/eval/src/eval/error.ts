@@ -8,7 +8,7 @@ import * as Event from "#/event/index.ts";
 import { Agent, Prompt, Snapshot } from "@open-insight/core/internal";
 
 const NonNegativeInt = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0));
-type ExecTask = Task.Task<Grade.Result, Schema.JsonObject>;
+type ExecTask = Task.Task<Grade.Result, object>;
 
 export class InitError extends Schema.TaggedErrorClass<InitError>()("InitError", {
   cause: Schema.Defect(),

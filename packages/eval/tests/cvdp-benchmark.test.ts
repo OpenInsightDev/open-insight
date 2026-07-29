@@ -19,6 +19,14 @@ class CvdpDatapoint extends Schema.Class<CvdpDatapoint>("CvdpDatapoint")({
   harness: Schema.Record(Schema.String, Schema.String),
 }) {}
 
+class TaskExtras extends Schema.Class<TaskExtras>("CvdpTaskExtras")({
+  categories: Schema.Array(Schema.String),
+}) {}
+
+class GradeResult extends Schema.Class<GradeResult>("CvdpGradeResult")({
+  passed: Schema.Boolean,
+}) {}
+
 const writeFiles = Effect.fn(function* (root: string, files: Readonly<Record<string, string>>) {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
@@ -73,7 +81,7 @@ const makeTask = Effect.fn(function* (datapoint: CvdpDatapoint) {
     id: datapoint.id,
     name: datapoint.id,
     snapshot,
-    extras: { categories: datapoint.categories },
+    extras: { schema: TaskExtras, value: { categories: datapoint.categories } },
   }).pipe(
     Task.stage("solve", {
       prompt: [
@@ -81,6 +89,7 @@ const makeTask = Effect.fn(function* (datapoint: CvdpDatapoint) {
         { role: "user", content: datapoint.prompt },
       ],
       grader: Grade.make(
+        GradeResult,
         async ({ $ }) => {
           try {
             await $`pytest -s --log-cli-level=INFO -o cache_dir=/tmp/cvdp-pytest-cache /src/test_runner.py -v`;

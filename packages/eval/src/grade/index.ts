@@ -4,9 +4,14 @@ import { Effect, Schema, Stream } from "effect";
 import { Error, Retry } from "./error.ts";
 import { Response } from "effect/unstable/ai";
 
-// grade result must be json serializable
-export const Result = Schema.Record(Schema.String, Schema.Json);
+// Concrete grade schemas may decode to domain objects such as Schema.Class instances, while
+// every grade must still encode to a JSON object at persistence boundaries.
+export const Result: Schema.Codec<object, Schema.JsonObject> = Schema.Record(
+  Schema.String,
+  Schema.Json,
+);
 export type Result = Schema.Schema.Type<typeof Result>;
+export type ResultSchema<R extends Result = Result> = Schema.Codec<R, Schema.JsonObject>;
 
 export type Results = Readonly<Record<PropertyKey, Result>>;
 
@@ -24,40 +29,36 @@ export type BaseGrader<R extends Result = Result, Rs extends Results = never> = 
   Exec<R, Rs>
 >;
 
-export type InputGrader<R extends Result = Result, Rs extends Results = never> =
-  | ((ctx: Context<Rs>) => PromiseLike<R>)
-  | Readonly<{
-      verif: Verifier;
-      grade: (ctx: Context<Rs>) => PromiseLike<R>;
-      expect: NoInfer<R>;
-    }>;
-
-export type ExecutableGrader<R extends Result = Result, Rs extends Results = never> = BaseGrader<
-  R,
-  Rs
->;
-
 export type Verifier = (
   options: Sandbox.SandboxPromise &
     Readonly<{
       trajectory: Prompt.Trajectory;
     }>,
 ) => PromiseLike<Prompt.RawInput | null>;
-export type VerifGrader<R extends Result = Result, Rs extends Results = never> = Readonly<{
+export type VerifOptions<R extends Schema.JsonObject = Schema.JsonObject> = Readonly<{
   verif: Verifier;
-  grade: BaseGrader<R, Rs>;
   expect: R;
 }>;
+export type Options<R extends Schema.JsonObject = Schema.JsonObject> = VerifOptions<R>;
 
-export type Options<R extends Result = Result> = Readonly<{
-  verif: Verifier;
-  expect: NoInfer<R>;
-}>;
+export type Grader<R extends Result = Result, Rs extends Results = never> = Readonly<{
+  schema: ResultSchema<R>;
+  grade: BaseGrader<Schema.JsonObject, Rs>;
+}> &
+  Partial<VerifOptions>;
 
-export const make = <R extends Result, Rs extends Results = never>(
-  exec: Exec<R, Rs>,
-  options: Options<R>,
-): VerifGrader<R, Rs> => ({ ...options, grade: exec });
+export function make<GS extends ResultSchema, Rs extends Results = never>(
+  schema: GS,
+  grade: BaseGrader<GS["Encoded"], Rs>,
+  options?: VerifOptions<GS["Encoded"]>,
+): Grader<GS["Type"], Rs>;
+export function make(
+  schema: ResultSchema,
+  grade: BaseGrader<Schema.JsonObject>,
+  options?: VerifOptions,
+): Grader {
+  return options === undefined ? { schema, grade } : { schema, grade, ...options };
+}
 
 export const makeVerifAgent = ({
   verifier,
@@ -121,27 +122,22 @@ export const makeVerifAgent = ({
  * ```ts
  * import { Grade } from "@open-insight/eval";
  *
- * const grader: Grade.Grader<{ score: number; summary: string }> = async ({ $, trajectory }) => {
+ * class GradeResult extends Schema.Class<GradeResult>("GradeResult")({
+ *   score: Schema.Number,
+ *   summary: Schema.String,
+ * }) {}
+ *
+ * const grader = Grade.make(GradeResult, async ({ $, trajectory }) => {
  *   const output = await $`cat /workspace/result.txt`;
- *
- *   if (output.length === 0) {
- *     throw Grade.retry("result is empty. Please write the result to /workspace/result.txt.");
- *   }
- *   if (!output.startsWith("RESULT:")) {
- *     throw new Error("result.txt has an invalid format");
- *   }
- *
- *   return {
- *     score: 1,
- *     summary: `Accepted after ${trajectory.length} trajectory entries`,
- *   };
- * };
+ *   return { score: output.startsWith("RESULT:") ? 1 : 0, summary: `${trajectory.length}` };
+ * });
  * ```
  *
  * @example Grading with a verifier and an expected result
  *
  * ```ts
  * const grader = Grade.make(
+ *   GradeResult,
  *   async ({ readFile }) => {
  *     const output = await readFile({ sandboxPath: "/workspace/result.txt" });
  *     return { passed: output === "RESULT: ok" };
@@ -156,12 +152,8 @@ export const makeVerifAgent = ({
  * );
  * ```
  */
-export type Grader<R extends Result = Result, Rs extends Results = never> =
-  | ExecutableGrader<R, Rs>
-  | VerifGrader<R, Rs>;
-
-export const isVerifiable = (grader: Grader): grader is VerifGrader => "verif" in grader;
-export const assertVerifiable: (grader: Grader) => asserts grader is VerifGrader = (
+export const isVerifiable = (grader: Grader): grader is Grader & VerifOptions => "verif" in grader;
+export const assertVerifiable: (grader: Grader) => asserts grader is Grader & VerifOptions = (
   grader: Grader,
 ) => {
   if (!isVerifiable(grader)) {
@@ -169,14 +161,15 @@ export const assertVerifiable: (grader: Grader) => asserts grader is VerifGrader
   }
 };
 
-export const run = (grader: Grader<Result, Results>) =>
-  Effect.fn(function* (ctx: Context<Results>): Effect.fn.Return<Result, Error | Retry> {
-    const executable = isVerifiable(grader) ? grader.grade : grader;
+export const run = <R extends Result, Rs extends Results>(grader: Grader<R, Rs>) =>
+  Effect.fn(function* (ctx: Context<Rs>): Effect.fn.Return<R, Error | Retry> {
     const result = yield* Effect.tryPromise({
-      try: () => executable(ctx),
+      try: () => grader.grade(ctx),
       catch: (cause) => (cause instanceof Retry ? cause : Error.exec(cause)),
     });
-    return yield* Schema.decodeEffect(Result)(result).pipe(Effect.mapError(Error.result));
+    return yield* Schema.decodeUnknownEffect(grader.schema)(result).pipe(
+      Effect.mapError(Error.result),
+    );
   });
 
 export * from "./builtin/index.ts";

@@ -9,6 +9,7 @@ import {
   Ref,
   Schedule,
   Scope,
+  Schema,
   Stream,
 } from "effect";
 import { Response } from "effect/unstable/ai";
@@ -253,11 +254,13 @@ export const createTrail = Effect.fn("exec/createTrail")(
           );
         });
 
-        const executeGrader = Effect.fn("exec/runTrail/executeGrader")(function* (
-          grader: Grade.Grader,
+        const executeGrader = Effect.fn("exec/runTrail/executeGrader")(function* <
+          G extends Grade.Result,
+        >(
+          grader: Grade.Grader<G, StageResults>,
           results: StageResults,
           trajectory: Prompt.Trajectory,
-        ): Effect.fn.Return<Grade.Result, Error | Grade.Retry, Scope.Scope> {
+        ): Effect.fn.Return<G, Error | Grade.Retry, Scope.Scope> {
           return yield* Grade.run(grader)({
             ...ctx,
             results,
@@ -270,10 +273,10 @@ export const createTrail = Effect.fn("exec/createTrail")(
           );
         });
 
-        const runGrader = Effect.fn("exec/runTrail/runGrader")(function* (
-          grader: Grade.Grader,
+        const runGrader = Effect.fn("exec/runTrail/runGrader")(function* <G extends Grade.Result>(
+          grader: Grade.Grader<G, StageResults>,
           results: StageResults,
-        ): Effect.fn.Return<Grade.Result, Error | Grade.Retry, Scope.Scope> {
+        ): Effect.fn.Return<G, Error | Grade.Retry, Scope.Scope> {
           const trajectory = yield* getTrajectory;
           return yield* executeGrader(grader, results, trajectory);
         });
@@ -297,12 +300,15 @@ export const createTrail = Effect.fn("exec/createTrail")(
 
           if (verifMode) {
             Grade.assertVerifiable(grader);
+            const expectedGrade = yield* Schema.decodeUnknownEffect(grader.schema)(
+              grader.expect,
+            ).pipe(Effect.mapError((error) => Error.grade(Grade.Error.result(error))));
 
             const initialGrade = yield* executeGrader(grader, results, Prompt.empty).pipe(
               Effect.map(Option.some),
               Effect.catchTag("Retry", () => Effect.succeed(Option.none())),
             );
-            if (Option.isSome(initialGrade) && Equal.equals(initialGrade.value, grader.expect)) {
+            if (Option.isSome(initialGrade) && Equal.equals(initialGrade.value, expectedGrade)) {
               return yield* Effect.fail(Error.verifInitialMatch(task, grader.expect));
             }
 
@@ -379,10 +385,17 @@ export const createTrail = Effect.fn("exec/createTrail")(
           const usage = yield* Ref.get(usageRef);
           if (verifMode) {
             Grade.assertVerifiable(grader);
-            if (!Equal.equals(grade, grader.expect)) {
+            const expectedGrade = yield* Schema.decodeUnknownEffect(grader.schema)(
+              grader.expect,
+            ).pipe(Effect.mapError((error) => Error.grade(Grade.Error.result(error))));
+            if (!Equal.equals(grade, expectedGrade)) {
               return yield* Effect.fail(Error.verifMismatch(task, grader.expect, grade));
             }
           }
+
+          const encodedGrade = yield* Schema.encodeUnknownEffect(grader.schema)(grade).pipe(
+            Effect.mapError((error) => Error.grade(Grade.Error.result(error))),
+          );
 
           yield* Event.TrailStagedEvent.makeEffect({
             bench,
@@ -390,7 +403,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
             task: task.metadata.id,
             trailIdx: idx,
             stage: metadata.id,
-            grade,
+            grade: encodedGrade,
             usage,
           }).pipe(offer);
 
@@ -445,7 +458,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
           }),
         );
         const finishedAt = yield* DateTime.now;
-        return TrailResult.make({ startedAt, finishedAt, grade, trajectory, usage });
+        return { startedAt, finishedAt, grade, trajectory, usage } satisfies TrailResult;
       },
       (effect, trailIdx) =>
         effect.pipe(

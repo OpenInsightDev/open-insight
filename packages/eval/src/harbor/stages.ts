@@ -1,9 +1,9 @@
 import { Crypto, Effect, FileSystem, Path, Scope } from "effect";
-import type * as Grade from "#/grade/index.ts";
+import * as Grade from "#/grade/index.ts";
 import * as Task from "#/task/index.ts";
 import { Error as TasksError } from "#/tasks/error.ts";
 import type { StepConfig, TaskConfig } from "./config.ts";
-import { type GradeResult, wrapGrader } from "./reward.ts";
+import { GradeResult, wrapGrader } from "./reward.ts";
 import { makeGrader, makeInit, makeVerifier } from "./runtime.ts";
 import type { HarborTask } from "./types.ts";
 
@@ -71,18 +71,20 @@ export const makeStages = Effect.fn(function* (
       {
         name: "main",
         instruction: yield* readPrompt(path.join(taskDir, "instruction.md")),
-        grader:
+        grader: Grade.make(
+          GradeResult,
+          grader,
           rootSolutionDir === undefined
-            ? grader
+            ? undefined
             : {
                 verif: makeVerifier({
                   solutionDir: rootSolutionDir,
                   workdir,
                   env: config.solution?.env,
                 }),
-                grade: grader,
                 expect: { reward: 1 },
               },
+        ),
         init: makeInit({
           workdir,
           setup: false,
@@ -146,18 +148,20 @@ export const makeStages = Effect.fn(function* (
     specs.push({
       name: step.name,
       instruction: yield* readPrompt(path.join(stepDir, "instruction.md")),
-      grader:
+      grader: Grade.make(
+        GradeResult,
+        grader,
         solutionDir === undefined
-          ? grader
+          ? undefined
           : {
               verif: makeVerifier({
                 solutionDir,
                 workdir,
                 env: config.solution?.env,
               }),
-              grade: grader,
               expect: { reward: 1 },
             },
+      ),
       init: makeInit({
         workdir,
         workdirDir,

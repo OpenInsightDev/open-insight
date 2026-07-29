@@ -1,4 +1,4 @@
-import { IDSchema } from "#/utils/id.ts";
+import { IDSchema } from "#/utils/schema.ts";
 import { Schema } from "effect";
 
 export class Metadata extends Schema.Class<Metadata>("Metadata")({

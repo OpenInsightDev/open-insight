@@ -18,7 +18,7 @@ import {
 import { NodeServices } from "@effect/platform-node";
 import { assert, layer } from "@effect/vitest";
 import { Spawn } from "@open-insight/core/utils";
-import { Effect, Layer, Ref, Stream } from "effect";
+import { Effect, Layer, Option, Ref, Schema, Stream } from "effect";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 
@@ -66,8 +66,18 @@ const snapshot = Snapshot.make({
   ],
 });
 
-type GradeResult = Readonly<{ simPass: boolean }>;
-type Extras = Readonly<{ category: string }>;
+class TaskExtras extends Schema.Class<TaskExtras>("VerilogEvalTaskExtras")({
+  category: Schema.String,
+}) {}
+
+class GradeResult extends Schema.Class<GradeResult>("VerilogEvalGradeResult")({
+  simPass: Schema.Boolean,
+}) {}
+
+const verificationAgent = {
+  snapshotExtension: Option.none(),
+  runSession: () => Effect.die("Verification mode must not run the configured agent"),
+} satisfies Agent.Provider;
 
 async function* loadTasks(repoPath: string) {
   const datasetDir = path.resolve(repoPath, datasetDirName);
@@ -88,12 +98,13 @@ async function* loadTasks(repoPath: string) {
       id,
       name: id,
       snapshot,
-      extras: { category: "verilog-eval" },
+      extras: { schema: TaskExtras, value: { category: "verilog-eval" } },
     })
       .pipe(
         Task.stage("solve", {
           prompt,
           grader: Grade.make(
+            GradeResult,
             async ({ upload, $ }) => {
               await $`mkdir -p /tmp/verilog-eval`;
               await upload({
@@ -133,7 +144,6 @@ async function* loadTasks(repoPath: string) {
           ),
         }),
       )
-      .pipe(Task.satisfies<GradeResult, Extras>())
       .pipe(
         Task.metric(
           TaskMetric.passAtK(1).pipe(TaskMetric.mapGrade(({ simPass }) => ({ pass: simPass }))),
@@ -198,6 +208,7 @@ export const makeBench = Effect.fn(function* () {
     branch: "main",
     commit: "c498220d0a52248f8e3fdffe279075215bde2da6",
   })((repoPath) => Tasks.fromAsyncIter(loadTasks(repoPath)));
+
   return yield* Bench.make({
     id: "verilog-eval",
     tasks,
@@ -252,11 +263,9 @@ export const main = async () => {
     // const model = OpenAiLanguageModel.model("gpt-5.6-luna").pipe(Layer.provide(config));
     // const agent = yield* Agent.Effect.make().pipe(Effect.provide(model));
 
-    const agent = yield* Agent.Dummy.make();
-
     const harness = yield* Harness.make({
-      id: "dummy-agent",
-      agent,
+      id: "verification-agent",
+      agent: verificationAgent,
       sandbox: yield* Sandbox.Docker.make({}),
     });
 
@@ -289,10 +298,9 @@ layer(testLayer, { excludeTestServices: true })((it) => {
         } satisfies Event.Transport.Transport;
 
         const bench = yield* makeBench();
-        const agent = yield* Agent.Dummy.make();
         const harness = yield* Harness.make({
-          id: "dummy-agent",
-          agent,
+          id: "verification-agent",
+          agent: verificationAgent,
           sandbox: yield* Sandbox.Docker.make({}),
         });
         const result = yield* Eval.run({

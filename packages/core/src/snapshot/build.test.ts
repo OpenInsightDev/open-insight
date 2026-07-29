@@ -6,6 +6,17 @@ import * as Snapshot from "./index.ts";
 
 describe("Snapshot", () => {
   layer(NodeServices.layer)((it) => {
+    it.effect("constructs an image-only snapshot from a string", () =>
+      Effect.sync(() => {
+        const snapshot = Snapshot.make("alpine:3.22");
+
+        assert.strictEqual(snapshot._tag, "Instructions");
+        assert.strictEqual(snapshot.image, "alpine:3.22");
+        assert.strictEqual(snapshot.context, "/tmp");
+        assert.deepStrictEqual(snapshot.instructions, []);
+      }),
+    );
+
     it.effect("constructs and encodes provider-independent instructions", () =>
       Effect.sync(() => {
         const snapshot = Snapshot.make({
@@ -37,7 +48,7 @@ describe("Snapshot", () => {
             "# syntax=docker/dockerfile:1\nFROM alpine\nRUN --mount=type=cache,target=/var/cache echo ready\n",
           );
 
-          const snapshot = yield* Snapshot.fromContainerfile({ filePath });
+          const snapshot = yield* Snapshot.build({ filePath });
 
           assert.strictEqual(snapshot._tag, "Containerfile");
           assert.strictEqual(snapshot.filePath, yield* fs.realPath(filePath));

@@ -17,7 +17,7 @@ it.effect("accepts raw and Effect metric executors", () =>
     const task = yield* make({
       id: "metric-exec-inputs",
       name: "Metric exec inputs",
-      snapshot: Snapshot.make({ image: "test-image" }),
+      snapshot: Snapshot.make("test-image"),
     }).pipe(
       metric(taskExec, { id: "raw-task" }),
       metric(Metric.Task.exec(taskExec), { id: "effect-task" }),

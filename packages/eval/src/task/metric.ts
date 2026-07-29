@@ -20,22 +20,11 @@ const makeMetric = <G extends Grade.Result, R extends Schema.JsonObject>(
 const makeTrajMetric = <R extends Schema.JsonObject>(options: Metric.Traj.Options<R>) =>
   Metric.Traj.make(options).pipe(Effect.mapError(Error.metadata));
 
-type TaskMetricBuilder<G extends Grade.Result> = <
-  Ex extends Schema.JsonObject,
-  S extends Stage,
-  E,
-  Env,
->(
+type TaskMetricBuilder<G extends Grade.Result> = <Ex extends object, S extends Stage, E, Env>(
   task: Effect.Effect<Task<G, Ex, S>, E, Env>,
 ) => Effect.Effect<Task<G, Ex, S>, E | Error, Env | Crypto.Crypto>;
 
-type TrajMetricBuilder = <
-  G extends Grade.Result,
-  Ex extends Schema.JsonObject,
-  S extends Stage,
-  E,
-  Env,
->(
+type TrajMetricBuilder = <G extends Grade.Result, Ex extends object, S extends Stage, E, Env>(
   task: Effect.Effect<Task<G, Ex, S>, E, Env>,
 ) => Effect.Effect<Task<G, Ex, S>, E | Error, Env | Crypto.Crypto>;
 
@@ -51,7 +40,7 @@ export function metric<G extends Grade.Result, R extends Schema.JsonObject = Sch
   exec: Metric.Task.ExecEffect<G, R> | Metric.Task.Exec<G, R>,
   options: TaskMetricOptions<G, R> = {},
 ): TaskMetricBuilder<G> {
-  return <Ex extends Schema.JsonObject, S extends Stage, E, Env>(
+  return <Ex extends object, S extends Stage, E, Env>(
     task: Effect.Effect<Task<G, Ex, S>, E, Env>,
   ): Effect.Effect<Task<G, Ex, S>, E | Error, Env | Crypto.Crypto> =>
     task.pipe(
@@ -75,7 +64,7 @@ export function trajMetric<R extends Schema.JsonObject = Schema.JsonObject>(
   exec: Metric.Traj.Exec<R>,
   options: TrajMetricOptions<R> = {},
 ): TrajMetricBuilder {
-  return <G extends Grade.Result, Ex extends Schema.JsonObject, S extends Stage, E, Env>(
+  return <G extends Grade.Result, Ex extends object, S extends Stage, E, Env>(
     task: Effect.Effect<Task<G, Ex, S>, E, Env>,
   ): Effect.Effect<Task<G, Ex, S>, E | Error, Env | Crypto.Crypto> =>
     task.pipe(

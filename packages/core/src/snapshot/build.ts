@@ -86,7 +86,7 @@ export const extend =
       context: snapshot.context,
     });
 
-export const fromContainerfile = Effect.fn(function* ({
+export const build = Effect.fn(function* ({
   filePath,
   context,
 }: {
@@ -107,16 +107,21 @@ export const fromContainerfile = Effect.fn(function* ({
   });
 });
 
-/** Create a snapshot from an OCI image reference and provider-independent instructions. */
-export const make = ({
-  image,
-  context = "/tmp",
-  instructions = [],
-}: {
+export type MakeOptions = {
   image: string;
   context?: string;
-  instructions?: Instructions;
-}): InstructionsSnapshot =>
-  new InstructionsSnapshot({ image: Image.make(image), context, instructions });
+  instructions: Instructions;
+};
 
-export const Scratch = make({ image: Image.make("scratch") });
+/** Create a snapshot from an OCI image reference and optional provider-independent instructions. */
+export function make(image: string): InstructionsSnapshot;
+export function make(options: MakeOptions): InstructionsSnapshot;
+export function make(imageOrOptions: string | MakeOptions): InstructionsSnapshot {
+  const { image, context = "/tmp" } =
+    typeof imageOrOptions === "string" ? { image: imageOrOptions } : imageOrOptions;
+  const instructions = typeof imageOrOptions === "string" ? [] : imageOrOptions.instructions;
+
+  return new InstructionsSnapshot({ image: Image.make(image), context, instructions });
+}
+
+export const Scratch = make("scratch");

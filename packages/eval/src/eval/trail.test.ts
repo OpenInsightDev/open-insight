@@ -10,6 +10,14 @@ import * as Task from "#/task/index.ts";
 import * as Config from "./config.ts";
 import { createTrail } from "./trail.ts";
 
+class PassedGrade extends Schema.Class<PassedGrade>("TrailPassedGrade")({
+  passed: Schema.Boolean,
+}) {}
+
+class InitializedGrade extends Schema.Class<InitializedGrade>("TrailInitializedGrade")({
+  initialized: Schema.Boolean,
+}) {}
+
 const makeSandbox = (files: Map<string, string>): Sandbox.Sandbox => {
   const handle = { exitCode: ExitCode(0), stdout: "", stderr: "" };
 
@@ -59,6 +67,7 @@ const makeRunTrail = Effect.fn(function* ({ initiallySolved }: { initiallySolved
   const grades: boolean[] = [];
   let verifierRuns = 0;
   const grader = Grade.make(
+    PassedGrade,
     async ({ readFile }) => {
       const solved = (await readFile({ sandboxPath: solutionPath })) === "solved";
       grades.push(solved);
@@ -74,9 +83,13 @@ const makeRunTrail = Effect.fn(function* ({ initiallySolved }: { initiallySolved
     },
   );
 
-  const snapshot = Snapshot.make({ image: "test-image" });
+  const snapshot = Snapshot.make("test-image");
   const handle = yield* Snapshot.Handle.make(snapshot);
-  const task = yield* Task.make({ id: "test-task", name: "Test task", snapshot }).pipe(
+  const task = yield* Task.make({
+    id: "test-task",
+    name: "Test task",
+    snapshot,
+  }).pipe(
     Task.stage("solve", {
       id: "solve",
       prompt: "Solve the task",
@@ -115,9 +128,13 @@ describe("verification trail", () => {
         const initializedPath = "/workspace/initialized.txt";
         const files = new Map<string, string>();
         const calls: Array<string> = [];
-        const snapshot = Snapshot.make({ image: "test-image" });
+        const snapshot = Snapshot.make("test-image");
         const handle = yield* Snapshot.Handle.make(snapshot);
-        const task = yield* Task.make({ id: "test-task", name: "Test task", snapshot }).pipe(
+        const task = yield* Task.make({
+          id: "test-task",
+          name: "Test task",
+          snapshot,
+        }).pipe(
           Task.stage("solve", {
             id: "solve",
             prompt: "Solve the task",
@@ -125,12 +142,12 @@ describe("verification trail", () => {
               calls.push("init");
               await writeFile({ sandboxPath: initializedPath, content: "ready" });
             },
-            grader: async ({ readFile }) => {
+            grader: Grade.make(InitializedGrade, async ({ readFile }) => {
               calls.push("grader");
               return {
                 initialized: (await readFile({ sandboxPath: initializedPath })) === "ready",
               };
-            },
+            }),
           }),
         );
         const sandboxProvider = {
@@ -165,7 +182,8 @@ describe("verification trail", () => {
         const result = yield* runTrail(0);
 
         assert.deepStrictEqual(calls, ["init", "agent", "grader"]);
-        assert.deepStrictEqual(result.grade, { initialized: true });
+        assert.instanceOf(result.grade, InitializedGrade);
+        assert.isTrue(result.grade.initialized);
         assert.isTrue(DateTime.isLessThanOrEqualTo(result.startedAt, result.finishedAt));
       }),
     );
@@ -177,7 +195,8 @@ describe("verification trail", () => {
 
         assert.deepStrictEqual(grades, [false, true]);
         assert.isAbove(verifierRuns(), 0);
-        assert.deepStrictEqual(result.grade, { passed: true });
+        assert.instanceOf(result.grade, PassedGrade);
+        assert.isTrue(result.grade.passed);
       }),
     );
 

@@ -240,7 +240,7 @@ export const makeSnapshot = Effect.fn("Task.Load.makeHarborSnapshot")(function* 
     );
   }
   if (instructions.length === 0) {
-    return yield* Snapshot.fromContainerfile({ filePath: dockerfile, context: envDir }).pipe(
+    return yield* Snapshot.build({ filePath: dockerfile, context: envDir }).pipe(
       Effect.mapError(TasksError.init),
     );
   }
@@ -257,7 +257,7 @@ export const makeSnapshot = Effect.fn("Task.Load.makeHarborSnapshot")(function* 
   yield* fs
     .writeFileString(file, `${source.trimEnd()}\n${suffix}`)
     .pipe(Effect.mapError(TasksError.source));
-  return yield* Snapshot.fromContainerfile({ filePath: file, context: envDir }).pipe(
+  return yield* Snapshot.build({ filePath: file, context: envDir }).pipe(
     Effect.mapError(TasksError.init),
   );
 });

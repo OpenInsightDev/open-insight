@@ -63,7 +63,7 @@ export type Options<R extends Result = Result, Rs extends Results = never> = Rea
  * @example
  * ```ts
  * const grader = Grade.Sandbox.make({
- *   snapshot: Snapshot.make({ image: "python:3.13-slim" }),
+ *   snapshot: Snapshot.make("python:3.13-slim"),
  *   grade: async ({ grade, copyFromAgent }) => {
  *     await copyFromAgent({
  *       agentPath: "/workspace/answer.py",

@@ -4,7 +4,7 @@ export {
   Snapshot,
   encode,
   extend,
-  fromContainerfile,
+  build,
   hash,
   isContainerfile,
   isInstructions,

@@ -1,4 +1,4 @@
-import { Crypto, Effect, FileSystem, Path, Scope } from "effect";
+import { Crypto, Effect, FileSystem, Path, Schema, Scope } from "effect";
 import * as Task from "#/task/index.ts";
 import { Error as TasksError } from "#/tasks/error.ts";
 import { readConfig } from "./config.ts";
@@ -49,7 +49,10 @@ export const makeTask = Effect.fn("Task.Load.makeHarborTask")(function* (taskDir
     authors: pkg?.authors?.map(author),
     snapshot,
     resources: makeResources(config),
-    extras: config.metadata ?? {},
+    extras: {
+      schema: Schema.Record(Schema.String, Schema.Json),
+      value: config.metadata ?? {},
+    },
   }).pipe(Effect.mapError(TasksError.init));
 
   return yield* addStages(base, stages);

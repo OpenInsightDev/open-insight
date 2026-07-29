@@ -11,18 +11,9 @@ curl -fsSL https://deno.land/install.sh | sh
 ```bash
 deno init my-harness && cd my-harness
 mkdir -p benchmarks
-deno add effect@beta @open-insight/eval
+deno add effect@beta @open-insight/core @open-insight/eval
 # 可选：常用的辅助库
-deno add @std/path @effect/platform-node@beta
-```
-
-```diff
-# deno.json
-{
-+  "workspace": [
-+    "./benchmarks/*"
-+  ],
-}
+deno add @std/path @std/fs @effect/platform-node@beta
 ```
 
 ## Resources

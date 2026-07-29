@@ -144,7 +144,7 @@ it.effect("acquires startup before removing an interrupted container", () =>
       Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, childProcessSpawner),
       Effect.provide([NodeCrypto.layer, NodeFileSystem.layer]),
     );
-    const handle = yield* Snapshot.Handle.make(Snapshot.make({ image: "busybox:latest" })).pipe(
+    const handle = yield* Snapshot.Handle.make(Snapshot.make("busybox:latest")).pipe(
       Effect.provide(NodeCrypto.layer),
     );
 
@@ -206,7 +206,7 @@ it.effect("removes a container when startup exits with a defect", () =>
       Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, childProcessSpawner),
       Effect.provide([NodeCrypto.layer, NodeFileSystem.layer]),
     );
-    const handle = yield* Snapshot.Handle.make(Snapshot.make({ image: "busybox:latest" })).pipe(
+    const handle = yield* Snapshot.Handle.make(Snapshot.make("busybox:latest")).pipe(
       Effect.provide(NodeCrypto.layer),
     );
 
@@ -363,7 +363,7 @@ describe.skipIf(!dockerAvailable)("Docker sandbox end-to-end", () => {
             ].join("\n"),
           );
 
-          const snapshot = yield* Snapshot.fromContainerfile({
+          const snapshot = yield* Snapshot.build({
             filePath: containerfilePath,
             context,
           });
@@ -435,7 +435,7 @@ describe.skipIf(!dockerAvailable)("Docker sandbox end-to-end", () => {
         Effect.gen(function* () {
           const fs = yield* FileSystem.FileSystem;
           const context = yield* fs.makeTempDirectoryScoped();
-          const snapshot = Snapshot.make({ image: "busybox:latest", context });
+          const snapshot = Snapshot.make({ image: "busybox:latest", context, instructions: [] });
           const provider = yield* Docker.make({});
           const handle = yield* Effect.scoped(provider.aquireSnapshot({ snapshot, cache: true }));
 

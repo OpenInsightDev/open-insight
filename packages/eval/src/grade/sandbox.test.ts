@@ -46,7 +46,7 @@ describe("sandbox grader", () => {
     it.effect("uses a fresh grade sandbox and supports copying between sandboxes", () =>
       Effect.gen(function* () {
         const fs = yield* FileSystem.FileSystem;
-        const snapshot = Snapshot.make({ image: "grade-image" });
+        const snapshot = Snapshot.make("grade-image");
         const handle = yield* Snapshot.Handle.make(snapshot);
         const agentFiles = new Map([["/workspace/answer.txt", "answer\0payload"]]);
         const gradeSandboxes: Array<Map<string, string>> = [];
