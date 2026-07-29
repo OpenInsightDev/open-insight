@@ -1,64 +1,80 @@
-import { Crypto, Effect, Encoding, FileSystem, Schema } from "effect";
+import { NodeSink, NodeStream } from "@effect/platform-node";
+import { Effect, FileSystem, Path, Schema, Stream } from "effect";
 import { HttpClient, HttpClientResponse } from "effect/unstable/http";
 import * as Task from "#/task/index.ts";
 import { Error } from "./error.ts";
 import type { Load } from "./index.ts";
-import { createReadStream, createWriteStream } from "node:fs";
-import { mkdir } from "node:fs/promises";
-import * as os from "node:os";
-import * as path from "node:path";
-import { pipeline } from "node:stream/promises";
 import { createGunzip, createZstdDecompress } from "node:zlib";
 import * as tar from "tar-stream";
 
-const archiveHash = Effect.fn(function* (url: string) {
-  const crypto = yield* Crypto.Crypto;
-  const bytes = new TextEncoder().encode(url);
-  const digest = yield* crypto.digest("SHA-256", bytes);
-  return Encoding.encodeHex(digest);
-});
-
-const archiveEntryPath = (root: string, entryName: string) => {
+const archiveEntryPath = Effect.fn(function* (root: string, entryName: string) {
+  const path = yield* Path.Path;
   const resolvedRoot = path.resolve(root);
   const target = path.resolve(resolvedRoot, entryName);
   if (target !== resolvedRoot && !target.startsWith(`${resolvedRoot}${path.sep}`)) {
-    throw new globalThis.Error(`Archive entry escapes extraction directory: ${entryName}`);
+    return yield* Effect.fail(
+      Error.source(
+        new globalThis.Error(`Archive entry escapes extraction directory: ${entryName}`),
+      ),
+    );
   }
   return target;
-};
+});
 
-const extractArchive = async (
-  archivePath: string,
+const entryStream = (entry: tar.Entry) =>
+  NodeStream.fromReadable<Uint8Array, Error>({
+    evaluate: () => entry,
+    onError: Error.source,
+  });
+
+const extractArchive = Effect.fn(function* <R>(
+  archive: Stream.Stream<Uint8Array, Error, R>,
   distPath: string,
   format: "tar.gz" | "tar.zst",
-) => {
-  const extract = tar.extract();
-  const decompressor = format === "tar.zst" ? createZstdDecompress() : createGunzip();
-  const extraction = pipeline(createReadStream(archivePath), decompressor, extract);
+) {
+  const fs = yield* FileSystem.FileSystem;
+  const path = yield* Path.Path;
+  const extract = yield* Effect.sync(() => tar.extract());
 
-  for await (const entry of extract) {
-    const target = archiveEntryPath(distPath, entry.header.name);
-    if (entry.header.type === "directory") {
-      await mkdir(target, { recursive: true });
-      entry.resume();
-      continue;
-    }
+  const writeArchive = archive.pipe(
+    NodeStream.pipeThroughDuplex<Uint8Array, Error>({
+      evaluate: () => (format === "tar.zst" ? createZstdDecompress() : createGunzip()),
+      onError: Error.source,
+    }),
+    Stream.run(
+      NodeSink.fromWritable({
+        evaluate: () => extract,
+        onError: Error.source,
+      }),
+    ),
+  );
 
-    if (
-      entry.header.type === undefined ||
-      entry.header.type === null ||
-      entry.header.type === "file"
-    ) {
-      await mkdir(path.dirname(target), { recursive: true });
-      await pipeline(entry, createWriteStream(target));
-      continue;
-    }
+  const writeEntries = Stream.fromAsyncIterable(extract, Error.source).pipe(
+    Stream.mapEffect(
+      Effect.fn(function* (entry) {
+        const target = yield* archiveEntryPath(distPath, entry.header.name);
+        if (entry.header.type === "directory") {
+          yield* fs.makeDirectory(target, { recursive: true });
+          return yield* entryStream(entry).pipe(Stream.runDrain);
+        }
 
-    entry.resume();
-  }
+        if (
+          entry.header.type === undefined ||
+          entry.header.type === null ||
+          entry.header.type === "file"
+        ) {
+          yield* fs.makeDirectory(path.dirname(target), { recursive: true });
+          return yield* entryStream(entry).pipe(Stream.run(fs.sink(target)));
+        }
 
-  await extraction;
-};
+        return yield* entryStream(entry).pipe(Stream.runDrain);
+      }),
+    ),
+    Stream.runDrain,
+  );
+
+  yield* Effect.zip(writeArchive, writeEntries, { concurrent: true });
+});
 
 export const withDist = ({
   url,
@@ -71,35 +87,15 @@ export const withDist = ({
     exec: (options: { distPath: string }) => Load<T, E, R>,
   ) {
     const fs = yield* FileSystem.FileSystem;
+    const distPath = yield* fs.makeTempDirectoryScoped({ prefix: "open-insight-dist-" });
+    const parsedUrl = yield* Schema.decodeUnknownEffect(Schema.URLFromString)(url);
+    const archive = HttpClient.get(parsedUrl).pipe(
+      Effect.flatMap(HttpClientResponse.filterStatusOk),
+      HttpClientResponse.stream,
+      Stream.mapError(Error.source),
+    );
 
-    const hash = yield* archiveHash(url);
-    const distPath = path.join(os.tmpdir(), `open-insight-dist-${hash}`);
-    const readyPath = path.join(distPath, ".complete");
-    const cacheHit = yield* fs.exists(readyPath);
-
-    if (!cacheHit) {
-      yield* fs.remove(distPath, { recursive: true, force: true });
-      yield* fs.makeDirectory(distPath, { recursive: true });
-
-      const archivePath = yield* fs.makeTempFile({
-        suffix: `.${format}`,
-      });
-      yield* Effect.gen(function* () {
-        const parsedUrl = yield* Schema.decodeUnknownEffect(Schema.URLFromString)(url);
-        const bytes = yield* HttpClient.get(parsedUrl).pipe(
-          Effect.flatMap(HttpClientResponse.filterStatusOk),
-          Effect.flatMap(({ arrayBuffer }) => arrayBuffer),
-          Effect.map((buffer) => new Uint8Array(buffer)),
-        );
-        yield* fs.writeFile(archivePath, bytes);
-
-        yield* Effect.tryPromise({
-          try: () => extractArchive(archivePath, distPath, format),
-          catch: Error.source,
-        });
-        yield* fs.writeFileString(readyPath, url);
-      }).pipe(Effect.ensuring(fs.remove(archivePath, { force: true }).pipe(Effect.ignore)));
-    }
+    yield* extractArchive(archive, distPath, format);
 
     const loader = yield* Effect.try({
       try: () => exec({ distPath }),
