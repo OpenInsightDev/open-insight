@@ -5,8 +5,8 @@ import { FetchHttpClient } from "effect/unstable/http";
 import {
   makeOpenAi,
   makeOpenAiCompat,
-  openAiCompatLanguageModelLayer,
-  openAiLanguageModelLayer,
+  openAiCompatLayer,
+  openAiLayer,
   type OpenAiConfig,
   type OpenAiEndpoint,
 } from "#/openai.ts";
@@ -24,7 +24,7 @@ const config: OpenAiConfig = {
   model: "test-model",
 };
 
-const requestUrl = (modelLayer: ReturnType<typeof openAiLanguageModelLayer>) =>
+const requestUrl = (layer: ReturnType<typeof openAiLayer>) =>
   Effect.gen(function* () {
     const urls: Array<string> = [];
     const fetch: typeof globalThis.fetch = (input) => {
@@ -33,7 +33,7 @@ const requestUrl = (modelLayer: ReturnType<typeof openAiLanguageModelLayer>) =>
     };
 
     yield* LanguageModel.generateText({ prompt: "hello" }).pipe(
-      Effect.provide(modelLayer.pipe(Layer.provide(FetchHttpClient.layer))),
+      Effect.provide(layer.pipe(Layer.provide(FetchHttpClient.layer))),
       Effect.provideService(FetchHttpClient.Fetch, fetch),
       Effect.exit,
     );
@@ -46,10 +46,7 @@ it.effect("creates an OpenAI Responses agent from endpoint values", () =>
     const provider = yield* makeOpenAi(config);
 
     assert.isTrue(Option.isNone(provider.snapshotExtension));
-    assert.strictEqual(
-      yield* requestUrl(openAiLanguageModelLayer(endpoint)),
-      `${endpoint.baseUrl}/responses`,
-    );
+    assert.strictEqual(yield* requestUrl(openAiLayer(endpoint)), `${endpoint.baseUrl}/responses`);
   }),
 );
 
@@ -59,7 +56,7 @@ it.effect("creates an OpenAI-compatible agent from endpoint values", () =>
 
     assert.isTrue(Option.isNone(provider.snapshotExtension));
     assert.strictEqual(
-      yield* requestUrl(openAiCompatLanguageModelLayer(endpoint)),
+      yield* requestUrl(openAiCompatLayer(endpoint)),
       `${endpoint.baseUrl}/chat/completions`,
     );
   }),

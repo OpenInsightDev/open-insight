@@ -1,4 +1,4 @@
-import { Bench, Grade, Snapshot, Task } from "@open-insight/eval";
+import { Bench, Snapshot, Task } from "@open-insight/eval";
 import { NodeServices } from "@effect/platform-node";
 import { assert, layer } from "@effect/vitest";
 import { Effect, FileSystem, Layer, Path, Schema } from "effect";
@@ -26,6 +26,11 @@ class TaskExtras extends Schema.Class<TaskExtras>("CvdpTaskExtras")({
 class GradeResult extends Schema.Class<GradeResult>("CvdpGradeResult")({
   passed: Schema.Boolean,
 }) {}
+
+const template = Task.Template.make({
+  extras: TaskExtras,
+  grade: GradeResult,
+});
 
 const writeFiles = Effect.fn(function* (root: string, files: Readonly<Record<string, string>>) {
   const fs = yield* FileSystem.FileSystem;
@@ -77,40 +82,37 @@ const makeTask = Effect.fn(function* (datapoint: CvdpDatapoint) {
     ],
   });
 
-  return yield* Task.make({
+  return yield* Task.make(template, {
     id: datapoint.id,
     name: datapoint.id,
     snapshot,
-    extras: { schema: TaskExtras, value: { categories: datapoint.categories } },
+    extras: { categories: datapoint.categories },
   }).pipe(
     Task.stage("solve", {
+      schema: GradeResult,
       prompt: [
         { role: "system", content: datapoint.system_message },
         { role: "user", content: datapoint.prompt },
       ],
-      grader: Grade.make(
-        GradeResult,
-        async ({ $ }) => {
-          try {
-            await $`pytest -s --log-cli-level=INFO -o cache_dir=/tmp/cvdp-pytest-cache /src/test_runner.py -v`;
-            return { passed: true };
-          } catch {
-            return { passed: false };
-          }
-        },
-        {
-          verif: async ({ $, writeFile }) => {
-            for (const [index, patch] of Object.values(datapoint.patch).entries()) {
-              const patchPath = `/tmp/cvdp-golden-${index}.patch`;
-              await writeFile({ sandboxPath: patchPath, content: patch });
-              await $`patch --directory=/code --strip=1 --forward --batch --input=${patchPath}`;
-            }
-            return null;
-          },
-          expect: { passed: true },
-        },
-      ),
+      grader: async ({ $ }) => {
+        try {
+          await $`pytest -s --log-cli-level=INFO -o cache_dir=/tmp/cvdp-pytest-cache /src/test_runner.py -v`;
+          return { passed: true };
+        } catch {
+          return { passed: false };
+        }
+      },
+      verif: async ({ $, writeFile }) => {
+        for (const [index, patch] of Object.values(datapoint.patch).entries()) {
+          const patchPath = `/tmp/cvdp-golden-${index}.patch`;
+          await writeFile({ sandboxPath: patchPath, content: patch });
+          await $`patch --directory=/code --strip=1 --forward --batch --input=${patchPath}`;
+        }
+        return null;
+      },
+      expect: { passed: true },
     }),
+    Task.build,
   );
 });
 

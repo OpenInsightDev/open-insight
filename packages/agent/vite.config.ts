@@ -5,16 +5,22 @@ export default defineConfig({
     tsconfigPaths: true,
   },
   pack: {
-    dts: {
-      tsgo: true,
+    dts: false,
+    clean: true,
+    sourcemap: true,
+    entry: {
+      index: "src/index.ts",
     },
-    exports: true,
+    exports: false,
   },
   lint: {
     options: {
       typeAware: true,
       typeCheck: true,
     },
+  },
+  test: {
+    include: ["src/**/*.test.ts", "tests/**/*.test.ts"],
   },
   fmt: {},
 });

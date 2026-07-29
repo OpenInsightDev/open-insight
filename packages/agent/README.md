@@ -36,8 +36,8 @@ const compatProgram = Effect.gen(function* () {
 ```
 
 Both constructors use the runtime's global `fetch` implementation. For applications that supply a
-custom Effect HTTP client, compose `openAiLanguageModelLayer(config)` or
-`openAiCompatLanguageModelLayer(config)` with `make()` at the program boundary instead.
+custom Effect HTTP client, compose `openAiLayer(config)` or `openAiCompatLayer(config)` with
+`make()` at the program boundary instead.
 The constructors load the specified `dotenvPath` internally; pass any `Config` implementation for
 `apiKey` and `baseUrl` when configuration should come from another source.
 
@@ -68,6 +68,7 @@ const program = Effect.scoped(
           headers: { Authorization: "Bearer token" },
         }),
       ],
+      maxSteps: 16,
     });
     const agent = yield* provider.runSession(sandbox);
     return yield* agent.prompt(Prompt.make("Inspect the project")).pipe(Stream.runCollect);
@@ -80,9 +81,17 @@ or a scoped layer. Configuring a skills directory requires `FileSystem` and `Pat
 provide `NodeServices.layer`. Skill files are copied into the sandbox snapshot and advertised to
 the model for progressive loading.
 
-Each `agent.prompt` call performs one model turn and resolves the tool calls emitted in that turn.
-Reuse the same session for follow-up turns when a workflow needs additional model decisions; the
-session keeps the full conversation and tool-result history.
+Each `agent.prompt` call runs an agent loop: it streams a model step, executes emitted tools, adds
+their results to the session history, and calls the model again until it produces a step without
+local tool results. `maxSteps` limits the number of model steps in one prompt and defaults to `32`;
+reaching the limit fails the stream instead of returning an incomplete answer. Reuse the same
+session for user follow-up turns; it keeps the full conversation and tool-result history.
+
+A provider is safe to reuse for multiple concurrent sessions. Every `runSession(sandbox)` call owns
+its conversation history and binds tool execution to that session's sandbox. A session represents
+one ordered conversation, so calls to `prompt` on the same session must be made sequentially; there
+is no meaningful merge order for concurrent user turns, and the agent does not impose one with a
+lock.
 
 ## Development
 

@@ -1,4 +1,5 @@
 export {
+  build,
   make,
   metadata,
   metadataSchema,
@@ -6,12 +7,15 @@ export {
   metric,
   trajMetric,
   type JsonObjectSchema,
+  type Builder,
   type Options,
   type Stage,
+  type StageResults,
   type StageBase,
   type StageOptions,
   type Task,
-  type TaskSchema,
 } from "./index.ts";
+
+export * as Template from "./template.ts";
 
 export * as Internal from "./index.ts";

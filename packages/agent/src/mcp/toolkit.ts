@@ -42,13 +42,13 @@ const discover = Effect.fn(function* (servers: ReadonlyArray<Server>) {
   return { clients, tools };
 });
 
-const ensureUniqueNames = Effect.fn(function* (
+const checkNames = Effect.fn(function* (
   discovered: ReadonlyArray<Discovered>,
-  reservedNames: ReadonlyArray<string>,
+  reserved: ReadonlyArray<string>,
 ) {
   const sources = new Map<string, Array<string>>();
 
-  for (const name of reservedNames) {
+  for (const name of reserved) {
     sources.set(name, ["agent"]);
   }
   for (const { client, definition } of discovered) {
@@ -60,9 +60,9 @@ const ensureUniqueNames = Effect.fn(function* (
     }
   }
 
-  for (const [toolName, toolSources] of sources) {
-    if (toolSources.length > 1) {
-      return yield* ToolConflict.make({ toolName, sources: toolSources });
+  for (const [toolName, origins] of sources) {
+    if (origins.length > 1) {
+      return yield* ToolConflict.make({ toolName, sources: origins });
     }
   }
 });
@@ -90,12 +90,12 @@ export const make = Effect.fn(function* (
   servers: ReadonlyArray<Server>,
   options?: { readonly reservedNames?: ReadonlyArray<string> },
 ) {
-  const parentScope = yield* Scope.Scope;
-  const childScope = yield* Scope.fork(parentScope);
+  const parent = yield* Scope.Scope;
+  const child = yield* Scope.fork(parent);
 
   return yield* Effect.gen(function* () {
     const discovered = yield* discover(servers);
-    yield* ensureUniqueNames(discovered.tools, options?.reservedNames ?? []);
+    yield* checkNames(discovered.tools, options?.reservedNames ?? []);
 
     const tools = discovered.tools.map(({ definition }) => makeTool(definition));
     const toolkit: Toolkit.Toolkit<Tools> = Toolkit.make(...tools);
@@ -118,10 +118,10 @@ export const make = Effect.fn(function* (
       toolkit,
       layer: toolkit.toLayer(handlers),
       systemInstructions: instructions(discovered.clients),
-      close: (exit) => Scope.close(childScope, exit),
+      close: (exit) => Scope.close(child, exit),
     } satisfies Runtime;
   }).pipe(
-    Effect.provideService(Scope.Scope, childScope),
-    Effect.onError((cause) => Scope.close(childScope, Exit.failCause(cause))),
+    Effect.provideService(Scope.Scope, child),
+    Effect.onError((cause) => Scope.close(child, Exit.failCause(cause))),
   );
 });

@@ -2,28 +2,37 @@
   "name": "@open-insight/agent",
   "version": "0.0.21",
   "description": "Effect-based agent provider with sandbox tools, Agent Skills, and MCP support.",
-  "homepage": "https://github.com/author/library#readme",
+  "homepage": "https://github.com/OpenInsightDev/open-insight#readme",
   "bugs": {
-    "url": "https://github.com/author/library/issues"
+    "url": "https://github.com/OpenInsightDev/open-insight/issues"
   },
   "license": "MIT",
-  "author": "Author Name <author.name@mail.com>",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/author/library.git"
+    "url": "git+https://github.com/OpenInsightDev/open-insight.git",
+    "directory": "packages/agent"
   },
   "files": [
-    "dist"
+    "dist/**/*.mjs",
+    "dist/**/*.mjs.map",
+    "src/**/*.ts"
   ],
   "type": "module",
   "imports": {
     "#/*": "./src/*"
   },
   "exports": {
-    ".": "./dist/index.mjs",
+    ".": "./src/index.ts",
     "./package.json": "./package.json"
   },
   "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./src/index.ts",
+        "import": "./dist/index.mjs"
+      },
+      "./package.json": "./package.json"
+    },
     "access": "public"
   },
   "scripts": {
@@ -38,17 +47,19 @@
     "@effect/ai-openai-compat": "catalog:",
     "@effect/platform-node": "catalog:",
     "@modelcontextprotocol/sdk": "catalog:",
-    "@open-insight/core": "workspace:^",
-    "effect": "catalog:",
-    "yaml": "catalog:",
-    "zod": "catalog:"
+    "@open-insight/core": "workspace:*",
+    "yaml": "catalog:"
   },
   "devDependencies": {
     "@effect/vitest": "catalog:",
     "@types/node": "catalog:",
     "bumpp": "catalog:",
     "typescript": "catalog:",
-    "vite": "catalog:",
-    "vite-plus": "catalog:"
+    "vite-plus": "catalog:",
+    "vitest": "catalog:",
+    "zod": "catalog:"
+  },
+  "peerDependencies": {
+    "effect": "catalog:"
   }
 }

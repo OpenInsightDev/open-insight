@@ -10,11 +10,16 @@ import type { HarborTask } from "./types.ts";
 type StageSpec = Readonly<{
   name: string;
   instruction: string;
-  grader: Grade.Grader<GradeResult, Grade.Results>;
+  grader: Grade.Exec<GradeResult, Grade.Results>;
+  verification?: Grade.VerifOptions<GradeResult>;
   init: Task.Init | null;
 }>;
 
-type TaskEffect = Effect.Effect<HarborTask, TasksError, Crypto.Crypto | Scope.Scope>;
+type TaskBuilder<T extends Task.Template.Any = Task.Template.Any> = Effect.Effect<
+  Task.Builder<GradeResult, HarborTask["extras"], Grade.Results, T>,
+  Task.Error,
+  Crypto.Crypto | Scope.Scope
+>;
 
 const invalid = (message: string) => TasksError.invalid(new Error(message));
 
@@ -71,9 +76,8 @@ export const makeStages = Effect.fn(function* (
       {
         name: "main",
         instruction: yield* readPrompt(path.join(taskDir, "instruction.md")),
-        grader: Grade.make(
-          GradeResult,
-          grader,
+        grader,
+        verification:
           rootSolutionDir === undefined
             ? undefined
             : {
@@ -84,7 +88,6 @@ export const makeStages = Effect.fn(function* (
                 }),
                 expect: { reward: 1 },
               },
-        ),
         init: makeInit({
           workdir,
           setup: false,
@@ -148,9 +151,8 @@ export const makeStages = Effect.fn(function* (
     specs.push({
       name: step.name,
       instruction: yield* readPrompt(path.join(stepDir, "instruction.md")),
-      grader: Grade.make(
-        GradeResult,
-        grader,
+      grader,
+      verification:
         solutionDir === undefined
           ? undefined
           : {
@@ -161,7 +163,6 @@ export const makeStages = Effect.fn(function* (
               }),
               expect: { reward: 1 },
             },
-      ),
       init: makeInit({
         workdir,
         workdirDir,
@@ -174,18 +175,28 @@ export const makeStages = Effect.fn(function* (
   return specs;
 });
 
-export const addStages = (base: TaskEffect, stages: ReadonlyArray<StageSpec>): TaskEffect => {
-  let task = base;
-  for (const stage of stages) {
-    task = task.pipe(
-      Task.stage(stage.name, {
+export const addStages =
+  (stages: ReadonlyArray<StageSpec>) =>
+  <T extends Task.Template.Any>(base: TaskBuilder<T>): TaskBuilder<T> => {
+    let task = base;
+    for (const stage of stages) {
+      const common = {
+        schema: GradeResult,
         prompt: stage.instruction,
         grader: stage.grader,
         init: stage.init,
         resume: true,
-      }),
-      Effect.mapError(TasksError.init),
-    );
-  }
-  return task;
-};
+      };
+      task =
+        stage.verification === undefined
+          ? task.pipe(Task.stage(stage.name, common))
+          : task.pipe(
+              Task.stage(stage.name, {
+                ...common,
+                verif: stage.verification.verif,
+                expect: stage.verification.expect,
+              }),
+            );
+    }
+    return task;
+  };

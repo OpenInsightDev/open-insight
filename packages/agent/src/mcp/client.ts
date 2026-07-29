@@ -79,7 +79,7 @@ export const connectScoped = Effect.fn(function* (server: Server) {
 
 export const listTools = Effect.fn(function* ({ client, server }: Connection) {
   const tools: Array<McpTool> = [];
-  const seenCursors = new Set<string>();
+  const seen = new Set<string>();
   let cursor: string | undefined;
 
   do {
@@ -91,14 +91,14 @@ export const listTools = Effect.fn(function* ({ client, server }: Connection) {
     cursor = page.nextCursor;
 
     if (cursor !== undefined) {
-      if (seenCursors.has(cursor)) {
+      if (seen.has(cursor)) {
         return yield* ClientError.make({
           server,
           operation: "list-tools",
           cause: new Error(`MCP server repeated pagination cursor ${cursor}`),
         });
       }
-      seenCursors.add(cursor);
+      seen.add(cursor);
     }
   } while (cursor !== undefined);
 

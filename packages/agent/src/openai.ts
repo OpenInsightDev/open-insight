@@ -1,6 +1,6 @@
 import {
-  OpenAiClient as OpenAiCompatClient,
-  OpenAiLanguageModel as OpenAiCompatLanguageModel,
+  OpenAiClient as CompatClient,
+  OpenAiLanguageModel as CompatModel,
 } from "@effect/ai-openai-compat";
 import { OpenAiClient, OpenAiLanguageModel } from "@effect/ai-openai";
 import { NodeFileSystem } from "@effect/platform-node";
@@ -30,58 +30,50 @@ type OpenAiAgent = Effect.Effect<
   Agent.Error | Config.ConfigError | PlatformError.PlatformError
 >;
 
-type ResolvedOpenAiConfig = Readonly<{
+type ResolvedConfig = Readonly<{
   apiKey: Redacted.Redacted<string>;
   baseUrl: string;
   model: string;
 }>;
 
 const resolveConfig = Effect.fn("Agent.resolveOpenAiConfig")(function* (config: OpenAiConfig) {
-  const providerLayer = ConfigProvider.layer(
+  const envLayer = ConfigProvider.layer(
     ConfigProvider.fromDotEnv({ path: config.dotenvPath }),
   ).pipe(Layer.provide(NodeFileSystem.layer));
 
   const values = yield* Config.all({
     apiKey: config.apiKey,
     baseUrl: config.baseUrl,
-  }).pipe(Effect.provide(providerLayer));
+  }).pipe(Effect.provide(envLayer));
 
   return { ...values, apiKey: Redacted.make(values.apiKey), model: config.model };
 });
 
-const openAiLanguageModelLayerResolved = ({
+const modelLayer = ({
   apiKey,
   baseUrl,
   model,
-}: ResolvedOpenAiConfig): Layer.Layer<
-  LanguageModel.LanguageModel,
-  never,
-  HttpClient.HttpClient
-> => {
-  const clientLayer = OpenAiClient.layer({ apiKey, apiUrl: baseUrl });
-  return OpenAiLanguageModel.model(model).pipe(Layer.provide(clientLayer));
+}: ResolvedConfig): Layer.Layer<LanguageModel.LanguageModel, never, HttpClient.HttpClient> => {
+  const client = OpenAiClient.layer({ apiKey, apiUrl: baseUrl });
+  return OpenAiLanguageModel.model(model).pipe(Layer.provide(client));
 };
 
-const openAiCompatLanguageModelLayerResolved = ({
+const compatModelLayer = ({
   apiKey,
   baseUrl,
   model,
-}: ResolvedOpenAiConfig): Layer.Layer<
-  LanguageModel.LanguageModel,
-  never,
-  HttpClient.HttpClient
-> => {
-  const clientLayer = OpenAiCompatClient.layer({ apiKey, apiUrl: baseUrl });
-  return OpenAiCompatLanguageModel.model(model).pipe(Layer.provide(clientLayer));
+}: ResolvedConfig): Layer.Layer<LanguageModel.LanguageModel, never, HttpClient.HttpClient> => {
+  const client = CompatClient.layer({ apiKey, apiUrl: baseUrl });
+  return CompatModel.model(model).pipe(Layer.provide(client));
 };
 
 /** Builds an OpenAI Responses model layer while leaving the HTTP transport configurable. */
-export const openAiLanguageModelLayer = ({
+export const openAiLayer = ({
   apiKey,
   baseUrl,
   model,
 }: OpenAiEndpoint): Layer.Layer<LanguageModel.LanguageModel, never, HttpClient.HttpClient> => {
-  return openAiLanguageModelLayerResolved({
+  return modelLayer({
     apiKey: Redacted.make(apiKey),
     baseUrl,
     model,
@@ -89,12 +81,12 @@ export const openAiLanguageModelLayer = ({
 };
 
 /** Builds an OpenAI-compatible Chat Completions model layer. */
-export const openAiCompatLanguageModelLayer = ({
+export const openAiCompatLayer = ({
   apiKey,
   baseUrl,
   model,
 }: OpenAiEndpoint): Layer.Layer<LanguageModel.LanguageModel, never, HttpClient.HttpClient> => {
-  return openAiCompatLanguageModelLayerResolved({
+  return compatModelLayer({
     apiKey: Redacted.make(apiKey),
     baseUrl,
     model,
@@ -102,23 +94,19 @@ export const openAiCompatLanguageModelLayer = ({
 };
 
 /** Creates a base agent provider backed by the OpenAI Responses API and global `fetch`. */
-const makeOpenAiImpl = Effect.fn("Agent.makeOpenAi")(function* (config: OpenAiConfig) {
+const makeOpenAiFn = Effect.fn("Agent.makeOpenAi")(function* (config: OpenAiConfig) {
   const resolved = yield* resolveConfig(config);
-  const modelLayer = openAiLanguageModelLayerResolved(resolved).pipe(
-    Layer.provide(FetchHttpClient.layer),
-  );
-  return yield* make().pipe(Effect.provide(modelLayer));
+  const layer = modelLayer(resolved).pipe(Layer.provide(FetchHttpClient.layer));
+  return yield* make().pipe(Effect.provide(layer));
 });
 
-export const makeOpenAi: (config: OpenAiConfig) => OpenAiAgent = makeOpenAiImpl;
+export const makeOpenAi: (config: OpenAiConfig) => OpenAiAgent = makeOpenAiFn;
 
 /** Creates a base agent provider backed by an OpenAI-compatible API and global `fetch`. */
-const makeOpenAiCompatImpl = Effect.fn("Agent.makeOpenAiCompat")(function* (config: OpenAiConfig) {
+const makeCompatFn = Effect.fn("Agent.makeOpenAiCompat")(function* (config: OpenAiConfig) {
   const resolved = yield* resolveConfig(config);
-  const modelLayer = openAiCompatLanguageModelLayerResolved(resolved).pipe(
-    Layer.provide(FetchHttpClient.layer),
-  );
-  return yield* make().pipe(Effect.provide(modelLayer));
+  const layer = compatModelLayer(resolved).pipe(Layer.provide(FetchHttpClient.layer));
+  return yield* make().pipe(Effect.provide(layer));
 });
 
-export const makeOpenAiCompat: (config: OpenAiConfig) => OpenAiAgent = makeOpenAiCompatImpl;
+export const makeOpenAiCompat: (config: OpenAiConfig) => OpenAiAgent = makeCompatFn;

@@ -1,7 +1,7 @@
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { Sandbox } from "@open-insight/core";
+import { Agent, Sandbox } from "@open-insight/core";
 import { assert, it, layer as testLayer } from "@effect/vitest";
 import { Context, Effect, FileSystem, Option, Path, Schema, Stream } from "effect";
 import { LanguageModel, Prompt, Response, Tool, Toolkit } from "effect/unstable/ai";
@@ -38,13 +38,12 @@ const makeSandbox = (files: Map<string, string>): Sandbox.Sandbox => ({
 it.effect("executes commands through the current sandbox", () =>
   Effect.gen(function* () {
     const sandbox = makeSandbox(new Map());
-    const configuredToolkit = yield* toolkit.pipe(Effect.provide(layer));
-    const results = yield* configuredToolkit
+    const tools = yield* toolkit.pipe(Effect.provide(layer));
+    const results = yield* tools
       .handle("SandboxExecute", {
         command: "printf",
         args: ["hello"],
         cwd: "/workspace",
-        env: { TEST: "true" },
       })
       .pipe(Effect.flatMap(Stream.runCollect), Effect.provideService(Sandbox.Current, sandbox));
 
@@ -52,7 +51,7 @@ it.effect("executes commands through the current sandbox", () =>
       command: "printf",
       args: ["hello"],
       cwd: "/workspace",
-      env: { TEST: "true" },
+      env: undefined,
       options: { errorOnNonZeroExit: false },
     });
     assert.deepStrictEqual(Array.from(results), [
@@ -70,12 +69,12 @@ it.effect("reads and writes files through the current sandbox", () =>
   Effect.gen(function* () {
     const files = new Map<string, string>();
     const sandbox = makeSandbox(files);
-    const configuredToolkit = yield* toolkit.pipe(Effect.provide(layer));
+    const tools = yield* toolkit.pipe(Effect.provide(layer));
 
-    yield* configuredToolkit
+    yield* tools
       .handle("SandboxWriteFile", { sandboxPath: "/workspace/result.txt", content: "done" })
       .pipe(Effect.flatMap(Stream.runDrain), Effect.provideService(Sandbox.Current, sandbox));
-    const results = yield* configuredToolkit
+    const results = yield* tools
       .handle("SandboxReadFile", { sandboxPath: "/workspace/result.txt" })
       .pipe(Effect.flatMap(Stream.runCollect), Effect.provideService(Sandbox.Current, sandbox));
 
@@ -130,17 +129,29 @@ it.effect("injects the session sandbox into custom tools", () =>
     const files = new Map([["/workspace/message.txt", "hello"]]);
     const sandbox = makeSandbox(files);
     const exposedTools: Array<string> = [];
+    let modelSteps = 0;
     const llm = yield* LanguageModel.make({
       generateText: () => Effect.succeed([finishPart]),
-      streamText: ({ tools }) => {
-        exposedTools.push(...tools.map((tool) => tool.name));
+      streamText: ({ prompt, tools }) => {
+        modelSteps += 1;
+        if (modelSteps === 1) {
+          exposedTools.push(...tools.map((tool) => tool.name));
+          return Stream.fromIterable([
+            {
+              type: "tool-call",
+              id: "read-uppercase",
+              name: "ReadUppercase",
+              params: { sandboxPath: "/workspace/message.txt" },
+            } as const,
+            finishPart,
+          ]);
+        }
+
+        assert.include(JSON.stringify(prompt), "prefix:HELLO");
         return Stream.fromIterable([
-          {
-            type: "tool-call",
-            id: "read-uppercase",
-            name: "ReadUppercase",
-            params: { sandboxPath: "/workspace/message.txt" },
-          } as const,
+          { type: "text-start", id: "answer" } as const,
+          { type: "text-delta", id: "answer", delta: "Read complete." } as const,
+          { type: "text-end", id: "answer" } as const,
           finishPart,
         ]);
       },
@@ -161,32 +172,110 @@ it.effect("injects the session sandbox into custom tools", () =>
       "ReadUppercase",
     ]);
     assert.strictEqual(toolResult?.type === "tool-result" && toolResult.result, "prefix:HELLO");
+    assert.include(JSON.stringify(parts), "Read complete.");
+    assert.strictEqual(modelSteps, 2);
   }),
 );
 
-it.effect("creates isolated chat history for each session", () =>
+it.effect("stops an agent loop that exceeds maxSteps", () =>
   Effect.gen(function* () {
+    let modelSteps = 0;
     const llm = yield* LanguageModel.make({
-      generateText: () => Effect.succeed([{ type: "text", text: "done" }, finishPart]),
-      streamText: () =>
-        Stream.fromIterable([
-          { type: "text-start", id: "session" } as const,
-          { type: "text-delta", id: "session", delta: "done" } as const,
-          { type: "text-end", id: "session" } as const,
+      generateText: () => Effect.succeed([finishPart]),
+      streamText: () => {
+        modelSteps += 1;
+        return Stream.fromIterable([
+          {
+            type: "tool-call",
+            id: `read-${modelSteps}`,
+            name: "SandboxReadFile",
+            params: { sandboxPath: "/workspace/message.txt" },
+          } as const,
           finishPart,
-        ]),
+        ]);
+      },
+    });
+    const provider = yield* make({ maxSteps: 2 }).pipe(
+      Effect.provideService(LanguageModel.LanguageModel, llm),
+    );
+    const agent = yield* provider.runSession(makeSandbox(new Map()));
+    const error = yield* agent
+      .prompt(Prompt.make("keep reading"))
+      .pipe(Stream.runCollect, Effect.flip);
+
+    assert.instanceOf(error, Agent.Error);
+    assert.strictEqual(modelSteps, 2);
+  }),
+);
+
+it.effect("runs independent sessions concurrently with isolated sandboxes and histories", () =>
+  Effect.gen(function* () {
+    let modelSteps = 0;
+    const llm = yield* LanguageModel.make({
+      generateText: () => Effect.succeed([finishPart]),
+      streamText: ({ prompt }) => {
+        modelSteps += 1;
+        const history = JSON.stringify(prompt);
+        const completed = history.includes("first-content")
+          ? "first"
+          : history.includes("second-content")
+            ? "second"
+            : undefined;
+
+        if (completed !== undefined) {
+          return Stream.fromIterable([
+            { type: "text-start", id: `${completed}-answer` } as const,
+            {
+              type: "text-delta",
+              id: `${completed}-answer`,
+              delta: `${completed} complete`,
+            } as const,
+            { type: "text-end", id: `${completed}-answer` } as const,
+            finishPart,
+          ]);
+        }
+
+        const session = history.includes("first session") ? "first" : "second";
+        return Stream.fromIterable([
+          {
+            type: "tool-call",
+            id: `${session}-read`,
+            name: "SandboxReadFile",
+            params: { sandboxPath: "/workspace/message.txt" },
+          } as const,
+          finishPart,
+        ]);
+      },
     });
     const provider = yield* make().pipe(Effect.provideService(LanguageModel.LanguageModel, llm));
-    const sandbox = makeSandbox(new Map());
-    const first = yield* provider.runSession(sandbox);
-    const second = yield* provider.runSession(sandbox);
+    const first = yield* provider.runSession(
+      makeSandbox(new Map([["/workspace/message.txt", "first-content"]])),
+    );
+    const second = yield* provider.runSession(
+      makeSandbox(new Map([["/workspace/message.txt", "second-content"]])),
+    );
 
-    yield* first.prompt(Prompt.make("first session")).pipe(Stream.runDrain);
-    const firstTrajectory = yield* first.trajectory();
-    const secondTrajectory = yield* second.trajectory();
+    const [firstParts, secondParts] = yield* Effect.all(
+      [
+        first.prompt(Prompt.make("first session")).pipe(Stream.runCollect),
+        second.prompt(Prompt.make("second session")).pipe(Stream.runCollect),
+      ],
+      { concurrency: "unbounded" },
+    );
+    const firstHistory = yield* first.trajectory();
+    const secondHistory = yield* second.trajectory();
 
-    assert.include(JSON.stringify(firstTrajectory), "first session");
-    assert.strictEqual(secondTrajectory.content.length, 0);
+    assert.include(JSON.stringify(firstParts), "first-content");
+    assert.include(JSON.stringify(firstParts), "first complete");
+    assert.isFalse(JSON.stringify(firstParts).includes("second-content"));
+    assert.include(JSON.stringify(secondParts), "second-content");
+    assert.include(JSON.stringify(secondParts), "second complete");
+    assert.isFalse(JSON.stringify(secondParts).includes("first-content"));
+    assert.include(JSON.stringify(firstHistory), "first-content");
+    assert.isFalse(JSON.stringify(firstHistory).includes("second-content"));
+    assert.include(JSON.stringify(secondHistory), "second-content");
+    assert.isFalse(JSON.stringify(secondHistory).includes("first-content"));
+    assert.strictEqual(modelSteps, 4);
   }),
 );
 
@@ -196,11 +285,11 @@ testLayer(NodeServices.layer)("configured agent", (it) => {
       const fs = yield* FileSystem.FileSystem;
       const path = yield* Path.Path;
       const root = yield* fs.makeTempDirectoryScoped();
-      const skillsDirectory = path.join(root, "skills");
-      const skillDirectory = path.join(skillsDirectory, "review-code");
-      yield* fs.makeDirectory(skillDirectory, { recursive: true });
+      const skillsDir = path.join(root, "skills");
+      const skillDir = path.join(skillsDir, "review-code");
+      yield* fs.makeDirectory(skillDir, { recursive: true });
       yield* fs.writeFileString(
-        path.join(skillDirectory, "SKILL.md"),
+        path.join(skillDir, "SKILL.md"),
         [
           "---",
           "name: review-code",
@@ -218,7 +307,7 @@ testLayer(NodeServices.layer)("configured agent", (it) => {
           return Stream.fromIterable([finishPart]);
         },
       });
-      const provider = yield* make({ skills: directory(skillsDirectory) }).pipe(
+      const provider = yield* make({ skills: directory(skillsDir) }).pipe(
         Effect.provideService(LanguageModel.LanguageModel, llm),
       );
       const agent = yield* provider.runSession(makeSandbox(new Map()));
@@ -236,11 +325,11 @@ testLayer(NodeServices.layer)("configured agent", (it) => {
       const fs = yield* FileSystem.FileSystem;
       const path = yield* Path.Path;
       const root = yield* fs.makeTempDirectoryScoped();
-      const skillsDirectory = path.join(root, "skills");
-      const skillDirectory = path.join(skillsDirectory, "review-code");
-      yield* fs.makeDirectory(skillDirectory, { recursive: true });
+      const skillsDir = path.join(root, "skills");
+      const skillDir = path.join(skillsDir, "review-code");
+      yield* fs.makeDirectory(skillDir, { recursive: true });
       yield* fs.writeFileString(
-        path.join(skillDirectory, "SKILL.md"),
+        path.join(skillDir, "SKILL.md"),
         [
           "---",
           "name: review-code",
@@ -272,11 +361,22 @@ testLayer(NodeServices.layer)("configured agent", (it) => {
 
       const exposedTools: Array<string> = [];
       const prompts: Array<string> = [];
+      let modelSteps = 0;
       const llm = yield* LanguageModel.make({
         generateText: () => Effect.succeed([finishPart]),
         streamText: ({ prompt, tools }) => {
-          exposedTools.push(...tools.map((tool) => tool.name));
+          modelSteps += 1;
           prompts.push(JSON.stringify(prompt));
+          if (modelSteps > 1) {
+            return Stream.fromIterable([
+              { type: "text-start", id: "answer" } as const,
+              { type: "text-delta", id: "answer", delta: "All tools completed." } as const,
+              { type: "text-end", id: "answer" } as const,
+              finishPart,
+            ]);
+          }
+
+          exposedTools.push(...tools.map((tool) => tool.name));
           return Stream.fromIterable([
             {
               type: "tool-call",
@@ -299,14 +399,14 @@ testLayer(NodeServices.layer)("configured agent", (it) => {
         Effect.gen(function* () {
           const provider = yield* make({
             toolkit: userToolkit,
-            skills: directory(skillsDirectory),
+            skills: directory(skillsDir),
             mcp: [fromTransport("test-server", clientTransport)],
           }).pipe(
             Effect.provide(userLayer),
             Effect.provideService(Prefix, "prefix:"),
             Effect.provideService(LanguageModel.LanguageModel, llm),
           );
-          const snapshotExtension = Option.getOrThrow(provider.snapshotExtension);
+          const snapshot = Option.getOrThrow(provider.snapshotExtension);
           const sandbox = makeSandbox(new Map([["/workspace/message.txt", "hello from sandbox"]]));
           const agent = yield* provider.runSession(sandbox);
           const parts = yield* agent
@@ -322,11 +422,15 @@ testLayer(NodeServices.layer)("configured agent", (it) => {
           ]);
           assert.include(JSON.stringify(parts), "prefix:HELLO FROM SANDBOX");
           assert.include(JSON.stringify(parts), "mcp:hello");
+          assert.include(JSON.stringify(parts), "All tools completed.");
+          assert.include(prompts[1], "prefix:HELLO FROM SANDBOX");
+          assert.include(prompts[1], "mcp:hello");
+          assert.strictEqual(modelSteps, 2);
           assert.include(prompts[0], "/opt/open-insight/skills/review-code/SKILL.md");
           assert.include(prompts[0], "MCP server test-server instructions:");
           assert.include(prompts[0], "Use McpEcho when text must be echoed");
-          assert.strictEqual(snapshotExtension.context, root);
-          assert.deepStrictEqual(snapshotExtension.instructions, [
+          assert.strictEqual(snapshot.context, root);
+          assert.deepStrictEqual(snapshot.instructions, [
             {
               _tag: "Copy",
               src: ["skills"],

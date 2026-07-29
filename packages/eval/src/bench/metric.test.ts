@@ -2,7 +2,6 @@ import { assert, it } from "@effect/vitest";
 import { NodeCrypto } from "@effect/platform-node";
 import { Snapshot } from "@open-insight/core/internal";
 import * as Metric from "#/metric/index.ts";
-import * as Grade from "#/grade/index.ts";
 import * as Task from "#/task/index.ts";
 import { Effect, Schema } from "effect";
 import { make } from "./build.ts";
@@ -11,6 +10,10 @@ import { metric, taskMetric, trajMetric } from "./metric.ts";
 class GradeResult extends Schema.Class<GradeResult>("BenchMetricGradeResult")({
   pass: Schema.Boolean,
 }) {}
+
+const template = Task.Template.make({
+  grade: GradeResult,
+});
 
 it.effect("accepts raw and Effect metric executors", () =>
   Effect.gen(function* () {
@@ -22,15 +25,17 @@ it.effect("accepts raw and Effect metric executors", () =>
       count: 1,
     });
     const trajExec: Metric.Traj.Exec<Readonly<{ count: number }>> = async () => ({ count: 1 });
-    const task = yield* Task.make({
+    const task = yield* Task.make(template, {
       id: "bench-metric-task",
       name: "Bench metric task",
       snapshot: Snapshot.make("test-image"),
     }).pipe(
       Task.stage("grade", {
+        schema: GradeResult,
         prompt: "Grade the task",
-        grader: Grade.make(GradeResult, async () => ({ pass: true })),
+        grader: async () => ({ pass: true }),
       }),
+      Task.build,
     );
 
     const bench = yield* make({ id: "bench-metric-exec-inputs", tasks: [task] }).pipe(

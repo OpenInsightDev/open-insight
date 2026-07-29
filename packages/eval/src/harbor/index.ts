@@ -1,10 +1,10 @@
-import { Crypto, Effect, FileSystem, Path, Schema, Scope } from "effect";
+import { Effect, FileSystem, Path, Schema } from "effect";
 import * as Task from "#/task/index.ts";
 import { Error as TasksError } from "#/tasks/error.ts";
 import { readConfig } from "./config.ts";
 import { author, makeResources, makeSnapshot, validateConfig } from "./mapping.ts";
 import { addStages, makeStages } from "./stages.ts";
-import type { HarborTask } from "./types.ts";
+import { GradeResult } from "./reward.ts";
 
 export * from "./config.ts";
 export * from "./result.ts";
@@ -12,8 +12,6 @@ export { GradeResult } from "./reward.ts";
 export { makeGrader, makeVerifier } from "./runtime.ts";
 export { makeSnapshot } from "./mapping.ts";
 export type { HarborTask } from "./types.ts";
-
-type TaskEffect = Effect.Effect<HarborTask, TasksError, Crypto.Crypto | Scope.Scope>;
 
 export const makeTask = Effect.fn("Task.Load.makeHarborTask")(function* (taskDir: string) {
   const fs = yield* FileSystem.FileSystem;
@@ -41,7 +39,12 @@ export const makeTask = Effect.fn("Task.Load.makeHarborTask")(function* (taskDir
   const stages = yield* makeStages(root, config);
   const pkg = config.task;
   const name = pkg?.name ?? path.basename(root);
-  const base: TaskEffect = Task.make({
+  const template = Task.Template.make({
+    extras: Schema.Record(Schema.String, Schema.Json),
+    grade: GradeResult,
+  });
+
+  return yield* Task.make(template, {
     id: name,
     name,
     description: pkg?.description,
@@ -49,11 +52,6 @@ export const makeTask = Effect.fn("Task.Load.makeHarborTask")(function* (taskDir
     authors: pkg?.authors?.map(author),
     snapshot,
     resources: makeResources(config),
-    extras: {
-      schema: Schema.Record(Schema.String, Schema.Json),
-      value: config.metadata ?? {},
-    },
-  }).pipe(Effect.mapError(TasksError.init));
-
-  return yield* addStages(base, stages);
+    extras: config.metadata ?? {},
+  }).pipe(addStages(stages), Task.build, Effect.mapError(TasksError.init));
 });

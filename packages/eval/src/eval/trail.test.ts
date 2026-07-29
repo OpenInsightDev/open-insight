@@ -18,6 +18,14 @@ class InitializedGrade extends Schema.Class<InitializedGrade>("TrailInitializedG
   initialized: Schema.Boolean,
 }) {}
 
+const passedTemplate = Task.Template.make({
+  grade: PassedGrade,
+});
+
+const initializedTemplate = Task.Template.make({
+  grade: InitializedGrade,
+});
+
 const makeSandbox = (files: Map<string, string>): Sandbox.Sandbox => {
   const handle = { exitCode: ExitCode(0), stdout: "", stderr: "" };
 
@@ -66,35 +74,33 @@ const makeRunTrail = Effect.fn(function* ({ initiallySolved }: { initiallySolved
 
   const grades: boolean[] = [];
   let verifierRuns = 0;
-  const grader = Grade.make(
-    PassedGrade,
-    async ({ readFile }) => {
-      const solved = (await readFile({ sandboxPath: solutionPath })) === "solved";
-      grades.push(solved);
-      return { passed: solved };
-    },
-    {
-      verif: async ({ writeFile }) => {
-        verifierRuns += 1;
-        await writeFile({ sandboxPath: solutionPath, content: "solved" });
-        return null;
-      },
-      expect: { passed: true },
-    },
-  );
+  const grader: Grade.Exec<PassedGrade, Grade.Results> = async ({ readFile }) => {
+    const solved = (await readFile({ sandboxPath: solutionPath })) === "solved";
+    grades.push(solved);
+    return { passed: solved };
+  };
+  const verifier: Grade.Verifier = async ({ writeFile }) => {
+    verifierRuns += 1;
+    await writeFile({ sandboxPath: solutionPath, content: "solved" });
+    return null;
+  };
 
   const snapshot = Snapshot.make("test-image");
   const handle = yield* Snapshot.Handle.make(snapshot);
-  const task = yield* Task.make({
+  const task = yield* Task.make(passedTemplate, {
     id: "test-task",
     name: "Test task",
     snapshot,
   }).pipe(
     Task.stage("solve", {
       id: "solve",
+      schema: PassedGrade,
       prompt: "Solve the task",
       grader,
+      verif: verifier,
+      expect: { passed: true },
     }),
+    Task.build,
   );
   const sandboxProvider = {
     aquireSnapshot: () => Effect.succeed(handle),
@@ -130,25 +136,27 @@ describe("verification trail", () => {
         const calls: Array<string> = [];
         const snapshot = Snapshot.make("test-image");
         const handle = yield* Snapshot.Handle.make(snapshot);
-        const task = yield* Task.make({
+        const task = yield* Task.make(initializedTemplate, {
           id: "test-task",
           name: "Test task",
           snapshot,
         }).pipe(
           Task.stage("solve", {
             id: "solve",
+            schema: InitializedGrade,
             prompt: "Solve the task",
             init: async ({ writeFile }) => {
               calls.push("init");
               await writeFile({ sandboxPath: initializedPath, content: "ready" });
             },
-            grader: Grade.make(InitializedGrade, async ({ readFile }) => {
+            grader: async ({ readFile }) => {
               calls.push("grader");
               return {
                 initialized: (await readFile({ sandboxPath: initializedPath })) === "ready",
               };
-            }),
+            },
           }),
+          Task.build,
         );
         const sandboxProvider = {
           aquireSnapshot: () => Effect.succeed(handle),

@@ -2,10 +2,11 @@ import { Resource, Snapshot } from "@open-insight/core/internal";
 import { type EmptyRecord } from "#/utils/type.ts";
 import * as Grade from "#/grade/index.ts";
 import * as Metric from "#/metric/index.ts";
-import { Crypto, Effect, Schema, Scope } from "effect";
+import { Crypto, Effect, Schema, Scope, Types } from "effect";
 import { Error } from "./error.ts";
 import { StageMetadata } from "./stage.ts";
 import type { StageBase } from "./stage.ts";
+import * as Template from "./template.ts";
 
 export type TypeId = "~open-insight/eval/task";
 export const TypeId: TypeId = "~open-insight/eval/task";
@@ -13,14 +14,7 @@ export const TypeId: TypeId = "~open-insight/eval/task";
 export const ID = Schema.String;
 export type ID = Schema.Schema.Type<typeof ID>;
 
-export type JsonObjectSchema<T extends object = object> = Grade.ResultSchema<T>;
-
-export const EmptyExtras = Schema.Record(Schema.String, Schema.Never);
-
-export type TaskSchema<G extends Grade.Result, E extends object> = Readonly<{
-  extras: JsonObjectSchema<E>;
-  grade: JsonObjectSchema<G> | null;
-}>;
+export type { JsonObjectSchema } from "./template.ts";
 
 export class BaseMetadata extends Schema.Class<BaseMetadata>("BaseMetadata")({
   id: Schema.String,
@@ -40,27 +34,34 @@ export class Metadata extends Schema.Class<Metadata>("Metadata")({
 export type Task<
   G extends Grade.Result = Grade.Result,
   E extends object = object,
-  S = unknown,
+  S extends Grade.Results = Grade.Results,
+  T extends Template.Any = Template.Template<Grade.ResultSchema<G>, Template.JsonObjectSchema<E>>,
 > = Readonly<{
   metadata: BaseMetadata;
   snapshot: Snapshot.Snapshot;
   resources: Resource.Resources;
+  template: T;
 
-  /**
-   * Execution stages of the task.
-   *
-   * Stages are executed sequentially.
-   * When executing a stage, the prompt(s) of the stage will be sent to the agent.
-   *
-   * When all prompts are sent and the agent has finished responding, the grader of the stage will be executed.
-   * If the stage grader returns a passing result, the next stage will be executed.
-   */
+  /** Execution stages, in their execution order. */
   stages: ReadonlyArray<StageBase>;
+  /** Task-local metrics. Metric schemas are intentionally not part of a template yet. */
   metrics: ReadonlyArray<Metric.Task.Metric>;
   trajMetrics: ReadonlyArray<Metric.Traj.Metric>;
   extras: E;
-  schema: TaskSchema<G, E>;
-}> & { _G?: G; _E?: E; _S?: S };
+}> & { _G?: G; _E?: E; _S?: S; _T?: T };
+
+const BuilderTypeId: unique symbol = Symbol.for("~open-insight/eval/task/Builder");
+
+/** A task definition that is still being assembled. Complete it with {@link build}. */
+export type Builder<
+  G extends Grade.Result = Grade.Result,
+  E extends object = object,
+  S extends Grade.Results = Grade.Results,
+  T extends Template.Any = Template.Template<Grade.ResultSchema<G>, Template.JsonObjectSchema<E>>,
+> = Task<G, E, S, T> &
+  Readonly<{
+    [BuilderTypeId]: Types.Invariant<T>;
+  }>;
 
 export type Array<
   G extends Grade.Result = Grade.Result,
@@ -78,90 +79,81 @@ type NoExtrasOptions = BaseOptions &
     extras?: never;
   }>;
 
-type ExtrasOptions<ES extends JsonObjectSchema> = BaseOptions &
+type ExtrasOptions<ES extends Template.JsonObjectSchema> = BaseOptions &
   Readonly<{
-    extras: Readonly<{
-      /** The runtime codec for extras, stored with the task for serialization. */
-      schema: ES;
-      value: ES["Encoded"];
-    }>;
+    extras: ES["Encoded"];
   }>;
 
-export type Options<
-  E extends object = EmptyRecord,
-  ES extends JsonObjectSchema<E> = JsonObjectSchema<E>,
-> = [E] extends [EmptyRecord] ? NoExtrasOptions | ExtrasOptions<ES> : ExtrasOptions<ES>;
+export type Options<T extends Template.Any> = T["extras"] extends typeof Template.EmptyExtras
+  ? NoExtrasOptions
+  : ExtrasOptions<T["extras"]>;
 
 const decodeMetadata = (options: BaseOptions) =>
   Schema.decodeEffect(BaseMetadata)(options).pipe(Effect.mapError(Error.metadata));
 
-const makeWithoutExtras = Effect.fn(function* (
-  options: NoExtrasOptions,
-): Effect.fn.Return<Task<never, EmptyRecord, never>, Error, Crypto.Crypto | Scope.Scope> {
+export const make = Effect.fn("Task.make")(function* <T extends Template.Any>(
+  template: T,
+  options: Options<T>,
+): Effect.fn.Return<
+  Builder<never, Template.Extras<T>, never, T>,
+  Error,
+  Crypto.Crypto | Scope.Scope
+> {
   const { snapshot, resources = Resource.Resources.make({}) } = options;
   const metadata = yield* decodeMetadata(options);
-  const extras = yield* Schema.decodeEffect(EmptyExtras)({}).pipe(Effect.mapError(Error.metadata));
-
+  const extrasInput = "extras" in options ? options.extras : {};
+  const extras = yield* Schema.decodeUnknownEffect(template.extras)(extrasInput).pipe(
+    Effect.mapError(Error.metadata),
+  );
   return {
     metadata,
     snapshot,
     resources,
+    template,
     extras,
     stages: [],
     metrics: [],
     trajMetrics: [],
-    schema: {
-      extras: EmptyExtras,
-      grade: null,
-    },
-  } satisfies Task<never, EmptyRecord, never>;
+    [BuilderTypeId]: (value) => value,
+  } satisfies Builder<never, Template.Extras<T>, never, T>;
 });
 
-const makeWithExtras = Effect.fn(function* <ES extends JsonObjectSchema>(
-  options: ExtrasOptions<ES>,
-): Effect.fn.Return<Task<never, ES["Type"], never>, Error, Crypto.Crypto | Scope.Scope> {
-  const { snapshot, resources = Resource.Resources.make({}), extras } = options;
-  const metadata = yield* decodeMetadata(options);
+/** Completes a task builder whose final stage result conforms to its template. */
+export const build = <
+  T extends Template.Any,
+  G extends Template.GradeResult<T>,
+  E extends object,
+  S extends Grade.Results,
+  Err,
+  R,
+>(
+  self: Effect.Effect<Builder<G, E, S, T>, Err, R>,
+): Effect.Effect<Task<G, E, S, T>, Err, R> => self;
 
-  const decodedExtras = yield* Schema.decodeUnknownEffect(extras.schema)(extras.value).pipe(
-    Effect.mapError(Error.metadata),
-  );
-
-  return {
-    metadata,
-    snapshot,
-    resources,
-    extras: decodedExtras,
-    stages: [],
-    metrics: [],
-    trajMetrics: [],
-    schema: {
-      extras: extras.schema,
-      grade: null,
-    },
-  } satisfies Task<never, ES["Type"], never>;
-});
-
-export function make(
-  options: NoExtrasOptions,
-): Effect.Effect<Task<never, EmptyRecord, never>, Error, Crypto.Crypto | Scope.Scope>;
-export function make<ES extends JsonObjectSchema>(
-  options: ExtrasOptions<ES>,
-): Effect.Effect<Task<never, ES["Type"], never>, Error, Crypto.Crypto | Scope.Scope>;
-export function make(options: NoExtrasOptions | ExtrasOptions<JsonObjectSchema>) {
-  return options.extras === undefined ? makeWithoutExtras(options) : makeWithExtras(options);
-}
-
-export const metadata = (task: Task): Metadata =>
+export const metadata = <
+  G extends Grade.Result,
+  E extends object,
+  S extends Grade.Results,
+  T extends Template.Any,
+>(
+  task: Task<G, E, S, T>,
+): Metadata =>
   Metadata.make({
     base: task.metadata,
     stages: task.stages.map((stage) => stage.metadata),
-    extras: Schema.encodeSync(task.schema.extras)(task.extras),
+    extras: Schema.encodeSync(task.template.extras)(task.extras),
   });
 
-export const metadataSchema = <G extends Grade.Result, E extends object, S>(task: Task<G, E, S>) =>
+export const metadataSchema = <
+  G extends Grade.Result,
+  E extends object,
+  S extends Grade.Results,
+  T extends Template.Any,
+>(
+  task: Task<G, E, S, T>,
+) =>
   Schema.Struct({
     base: BaseMetadata,
     stages: Schema.Array(StageMetadata),
-    extras: Schema.toEncoded(task.schema.extras),
+    extras: Schema.toEncoded(task.template.extras),
   });

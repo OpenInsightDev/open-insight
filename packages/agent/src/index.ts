@@ -2,8 +2,8 @@ export { make, type Config } from "./agent.ts";
 export {
   makeOpenAi,
   makeOpenAiCompat,
-  openAiCompatLanguageModelLayer,
-  openAiLanguageModelLayer,
+  openAiCompatLayer,
+  openAiLayer,
   type OpenAiConfig,
   type OpenAiEndpoint,
 } from "./openai.ts";

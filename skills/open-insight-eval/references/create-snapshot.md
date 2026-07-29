@@ -75,7 +75,7 @@ The context is only a build input and is not mounted into the sandbox, so copy e
 The following general example follows the patterns used in `packages/eval/tests/` and attaches the snapshot directly to a task.
 
 ```ts
-import { Snapshot, Task } from "@open-insight/eval";
+import { Grade, Snapshot, Task } from "@open-insight/eval";
 import { resolve } from "@std/path";
 import { Effect } from "effect";
 
@@ -96,11 +96,22 @@ export const makeTask = Effect.fn(function* () {
     ],
   });
 
-  return yield* Task.make({
+  const template = Task.Template.make({
+    grade: Grade.Result,
+  });
+
+  return yield* Task.make(template, {
     id: "python-fix",
     name: "Fix the Python implementation",
     snapshot,
-  });
+  }).pipe(
+    Task.stage("solve", {
+      schema: Grade.Result,
+      prompt: "Fix the Python implementation.",
+      grader: async () => ({}),
+    }),
+    Task.build,
+  );
 });
 ```
 
