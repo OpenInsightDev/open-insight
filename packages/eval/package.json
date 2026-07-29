@@ -65,18 +65,17 @@
     "immer": "catalog:",
     "picomatch": "catalog:",
     "smol-toml": "catalog:",
-    "tar-stream": "catalog:",
+    "tar": "catalog:",
     "uuid": "catalog:"
   },
   "devDependencies": {
+    "@open-insight/agent": "workspace:*",
     "@types/node": "catalog:",
     "@types/picomatch": "catalog:",
-    "@types/tar-stream": "catalog:",
     "bumpp": "catalog:",
     "typescript": "catalog:",
     "vite-plus": "catalog:",
-    "vitest": "catalog:",
-    "@open-insight/agent": "workspace:*"
+    "vitest": "catalog:"
   },
   "peerDependencies": {
     "effect": "catalog:"
