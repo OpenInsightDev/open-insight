@@ -2,19 +2,17 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import { assert, it } from "@effect/vitest";
 import { Effect, Exit, Schema } from "effect";
-import { connectScoped } from "#/mcp/client.ts";
-import { CustomServer, fromTransport, Server, StdioServer } from "#/mcp/config.ts";
-import { ClientError } from "#/mcp/error.ts";
+import * as Mcp from "#/mcp/index.ts";
 
 it("decodes schema-backed MCP server configuration", () => {
-  const server = Schema.decodeUnknownSync(Server)({
+  const server = Schema.decodeUnknownSync(Mcp.Server)({
     _tag: "Stdio",
     name: "filesystem",
     command: "node",
     args: ["server.mjs"],
   });
 
-  assert.instanceOf(server, StdioServer);
+  assert.instanceOf(server, Mcp.StdioServer);
   assert.strictEqual(server.name, "filesystem");
   assert.deepStrictEqual(server.args, ["server.mjs"]);
 });
@@ -22,18 +20,18 @@ it("decodes schema-backed MCP server configuration", () => {
 it.effect("validates custom MCP transports structurally", () =>
   Effect.gen(function* () {
     const [transport] = InMemoryTransport.createLinkedPair();
-    const valid = yield* Schema.decodeUnknownEffect(Server)({
+    const valid = yield* Schema.decodeUnknownEffect(Mcp.Server)({
       _tag: "Custom",
       name: "memory",
       transport,
     });
-    const invalid = Schema.decodeUnknownExit(Server)({
+    const invalid = Schema.decodeUnknownExit(Mcp.Server)({
       _tag: "Custom",
       name: "invalid",
       transport: {},
     });
 
-    assert.instanceOf(valid, CustomServer);
+    assert.instanceOf(valid, Mcp.CustomServer);
     assert.isTrue(Exit.isFailure(invalid));
   }),
 );
@@ -51,11 +49,12 @@ it.effect("closes the MCP client when initialization fails", () =>
     };
 
     const error = yield* Effect.scoped(
-      connectScoped(fromTransport("failing-server", transport)).pipe(Effect.flip),
+      Mcp.connectScoped(Mcp.fromTransport("failing-server", transport)).pipe(Effect.flip),
     );
 
-    assert.instanceOf(error, ClientError);
-    assert.strictEqual(error.operation, "connect");
+    assert.instanceOf(error, Mcp.Error);
+    assert.instanceOf(error.reason, Mcp.ClientError);
+    assert.strictEqual(error.reason.operation, "connect");
     assert.isTrue(closed);
   }),
 );

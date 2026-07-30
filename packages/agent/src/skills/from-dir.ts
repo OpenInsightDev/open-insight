@@ -1,12 +1,9 @@
 import { Effect, FileSystem, Path, Schema } from "effect";
 import { parse as parseYaml } from "yaml";
-import { InvalidMetadata, SourceError } from "./error.ts";
+import { Error } from "./error.ts";
 import { Metadata } from "./metadata.ts";
 
 const frontmatter = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/;
-
-const invalid = (filePath: string, cause: unknown) =>
-  new InvalidMetadata({ path: filePath, cause });
 
 const parseFrontmatter = Effect.fn("Skills.parseFrontmatter")(function* (
   source: string,
@@ -15,19 +12,21 @@ const parseFrontmatter = Effect.fn("Skills.parseFrontmatter")(function* (
   const match = frontmatter.exec(source);
   if (match === null) {
     return yield* Effect.fail(
-      invalid(filePath, new globalThis.Error("SKILL.md must start with closed YAML frontmatter")),
+      Error.metadata(filePath)(
+        new globalThis.Error("SKILL.md must start with closed YAML frontmatter"),
+      ),
     );
   }
 
   const parsed: unknown = yield* Effect.try({
     try: () => parseYaml(match[1], { uniqueKeys: true }),
-    catch: (cause) => invalid(filePath, cause),
+    catch: Error.metadata(filePath),
   });
 
   return yield* Schema.decodeUnknownEffect(Metadata, {
     errors: "all",
     onExcessProperty: "ignore",
-  })(parsed).pipe(Effect.mapError((cause) => invalid(filePath, cause)));
+  })(parsed).pipe(Effect.mapError(Error.metadata(filePath)));
 });
 
 const readMetadata = Effect.fn("Skills.readMetadata")(function* (
@@ -35,15 +34,12 @@ const readMetadata = Effect.fn("Skills.readMetadata")(function* (
   dirName: string,
 ) {
   const fs = yield* FileSystem.FileSystem;
-  const source = yield* fs
-    .readFileString(filePath)
-    .pipe(Effect.mapError((cause) => new SourceError({ path: filePath, cause })));
+  const source = yield* fs.readFileString(filePath).pipe(Effect.mapError(Error.source(filePath)));
   const metadata = yield* parseFrontmatter(source, filePath);
 
   if (metadata.name !== dirName) {
     return yield* Effect.fail(
-      invalid(
-        filePath,
+      Error.metadata(filePath)(
         new globalThis.Error(
           `Skill name ${JSON.stringify(metadata.name)} must match directory name ${JSON.stringify(dirName)}`,
         ),
@@ -63,25 +59,19 @@ export const fromDir = Effect.fn("Skills.fromDir")(function* (skillsDir: string)
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const root = path.resolve(skillsDir);
-  const entries = yield* fs
-    .readDirectory(root)
-    .pipe(Effect.mapError((cause) => new SourceError({ path: root, cause })));
+  const entries = yield* fs.readDirectory(root).pipe(Effect.mapError(Error.source(root)));
 
   const discovered = yield* Effect.all(
     entries.toSorted().map(
       Effect.fn(function* (entry) {
         const entryPath = path.join(root, entry);
-        const info = yield* fs
-          .stat(entryPath)
-          .pipe(Effect.mapError((cause) => new SourceError({ path: entryPath, cause })));
+        const info = yield* fs.stat(entryPath).pipe(Effect.mapError(Error.source(entryPath)));
         if (info.type !== "Directory") {
           return undefined;
         }
 
         const filePath = path.join(root, entry, "SKILL.md");
-        const exists = yield* fs
-          .exists(filePath)
-          .pipe(Effect.mapError((cause) => new SourceError({ path: filePath, cause })));
+        const exists = yield* fs.exists(filePath).pipe(Effect.mapError(Error.source(filePath)));
         return exists ? { dirName: entry, filePath } : undefined;
       }),
     ),

@@ -12,9 +12,7 @@ import {
   Stream,
 } from "effect";
 import { LanguageModel, Prompt, Response, Tool, Toolkit } from "effect/unstable/ai";
-import type * as McpConfig from "#/mcp/config.ts";
-import type { Error as McpError } from "#/mcp/error.ts";
-import * as McpToolkit from "#/mcp/toolkit.ts";
+import * as Mcp from "#/mcp/index.ts";
 import type * as SkillsConfig from "#/skills/config.ts";
 import * as Skills from "#/skills/index.ts";
 import * as SandboxToolkit from "#/toolkit.ts";
@@ -29,17 +27,13 @@ type ToolkitTools<Tools extends Record<string, Tool.Any>> = Toolkit.MergedTools<
 >;
 
 type ToolsWithMcp<Tools extends Record<string, Tool.Any>> = Toolkit.MergedTools<
-  readonly [
-    typeof SandboxToolkit.toolkit,
-    Toolkit.Toolkit<Tools>,
-    Toolkit.Toolkit<McpToolkit.Tools>,
-  ]
+  readonly [typeof SandboxToolkit.toolkit, Toolkit.Toolkit<Tools>, Toolkit.Toolkit<Mcp.Tools>]
 >;
 
 export type Config<Tools extends Record<string, Tool.Any> = {}> = Readonly<{
   toolkit?: Toolkit.Toolkit<Tools>;
   skills?: SkillsConfig.Config;
-  mcp?: ReadonlyArray<McpConfig.Server>;
+  mcp?: ReadonlyArray<Mcp.Server>;
   maxSteps?: number;
 }>;
 
@@ -278,12 +272,12 @@ const makeSkills = Effect.fn(function* <Tools extends Record<string, Tool.Any>>(
 
 const makeMcp = Effect.fn(function* <Tools extends Record<string, Tool.Any>>(config: {
   readonly toolkit?: Toolkit.Toolkit<Tools>;
-  readonly mcp: ReadonlyArray<McpConfig.Server>;
+  readonly mcp: ReadonlyArray<Mcp.Server>;
   readonly maxSteps?: number;
 }) {
   const toolkit = config.toolkit ?? Toolkit.empty;
   const base = Toolkit.merge(SandboxToolkit.toolkit, toolkit);
-  const mcp = yield* McpToolkit.make(config.mcp, {
+  const mcp = yield* Mcp.make(config.mcp, {
     reservedNames: Object.keys(base.tools),
   });
   const combined = Toolkit.merge(base, mcp.toolkit);
@@ -301,13 +295,13 @@ const makeMcp = Effect.fn(function* <Tools extends Record<string, Tool.Any>>(con
 const makeCombined = Effect.fn(function* <Tools extends Record<string, Tool.Any>>(config: {
   readonly toolkit?: Toolkit.Toolkit<Tools>;
   readonly skills: SkillsConfig.Config;
-  readonly mcp: ReadonlyArray<McpConfig.Server>;
+  readonly mcp: ReadonlyArray<Mcp.Server>;
   readonly maxSteps?: number;
 }) {
   const toolkit = config.toolkit ?? Toolkit.empty;
   const base = Toolkit.merge(SandboxToolkit.toolkit, toolkit);
   const skills = yield* Skills.prepare(config.skills);
-  const mcp = yield* McpToolkit.make(config.mcp, {
+  const mcp = yield* Mcp.make(config.mcp, {
     reservedNames: Object.keys(base.tools),
   });
   const combined = Toolkit.merge(base, mcp.toolkit);
@@ -345,9 +339,9 @@ type Skilled<Tools extends Record<string, Tool.Any>> = Effect.Effect<
   | Path.Path
 >;
 
-type Mcp<Tools extends Record<string, Tool.Any>> = Effect.Effect<
+type McpProvider<Tools extends Record<string, Tool.Any>> = Effect.Effect<
   Agent.Provider<ToolsWithMcp<Tools>>,
-  Agent.Error | McpError,
+  Agent.Error | Mcp.Error,
   | LanguageModel.LanguageModel
   | Tool.HandlersFor<Tools>
   | ToolkitServices<ToolsWithMcp<Tools>>
@@ -356,7 +350,7 @@ type Mcp<Tools extends Record<string, Tool.Any>> = Effect.Effect<
 
 type Combined<Tools extends Record<string, Tool.Any>> = Effect.Effect<
   Agent.Provider<ToolsWithMcp<Tools>>,
-  Agent.Error | McpError | Skills.Error,
+  Agent.Error | Mcp.Error | Skills.Error,
   | LanguageModel.LanguageModel
   | Tool.HandlersFor<Tools>
   | ToolkitServices<ToolsWithMcp<Tools>>
@@ -387,13 +381,13 @@ export function make<Tools extends Record<string, Tool.Any> = {}>(config: {
 export function make<Tools extends Record<string, Tool.Any> = {}>(config: {
   readonly toolkit?: Toolkit.Toolkit<Tools>;
   readonly skills?: undefined;
-  readonly mcp: ReadonlyArray<McpConfig.Server>;
+  readonly mcp: ReadonlyArray<Mcp.Server>;
   readonly maxSteps?: number;
-}): Mcp<Tools>;
+}): McpProvider<Tools>;
 export function make<Tools extends Record<string, Tool.Any> = {}>(config: {
   readonly toolkit?: Toolkit.Toolkit<Tools>;
   readonly skills: SkillsConfig.Config;
-  readonly mcp: ReadonlyArray<McpConfig.Server>;
+  readonly mcp: ReadonlyArray<Mcp.Server>;
   readonly maxSteps?: number;
 }): Combined<Tools>;
 export function make<Tools extends Record<string, Tool.Any>>(config?: Config<Tools>) {

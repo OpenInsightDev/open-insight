@@ -8,9 +8,8 @@ import { LanguageModel, Prompt, Response, Tool, Toolkit } from "effect/unstable/
 import { ExitCode } from "effect/unstable/process/ChildProcessSpawner";
 import { z } from "zod";
 import { make } from "#/agent.ts";
-import { fromTransport } from "#/mcp/config.ts";
-import { ToolConflict } from "#/mcp/error.ts";
-import { directory } from "#/skills/config.ts";
+import * as Mcp from "#/mcp/index.ts";
+import * as Skills from "#/skills/index.ts";
 import { layer, toolkit } from "#/toolkit.ts";
 
 const makeSandbox = (files: Map<string, string>): Sandbox.Sandbox => ({
@@ -307,7 +306,7 @@ testLayer(NodeServices.layer)("configured agent", (it) => {
           return Stream.fromIterable([finishPart]);
         },
       });
-      const provider = yield* make({ skills: directory(skillsDir) }).pipe(
+      const provider = yield* make({ skills: Skills.directory(skillsDir) }).pipe(
         Effect.provideService(LanguageModel.LanguageModel, llm),
       );
       const agent = yield* provider.runSession(makeSandbox(new Map()));
@@ -399,8 +398,8 @@ testLayer(NodeServices.layer)("configured agent", (it) => {
         Effect.gen(function* () {
           const provider = yield* make({
             toolkit: userToolkit,
-            skills: directory(skillsDir),
-            mcp: [fromTransport("test-server", clientTransport)],
+            skills: Skills.directory(skillsDir),
+            mcp: [Mcp.fromTransport("test-server", clientTransport)],
           }).pipe(
             Effect.provide(userLayer),
             Effect.provideService(Prefix, "prefix:"),
@@ -460,7 +459,7 @@ testLayer(NodeServices.layer)("configured agent", (it) => {
       });
       const error = yield* make({
         toolkit: userToolkit,
-        mcp: [fromTransport("conflicting-server", clientTransport)],
+        mcp: [Mcp.fromTransport("conflicting-server", clientTransport)],
       }).pipe(
         Effect.provide(userLayer),
         Effect.provideService(Prefix, "prefix:"),
@@ -468,9 +467,10 @@ testLayer(NodeServices.layer)("configured agent", (it) => {
         Effect.flip,
       );
 
-      assert.instanceOf(error, ToolConflict);
-      assert.strictEqual(error.toolName, "ReadUppercase");
-      assert.deepStrictEqual(error.sources, ["agent", "conflicting-server"]);
+      assert.instanceOf(error, Mcp.Error);
+      assert.instanceOf(error.reason, Mcp.ToolConflict);
+      assert.strictEqual(error.reason.toolName, "ReadUppercase");
+      assert.deepStrictEqual(error.reason.sources, ["agent", "conflicting-server"]);
       assert.isFalse(mcpServer.isConnected());
     }),
   );

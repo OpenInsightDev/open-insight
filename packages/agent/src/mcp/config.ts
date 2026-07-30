@@ -9,7 +9,7 @@ const Transport = Schema.declare(
     Predicate.isFunction(input.send) &&
     Predicate.hasProperty(input, "close") &&
     Predicate.isFunction(input.close),
-  { identifier: "McpTransport" },
+  { identifier: "Transport" },
 );
 
 const StdioFields = {
@@ -21,7 +21,7 @@ const StdioFields = {
 };
 export type StdioOptions = Schema.Struct.MakeIn<typeof StdioFields>;
 
-export class StdioServer extends Schema.TaggedClass<StdioServer>("McpStdioServer")(
+export class StdioServer extends Schema.TaggedClass<StdioServer>("StdioServer")(
   "Stdio",
   StdioFields,
 ) {}
@@ -33,12 +33,9 @@ const HttpFields = {
 };
 export type HttpOptions = Schema.Struct.MakeIn<typeof HttpFields>;
 
-export class HttpServer extends Schema.TaggedClass<HttpServer>("McpHttpServer")(
-  "Http",
-  HttpFields,
-) {}
+export class HttpServer extends Schema.TaggedClass<HttpServer>("HttpServer")("Http", HttpFields) {}
 
-export class CustomServer extends Schema.TaggedClass<CustomServer>("McpCustomServer")("Custom", {
+export class CustomServer extends Schema.TaggedClass<CustomServer>("CustomServer")("Custom", {
   name: Schema.NonEmptyString,
   transport: Transport,
 }) {}

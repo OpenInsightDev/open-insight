@@ -1,16 +1,16 @@
-import type { Tool as McpTool } from "@modelcontextprotocol/sdk/types.js";
+import type { Tool as ToolDefinition } from "@modelcontextprotocol/sdk/types.js";
 import { Effect, Exit, Layer, Schema, Scope } from "effect";
 import { Tool, Toolkit } from "effect/unstable/ai";
 import type { Server } from "./config.ts";
 import { callTool, connectScoped, listTools, type Connection } from "./client.ts";
-import { ToolConflict } from "./error.ts";
+import { Error } from "./error.ts";
 
 export type Tools = Record<
   string,
   Tool.Dynamic<
     string,
     {
-      readonly parameters: McpTool["inputSchema"];
+      readonly parameters: ToolDefinition["inputSchema"];
       readonly success: typeof Schema.Unknown;
       readonly failure: typeof Schema.String;
       readonly failureMode: "return";
@@ -27,7 +27,7 @@ export type Runtime = Readonly<{
 
 type Discovered = Readonly<{
   client: Connection;
-  definition: McpTool;
+  definition: ToolDefinition;
 }>;
 
 const decode = Schema.decodeUnknownEffect(Schema.Record(Schema.String, Schema.Unknown));
@@ -62,12 +62,12 @@ const checkNames = Effect.fn(function* (
 
   for (const [toolName, origins] of sources) {
     if (origins.length > 1) {
-      return yield* ToolConflict.make({ toolName, sources: origins });
+      return yield* Error.toolConflict(toolName, origins);
     }
   }
 });
 
-const makeTool = (definition: McpTool): Tools[string] =>
+const makeTool = (definition: ToolDefinition): Tools[string] =>
   Tool.dynamic(definition.name, {
     description: definition.description,
     parameters: definition.inputSchema,
