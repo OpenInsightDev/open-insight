@@ -12,13 +12,16 @@ export type Template<GS = Grade.ResultSchema, ES = ExtrasSchema> = Readonly<{
   Extras: ES;
 }>;
 
-export type Any = Template<Grade.ResultSchema, ExtrasSchema>;
+export type Unknown = Template<Grade.ResultSchema, ExtrasSchema>;
+export const Unknown = {
+  Grade: Schema.Record(Schema.String, Schema.Json),
+  Extras: Schema.Record(Schema.String, Schema.Json),
+} satisfies Template<Grade.ResultSchema, ExtrasSchema>;
 
-export type GradeResult<T extends Any> = T["Grade"]["Type"];
-
-export type Extras<T extends Any> = T["Extras"]["Type"];
-
-export type ExtrasEncoded<T extends Any> = T["Extras"]["Encoded"];
+export type GradeResult<T extends Unknown> = T["Grade"]["Type"];
+export type GradeResultEncoded<T extends Unknown> = T["Grade"]["Encoded"];
+export type Extras<T extends Unknown> = T["Extras"]["Type"];
+export type ExtrasEncoded<T extends Unknown> = T["Extras"]["Encoded"];
 
 /** Creates a schema contract from struct field definitions. */
 export function make<const GF extends Schema.Struct.Fields, const EF extends Schema.Struct.Fields>(

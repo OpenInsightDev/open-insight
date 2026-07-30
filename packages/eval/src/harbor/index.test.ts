@@ -92,10 +92,10 @@ env = { MODE = "test" }
         assert.deepStrictEqual(task.metadata.description, Option.some("Example task"));
         assert.deepStrictEqual(task.metadata.authors, Option.some(["Ada <ada@example.com>"]));
         assert.deepStrictEqual(task.extras, { difficulty: "easy" });
-        assert.strictEqual(task.resources.numCPUs, 2);
-        assert.strictEqual(task.resources.memoryMiB, 4096);
-        assert.strictEqual(task.resources.storageMiB, 8192);
-        assert.deepStrictEqual(task.resources.network, Resource.Network.noNetwork());
+        assert.deepStrictEqual(task.resources.numCPUs, Option.some(2));
+        assert.deepStrictEqual(task.resources.memoryMiB, Option.some(4096));
+        assert.deepStrictEqual(task.resources.storageMiB, Option.some(8192));
+        assert.deepStrictEqual(task.resources.network, Option.some(Resource.noNetwork()));
         assert.isTrue(Snapshot.isInstructions(task.snapshot));
         if (!Snapshot.isInstructions(task.snapshot)) {
           return assert.fail("Expected an instruction snapshot");

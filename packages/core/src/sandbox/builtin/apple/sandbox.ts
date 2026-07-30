@@ -2,7 +2,7 @@ import * as Sandbox from "#/sandbox/export.ts";
 import * as Resource from "#/resource/index.ts";
 import * as Snapshot from "#/snapshot/export.ts";
 import { Bash, Spawn } from "#/utils/export.ts";
-import { Duration, Effect, FileSystem } from "effect";
+import { Duration, Effect, FileSystem, Option } from "effect";
 import { ChildProcess as CP } from "effect/unstable/process";
 import { makeSandboxSpawner } from "./spawn.ts";
 import {
@@ -25,14 +25,14 @@ const ensureSupportedResources = Effect.fn(function* (
   handle: Snapshot.Handle.Handle,
   resources: Resource.Resources,
 ) {
-  if (resources.memoryMiB == null || resources.memoryMiB >= minimumMemoryMiB) {
+  if (Option.isNone(resources.memoryMiB) || resources.memoryMiB.value >= minimumMemoryMiB) {
     return;
   }
 
   return yield* Effect.fail(
     Sandbox.Error.sandboxStart(handle.name)(
       new Error(
-        `Apple container requires at least ${minimumMemoryMiB} MiB of memory, received ${resources.memoryMiB} MiB`,
+        `Apple container requires at least ${minimumMemoryMiB} MiB of memory, received ${resources.memoryMiB.value} MiB`,
       ),
     ),
   );
@@ -117,15 +117,16 @@ export const runSandbox = Effect.fn(
       return host;
     });
 
-    const networkArgs = Resource.Network.isNoNetwork(resources.network)
-      ? yield* Effect.acquireRelease(
-          start(CP.make`container network create --internal ${networkName}`).pipe(
-            Effect.onError(removeNetwork),
-            Effect.as(["--network", networkName]),
-          ),
-          removeNetwork,
-        )
-      : [];
+    const networkArgs =
+      Option.isSome(resources.network) && Resource.isNoNetwork(resources.network.value)
+        ? yield* Effect.acquireRelease(
+            start(CP.make`container network create --internal ${networkName}`).pipe(
+              Effect.onError(removeNetwork),
+              Effect.as(["--network", networkName]),
+            ),
+            removeNetwork,
+          )
+        : [];
 
     const resourceArgs = yield* formatResources(handle.name, resources);
     const create = CP.make(

@@ -92,7 +92,7 @@ export const stage =
     name: N,
     options: Omit<StageOptions<N, F, NoInfer<S>>, "name">,
   ) =>
-  <CurrentG extends Grade.Result, Ex extends object, T extends Template.Any, E, R>(
+  <CurrentG extends Grade.Result, Ex extends object, T extends Template.Unknown, E, R>(
     task: Effect.Effect<Builder<CurrentG, Ex, S, T>, E, R>,
   ): Effect.Effect<
     Builder<

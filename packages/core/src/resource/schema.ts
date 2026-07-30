@@ -6,7 +6,13 @@ export const NonNegative = Schema.Number.check(Schema.isGreaterThanOrEqualTo(0))
 export const NonNegativeInt = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0));
 
 export class Resources extends Schema.Class<Resources>("Resources")({
-  /** Number of CPUs allocated to the sandbox. */
+  /**
+   * Number of CPUs allocated to the sandbox.
+   *
+   * Can be a fractional number, e.g. 0.5 for half a CPU.
+   *
+   * Note: Fractional CPU allocation behaves varies across different sandbox providers.
+   */
   numCPUs: Schema.OptionFromOptionalNullOr(NonNegative),
 
   /** Number of GPUs allocated to the sandbox. */
@@ -18,7 +24,11 @@ export class Resources extends Schema.Class<Resources>("Resources")({
   /** Storage allocated to the sandbox in MiB. */
   storageMiB: Schema.OptionFromOptionalNullOr(NonNegativeInt),
 
-  /** Effective network policy applied while the sandbox is running. */
+  /**
+   * Effective network policy applied while the sandbox is running.
+   *
+   * Use the `no-network` policy to disable network access entirely.
+   */
   network: Schema.OptionFromOptionalNullOr(Network.Policy),
 
   /** Maximum time allowed to build a snapshot, in seconds. */
@@ -28,4 +38,5 @@ export class Resources extends Schema.Class<Resources>("Resources")({
   runTimeoutSec: Schema.OptionFromOptionalNullOr(NonNegativeInt),
 }) {}
 
-export type Options = Partial<Resources>;
+type ResourcesEncoded = (typeof Resources)["Encoded"];
+export const make = (options: ResourcesEncoded): Resources => Schema.decodeSync(Resources)(options);

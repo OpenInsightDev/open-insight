@@ -1,26 +1,28 @@
-import { Prompt } from "@open-insight/core/internal";
+import { Prompt, Sandbox } from "@open-insight/core/internal";
 import { Effect } from "effect";
 import { Error } from "./error.ts";
 
 export type PromptInit = Prompt.RawInput;
 
+/** Read-only sandbox operations available while producing the next prompt. */
+export type SandboxContext = Omit<Sandbox.SandboxPromise, "writeFile" | "expose" | "upload">;
+export type Context = SandboxContext & Readonly<{ trajectory: Prompt.Trajectory }>;
+
 /**
  * Creates a fresh prompt iterable for one stage execution.
  *
- * The factory receives the trajectory for the first generated message because
+ * The factory receives the context for the first generated message because
  * an async iterator ignores the argument to its first `next` call. Each later
- * trajectory is passed to the iterator that this factory creates.
+ * context is passed to the iterator that this factory creates.
  */
-export type PromptFactory = (
-  trajectory: Prompt.Trajectory,
-) => AsyncIterable<Prompt.RawInput, void, Prompt.Trajectory>;
+export type PromptFactory = (context: Context) => AsyncIterable<Prompt.RawInput, void, Context>;
 
-export type PromptFnPromise = (trajectory: Prompt.Trajectory) => Promise<Prompt.RawInput | null>;
+export type PromptFnPromise = (context: Context) => Promise<Prompt.RawInput | null>;
 
 export type PromptOptions =
   // return Prompt.RawInput immediately, then always return null
   | PromptInit
-  // derive the next Prompt.RawInput from the full trajectory
+  // derive the next Prompt.RawInput from the trajectory and sandbox state
   | PromptFnPromise
   // optionally return `init`, then receive inputs and generate subsequent raw prompts
   | Readonly<{
@@ -29,14 +31,12 @@ export type PromptOptions =
     }>;
 
 /**
- * Produces the next batch of user messages from the current agent session.
+ * Produces the next batch of user messages from the agent session and sandbox state.
  *
  * Returning `null` completes the prompt. Raw input is converted to a
  * trajectory immediately before it is returned.
  */
-export type PromptFn = (
-  trajectory: Prompt.Trajectory,
-) => Effect.Effect<Prompt.Trajectory | null, Error>;
+export type PromptFn = (context: Context) => Effect.Effect<Prompt.Trajectory | null, Error>;
 
 const makeStaticPromptFn = (init: PromptInit): PromptFn => {
   let pending: Prompt.RawInput | null = init;
@@ -51,9 +51,9 @@ const makeStaticPromptFn = (init: PromptInit): PromptFn => {
 
 const makeGeneratedPromptFn = (factory: PromptFactory, init?: PromptInit): PromptFn => {
   let pending = init;
-  let iterator: AsyncIterator<Prompt.RawInput, void, Prompt.Trajectory> | undefined;
+  let iterator: AsyncIterator<Prompt.RawInput, void, Context> | undefined;
 
-  return Effect.fn(function* (trajectory: Prompt.Trajectory) {
+  return Effect.fn(function* (context: Context) {
     if (pending !== undefined) {
       const next = pending;
       pending = undefined;
@@ -63,10 +63,10 @@ const makeGeneratedPromptFn = (factory: PromptFactory, init?: PromptInit): Promp
     const next = yield* Effect.tryPromise({
       try: () => {
         if (iterator === undefined) {
-          iterator = factory(trajectory)[Symbol.asyncIterator]();
+          iterator = factory(context)[Symbol.asyncIterator]();
           return iterator.next();
         }
-        return iterator.next(trajectory);
+        return iterator.next(context);
       },
       catch: Error.prompt,
     });
@@ -77,9 +77,9 @@ const makeGeneratedPromptFn = (factory: PromptFactory, init?: PromptInit): Promp
 
 export const makePromptFn = (options: PromptOptions): PromptFn => {
   if (typeof options === "function") {
-    return Effect.fn((trajectory: Prompt.Trajectory) =>
+    return Effect.fn((context: Context) =>
       Effect.tryPromise({
-        try: () => options(trajectory),
+        try: () => options(context),
         catch: Error.prompt,
       }).pipe(Effect.map((next) => (next === null ? null : Prompt.make(next)))),
     );

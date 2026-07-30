@@ -1,6 +1,6 @@
 import * as Resource from "#/resource/index.ts";
 import * as Sandbox from "#/sandbox/export.ts";
-import { Effect, Schema } from "effect";
+import { Effect, Option, Schema } from "effect";
 import { ChildProcess as CP } from "effect/unstable/process";
 import ipaddr from "ipaddr.js";
 
@@ -44,32 +44,34 @@ export const formatResources = Effect.fn(function* (
 
   const { numGPUs, storageMiB, numCPUs, memoryMiB } = resources;
 
-  if (numGPUs != null) {
+  if (Option.isSome(numGPUs)) {
     return yield* Effect.fail(
       Sandbox.Error.sandboxStart(name)(
-        new Error(`Apple container does not support GPU allocation, ` + `received: ${numGPUs}`),
+        new Error(
+          `Apple container does not support GPU allocation, ` + `received: ${numGPUs.value}`,
+        ),
       ),
     );
   }
 
-  if (storageMiB != null) {
+  if (Option.isSome(storageMiB)) {
     return yield* Effect.fail(
       Sandbox.Error.sandboxStart(name)(
         new Error(
           `Apple container does not support storage size limits on the root filesystem, ` +
-            `received: ${storageMiB}`,
+            `received: ${storageMiB.value}`,
         ),
       ),
     );
   }
 
   const resourceArgs: Array<string> = [];
-  if (numCPUs != null) {
-    resourceArgs.push("--cpus", `${numCPUs}`);
+  if (Option.isSome(numCPUs)) {
+    resourceArgs.push("--cpus", `${numCPUs.value}`);
   }
 
-  if (memoryMiB != null) {
-    resourceArgs.push("--memory", `${memoryMiB}M`);
+  if (Option.isSome(memoryMiB)) {
+    resourceArgs.push("--memory", `${memoryMiB.value}M`);
   }
 
   return resourceArgs;

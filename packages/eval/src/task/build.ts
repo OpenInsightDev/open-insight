@@ -32,7 +32,7 @@ export class Metadata extends Schema.Class<Metadata>("Metadata")({
 export type Task<
   G extends Grade.Result = Grade.Result,
   E extends object = object,
-  T extends Template.Any = Template.Template<Grade.ResultSchema<G>, Template.ExtrasSchema<E>>,
+  T extends Template.Unknown = Template.Template<Grade.ResultSchema<G>, Template.ExtrasSchema<E>>,
 > = Readonly<{
   metadata: BaseMetadata;
   snapshot: Snapshot.Snapshot;
@@ -55,7 +55,7 @@ export type Builder<
   G extends Grade.Result = Grade.Result,
   E extends object = object,
   S extends Grade.Results = Grade.Results,
-  T extends Template.Any = Template.Template<Grade.ResultSchema<G>, Template.ExtrasSchema<E>>,
+  T extends Template.Unknown = Template.Template<Grade.ResultSchema<G>, Template.ExtrasSchema<E>>,
 > = Task<G, E, T> &
   Readonly<{
     [BuilderTypeId]: Types.Invariant<readonly [G, E, S, T]>;
@@ -82,14 +82,14 @@ type ExtrasOptions<ES extends Template.ExtrasSchema> = BaseOptions &
     extras: ES["Encoded"];
   }>;
 
-export type Options<T extends Template.Any> = T["Extras"] extends typeof Template.EmptyExtras
+export type Options<T extends Template.Unknown> = T["Extras"] extends typeof Template.EmptyExtras
   ? NoExtrasOptions
   : ExtrasOptions<T["Extras"]>;
 
 const decodeMetadata = (options: BaseOptions) =>
   Schema.decodeEffect(BaseMetadata)(options).pipe(Effect.mapError(Error.metadata));
 
-export const make = <T extends Template.Any>(template: T) =>
+export const make = <T extends Template.Unknown>(template: T) =>
   Effect.fn("Task.make")(function* (
     options: Options<T>,
   ): Effect.fn.Return<
@@ -97,7 +97,7 @@ export const make = <T extends Template.Any>(template: T) =>
     Error,
     Crypto.Crypto | Scope.Scope
   > {
-    const { snapshot, resources = Resource.Resources.make({}) } = options;
+    const { snapshot, resources = Resource.make({}) } = options;
     const metadata = yield* decodeMetadata(options);
     const extrasInput = "extras" in options ? options.extras : {};
     const extras = yield* Schema.decodeUnknownEffect(template.Extras)(extrasInput).pipe(
@@ -118,7 +118,7 @@ export const make = <T extends Template.Any>(template: T) =>
 
 /** Completes a task builder whose final stage result conforms to its template. */
 export const build = <
-  T extends Template.Any,
+  T extends Template.Unknown,
   G extends Template.GradeResult<T>,
   E extends object,
   S extends Grade.Results,
@@ -128,7 +128,7 @@ export const build = <
   self: Effect.Effect<Builder<G, E, S, T>, Err, R>,
 ): Effect.Effect<Task<G, E, T>, Err, R> => self;
 
-export const metadata = <G extends Grade.Result, E extends object, T extends Template.Any>(
+export const metadata = <G extends Grade.Result, E extends object, T extends Template.Unknown>(
   task: Task<G, E, T>,
 ): Metadata =>
   Metadata.make({
@@ -137,7 +137,11 @@ export const metadata = <G extends Grade.Result, E extends object, T extends Tem
     extras: Schema.encodeSync(task.template.Extras)(task.extras),
   });
 
-export const metadataSchema = <G extends Grade.Result, E extends object, T extends Template.Any>(
+export const metadataSchema = <
+  G extends Grade.Result,
+  E extends object,
+  T extends Template.Unknown,
+>(
   task: Task<G, E, T>,
 ) =>
   Schema.Struct({

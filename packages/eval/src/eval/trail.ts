@@ -138,6 +138,12 @@ export const createTrail = Effect.fn("exec/createTrail")(
           .runSandbox({ handle: trailSnapshot, resources })
           .pipe(Effect.mapError(Error.taskExec(task, idx)));
         const ctx = yield* Sandbox.asPromise(sandbox);
+        const promptSandbox = {
+          $: ctx.$,
+          cmd: ctx.cmd,
+          readFile: ctx.readFile,
+          download: ctx.download,
+        } satisfies Task.SandboxContext;
 
         const stageStream = Stream.fromIterable(stages);
 
@@ -226,7 +232,9 @@ export const createTrail = Effect.fn("exec/createTrail")(
               Error
             > {
               const trajectory = yield* getTrajectory;
-              const prompt = yield* fn(trajectory).pipe(Effect.mapError(Error.taskExec(task, idx)));
+              const prompt = yield* fn({ ...promptSandbox, trajectory }).pipe(
+                Effect.mapError(Error.taskExec(task, idx)),
+              );
 
               if (prompt === null) {
                 return undefined;

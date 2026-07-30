@@ -1,4 +1,5 @@
 import * as Resource from "#/resource/index.ts";
+import { Option } from "effect";
 
 export const formatResources = (resources: Resource.Resources | null): Array<string> => {
   if (!resources) {
@@ -7,23 +8,23 @@ export const formatResources = (resources: Resource.Resources | null): Array<str
 
   const { numCPUs, memoryMiB, numGPUs, storageMiB, network } = resources;
   const resourceArgs: Array<string> = [];
-  if (numCPUs != null) {
-    resourceArgs.push("--cpus", `${numCPUs}`);
+  if (Option.isSome(numCPUs)) {
+    resourceArgs.push("--cpus", `${numCPUs.value}`);
   }
 
-  if (memoryMiB != null) {
-    resourceArgs.push("--memory", `${memoryMiB}m`);
+  if (Option.isSome(memoryMiB)) {
+    resourceArgs.push("--memory", `${memoryMiB.value}m`);
   }
 
-  if (numGPUs != null && numGPUs > 0) {
-    resourceArgs.push("--gpus", `count=${numGPUs}`);
+  if (Option.isSome(numGPUs) && numGPUs.value > 0) {
+    resourceArgs.push("--gpus", `count=${numGPUs.value}`);
   }
 
-  if (storageMiB != null) {
-    resourceArgs.push("--storage-opt", `size=${storageMiB}m`);
+  if (Option.isSome(storageMiB)) {
+    resourceArgs.push("--storage-opt", `size=${storageMiB.value}m`);
   }
 
-  if (Resource.Network.isNoNetwork(network)) {
+  if (Option.isSome(network) && Resource.isNoNetwork(network.value)) {
     resourceArgs.push("--network", "none");
   }
 

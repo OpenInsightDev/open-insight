@@ -15,7 +15,7 @@ type StageSpec = Readonly<{
   init: Task.Init | null;
 }>;
 
-type TaskBuilder<T extends Task.Template.Any = Task.Template.Any> = Effect.Effect<
+type TaskBuilder<T extends Task.Template.Unknown = Task.Template.Unknown> = Effect.Effect<
   Task.Builder<GradeResult, HarborTask["extras"], Grade.Results, T>,
   Task.Error,
   Crypto.Crypto | Scope.Scope
@@ -177,7 +177,7 @@ export const makeStages = Effect.fn(function* (
 
 export const addStages =
   (stages: ReadonlyArray<StageSpec>) =>
-  <T extends Task.Template.Any>(base: TaskBuilder<T>): TaskBuilder<T> => {
+  <T extends Task.Template.Unknown>(base: TaskBuilder<T>): TaskBuilder<T> => {
     let task = base;
     for (const stage of stages) {
       const common = {

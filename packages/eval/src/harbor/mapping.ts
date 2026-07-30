@@ -21,14 +21,14 @@ const envNetwork = (env: EnvConfig | undefined): NetworkMode => {
   return env?.allow_internet === false ? "no-network" : "public";
 };
 
-const networkPolicy = (env: EnvConfig | undefined): Resource.Network.Policy => {
+const networkPolicy = (env: EnvConfig | undefined): Resource.Policy => {
   switch (envNetwork(env)) {
     case "no-network":
-      return Resource.Network.noNetwork();
+      return Resource.noNetwork();
     case "allowlist":
-      return Resource.Network.allowlist(env?.allowed_hosts ?? []);
+      return Resource.allowlist(env?.allowed_hosts ?? []);
     case "public":
-      return Resource.Network.publicAccess();
+      return Resource.publicAccess();
   }
 };
 
@@ -276,7 +276,7 @@ const timeout = (config: TaskConfig): number => {
 
 export const makeResources = (config: TaskConfig): Resource.Resources => {
   const env = config.environment;
-  return Resource.Resources.make({
+  return Resource.make({
     numCPUs: env?.cpus ?? 1,
     numGPUs: env?.gpus ?? 0,
     memoryMiB: env?.memory_mb ?? 2048,

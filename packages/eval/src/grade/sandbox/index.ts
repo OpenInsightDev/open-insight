@@ -77,7 +77,7 @@ export type Options<R extends Result = Result, Rs extends Results = never> = Rea
  */
 export const make = <R extends Result = Result, Rs extends Results = never>({
   snapshot,
-  resources = Resource.Resources.make({}),
+  resources = Resource.make({}),
   cacheSnapshot = true,
   grade,
 }: Options<R, Rs>): Grader<R, Rs> => ({

@@ -132,6 +132,7 @@ describe("verification trail", () => {
         const initializedPath = "/workspace/initialized.txt";
         const files = new Map<string, string>();
         const calls: Array<string> = [];
+        let promptCalls = 0;
         const snapshot = Snapshot.make("test-image");
         const handle = yield* Snapshot.Handle.make(snapshot);
         const task = yield* Task.make(initializedTemplate)({
@@ -142,7 +143,15 @@ describe("verification trail", () => {
           Task.stage("solve", {
             schema: initializedTemplate.Grade.fields,
             id: "solve",
-            prompt: "Solve the task",
+            prompt: async (context) => {
+              calls.push("prompt");
+              promptCalls += 1;
+              assert.strictEqual(await context.readFile({ sandboxPath: initializedPath }), "ready");
+              assert.isFalse("writeFile" in context);
+              assert.isFalse("upload" in context);
+              assert.isFalse("expose" in context);
+              return promptCalls === 1 ? "Solve the task" : null;
+            },
             init: async ({ writeFile }) => {
               calls.push("init");
               await writeFile({ sandboxPath: initializedPath, content: "ready" });
@@ -188,7 +197,7 @@ describe("verification trail", () => {
         const result = yield* runTrail(0);
         const grade = yield* Schema.decodeUnknownEffect(initializedTemplate.Grade)(result.grade);
 
-        assert.deepStrictEqual(calls, ["init", "agent", "grader"]);
+        assert.deepStrictEqual(calls, ["init", "agent", "prompt", "prompt", "grader"]);
         assert.isTrue(grade.initialized);
         assert.isTrue(DateTime.isLessThanOrEqualTo(result.startedAt, result.finishedAt));
       }),

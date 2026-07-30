@@ -16,7 +16,7 @@ type TrajMetricOptions<R extends Schema.JsonObject> = Omit<Metric.Traj.Options<R
 type TaskMetricBuilder<G extends Grade.Result> = <
   Ex extends object,
   S extends Grade.Results,
-  T extends Template.Any,
+  T extends Template.Unknown,
   E,
   Env,
 >(
@@ -27,7 +27,7 @@ type TrajMetricBuilder = <
   G extends Grade.Result,
   Ex extends object,
   S extends Grade.Results,
-  T extends Template.Any,
+  T extends Template.Unknown,
   E,
   Env,
 >(
@@ -46,7 +46,7 @@ export function metric<G extends Grade.Result, R extends Schema.JsonObject = Sch
   exec: Metric.Task.ExecEffect<G, R> | Metric.Task.Exec<G, R>,
   options: TaskMetricOptions<G, R> = {},
 ): TaskMetricBuilder<G> {
-  return <Ex extends object, S extends Grade.Results, T extends Template.Any, E, Env>(
+  return <Ex extends object, S extends Grade.Results, T extends Template.Unknown, E, Env>(
     task: Effect.Effect<Builder<G, Ex, S, T>, E, Env>,
   ): Effect.Effect<Builder<G, Ex, S, T>, E | Error, Env | Crypto.Crypto> =>
     task.pipe(
@@ -76,7 +76,7 @@ export function trajMetric<R extends Schema.JsonObject = Schema.JsonObject>(
     G extends Grade.Result,
     Ex extends object,
     S extends Grade.Results,
-    T extends Template.Any,
+    T extends Template.Unknown,
     E,
     Env,
   >(

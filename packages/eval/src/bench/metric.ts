@@ -29,7 +29,7 @@ const makeTrajMetric = <R extends Schema.JsonObject>(options: Metric.Traj.Option
 
 type MetricBuilder<G extends Grade.Result> = <
   Extras extends object,
-  T extends Task.Template.Any,
+  T extends Task.Template.Unknown,
   E,
   Env,
 >(
@@ -56,7 +56,7 @@ export function metric<G extends Grade.Result, R extends Schema.JsonObject>(
   exec: Metric.Bench.ExecEffect<G, R> | Metric.Bench.Exec<G, R>,
   options: MetricOptions<G, R> = {},
 ): MetricBuilder<G> {
-  return <Extras extends object, T extends Task.Template.Any, E, Env>(
+  return <Extras extends object, T extends Task.Template.Unknown, E, Env>(
     bench: Effect.Effect<Bench<Task.Task<G, Extras, T>>, E, Env>,
   ): Effect.Effect<Bench<Task.Task<G, Extras, T>>, E | Error, Env | Crypto.Crypto> =>
     bench.pipe(
@@ -91,7 +91,7 @@ export function taskMetric<G extends Grade.Result, R extends Schema.JsonObject =
   execOrOptions: Metric.Task.ExecEffect<G, R> | Metric.Task.Exec<G, R> | Metric.Task.Options<G, R>,
   options: TaskMetricOptions<G, R> = {},
 ): MetricBuilder<G> {
-  return <Extras extends object, T extends Task.Template.Any, E, Env>(
+  return <Extras extends object, T extends Task.Template.Unknown, E, Env>(
     bench: Effect.Effect<Bench<Task.Task<G, Extras, T>>, E, Env>,
   ): Effect.Effect<Bench<Task.Task<G, Extras, T>>, E | Error, Env | Crypto.Crypto> =>
     Effect.flatMap(bench, (bench) => {
