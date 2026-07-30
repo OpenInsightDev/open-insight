@@ -20,7 +20,7 @@ it.effect("accepts raw and Effect metric executors", () =>
     > = async () => ({ count: 1 });
     const trajExec: Metric.Traj.Exec<Readonly<{ count: number }>> = async () => ({ count: 1 });
 
-    const task = yield* Task.make(template, {
+    const task = yield* Task.make(template)({
       id: "metric-exec-inputs",
       name: "Metric exec inputs",
       snapshot: Snapshot.make("test-image"),

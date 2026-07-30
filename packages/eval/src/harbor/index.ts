@@ -44,7 +44,7 @@ export const makeTask = Effect.fn("Task.Load.makeHarborTask")(function* (taskDir
     grade: GradeResult,
   });
 
-  return yield* Task.make(template, {
+  return yield* Task.make(template)({
     id: name,
     name,
     description: pkg?.description,

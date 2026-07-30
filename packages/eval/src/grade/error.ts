@@ -3,7 +3,7 @@ import { Data, Schema } from "effect";
 
 export class Retry extends Data.TaggedError("Retry")<{
   readonly prompt: Prompt.RawInput;
-}>     {}
+}> {}
 
 export const retry = (prompt: Prompt.RawInput): Retry => new Retry({ prompt });
 

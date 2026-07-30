@@ -38,7 +38,7 @@ const values = {
   extras: { owner: "eval", revision: "1" },
 };
 
-const task = Task.make(template, values).pipe(
+const task = Task.make(template)(values).pipe(
   Task.stage.from("setup", {
     schema: Setup,
     prompt: "Prepare the task",
@@ -80,7 +80,7 @@ it.effect("keeps template schemas separate from task values", () =>
 
 it.effect("allows task-local intermediate stages and infers every preceding result", () =>
   Effect.gen(function* () {
-    const task = yield* Task.make(template, values).pipe(
+    const task = yield* Task.make(template)(values).pipe(
       Task.stage.from("setup", {
         schema: Setup,
         prompt: "Prepare the task",
@@ -108,7 +108,7 @@ it.effect("allows task-local intermediate stages and infers every preceding resu
 );
 
 it("enforces template conformance entirely at the type level", () => {
-  const wrongFinalGrade = Task.make(template, values).pipe(
+  const wrongFinalGrade = Task.make(template)(values).pipe(
     Task.stage.from("setup", {
       schema: Setup,
       prompt: "Prepare the task",
@@ -119,7 +119,7 @@ it("enforces template conformance entirely at the type level", () => {
   Task.build(wrongFinalGrade);
 
   // @ts-expect-error Extras use the encoded shape of the template schema.
-  Task.make(template, { ...values, extras: { owner: 1, revision: "1" } });
+  Task.make(template)({ ...values, extras: { owner: 1, revision: "1" } });
 
   assert.isTrue(true);
 });

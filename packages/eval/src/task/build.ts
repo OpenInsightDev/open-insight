@@ -91,32 +91,40 @@ export type Options<T extends Template.Any> = T["extras"] extends typeof Templat
 const decodeMetadata = (options: BaseOptions) =>
   Schema.decodeEffect(BaseMetadata)(options).pipe(Effect.mapError(Error.metadata));
 
-export const make = Effect.fn("Task.make")(function* <T extends Template.Any>(
+export const make = <T extends Template.Any>(
   template: T,
+): ((
   options: Options<T>,
-): Effect.fn.Return<
+) => Effect.Effect<
   Builder<never, Template.Extras<T>, never, T>,
   Error,
   Crypto.Crypto | Scope.Scope
-> {
-  const { snapshot, resources = Resource.Resources.make({}) } = options;
-  const metadata = yield* decodeMetadata(options);
-  const extrasInput = "extras" in options ? options.extras : {};
-  const extras = yield* Schema.decodeUnknownEffect(template.extras)(extrasInput).pipe(
-    Effect.mapError(Error.metadata),
-  );
-  return {
-    metadata,
-    snapshot,
-    resources,
-    template,
-    extras,
-    stages: [],
-    metrics: [],
-    trajMetrics: [],
-    [BuilderTypeId]: (value) => value,
-  } satisfies Builder<never, Template.Extras<T>, never, T>;
-});
+>) =>
+  Effect.fn("Task.make")(function* (
+    options: Options<T>,
+  ): Effect.fn.Return<
+    Builder<never, Template.Extras<T>, never, T>,
+    Error,
+    Crypto.Crypto | Scope.Scope
+  > {
+    const { snapshot, resources = Resource.Resources.make({}) } = options;
+    const metadata = yield* decodeMetadata(options);
+    const extrasInput = "extras" in options ? options.extras : {};
+    const extras = yield* Schema.decodeUnknownEffect(template.extras)(extrasInput).pipe(
+      Effect.mapError(Error.metadata),
+    );
+    return {
+      metadata,
+      snapshot,
+      resources,
+      template,
+      extras,
+      stages: [],
+      metrics: [],
+      trajMetrics: [],
+      [BuilderTypeId]: (value) => value,
+    } satisfies Builder<never, Template.Extras<T>, never, T>;
+  });
 
 /** Completes a task builder whose final stage result conforms to its template. */
 export const build = <

@@ -52,7 +52,7 @@ const isExportTask = <T extends Task.Task>(value: unknown): value is ExportTask<
  *   grade: Grade.Result,
  * });
  *
- * export default Task.make(template, {
+ * export default Task.make(template)({
  *   id: "static-task",
  *   name: "static task",
  *   snapshot,

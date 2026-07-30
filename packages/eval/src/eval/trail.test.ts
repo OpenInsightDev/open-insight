@@ -85,7 +85,7 @@ const makeRunTrail = Effect.fn(function* ({ initiallySolved }: { initiallySolved
 
   const snapshot = Snapshot.make("test-image");
   const handle = yield* Snapshot.Handle.make(snapshot);
-  const task = yield* Task.make(passedTemplate, {
+  const task = yield* Task.make(passedTemplate)({
     id: "test-task",
     name: "Test task",
     snapshot,
@@ -134,7 +134,7 @@ describe("verification trail", () => {
         const calls: Array<string> = [];
         const snapshot = Snapshot.make("test-image");
         const handle = yield* Snapshot.Handle.make(snapshot);
-        const task = yield* Task.make(initializedTemplate, {
+        const task = yield* Task.make(initializedTemplate)({
           id: "test-task",
           name: "Test task",
           snapshot,
