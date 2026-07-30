@@ -190,20 +190,18 @@ export const runSandbox = Effect.fn(
         sandboxSpawner
           .spawn(command)
           .pipe(Effect.mapError(Sandbox.Error.sandboxExec(name, formatSandboxCommand(command)))),
-      expose: Effect.fn(function* ({ sandboxPort, hostPort }) {
+      expose: Effect.fn(function* ({ sandboxPort }) {
         yield* Effect.logDebug("Exposing Apple container sandbox port", {
           containerName: name,
           sandboxPort,
-          expectedHostPort: hostPort,
         });
 
-        const mapping = findPortMapping(portMappings, { sandboxPort, hostPort });
+        const mapping = findPortMapping(portMappings, sandboxPort);
         if (mapping === undefined) {
           return yield* Effect.fail(
             Sandbox.Error.sandboxExpose(
               handle.name,
               sandboxPort,
-              hostPort,
             )(
               new Error(
                 "Expected port mapping cannot be exposed because it was not specified in the configuration. Apple container requires a host port when the container is created.",

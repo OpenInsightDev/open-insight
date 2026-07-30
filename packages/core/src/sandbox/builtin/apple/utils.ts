@@ -30,17 +30,5 @@ export const formatResources = (resources: Resource.Resources | null): Array<str
 export const formatPortMappings = (portMappings: ReadonlyArray<PortMapping>): Array<string> =>
   portMappings.flatMap(({ sandboxPort, hostPort }) => ["--publish", `${hostPort}:${sandboxPort}`]);
 
-export const findPortMapping = (
-  portMappings: ReadonlyArray<PortMapping>,
-  { sandboxPort, hostPort }: Readonly<{ sandboxPort: number; hostPort?: number }>,
-) =>
-  portMappings.find(
-    (mapping) =>
-      mapping.sandboxPort === sandboxPort &&
-      (hostPort === undefined || mapping.hostPort === hostPort),
-  );
-
-export const matchesPortMapping = (
-  portMappings: ReadonlyArray<PortMapping>,
-  { sandboxPort, hostPort }: Readonly<{ sandboxPort: number; hostPort?: number }>,
-) => findPortMapping(portMappings, { sandboxPort, hostPort }) !== undefined;
+export const findPortMapping = (portMappings: ReadonlyArray<PortMapping>, sandboxPort: number) =>
+  portMappings.find((mapping) => mapping.sandboxPort === sandboxPort);

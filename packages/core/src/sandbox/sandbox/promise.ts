@@ -45,9 +45,7 @@ export type SandboxPromise = Readonly<{
   writeFile(options: Readonly<{ sandboxPath: string; content: string }>): Promise<void>;
   download(options: Readonly<{ sandboxPath: string; hostPath: string }>): Promise<void>;
   upload(options: Readonly<{ sandboxPath: string; hostPath: string }>): Promise<void>;
-  expose(
-    options: Readonly<{ sandboxPort: number; hostPort?: number }>,
-  ): Promise<{ hostUrl: string }>;
+  expose(options: Readonly<{ sandboxPort: number }>): Promise<{ hostUrl: string }>;
 }>;
 
 export const asPromise = Effect.fn(function* (sandbox: Sandbox) {

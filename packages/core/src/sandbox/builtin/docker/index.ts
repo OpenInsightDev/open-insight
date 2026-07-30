@@ -3,17 +3,12 @@ import * as Snapshot from "#/snapshot/export.ts";
 import { Spawn, Bash } from "#/utils/export.ts";
 import { Crypto, Duration, Effect, FileSystem, Match } from "effect";
 import { ChildProcess as CP } from "effect/unstable/process";
-import { formatPortMappings, formatResources, matchesPortMapping } from "./utils.ts";
+import { formatPorts, formatResources, hasPort } from "./utils.ts";
 import { makeSandboxSpawner } from "./spawn.ts";
 import * as Runtime from "./runtime.ts";
 
-export type PortMapping = Readonly<{
-  sandboxPort: number;
-  hostPort?: number;
-}>;
-
 export type MakeOptions = Readonly<{
-  portMappings?: Array<PortMapping>;
+  ports?: Array<number>;
   timeout?: Duration.Input;
 }>;
 
@@ -22,7 +17,7 @@ const formatSandboxCommand = ({ command, args = [] }: Sandbox.Spawn.Command) =>
 
 export const make = Effect.fn("sandbox/provider/docker")(
   function* ({
-    portMappings = [],
+    ports = [],
     timeout = "30 seconds",
   }: MakeOptions): Effect.fn.Return<
     Sandbox.Provider,
@@ -238,15 +233,15 @@ export const make = Effect.fn("sandbox/provider/docker")(
         yield* Effect.logDebug("Starting Docker sandbox container", {
           image: handle.name,
           containerName: name,
-          portMappings,
+          ports,
           resources,
         });
 
-        const portMappingArgs = formatPortMappings(portMappings);
+        const portArgs = formatPorts(ports);
         const resourceArgs = formatResources(resources);
         const run = CP.make`run --rm --detach
           --name ${name}
-          ${portMappingArgs}
+          ${portArgs}
           ${resourceArgs}
           ${handle.name}
           sleep infinity`.pipe(runtime);
@@ -297,42 +292,26 @@ export const make = Effect.fn("sandbox/provider/docker")(
               .pipe(
                 Effect.mapError(Sandbox.Error.sandboxExec(name, formatSandboxCommand(command))),
               ),
-          expose: Effect.fn(function* ({ sandboxPort, hostPort }) {
+          expose: Effect.fn(function* ({ sandboxPort }) {
             yield* Effect.logDebug("Exposing Docker sandbox port", {
               containerName: name,
               sandboxPort,
-              expectedHostPort: hostPort,
             });
 
-            if (!matchesPortMapping(portMappings, { sandboxPort, hostPort })) {
+            if (!hasPort(ports, sandboxPort)) {
               return yield* Effect.fail(
                 Sandbox.Error.sandboxExpose(
                   handle.name,
                   sandboxPort,
-                  hostPort,
                 )(
                   new Error(
-                    "Expected port mapping cannot be exposed because it was not specified in the configuration. Containers cannot exposing arbitrary ports that were not mapped when the container was created.",
+                    "The sandbox port cannot be exposed because it was not specified in the provider configuration. Docker requires ports to be published when the container is created.",
                   ),
                 ),
               );
             }
 
             const actualHostPort = yield* getHostPort(name, sandboxPort);
-
-            if (hostPort !== undefined && actualHostPort !== hostPort) {
-              return yield* Effect.fail(
-                Sandbox.Error.sandboxExpose(
-                  handle.name,
-                  sandboxPort,
-                  hostPort,
-                )(
-                  new Error(
-                    `Expected sandbox port ${sandboxPort} to be exposed on host port ${hostPort}, but Docker reported host port ${actualHostPort}`,
-                  ),
-                ),
-              );
-            }
 
             yield* Effect.logDebug("Exposed Docker sandbox port", {
               containerName: name,

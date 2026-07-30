@@ -1,10 +1,5 @@
 import * as Resource from "#/resource/index.ts";
 
-type PortMapping = Readonly<{
-  sandboxPort: number;
-  hostPort?: number;
-}>;
-
 export const formatResources = (resources: Resource.Resources | null): Array<string> => {
   if (!resources) {
     return [];
@@ -35,18 +30,7 @@ export const formatResources = (resources: Resource.Resources | null): Array<str
   return resourceArgs;
 };
 
-export const formatPortMappings = (portMappings: ReadonlyArray<PortMapping>): Array<string> =>
-  portMappings.flatMap(({ sandboxPort, hostPort }) => [
-    "-p",
-    hostPort === undefined ? `${sandboxPort}` : `${hostPort}:${sandboxPort}`,
-  ]);
+export const formatPorts = (ports: ReadonlyArray<number>): Array<string> =>
+  ports.flatMap((port) => ["-p", `${port}`]);
 
-export const matchesPortMapping = (
-  portMappings: ReadonlyArray<PortMapping>,
-  { sandboxPort, hostPort }: PortMapping,
-) =>
-  portMappings.some(
-    (mapping) =>
-      mapping.sandboxPort === sandboxPort &&
-      (hostPort === undefined || mapping.hostPort === hostPort),
-  );
+export const hasPort = (ports: ReadonlyArray<number>, port: number) => ports.includes(port);

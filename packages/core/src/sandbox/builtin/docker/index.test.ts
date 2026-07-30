@@ -8,6 +8,11 @@ import * as Resource from "#/resource/export.ts";
 import * as Snapshot from "#/snapshot/export.ts";
 import { Spawn } from "#/utils/export.ts";
 import * as Docker from "./index.ts";
+import { formatPorts } from "./utils.ts";
+
+it("lets Docker select host ports for configured sandbox ports", () => {
+  assert.deepStrictEqual(formatPorts([8080, 3000]), ["-p", "8080", "-p", "3000"]);
+});
 
 const dockerAvailable = (() => {
   try {
@@ -240,7 +245,7 @@ describe.skipIf(!dockerAvailable)("Docker sandbox end-to-end", () => {
             ],
           });
           const provider = yield* Docker.make({
-            portMappings: [{ sandboxPort: 8080 }],
+            ports: [8080],
           });
 
           const acquired = yield* Effect.scoped(

@@ -23,9 +23,7 @@ export type Sandbox = Spawn &
     upload(
       options: Readonly<{ sandboxPath: string; hostPath: string }>,
     ): Effect.Effect<void, Error>;
-    expose(
-      options: Readonly<{ sandboxPort: number; hostPort?: number }>,
-    ): Effect.Effect<{ hostUrl: string }, Error>;
+    expose(options: Readonly<{ sandboxPort: number }>): Effect.Effect<{ hostUrl: string }, Error>;
   }>;
 
 export class Current extends Context.Service<Current, Sandbox>()("sandbox/Current") {}
