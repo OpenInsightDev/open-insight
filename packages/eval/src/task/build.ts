@@ -84,9 +84,9 @@ type ExtrasOptions<ES extends Template.ExtrasSchema> = BaseOptions &
     extras: ES["Encoded"];
   }>;
 
-export type Options<T extends Template.Any> = T["extras"] extends typeof Template.EmptyExtras
+export type Options<T extends Template.Any> = T["Extras"] extends typeof Template.EmptyExtras
   ? NoExtrasOptions
-  : ExtrasOptions<T["extras"]>;
+  : ExtrasOptions<T["Extras"]>;
 
 const decodeMetadata = (options: BaseOptions) =>
   Schema.decodeEffect(BaseMetadata)(options).pipe(Effect.mapError(Error.metadata));
@@ -110,7 +110,7 @@ export const make = <T extends Template.Any>(
     const { snapshot, resources = Resource.Resources.make({}) } = options;
     const metadata = yield* decodeMetadata(options);
     const extrasInput = "extras" in options ? options.extras : {};
-    const extras = yield* Schema.decodeUnknownEffect(template.extras)(extrasInput).pipe(
+    const extras = yield* Schema.decodeUnknownEffect(template.Extras)(extrasInput).pipe(
       Effect.mapError(Error.metadata),
     );
     return {
@@ -149,7 +149,7 @@ export const metadata = <
   Metadata.make({
     base: task.metadata,
     stages: task.stages.map((stage) => stage.metadata),
-    extras: Schema.encodeSync(task.template.extras)(task.extras),
+    extras: Schema.encodeSync(task.template.Extras)(task.extras),
   });
 
 export const metadataSchema = <
@@ -163,5 +163,5 @@ export const metadataSchema = <
   Schema.Struct({
     base: BaseMetadata,
     stages: Schema.Array(StageMetadata),
-    extras: Schema.toEncoded(task.template.extras),
+    extras: Schema.toEncoded(task.template.Extras),
   });

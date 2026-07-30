@@ -9,7 +9,11 @@ function shell(_strings: TemplateStringsArray, ..._values: ReadonlyArray<unknown
 function shell(
   _options: object,
 ): (_strings: TemplateStringsArray, ..._values: ReadonlyArray<unknown>) => Promise<string>;
-function shell(first: TemplateStringsArray | object) {
+function shell(
+  first: TemplateStringsArray | object,
+):
+  | Promise<string>
+  | ((_strings: TemplateStringsArray, ..._values: ReadonlyArray<unknown>) => Promise<string>) {
   return Array.isArray(first) ? Promise.resolve("") : shell;
 }
 

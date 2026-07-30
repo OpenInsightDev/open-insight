@@ -8,17 +8,17 @@ export const EmptyExtras = Schema.Record(Schema.String, Schema.Never);
 
 /** A schema-only contract shared by every task in a bench. */
 export type Template<GS = Grade.ResultSchema, ES = ExtrasSchema> = Readonly<{
-  grade: GS;
-  extras: ES;
+  Grade: GS;
+  Extras: ES;
 }>;
 
 export type Any = Template<Grade.ResultSchema, ExtrasSchema>;
 
-export type GradeResult<T extends Any> = T["grade"]["Type"];
+export type GradeResult<T extends Any> = T["Grade"]["Type"];
 
-export type Extras<T extends Any> = T["extras"]["Type"];
+export type Extras<T extends Any> = T["Extras"]["Type"];
 
-export type ExtrasEncoded<T extends Any> = T["extras"]["Encoded"];
+export type ExtrasEncoded<T extends Any> = T["Extras"]["Encoded"];
 
 /** Creates a schema contract from struct field definitions. */
 export function make<const GF extends Schema.Struct.Fields, const EF extends Schema.Struct.Fields>(
@@ -39,8 +39,8 @@ export function make(
   }>,
 ) {
   return {
-    grade: Schema.Struct(options.grade),
-    extras: options.extras === undefined ? EmptyExtras : Schema.Struct(options.extras),
+    Grade: Schema.Struct(options.grade),
+    Extras: options.extras === undefined ? EmptyExtras : Schema.Struct(options.extras),
   };
 }
 
@@ -63,7 +63,7 @@ export function from(
   }>,
 ): Template {
   return {
-    grade: options.grade,
-    extras: options.extras ?? EmptyExtras,
+    Grade: options.grade,
+    Extras: options.extras ?? EmptyExtras,
   };
 }

@@ -27,8 +27,8 @@ it("preserves complete schemas passed to Template.from", () => {
   const extras = Schema.Record(Schema.String, Schema.Json);
   const template = Task.Template.from({ grade, extras });
 
-  assert.strictEqual(template.grade, grade);
-  assert.strictEqual(template.extras, extras);
+  assert.strictEqual(template.Grade, grade);
+  assert.strictEqual(template.Extras, extras);
 });
 
 const values = {
@@ -45,7 +45,7 @@ const task = Task.make(template)(values).pipe(
     grader: async () => ({ ready: true }),
   }),
   Task.stage("solve", {
-    schema: template.grade.fields,
+    schema: template.Grade.fields,
     prompt: "Solve the task",
     grader: async ({ results }) => ({ passed: results.setup.ready }),
   }),
@@ -57,7 +57,7 @@ it.effect("keeps template schemas separate from task values", () =>
     const built = yield* task;
 
     assert.strictEqual(built.template, template);
-    assert.deepStrictEqual(Schema.encodeSync(built.template.extras)(built.extras), {
+    assert.deepStrictEqual(Schema.encodeSync(built.template.Extras)(built.extras), {
       owner: "eval",
       revision: "1",
     });
@@ -66,7 +66,7 @@ it.effect("keeps template schemas separate from task values", () =>
     if (finalStage === undefined) {
       return assert.fail("Missing final stage");
     }
-    assert.notStrictEqual(finalStage.grader.schema, template.grade);
+    assert.notStrictEqual(finalStage.grader.schema, template.Grade);
     assert.deepStrictEqual(Schema.encodeSync(finalStage.grader.schema)({ passed: true }), {
       passed: true,
     });
@@ -92,7 +92,7 @@ it.effect("allows task-local intermediate stages and infers every preceding resu
         grader: async ({ results }) => ({ clean: results.setup.ready }),
       }),
       Task.stage("solve", {
-        schema: template.grade.fields,
+        schema: template.Grade.fields,
         prompt: "Solve the task",
         grader: async ({ results }) => ({
           passed: results.setup.ready && results.inspect.clean,

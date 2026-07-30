@@ -17,11 +17,11 @@ export type Harness = Readonly<{
   layer: Layer.Layer<Agent.ProviderService | Sandbox.ProviderService>;
 }>;
 
-type Options = Readonly<{
-  agent: Agent.Provider;
-  sandbox: Sandbox.Provider;
-}> &
-  BaseMetadataEncoded;
+type Options = BaseMetadataEncoded &
+  Readonly<{
+    agent: Agent.Provider;
+    sandbox: Sandbox.Provider;
+  }>;
 
 export const make = Effect.fn(function* (options: Options) {
   const { agent, sandbox } = options;

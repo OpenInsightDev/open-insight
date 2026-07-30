@@ -70,7 +70,7 @@ const makeRunTrail = Effect.fn(function* ({ initiallySolved }: { initiallySolved
 
   const grades: boolean[] = [];
   let verifierRuns = 0;
-  const grader: Grade.Exec<typeof passedTemplate.grade.Type, Grade.Results> = async ({
+  const grader: Grade.Exec<typeof passedTemplate.Grade.Type, Grade.Results> = async ({
     readFile,
   }) => {
     const solved = (await readFile({ sandboxPath: solutionPath })) === "solved";
@@ -92,7 +92,7 @@ const makeRunTrail = Effect.fn(function* ({ initiallySolved }: { initiallySolved
   }).pipe(
     Task.stage.from("solve", {
       id: "solve",
-      schema: passedTemplate.grade,
+      schema: passedTemplate.Grade,
       prompt: "Solve the task",
       grader,
       verif: verifier,
@@ -141,7 +141,7 @@ describe("verification trail", () => {
         }).pipe(
           Task.stage.from("solve", {
             id: "solve",
-            schema: initializedTemplate.grade,
+            schema: initializedTemplate.Grade,
             prompt: "Solve the task",
             init: async ({ writeFile }) => {
               calls.push("init");
@@ -186,7 +186,7 @@ describe("verification trail", () => {
         );
 
         const result = yield* runTrail(0);
-        const grade = yield* Schema.decodeUnknownEffect(initializedTemplate.grade)(result.grade);
+        const grade = yield* Schema.decodeUnknownEffect(initializedTemplate.Grade)(result.grade);
 
         assert.deepStrictEqual(calls, ["init", "agent", "grader"]);
         assert.isTrue(grade.initialized);
@@ -198,7 +198,7 @@ describe("verification trail", () => {
       Effect.gen(function* () {
         const { runTrail, grades, verifierRuns } = yield* makeRunTrail({ initiallySolved: false });
         const result = yield* runTrail(0);
-        const grade = yield* Schema.decodeUnknownEffect(passedTemplate.grade)(result.grade);
+        const grade = yield* Schema.decodeUnknownEffect(passedTemplate.Grade)(result.grade);
 
         assert.deepStrictEqual(grades, [false, true]);
         assert.isAbove(verifierRuns(), 0);

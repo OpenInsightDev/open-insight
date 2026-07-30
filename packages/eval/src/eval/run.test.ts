@@ -1,3 +1,4 @@
+import { NodeCrypto } from "@effect/platform-node";
 import { assert, it } from "@effect/vitest";
 import { Agent, Sandbox } from "@open-insight/core/internal";
 import { Effect, Layer, Option, Ref, Stream } from "effect";
@@ -31,7 +32,10 @@ const makeOptions = Effect.fn(function* () {
 });
 
 it.effect("runs without an event transport", () =>
-  makeOptions().pipe(Effect.flatMap((options) => run(options))),
+  makeOptions().pipe(
+    Effect.flatMap((options) => run(options)),
+    Effect.provide(NodeCrypto.layer),
+  ),
 );
 
 it.effect("publishes events when an event transport is provided", () =>
@@ -43,7 +47,10 @@ it.effect("publishes events when an event transport is provided", () =>
         Ref.update(sends, (count) => count + 1).pipe(Effect.andThen(Stream.runDrain(stream))),
     } satisfies Event.Transport.Transport;
 
-    yield* run(options).pipe(Effect.provideService(Event.Transport.Service, transport));
+    yield* run(options).pipe(
+      Effect.provideService(Event.Transport.Service, transport),
+      Effect.provide(NodeCrypto.layer),
+    );
 
     assert.strictEqual(yield* Ref.get(sends), 1);
   }),

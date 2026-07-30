@@ -110,14 +110,14 @@ async function* loadTasks(repoPath: string) {
     }
     const verifiedPath = path.resolve(designDir, verifiedFile);
 
-    yield* Task.make(template, {
+    yield* Task.make(template)({
       id,
       name: id,
       snapshot,
       extras: { category },
     }).pipe(
       Task.stage.from("solve", {
-        schema: template.grade,
+        schema: template.Grade,
         prompt: `${prompt.trimEnd()}\n\n${deliveryInstructions}`,
         grader: async ({ upload, $ }) => {
           await $`mkdir -p /tmp/rtllm`;
@@ -460,7 +460,7 @@ layer(testLayer, { excludeTestServices: true })((it) => {
           );
 
           for (const [trailIdx, trail] of taskResult.trails.entries()) {
-            const grade = yield* Schema.decodeUnknownEffect(template.grade)(trail.grade);
+            const grade = yield* Schema.decodeUnknownEffect(template.Grade)(trail.grade);
             assert.isNotEmpty(trail.trajectory.content);
             assert.isAtMost(
               DateTime.toEpochMillis(trail.startedAt),

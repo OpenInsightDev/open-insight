@@ -20,7 +20,7 @@ it.effect("accepts raw and Effect metric executors", () =>
       Readonly<{ count: number }>
     > = async () => ({ count: 1 });
     const taskExec: Metric.Task.Exec<
-      typeof template.grade.Type,
+      typeof template.Grade.Type,
       Readonly<{ count: number }>
     > = async () => ({ count: 1 });
     const trajExec: Metric.Traj.Exec<Readonly<{ count: number }>> = async () => ({ count: 1 });
@@ -30,7 +30,7 @@ it.effect("accepts raw and Effect metric executors", () =>
       snapshot: Snapshot.make("test-image"),
     }).pipe(
       Task.stage("grade", {
-        schema: template.grade.fields,
+        schema: template.Grade.fields,
         prompt: "Grade the task",
         grader: async () => ({ pass: true }),
       }),

@@ -16,10 +16,12 @@ const sandbox: Sandbox.Provider = {
 
 it.effect("builds base metadata and exports full metadata", () =>
   Effect.gen(function* () {
-    const harness = yield* make({ id: "test-harness", extras: { provider: "test" } }).pipe(
-      Effect.provideService(Agent.ProviderService, agent),
-      Effect.provideService(Sandbox.ProviderService, sandbox),
-    );
+    const harness = yield* make({
+      id: "test-harness",
+      extras: { provider: "test" },
+      agent,
+      sandbox,
+    });
 
     assert.strictEqual(harness.metadata.id, "test-harness");
     assert.deepStrictEqual(harness.metadata.extras, { provider: "test" });

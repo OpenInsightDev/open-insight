@@ -86,14 +86,14 @@ async function* loadTasks(repoPath: string) {
     const refPath = path.resolve(datasetDir, `${id}_ref.sv`);
     const testPath = path.resolve(datasetDir, `${id}_test.sv`);
 
-    yield* Task.make(template, {
+    yield* Task.make(template)({
       id,
       name: id,
       snapshot,
       extras: { category: "verilog-eval" },
     }).pipe(
       Task.stage.from("solve", {
-        schema: template.grade,
+        schema: template.Grade,
         prompt: `${prompt.trimEnd()}\n\n${deliveryInstructions}`,
         grader: async ({ upload, $ }) => {
           await $`mkdir -p /tmp/verilog-eval`;
@@ -414,7 +414,7 @@ layer(testLayer, { excludeTestServices: true })((it) => {
           }
 
           for (const [trailIdx, trail] of taskResult.trails.entries()) {
-            const grade = yield* Schema.decodeUnknownEffect(template.grade)(trail.grade);
+            const grade = yield* Schema.decodeUnknownEffect(template.Grade)(trail.grade);
             assert.isAtMost(
               DateTime.toEpochMillis(taskResult.startedAt),
               DateTime.toEpochMillis(trail.startedAt),
@@ -534,7 +534,7 @@ layer(testLayer, { excludeTestServices: true })((it) => {
             const value = event.result["pass^k"];
             return typeof value === "number" ? [value] : [];
           });
-          const grade = yield* Schema.decodeUnknownEffect(template.grade)(
+          const grade = yield* Schema.decodeUnknownEffect(template.Grade)(
             taskResult.trails[0]?.grade,
           );
           assert.deepEqual(
