@@ -2,7 +2,7 @@ import { assert, it } from "@effect/vitest";
 import { Sandbox } from "@open-insight/core";
 import { Effect, Schema, Stream } from "effect";
 import { OpenAiStructuredOutput, Tool } from "effect/unstable/ai";
-import { Execute, layer, toolkit } from "#/toolkit.ts";
+import { Execute, layer, toolkit } from "#/sandbox/index.ts";
 
 const StrictEnvironmentToolSchema = Schema.Struct({
   type: Schema.Literal("object"),
@@ -31,7 +31,7 @@ const StrictEnvironmentToolSchema = Schema.Struct({
   }),
 });
 
-it.effect("converts sandbox environment entries at the tool boundary", () =>
+it.effect("converts environment entries at the tool boundary", () =>
   Effect.gen(function* () {
     const decoded = yield* Schema.decodeUnknownEffect(Execute.parametersSchema)({
       command: "env",
@@ -56,7 +56,7 @@ it.effect("converts sandbox environment entries at the tool boundary", () =>
   }),
 );
 
-it.effect("rejects duplicate sandbox environment variable names", () =>
+it.effect("rejects duplicate environment variable names", () =>
   Effect.gen(function* () {
     const error = yield* Schema.decodeUnknownEffect(Execute.parametersSchema)({
       command: "env",
@@ -70,7 +70,7 @@ it.effect("rejects duplicate sandbox environment variable names", () =>
   }),
 );
 
-it.effect("emits a closed strict schema for sandbox environment entries", () =>
+it.effect("emits a closed strict schema for environment entries", () =>
   Effect.gen(function* () {
     const jsonSchema = Tool.getJsonSchema(Execute, {
       transformer: OpenAiStructuredOutput.toCodecOpenAI,
@@ -88,7 +88,7 @@ it.effect("emits a closed strict schema for sandbox environment entries", () =>
   }),
 );
 
-it.effect("returns actionable sandbox failure details to the model", () =>
+it.effect("returns actionable failure details to the model", () =>
   Effect.gen(function* () {
     const unused = () => Effect.die("unused sandbox method");
     const sandbox: Sandbox.Sandbox = {
@@ -112,8 +112,8 @@ it.effect("returns actionable sandbox failure details to the model", () =>
     };
     const tools = yield* toolkit.pipe(Effect.provide(layer));
     const results = yield* tools
-      .handle("SandboxWriteFile", {
-        sandboxPath: "/missing/top.v",
+      .handle("WriteFile", {
+        path: "/missing/top.v",
         content: "module TopModule; endmodule",
       })
       .pipe(Effect.flatMap(Stream.runCollect), Effect.provideService(Sandbox.Current, sandbox));
@@ -121,7 +121,7 @@ it.effect("returns actionable sandbox failure details to the model", () =>
 
     assert.strictEqual(typeof result, "string");
     if (typeof result === "string") {
-      assert.include(result, "SandboxExecError: write /missing/top.v");
+      assert.include(result, "Failed to write /missing/top.v");
       assert.include(result, "parent directory does not exist");
     }
   }),

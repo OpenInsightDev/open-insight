@@ -57,8 +57,8 @@ it.effect("runs a multi-step agent loop against one session sandbox", () =>
             {
               type: "tool-call",
               id: "write-result",
-              name: "SandboxWriteFile",
-              params: { sandboxPath: "/workspace/result.txt", content: "first result" },
+              name: "WriteFile",
+              params: { path: "/workspace/result.txt", content: "first result" },
             } as const,
             finishPart(turn),
           ]);
@@ -67,14 +67,14 @@ it.effect("runs a multi-step agent loop against one session sandbox", () =>
         if (turn === 2) {
           assert.deepStrictEqual(
             tools.map(({ name }) => name),
-            ["SandboxExecute", "SandboxReadFile", "SandboxWriteFile"],
+            ["Execute", "ReadFile", "WriteFile"],
           );
           return Stream.fromIterable([
             {
               type: "tool-call",
               id: "read-result",
-              name: "SandboxReadFile",
-              params: { sandboxPath: "/workspace/result.txt" },
+              name: "ReadFile",
+              params: { path: "/workspace/result.txt" },
             } as const,
             finishPart(turn),
           ]);
@@ -110,7 +110,7 @@ it.effect("runs a multi-step agent loop against one session sandbox", () =>
     const trajectory = yield* agent.trajectory();
 
     assert.strictEqual(files.get("/workspace/result.txt"), "first result");
-    assert.include(JSON.stringify(parts), '"sandboxPath":"/workspace/result.txt"');
+    assert.include(JSON.stringify(parts), '"path":"/workspace/result.txt"');
     assert.include(JSON.stringify(parts), '"result":"first result"');
     assert.include(JSON.stringify(parts), "The result is ready.");
     const finishes = Array.from(parts).filter((part) => part.type === "finish");

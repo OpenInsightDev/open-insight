@@ -9,7 +9,7 @@ import {
   openAiLayer,
   type OpenAiConfig,
   type OpenAiEndpoint,
-} from "#/openai.ts";
+} from "#/provider/openai.ts";
 
 const endpoint: OpenAiEndpoint = {
   apiKey: "test-key",

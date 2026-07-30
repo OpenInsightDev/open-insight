@@ -7,10 +7,10 @@ import { Context, Effect, FileSystem, Option, Path, Schema, Stream } from "effec
 import { LanguageModel, Prompt, Response, Tool, Toolkit } from "effect/unstable/ai";
 import { ExitCode } from "effect/unstable/process/ChildProcessSpawner";
 import { z } from "zod";
-import { make } from "#/agent.ts";
+import { make } from "#/agent/index.ts";
 import * as Mcp from "#/mcp/index.ts";
 import * as Skills from "#/skills/index.ts";
-import { layer, toolkit } from "#/toolkit.ts";
+import { layer, toolkit } from "#/sandbox/index.ts";
 
 const makeSandbox = (files: Map<string, string>): Sandbox.Sandbox => ({
   spawn: ({ command, args, cwd, env }, options) =>
@@ -39,7 +39,7 @@ it.effect("executes commands through the current sandbox", () =>
     const sandbox = makeSandbox(new Map());
     const tools = yield* toolkit.pipe(Effect.provide(layer));
     const results = yield* tools
-      .handle("SandboxExecute", {
+      .handle("Execute", {
         command: "printf",
         args: ["hello"],
         cwd: "/workspace",
@@ -71,10 +71,10 @@ it.effect("reads and writes files through the current sandbox", () =>
     const tools = yield* toolkit.pipe(Effect.provide(layer));
 
     yield* tools
-      .handle("SandboxWriteFile", { sandboxPath: "/workspace/result.txt", content: "done" })
+      .handle("WriteFile", { path: "/workspace/result.txt", content: "done" })
       .pipe(Effect.flatMap(Stream.runDrain), Effect.provideService(Sandbox.Current, sandbox));
     const results = yield* tools
-      .handle("SandboxReadFile", { sandboxPath: "/workspace/result.txt" })
+      .handle("ReadFile", { path: "/workspace/result.txt" })
       .pipe(Effect.flatMap(Stream.runCollect), Effect.provideService(Sandbox.Current, sandbox));
 
     assert.strictEqual(files.get("/workspace/result.txt"), "done");
@@ -164,12 +164,7 @@ it.effect("injects the session sandbox into custom tools", () =>
     const parts = yield* agent.prompt(Prompt.make("read the message")).pipe(Stream.runCollect);
     const toolResult = Array.from(parts).find((part) => part.type === "tool-result");
 
-    assert.deepStrictEqual(exposedTools, [
-      "SandboxExecute",
-      "SandboxReadFile",
-      "SandboxWriteFile",
-      "ReadUppercase",
-    ]);
+    assert.deepStrictEqual(exposedTools, ["Execute", "ReadFile", "WriteFile", "ReadUppercase"]);
     assert.strictEqual(toolResult?.type === "tool-result" && toolResult.result, "prefix:HELLO");
     assert.include(JSON.stringify(parts), "Read complete.");
     assert.strictEqual(modelSteps, 2);
@@ -187,8 +182,8 @@ it.effect("stops an agent loop that exceeds maxSteps", () =>
           {
             type: "tool-call",
             id: `read-${modelSteps}`,
-            name: "SandboxReadFile",
-            params: { sandboxPath: "/workspace/message.txt" },
+            name: "ReadFile",
+            params: { path: "/workspace/message.txt" },
           } as const,
           finishPart,
         ]);
@@ -239,8 +234,8 @@ it.effect("runs independent sessions concurrently with isolated sandboxes and hi
           {
             type: "tool-call",
             id: `${session}-read`,
-            name: "SandboxReadFile",
-            params: { sandboxPath: "/workspace/message.txt" },
+            name: "ReadFile",
+            params: { path: "/workspace/message.txt" },
           } as const,
           finishPart,
         ]);
@@ -413,9 +408,9 @@ testLayer(NodeServices.layer)("configured agent", (it) => {
             .pipe(Stream.runCollect);
 
           assert.deepStrictEqual(exposedTools, [
-            "SandboxExecute",
-            "SandboxReadFile",
-            "SandboxWriteFile",
+            "Execute",
+            "ReadFile",
+            "WriteFile",
             "ReadUppercase",
             "McpEcho",
           ]);

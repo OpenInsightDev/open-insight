@@ -3,51 +3,24 @@ import {
   OpenAiLanguageModel as CompatModel,
 } from "@effect/ai-openai-compat";
 import { OpenAiClient, OpenAiLanguageModel } from "@effect/ai-openai";
-import { NodeFileSystem } from "@effect/platform-node";
 import type { Agent } from "@open-insight/core";
-import { Config, ConfigProvider, Effect, Layer, Redacted } from "effect";
+import { Config, Effect, Layer, Redacted } from "effect";
 import type { PlatformError } from "effect";
 import { LanguageModel } from "effect/unstable/ai";
 import { FetchHttpClient, HttpClient } from "effect/unstable/http";
-import { make } from "#/agent.ts";
-import * as SandboxToolkit from "#/toolkit.ts";
+import { make } from "#/agent/index.ts";
+import type { Config as ProviderConfig, Endpoint, ResolvedConfig } from "#/provider/config.ts";
+import { resolveConfig } from "#/provider/config.ts";
+import * as SandboxToolkit from "#/sandbox/index.ts";
 
-export type OpenAiConfig = Readonly<{
-  apiKey: Config.Config<string>;
-  baseUrl: Config.Config<string>;
-  dotenvPath: string;
-  model: string;
-}>;
+export type OpenAiConfig = ProviderConfig;
 
-export type OpenAiEndpoint = Readonly<{
-  apiKey: string;
-  baseUrl: string;
-  model: string;
-}>;
+export type OpenAiEndpoint = Endpoint;
 
 type OpenAiAgent = Effect.Effect<
   Agent.Provider<SandboxToolkit.Tools>,
   Agent.Error | Config.ConfigError | PlatformError.PlatformError
 >;
-
-type ResolvedConfig = Readonly<{
-  apiKey: Redacted.Redacted<string>;
-  baseUrl: string;
-  model: string;
-}>;
-
-const resolveConfig = Effect.fn("Agent.resolveOpenAiConfig")(function* (config: OpenAiConfig) {
-  const envLayer = ConfigProvider.layer(
-    ConfigProvider.fromDotEnv({ path: config.dotenvPath }),
-  ).pipe(Layer.provide(NodeFileSystem.layer));
-
-  const values = yield* Config.all({
-    apiKey: config.apiKey,
-    baseUrl: config.baseUrl,
-  }).pipe(Effect.provide(envLayer));
-
-  return { ...values, apiKey: Redacted.make(values.apiKey), model: config.model };
-});
 
 const modelLayer = ({
   apiKey,

@@ -2,7 +2,7 @@
 
 Effect-based agent provider with sandbox tools, Agent Skills, custom toolkits, and MCP clients.
 
-## OpenAI providers
+## Model providers
 
 Create a base agent provider for the OpenAI Responses API from an API key, base URL, and model name:
 
@@ -40,6 +40,25 @@ custom Effect HTTP client, compose `openAiLayer(config)` or `openAiCompatLayer(c
 `make()` at the program boundary instead.
 The constructors load the specified `dotenvPath` internally; pass any `Config` implementation for
 `apiKey` and `baseUrl` when configuration should come from another source.
+
+For Anthropic's Messages API, use the matching constructor or model layer. The Anthropic base URL
+is the service root (`https://api.anthropic.com`); the client appends `/v1/messages`:
+
+```ts
+import { makeAnthropic } from "@open-insight/agent";
+
+const anthropicProgram = Effect.gen(function* () {
+  return yield* makeAnthropic({
+    apiKey: Config.string("ANTHROPIC_API_KEY"),
+    baseUrl: Config.succeed("https://api.anthropic.com"),
+    dotenvPath: ".env",
+    model: "claude-sonnet-4-5",
+  });
+});
+```
+
+Provider-specific APIs are also grouped under the `Provider` namespace, such as
+`Provider.anthropicLayer` and `Provider.openAiLayer`.
 
 ## Configuration
 

@@ -15,7 +15,7 @@ import { LanguageModel, Prompt, Response, Tool, Toolkit } from "effect/unstable/
 import * as Mcp from "#/mcp/index.ts";
 import type * as SkillsConfig from "#/skills/config.ts";
 import * as Skills from "#/skills/index.ts";
-import * as SandboxToolkit from "#/toolkit.ts";
+import * as SandboxToolkit from "#/sandbox/index.ts";
 
 type ToolkitServices<Tools extends Record<string, Tool.Any>> = Exclude<
   Tool.HandlerServices<Tools[keyof Tools]> | Tool.ResultDecodingServices<Tools[keyof Tools]>,
