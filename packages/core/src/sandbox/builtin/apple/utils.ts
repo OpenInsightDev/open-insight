@@ -1,4 +1,5 @@
 import * as Resource from "#/resource/index.ts";
+import * as Sandbox from "#/sandbox/export.ts";
 import { Effect, Schema } from "effect";
 import { ChildProcess as CP } from "effect/unstable/process";
 import ipaddr from "ipaddr.js";
@@ -33,20 +34,43 @@ export const parseContainerHost = Effect.fn(function* (output: string) {
   return address.kind() === "ipv6" ? `[${host}]` : host;
 });
 
-export const formatResources = (resources: Resource.Resources | null): Array<string> => {
+export const formatResources = Effect.fn(function* (
+  name: string,
+  resources: Resource.Resources | null,
+) {
   if (!resources) {
     return [];
   }
 
-  const { numCPUs, memoryMiB } = resources;
+  const { numGPUs, storageMiB, numCPUs, memoryMiB } = resources;
+
+  if (numGPUs != null) {
+    return yield* Effect.fail(
+      Sandbox.Error.sandboxStart(name)(
+        new Error(`Apple container does not support GPU allocation, ` + `received: ${numGPUs}`),
+      ),
+    );
+  }
+
+  if (storageMiB != null) {
+    return yield* Effect.fail(
+      Sandbox.Error.sandboxStart(name)(
+        new Error(
+          `Apple container does not support storage size limits on the root filesystem, ` +
+            `received: ${storageMiB}`,
+        ),
+      ),
+    );
+  }
+
   const resourceArgs: Array<string> = [];
-  if (!Resource.Limit.isUnlimited(numCPUs)) {
+  if (numCPUs != null) {
     resourceArgs.push("--cpus", `${numCPUs}`);
   }
 
-  if (!Resource.Limit.isUnlimited(memoryMiB)) {
+  if (memoryMiB != null) {
     resourceArgs.push("--memory", `${memoryMiB}M`);
   }
 
   return resourceArgs;
-};
+});

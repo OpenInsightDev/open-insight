@@ -56,10 +56,10 @@ const snapshot = Snapshot.make({
 });
 
 const template = Task.Template.make({
-  extras: {
+  Extras: {
     category: Schema.String,
   },
-  grade: {
+  Grade: {
     simPass: Schema.Boolean,
     diagnostic: Schema.optionalKey(
       Schema.Struct({
@@ -92,8 +92,8 @@ async function* loadTasks(repoPath: string) {
       snapshot,
       extras: { category: "verilog-eval" },
     }).pipe(
-      Task.stage.from("solve", {
-        schema: template.Grade,
+      Task.stage("solve", {
+        schema: template.Grade.fields,
         prompt: `${prompt.trimEnd()}\n\n${deliveryInstructions}`,
         grader: async ({ upload, $ }) => {
           await $`mkdir -p /tmp/verilog-eval`;

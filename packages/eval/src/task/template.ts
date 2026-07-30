@@ -23,47 +23,23 @@ export type ExtrasEncoded<T extends Any> = T["Extras"]["Encoded"];
 /** Creates a schema contract from struct field definitions. */
 export function make<const GF extends Schema.Struct.Fields, const EF extends Schema.Struct.Fields>(
   options: Readonly<{
-    grade: GF;
-    extras: EF;
+    Grade: GF;
+    Extras: EF;
   }>,
 ): Template<Schema.Struct<GF>, Schema.Struct<EF>>;
 export function make<const GF extends Schema.Struct.Fields>(
   options: Readonly<{
-    grade: GF;
+    Grade: GF;
   }>,
 ): Template<Schema.Struct<GF>, typeof EmptyExtras>;
 export function make(
   options: Readonly<{
-    grade: Schema.Struct.Fields;
-    extras?: Schema.Struct.Fields;
+    Grade: Schema.Struct.Fields;
+    Extras?: Schema.Struct.Fields;
   }>,
 ) {
   return {
-    Grade: Schema.Struct(options.grade),
-    Extras: options.extras === undefined ? EmptyExtras : Schema.Struct(options.extras),
-  };
-}
-
-/** Creates a schema contract from complete object schemas. */
-export function from<GS extends Grade.ResultSchema, ES extends ExtrasSchema>(
-  options: Readonly<{
-    grade: GS;
-    extras: ES;
-  }>,
-): Template<GS, ES>;
-export function from<GS extends Grade.ResultSchema>(
-  options: Readonly<{
-    grade: GS;
-  }>,
-): Template<GS, typeof EmptyExtras>;
-export function from(
-  options: Readonly<{
-    grade: Grade.ResultSchema;
-    extras?: ExtrasSchema;
-  }>,
-): Template {
-  return {
-    Grade: options.grade,
-    Extras: options.extras ?? EmptyExtras,
+    Grade: Schema.Struct(options.Grade),
+    Extras: options.Extras === undefined ? EmptyExtras : Schema.Struct(options.Extras),
   };
 }

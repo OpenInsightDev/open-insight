@@ -7,19 +7,19 @@ export const formatResources = (resources: Resource.Resources | null): Array<str
 
   const { numCPUs, memoryMiB, numGPUs, storageMiB, network } = resources;
   const resourceArgs: Array<string> = [];
-  if (!Resource.Limit.isUnlimited(numCPUs)) {
+  if (numCPUs != null) {
     resourceArgs.push("--cpus", `${numCPUs}`);
   }
 
-  if (!Resource.Limit.isUnlimited(memoryMiB)) {
+  if (memoryMiB != null) {
     resourceArgs.push("--memory", `${memoryMiB}m`);
   }
 
-  if (!Resource.Limit.isUnlimited(numGPUs) && numGPUs > 0) {
+  if (numGPUs != null && numGPUs > 0) {
     resourceArgs.push("--gpus", `count=${numGPUs}`);
   }
 
-  if (!Resource.Limit.isUnlimited(storageMiB)) {
+  if (storageMiB != null) {
     resourceArgs.push("--storage-opt", `size=${storageMiB}m`);
   }
 

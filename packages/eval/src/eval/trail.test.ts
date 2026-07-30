@@ -11,13 +11,13 @@ import * as Config from "./config.ts";
 import { createTrail } from "./trail.ts";
 
 const passedTemplate = Task.Template.make({
-  grade: {
+  Grade: {
     passed: Schema.Boolean,
   },
 });
 
 const initializedTemplate = Task.Template.make({
-  grade: {
+  Grade: {
     initialized: Schema.Boolean,
   },
 });
@@ -90,9 +90,9 @@ const makeRunTrail = Effect.fn(function* ({ initiallySolved }: { initiallySolved
     name: "Test task",
     snapshot,
   }).pipe(
-    Task.stage.from("solve", {
+    Task.stage("solve", {
+      schema: passedTemplate.Grade.fields,
       id: "solve",
-      schema: passedTemplate.Grade,
       prompt: "Solve the task",
       grader,
       verif: verifier,
@@ -139,9 +139,9 @@ describe("verification trail", () => {
           name: "Test task",
           snapshot,
         }).pipe(
-          Task.stage.from("solve", {
+          Task.stage("solve", {
+            schema: initializedTemplate.Grade.fields,
             id: "solve",
-            schema: initializedTemplate.Grade,
             prompt: "Solve the task",
             init: async ({ writeFile }) => {
               calls.push("init");

@@ -40,8 +40,8 @@ export const makeTask = Effect.fn("Task.Load.makeHarborTask")(function* (taskDir
   const pkg = config.task;
   const name = pkg?.name ?? path.basename(root);
   const template = Task.Template.from({
-    extras: Schema.Record(Schema.String, Schema.Json),
-    grade: GradeResult,
+    Extras: Schema.Record(Schema.String, Schema.Json),
+    Grade: GradeResult,
   });
 
   return yield* Task.make(template)({

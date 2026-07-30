@@ -181,7 +181,6 @@ export const addStages =
     let task = base;
     for (const stage of stages) {
       const common = {
-        schema: GradeResult,
         prompt: stage.instruction,
         grader: stage.grader,
         init: stage.init,
@@ -189,9 +188,9 @@ export const addStages =
       };
       task =
         stage.verification === undefined
-          ? task.pipe(Task.stage.from(stage.name, common))
+          ? task.pipe(Task.stage(GradeResult)(stage.name, common))
           : task.pipe(
-              Task.stage.from(stage.name, {
+              Task.stage(GradeResult)(stage.name, {
                 ...common,
                 verif: stage.verification.verif,
                 expect: stage.verification.expect,

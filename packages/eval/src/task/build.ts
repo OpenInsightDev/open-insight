@@ -14,8 +14,6 @@ export const TypeId: TypeId = "~open-insight/eval/task";
 export const ID = Schema.String;
 export type ID = Schema.Schema.Type<typeof ID>;
 
-export type { ExtrasSchema } from "./template.ts";
-
 export class BaseMetadata extends Schema.Class<BaseMetadata>("BaseMetadata")({
   id: Schema.String,
   name: Schema.String,
@@ -34,7 +32,6 @@ export class Metadata extends Schema.Class<Metadata>("Metadata")({
 export type Task<
   G extends Grade.Result = Grade.Result,
   E extends object = object,
-  S extends Grade.Results = Grade.Results,
   T extends Template.Any = Template.Template<Grade.ResultSchema<G>, Template.ExtrasSchema<E>>,
 > = Readonly<{
   metadata: BaseMetadata;
@@ -48,9 +45,10 @@ export type Task<
   metrics: ReadonlyArray<Metric.Task.Metric>;
   trajMetrics: ReadonlyArray<Metric.Traj.Metric>;
   extras: E;
-}> & { _G?: G; _E?: E; _S?: S; _T?: T };
+}>;
 
-const BuilderTypeId: unique symbol = Symbol.for("~open-insight/eval/task/Builder");
+/** @internal */
+export const BuilderTypeId: unique symbol = Symbol.for("~open-insight/eval/task/Builder");
 
 /** A task definition that is still being assembled. Complete it with {@link build}. */
 export type Builder<
@@ -58,9 +56,9 @@ export type Builder<
   E extends object = object,
   S extends Grade.Results = Grade.Results,
   T extends Template.Any = Template.Template<Grade.ResultSchema<G>, Template.ExtrasSchema<E>>,
-> = Task<G, E, S, T> &
+> = Task<G, E, T> &
   Readonly<{
-    [BuilderTypeId]: Types.Invariant<T>;
+    [BuilderTypeId]: Types.Invariant<readonly [G, E, S, T]>;
   }>;
 
 export type Array<
@@ -91,15 +89,7 @@ export type Options<T extends Template.Any> = T["Extras"] extends typeof Templat
 const decodeMetadata = (options: BaseOptions) =>
   Schema.decodeEffect(BaseMetadata)(options).pipe(Effect.mapError(Error.metadata));
 
-export const make = <T extends Template.Any>(
-  template: T,
-): ((
-  options: Options<T>,
-) => Effect.Effect<
-  Builder<never, Template.Extras<T>, never, T>,
-  Error,
-  Crypto.Crypto | Scope.Scope
->) =>
+export const make = <T extends Template.Any>(template: T) =>
   Effect.fn("Task.make")(function* (
     options: Options<T>,
   ): Effect.fn.Return<
@@ -136,15 +126,10 @@ export const build = <
   R,
 >(
   self: Effect.Effect<Builder<G, E, S, T>, Err, R>,
-): Effect.Effect<Task<G, E, S, T>, Err, R> => self;
+): Effect.Effect<Task<G, E, T>, Err, R> => self;
 
-export const metadata = <
-  G extends Grade.Result,
-  E extends object,
-  S extends Grade.Results,
-  T extends Template.Any,
->(
-  task: Task<G, E, S, T>,
+export const metadata = <G extends Grade.Result, E extends object, T extends Template.Any>(
+  task: Task<G, E, T>,
 ): Metadata =>
   Metadata.make({
     base: task.metadata,
@@ -152,16 +137,13 @@ export const metadata = <
     extras: Schema.encodeSync(task.template.Extras)(task.extras),
   });
 
-export const metadataSchema = <
-  G extends Grade.Result,
-  E extends object,
-  S extends Grade.Results,
-  T extends Template.Any,
->(
-  task: Task<G, E, S, T>,
+export const metadataSchema = <G extends Grade.Result, E extends object, T extends Template.Any>(
+  task: Task<G, E, T>,
 ) =>
   Schema.Struct({
     base: BaseMetadata,
     stages: Schema.Array(StageMetadata),
     extras: Schema.toEncoded(task.template.Extras),
   });
+
+export type { ExtrasSchema } from "./template.ts";

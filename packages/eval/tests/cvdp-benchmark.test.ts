@@ -20,10 +20,10 @@ class CvdpDatapoint extends Schema.Class<CvdpDatapoint>("CvdpDatapoint")({
 }) {}
 
 const template = Task.Template.make({
-  extras: {
+  Extras: {
     categories: Schema.Array(Schema.String),
   },
-  grade: {
+  Grade: {
     passed: Schema.Boolean,
   },
 });
@@ -84,8 +84,8 @@ const makeTask = Effect.fn(function* (datapoint: CvdpDatapoint) {
     snapshot,
     extras: { categories: datapoint.categories },
   }).pipe(
-    Task.stage.from("solve", {
-      schema: template.Grade,
+    Task.stage("solve", {
+      schema: template.Grade.fields,
       prompt: [
         { role: "system", content: datapoint.system_message },
         { role: "user", content: datapoint.prompt },

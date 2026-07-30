@@ -96,8 +96,8 @@ export const makeTask = Effect.fn(function* () {
     ],
   });
 
-  const template = Task.Template.from({
-    grade: Grade.Result,
+  const template = Task.Template.make({
+    Grade: {},
   });
 
   return yield* Task.make(template, {
@@ -105,8 +105,8 @@ export const makeTask = Effect.fn(function* () {
     name: "Fix the Python implementation",
     snapshot,
   }).pipe(
-    Task.stage.from("solve", {
-      schema: Grade.Result,
+    Task.stage("solve", {
+      schema: template.Grade.fields,
       prompt: "Fix the Python implementation.",
       grader: async () => ({}),
     }),

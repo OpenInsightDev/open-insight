@@ -25,7 +25,7 @@ const ensureSupportedResources = Effect.fn(function* (
   handle: Snapshot.Handle.Handle,
   resources: Resource.Resources,
 ) {
-  if (Resource.Limit.isUnlimited(resources.memoryMiB) || resources.memoryMiB >= minimumMemoryMiB) {
+  if (resources.memoryMiB == null || resources.memoryMiB >= minimumMemoryMiB) {
     return;
   }
 
@@ -127,6 +127,7 @@ export const runSandbox = Effect.fn(
         )
       : [];
 
+    const resourceArgs = yield* formatResources(handle.name, resources);
     const create = CP.make(
       "container",
       [
@@ -136,7 +137,7 @@ export const runSandbox = Effect.fn(
         "--name",
         name,
         ...networkArgs,
-        ...formatResources(resources),
+        ...resourceArgs,
         handle.name,
         "sleep",
         "infinity",

@@ -7,7 +7,7 @@ import * as Task from "./index.ts";
 import { metric, trajMetric } from "./metric.ts";
 
 const template = Task.Template.make({
-  grade: {
+  Grade: {
     pass: Schema.Boolean,
   },
 });

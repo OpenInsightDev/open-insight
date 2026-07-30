@@ -8,8 +8,8 @@ each `Task.stage` is evaluated separately for each stage execution.
 Use a string for one user message:
 
 ```ts
-Task.stage.from("solve", {
-  schema: GradeResult,
+Task.stage("solve", {
+  schema: GradeResult.fields,
   prompt: "Implement the requested function and run the tests.",
   grader: async ({ $ }) => {
     // Compute and return the confirmed grade fields here.

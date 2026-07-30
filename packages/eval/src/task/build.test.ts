@@ -4,31 +4,22 @@ import { Snapshot } from "@open-insight/core/internal";
 import { Effect, Schema } from "effect";
 import * as Task from "./index.ts";
 
-class Setup extends Schema.Class<Setup>("TestSetupGradeResult")({
+const Setup = {
   ready: Schema.Boolean,
-}) {}
+};
 
-class Inspection extends Schema.Class<Inspection>("TestInspectionGradeResult")({
+const Inspection = {
   clean: Schema.Boolean,
-}) {}
+};
 
 const template = Task.Template.make({
-  extras: {
+  Extras: {
     owner: Schema.String,
     revision: Schema.NumberFromString,
   },
-  grade: {
+  Grade: {
     passed: Schema.Boolean,
   },
-});
-
-it("preserves complete schemas passed to Template.from", () => {
-  const grade = Schema.Record(Schema.String, Schema.Number);
-  const extras = Schema.Record(Schema.String, Schema.Json);
-  const template = Task.Template.from({ grade, extras });
-
-  assert.strictEqual(template.Grade, grade);
-  assert.strictEqual(template.Extras, extras);
 });
 
 const values = {
@@ -39,7 +30,7 @@ const values = {
 };
 
 const task = Task.make(template)(values).pipe(
-  Task.stage.from("setup", {
+  Task.stage("setup", {
     schema: Setup,
     prompt: "Prepare the task",
     grader: async () => ({ ready: true }),
@@ -61,7 +52,13 @@ it.effect("keeps template schemas separate from task values", () =>
       owner: "eval",
       revision: "1",
     });
-    assert.strictEqual(built.stages[0]?.grader.schema, Setup);
+    const setupStage = built.stages[0];
+    if (setupStage === undefined) {
+      return assert.fail("Missing setup stage");
+    }
+    assert.deepStrictEqual(Schema.encodeSync(setupStage.grader.schema)({ ready: true }), {
+      ready: true,
+    });
     const finalStage = built.stages[1];
     if (finalStage === undefined) {
       return assert.fail("Missing final stage");
@@ -81,12 +78,12 @@ it.effect("keeps template schemas separate from task values", () =>
 it.effect("allows task-local intermediate stages and infers every preceding result", () =>
   Effect.gen(function* () {
     const task = yield* Task.make(template)(values).pipe(
-      Task.stage.from("setup", {
+      Task.stage("setup", {
         schema: Setup,
         prompt: "Prepare the task",
         grader: async () => ({ ready: true }),
       }),
-      Task.stage.from("inspect", {
+      Task.stage("inspect", {
         schema: Inspection,
         prompt: "Inspect the task",
         grader: async ({ results }) => ({ clean: results.setup.ready }),
@@ -109,7 +106,7 @@ it.effect("allows task-local intermediate stages and infers every preceding resu
 
 it("enforces template conformance entirely at the type level", () => {
   const wrongFinalGrade = Task.make(template)(values).pipe(
-    Task.stage.from("setup", {
+    Task.stage("setup", {
       schema: Setup,
       prompt: "Prepare the task",
       grader: async () => ({ ready: true }),

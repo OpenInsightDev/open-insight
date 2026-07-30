@@ -1,26 +1,31 @@
-import { Effect, Schema } from "effect";
-import * as Limit from "./limit.ts";
+import { Schema } from "effect";
 import * as Network from "./network.ts";
 
+export const NonNegative = Schema.Number.check(Schema.isGreaterThanOrEqualTo(0));
+
+export const NonNegativeInt = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0));
+
 export class Resources extends Schema.Class<Resources>("Resources")({
-  /** Number of CPUs allocated to the sandbox. Defaults to 1. */
-  numCPUs: Limit.NonNegative.pipe(Schema.withConstructorDefault(Effect.succeed(1))),
+  /** Number of CPUs allocated to the sandbox. */
+  numCPUs: Schema.OptionFromOptionalNullOr(NonNegative),
 
-  /** Number of GPUs allocated to the sandbox. Defaults to 0. */
-  numGPUs: Limit.NonNegativeInt.pipe(Schema.withConstructorDefault(Effect.succeed(0))),
+  /** Number of GPUs allocated to the sandbox. */
+  numGPUs: Schema.OptionFromOptionalNullOr(NonNegativeInt),
 
-  /** Memory allocated to the sandbox in MiB. Defaults to 512. */
-  memoryMiB: Limit.NonNegativeInt.pipe(Schema.withConstructorDefault(Effect.succeed(512))),
+  /** Memory allocated to the sandbox in MiB. */
+  memoryMiB: Schema.OptionFromOptionalNullOr(NonNegativeInt),
 
-  /** Storage allocated to the sandbox in MiB. Defaults to 1024. */
-  storageMiB: Limit.NonNegativeInt.pipe(Schema.withConstructorDefault(Effect.succeed(1024))),
+  /** Storage allocated to the sandbox in MiB. */
+  storageMiB: Schema.OptionFromOptionalNullOr(NonNegativeInt),
 
-  /** Effective network policy applied while the sandbox is running. Defaults to public. */
-  network: Network.Policy.pipe(Schema.withConstructorDefault(Effect.sync(Network.publicAccess))),
+  /** Effective network policy applied while the sandbox is running. */
+  network: Schema.OptionFromOptionalNullOr(Network.Policy),
 
-  /** Maximum time allowed to build a snapshot, in seconds. Defaults to 120. */
-  buildTimeoutSec: Limit.NonNegativeInt.pipe(Schema.withConstructorDefault(Effect.succeed(120))),
+  /** Maximum time allowed to build a snapshot, in seconds. */
+  buildTimeoutSec: Schema.OptionFromOptionalNullOr(NonNegativeInt),
 
-  /** Maximum time allowed for the sandbox to run, in seconds. Defaults to 600. */
-  runTimeoutSec: Limit.NonNegativeInt.pipe(Schema.withConstructorDefault(Effect.succeed(600))),
+  /** Maximum time allowed for the sandbox to run, in seconds. */
+  runTimeoutSec: Schema.OptionFromOptionalNullOr(NonNegativeInt),
 }) {}
+
+export type Options = Partial<Resources>;

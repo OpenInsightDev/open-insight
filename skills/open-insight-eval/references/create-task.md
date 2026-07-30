@@ -40,7 +40,7 @@ final stage. Keep task inputs, diagnostics, and grade fields separate. Do not ad
 because a built-in metric expects a different shape; `mapGrade` adapts the confirmed grade to the
 metric instead.
 
-If tasks need no extras, omit `extras` from both the template and `Task.make` rather than creating
+If tasks need no extras, omit `Extras` from the template and `extras` from `Task.make` rather than creating
 an empty class.
 
 ## 3. Create the Template
@@ -49,27 +49,26 @@ Create one template for all tasks that share the contracts:
 
 ```ts
 const template = Task.Template.make({
-  extras: {
+  Extras: {
     // Add only the per-task metadata fields established for this benchmark.
   },
-  grade: {
+  Grade: {
     // Add exactly the grade fields and constraints confirmed by the user.
   },
 });
 ```
 
 The template is schema-only. It does not contain task values, prompts, stages, or metrics.
-`template.grade` must match the result schema of the final stage. Intermediate stages may use
+`template.Grade` must match the result schema of the final stage. Intermediate stages may use
 different schema classes.
 
-`Task.Template.make` accepts struct fields and constructs the schemas. Use `Task.Template.from`
-when the contract needs complete root schemas such as `Schema.Record`.
+`Task.Template.make` accepts struct fields and constructs the schemas.
 
 Without extras:
 
 ```ts
 const template = Task.Template.make({
-  grade: {
+  Grade: {
     // Add exactly the confirmed grade fields.
   },
 });
@@ -93,7 +92,7 @@ Task.make(template, {
   },
 }).pipe(
   Task.stage("solve", {
-    schema: template.grade.fields,
+    schema: template.Grade.fields,
     prompt: "<task-specific prompt>",
     grader: async ({ $, results, trajectory }) => {
       // Inspect the sandbox and trajectory, then compute the confirmed grade fields here.
@@ -161,8 +160,8 @@ Task.make(template, {
     // Set the confirmed per-task metadata fields here.
   },
 }).pipe(
-  Task.stage.from("prepare", {
-    schema: PreparationResult,
+  Task.stage("prepare", {
+    schema: PreparationResult.fields,
     prompt: "<preparation-stage prompt>",
     grader: async ({ $, trajectory }) => {
       // Compute and return the PreparationResult fields here.
@@ -170,7 +169,7 @@ Task.make(template, {
     },
   }),
   Task.stage("solve", {
-    schema: template.grade.fields,
+    schema: template.Grade.fields,
     prompt: "<final-stage prompt>",
     grader: async ({ $, results, trajectory }) => {
       const preparation = results.prepare;
@@ -182,7 +181,7 @@ Task.make(template, {
 );
 ```
 
-The final stage result must conform to `template.grade`; `Task.build` enforces that relationship at
+The final stage result must conform to `template.Grade`; `Task.build` enforces that relationship at
 the type level. Read [Define prompts](create-task-prompt.md) before using generated or multi-turn
 prompts. Read [Define grading](create-task-grade.md) before using verification, retries, or multiple
 stages.
@@ -214,9 +213,9 @@ the confirmed metric design requires that mapping. See
 
 - The user explicitly confirmed the actual final grade fields and semantics.
 - `Extras` and every stage result use named `Schema.Class` definitions where reusable.
-- The template contains only `extras` and the final `grade` schema.
+- The template contains only `Extras` and the final `Grade` schema.
 - `Task.make` uses that template and provides correctly encoded extras.
-- Stage names are unique and ordered; the final stage schema matches `template.grade`.
+- Stage names are unique and ordered; the final stage schema matches `template.Grade`.
 - `verif` and `expect` either appear together or are both absent.
 - Graders return schema-compatible JSON objects and do not hide infrastructure failures as passes.
 - Any required grade mapping is explicit, and `Task.build` is the last pipe operation.

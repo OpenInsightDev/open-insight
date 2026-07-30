@@ -55,10 +55,10 @@ const snapshot = Snapshot.make({
 });
 
 const template = Task.Template.make({
-  extras: {
+  Extras: {
     category: Schema.String,
   },
-  grade: {
+  Grade: {
     syntaxPass: Schema.Boolean,
     simPass: Schema.Boolean,
     diagnostic: Schema.optionalKey(
@@ -116,8 +116,8 @@ async function* loadTasks(repoPath: string) {
       snapshot,
       extras: { category },
     }).pipe(
-      Task.stage.from("solve", {
-        schema: template.Grade,
+      Task.stage("solve", {
+        schema: template.Grade.fields,
         prompt: `${prompt.trimEnd()}\n\n${deliveryInstructions}`,
         grader: async ({ upload, $ }) => {
           await $`mkdir -p /tmp/rtllm`;
