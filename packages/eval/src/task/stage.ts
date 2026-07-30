@@ -3,7 +3,7 @@ import * as Grade from "#/grade/index.ts";
 import { IDSchema } from "#/utils/schema.ts";
 import type { BivariantFn } from "#/utils/variant.ts";
 import { Crypto, Effect, Schema } from "effect";
-import { BuilderTypeId, type Builder } from "./build.ts";
+import { BuilderTypeId, TypeId, type Builder, type Task } from "./build.ts";
 import { Error } from "./error.ts";
 import type { PromptOptions } from "./prompt.ts";
 import type * as Template from "./template.ts";
@@ -18,31 +18,21 @@ type StageMetadataEncoded = Schema.Codec.Encoded<typeof StageMetadata>;
 /** Runs once at the start of the stage, before verifier checks or agent interaction. */
 export type Init = BivariantFn<(sandbox: Sandbox.SandboxPromise) => PromiseLike<void>>;
 
-export type StageBase = Readonly<{
+/** A stage and the result record produced by all stages that precede it. */
+export type Stage<
+  /** Grade result. */
+  G extends Grade.Result = Grade.Result,
+  /** Previous stage results. */
+  S extends Grade.Results = Grade.Results,
+> = Readonly<{
   metadata: StageMetadata;
   prompt: PromptOptions;
-  grader: Grade.Grader<Grade.Result, Grade.Results>;
+  grader: Grade.Grader<G, S>;
   init: Init | null;
   resume: boolean;
 }>;
 
-/** A stage and the result record produced by all stages that precede it. */
-export type Stage<
-  /** Stage name. */
-  N extends string = string,
-  /** Grade result. */
-  G extends Grade.Result = Grade.Result,
-  /** Previous stage results. */
-  S extends Grade.Results = never,
-> = Readonly<{
-  metadata: StageMetadata;
-  prompt: PromptOptions;
-  grader: Grade.Grader<G, StageResults<S>>;
-  init: Init | null;
-  resume: boolean;
-}> & { _N?: N; _G?: G; _S?: S };
-
-export type StageResults<S extends Grade.Results> = [S] extends [never] ? never : S;
+export type StageBase = Stage;
 
 type AppendResult<S extends Grade.Results, N extends string, G extends Grade.Result> = [S] extends [
   never,
@@ -50,91 +40,81 @@ type AppendResult<S extends Grade.Results, N extends string, G extends Grade.Res
   ? Readonly<{ [K in N]: G }>
   : S & Readonly<{ [K in N]: G }>;
 
-type StageSchema<F extends Schema.Struct.Fields> = Schema.Struct<F> &
-  Grade.ResultSchema<Schema.Struct.Type<F>>;
-type StageGrade<F extends Schema.Struct.Fields> = StageSchema<F>["Type"];
-type StageGradeEncoded<F extends Schema.Struct.Fields> = StageSchema<F>["Encoded"];
-
-type Verification<F extends Schema.Struct.Fields> =
-  | Readonly<{
-      verif?: never;
-      expect?: never;
-    }>
-  | Grade.VerifOptions<StageGradeEncoded<F>>;
-
-function makeStructResult<const F extends Schema.Struct.Fields>(fields: F): StageSchema<F>;
-function makeStructResult(fields: Schema.Struct.Fields) {
-  return Schema.Struct(fields);
-}
-
-type StageOptionsBase<
-  N extends string,
-  F extends Schema.Struct.Fields,
-  S extends Grade.Results,
-> = Readonly<{
-  name: N;
+type StageOptionsBase<R extends Schema.JsonObject, S extends Grade.Results> = Readonly<{
   prompt: PromptOptions;
-  grader: Grade.Exec<StageGradeEncoded<F>, StageResults<S>>;
+  grader: Grade.Definition<R, S>;
   init?: Init | null;
   resume?: boolean;
 }> &
-  Omit<StageMetadataEncoded, "name"> &
-  Verification<F>;
+  Omit<StageMetadataEncoded, "name">;
 
-/** Options for defining a new stage schema inline via struct fields. */
 export type StageOptions<
-  /** Stage name. */
-  N extends string = string,
-  /** Grade schema fields. */
-  F extends Schema.Struct.Fields = Schema.Struct.Fields,
+  /** Grade schema. */
+  GS extends Grade.ResultSchema = Grade.ResultSchema,
   /** Previous stage results. */
   S extends Grade.Results = never,
-> = StageOptionsBase<N, F, S> &
-  Readonly<{
-    schema: F;
-  }>;
+> = StageOptionsBase<GS["Encoded"], S>;
 
-/** Adds a stage from struct fields and infers all preceding stage results from the pipe input. */
+export type EndStageOptions<
+  T extends Template.Unknown = Template.Unknown,
+  S extends Grade.Results = never,
+> = StageOptionsBase<Template.GradeResultEncoded<T>, S>;
+
+const makeStage = Effect.fn(function* <GS extends Grade.ResultSchema, S extends Grade.Results>(
+  schema: GS,
+  name: string,
+  options: StageOptions<GS, S>,
+): Effect.fn.Return<Stage<GS["Type"], S>, Error, Crypto.Crypto> {
+  const { resume = true, init = null, prompt } = options;
+  const metadata = yield* Schema.decodeEffect(StageMetadata)({ ...options, name }).pipe(
+    Effect.mapError(Error.metadata),
+  );
+  const grader: Grade.Grader<GS["Type"], S> = { ...options.grader, schema };
+  return { metadata, prompt, grader, resume, init };
+});
+
+/** Adds an intermediate stage and infers all preceding stage results from the pipe input. */
 export const stage =
-  <N extends string, F extends Schema.Struct.Fields, S extends Grade.Results>(
-    name: N,
-    options: Omit<StageOptions<N, F, NoInfer<S>>, "name">,
-  ) =>
-  <G extends Grade.Result, X extends object, T extends Template.Unknown, E, R>(
-    task: Effect.Effect<Builder<G, X, S, T>, E, R>,
+  <GS extends Grade.ResultSchema>(schema: GS) =>
+  <N extends string, S extends Grade.Results>(name: N, options: StageOptions<GS, NoInfer<S>>) =>
+  <Current extends Grade.Result, X extends object, T extends Template.Unknown, E, R>(
+    task: Effect.Effect<Builder<Current, X, S, T>, E, R>,
   ): Effect.Effect<
-    Builder<StageGrade<F>, X, AppendResult<S, N, StageGrade<F>>, T>,
+    Builder<GS["Type"], X, AppendResult<S, N, GS["Type"]>, T>,
     E | Error,
     R | Crypto.Crypto
   > =>
     task.pipe(
       Effect.flatMap(
         Effect.fn(function* (task) {
-          const { resume = true, init = null, prompt } = options;
-          const metadata = yield* Schema.decodeEffect(StageMetadata)({ ...options, name }).pipe(
-            Effect.mapError(Error.metadata),
-          );
-          const schema = makeStructResult(options.schema);
-          const grader: Grade.Grader<StageGrade<F>, StageResults<S>> = options.verif === undefined
-            ? { schema, grade: options.grader }
-            : {
-                schema,
-                grade: options.grader,
-                verif: options.verif,
-                expect: options.expect,
-              };
-          const next: Stage<N, StageGrade<F>, S> = {
-            metadata,
-            prompt,
-            grader,
-            resume,
-            init,
-          };
+          const next = yield* makeStage(schema, name, options);
           return {
             ...task,
             stages: [...task.stages, next],
             [BuilderTypeId]: (value) => value,
-          } satisfies Builder<StageGrade<F>, X, AppendResult<S, N, StageGrade<F>>, T>;
+          } satisfies Builder<GS["Type"], X, AppendResult<S, N, GS["Type"]>, T>;
+        }),
+      ),
+    );
+
+/** Adds the final stage using the task template's grade schema and completes the task. */
+export const endStage =
+  <T extends Template.Unknown, S extends Grade.Results>(
+    name: string,
+    options: EndStageOptions<T, NoInfer<S>>,
+  ) =>
+  <G extends Grade.Result, X extends object, E, R>(
+    task: Effect.Effect<Builder<G, X, S, T>, E, R>,
+  ): Effect.Effect<Task<Template.GradeResult<T>, X, T>, E | Error, R | Crypto.Crypto> =>
+    task.pipe(
+      Effect.flatMap(
+        Effect.fn(function* (task) {
+          const next = yield* makeStage(task.template.Grade, name, options);
+          return {
+            ...task,
+            stages: [...task.stages, next],
+            [TypeId]: TypeId,
+          } satisfies Task<Template.GradeResult<T>, X, T>;
         }),
       ),
     );

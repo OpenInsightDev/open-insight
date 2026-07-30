@@ -1,5 +1,5 @@
 export {
-  build,
+  endStage,
   make,
   metadata,
   metadataSchema,
@@ -10,9 +10,9 @@ export {
   type Builder,
   type Options,
   type Stage,
-  type StageResults,
   type StageBase,
   type StageOptions,
+  type EndStageOptions,
   type Task,
 } from "./index.ts";
 

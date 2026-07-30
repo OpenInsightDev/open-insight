@@ -2,6 +2,7 @@ import { NodeCrypto } from "@effect/platform-node";
 import { assert, it } from "@effect/vitest";
 import { Snapshot } from "@open-insight/core/internal";
 import { Effect, Schema } from "effect";
+import * as Grade from "#/grade/index.ts";
 import * as Task from "./index.ts";
 
 const Setup = {
@@ -30,17 +31,14 @@ const values = {
 };
 
 const task = Task.make(template)(values).pipe(
-  Task.stage("setup", {
-    schema: Setup,
+  Task.stage(Schema.Struct(Setup))("setup", {
     prompt: "Prepare the task",
-    grader: async () => ({ ready: true }),
+    grader: Grade.make(async () => ({ ready: true })),
   }),
-  Task.stage("solve", {
-    schema: template.Grade.fields,
+  Task.endStage("solve", {
     prompt: "Solve the task",
-    grader: async ({ results }) => ({ passed: results.setup.ready }),
+    grader: Grade.make(async ({ results }) => ({ passed: results.setup.ready })),
   }),
-  Task.build,
 );
 
 it.effect("keeps template schemas separate from task values", () =>
@@ -63,7 +61,7 @@ it.effect("keeps template schemas separate from task values", () =>
     if (finalStage === undefined) {
       return assert.fail("Missing final stage");
     }
-    assert.notStrictEqual(finalStage.grader.schema, template.Grade);
+    assert.strictEqual(finalStage.grader.schema, template.Grade);
     assert.deepStrictEqual(Schema.encodeSync(finalStage.grader.schema)({ passed: true }), {
       passed: true,
     });
@@ -78,24 +76,22 @@ it.effect("keeps template schemas separate from task values", () =>
 it.effect("allows task-local intermediate stages and infers every preceding result", () =>
   Effect.gen(function* () {
     const task = yield* Task.make(template)(values).pipe(
-      Task.stage("setup", {
-        schema: Setup,
+      Task.stage(Schema.Struct(Setup))("setup", {
         prompt: "Prepare the task",
-        grader: async () => ({ ready: true }),
+        grader: Grade.make(async () => ({ ready: true })),
       }),
-      Task.stage("inspect", {
-        schema: Inspection,
+      Task.stage(Schema.Struct(Inspection))("inspect", {
         prompt: "Inspect the task",
-        grader: async ({ results }) => ({ clean: results.setup.ready }),
+        grader: Grade.make(async ({ results }) => ({
+          clean: results.setup.ready,
+        })),
       }),
-      Task.stage("solve", {
-        schema: template.Grade.fields,
+      Task.endStage("solve", {
         prompt: "Solve the task",
-        grader: async ({ results }) => ({
+        grader: Grade.make(async ({ results }) => ({
           passed: results.setup.ready && results.inspect.clean,
-        }),
+        })),
       }),
-      Task.build,
     );
     assert.deepStrictEqual(
       task.stages.map((stage) => stage.metadata.name),
@@ -105,18 +101,46 @@ it.effect("allows task-local intermediate stages and infers every preceding resu
 );
 
 it("enforces template conformance entirely at the type level", () => {
-  const wrongFinalGrade = Task.make(template)(values).pipe(
-    Task.stage("setup", {
-      schema: Setup,
+  const unfinished = Task.make(template)(values).pipe(
+    Task.stage(Schema.Struct(Setup))("setup", {
       prompt: "Prepare the task",
-      grader: async () => ({ ready: true }),
+      grader: Grade.make(async () => ({ ready: true })),
     }),
   );
-  // @ts-expect-error The final stage result must satisfy the template grade.
-  Task.build(wrongFinalGrade);
+  // @ts-expect-error A builder is not a completed task until endStage is applied.
+  const task: Task.Task = unfinished;
 
   // @ts-expect-error Extras use the encoded shape of the template schema.
   Task.make(template)({ ...values, extras: { owner: 1, revision: "1" } });
 
+  Task.endStage("invalid-verifier", {
+    prompt: "Invalid verifier",
+    grader: {
+      grade: async () => ({ passed: true }),
+      // @ts-expect-error A verifier and its expected result must be defined together.
+      verif: { run: async () => null },
+    },
+  });
+
+  Task.make(template)(values).pipe(
+    Task.endStage("invalid-grade", {
+      prompt: "Invalid grade",
+      // @ts-expect-error The grade result is checked against the template schema.
+      grader: Grade.make(async () => ({ passed: "yes" })),
+    }),
+  );
+
+  Task.make(template)(values).pipe(
+    Task.endStage("invalid-expect", {
+      prompt: "Invalid expected result",
+      grader: Grade.make(async () => ({ passed: true }), {
+        verif: async () => null,
+        // @ts-expect-error The expected result is checked against the template schema.
+        expect: { passed: "yes" },
+      }),
+    }),
+  );
+
   assert.isTrue(true);
+  assert.isDefined(task);
 });

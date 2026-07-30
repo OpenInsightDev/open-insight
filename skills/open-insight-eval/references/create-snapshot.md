@@ -100,17 +100,15 @@ export const makeTask = Effect.fn(function* () {
     Grade: {},
   });
 
-  return yield* Task.make(template, {
+  return yield* Task.make(template)({
     id: "python-fix",
     name: "Fix the Python implementation",
     snapshot,
   }).pipe(
-    Task.stage("solve", {
-      schema: template.Grade.fields,
+    Task.endStage("solve", {
       prompt: "Fix the Python implementation.",
-      grader: async () => ({}),
+      grader: Grade.make(async () => ({})),
     }),
-    Task.build,
   );
 });
 ```

@@ -1,6 +1,7 @@
 import { assert, it } from "@effect/vitest";
 import { NodeCrypto } from "@effect/platform-node";
 import { Snapshot } from "@open-insight/core/internal";
+import * as Grade from "#/grade/index.ts";
 import * as Metric from "#/metric/index.ts";
 import * as Task from "#/task/index.ts";
 import { Effect, Schema } from "effect";
@@ -29,12 +30,10 @@ it.effect("accepts raw and Effect metric executors", () =>
       name: "Bench metric task",
       snapshot: Snapshot.make("test-image"),
     }).pipe(
-      Task.stage("grade", {
-        schema: template.Grade.fields,
+      Task.endStage("grade", {
         prompt: "Grade the task",
-        grader: async () => ({ pass: true }),
+        grader: Grade.make(async () => ({ pass: true })),
       }),
-      Task.build,
     );
 
     const bench = yield* make({ id: "bench-metric-exec-inputs", tasks: [task] }).pipe(

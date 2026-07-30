@@ -7,6 +7,13 @@ import { Prompt } from "@open-insight/core/internal";
 import { Schema } from "effect";
 import { Response } from "effect/unstable/ai";
 
+export const TrailResult = Schema.Struct({
+  startedAt: TimestampSchema,
+  finishedAt: TimestampSchema,
+  usage: Response.Usage,
+  grade: Schema.Record(Schema.String, Schema.Json),
+  trajectory: Prompt.Trajectory,
+});
 export type TrailResult<G extends Grade.Result = Grade.Result> = Readonly<{
   startedAt: Timestamp;
   finishedAt: Timestamp;
@@ -14,18 +21,6 @@ export type TrailResult<G extends Grade.Result = Grade.Result> = Readonly<{
   grade: G;
   trajectory: Prompt.Trajectory;
 }>;
-
-const TrailResultSchema = Schema.Struct({
-  startedAt: TimestampSchema,
-  finishedAt: TimestampSchema,
-  usage: Response.Usage,
-  grade: Schema.Record(Schema.String, Schema.Json),
-  trajectory: Prompt.Trajectory,
-});
-export const TrailResult: Schema.Codec<
-  TrailResult,
-  Schema.Codec.Encoded<typeof TrailResultSchema>
-> = TrailResultSchema;
 
 export const TaskResult = Schema.Struct({
   startedAt: TimestampSchema,

@@ -4,6 +4,7 @@ import {
   Chart,
   Eval,
   Event,
+  Grade,
   Harness,
   Sandbox,
   Snapshot,
@@ -93,49 +94,52 @@ async function* loadTasks(repoPath: string) {
       snapshot,
       extras: { category: "verilog-eval" },
     }).pipe(
-      Task.stage("solve", {
-        schema: GradeFields,
+      Task.endStage("solve", {
         prompt: `${prompt.trimEnd()}\n\n${deliveryInstructions}`,
-        grader: async ({ upload, $ }) => {
-          await $`mkdir -p /tmp/verilog-eval`;
-          await upload({
-            hostPath: refPath,
-            sandboxPath: "/tmp/verilog-eval/ref.sv",
-          });
-          await upload({
-            hostPath: testPath,
-            sandboxPath: "/tmp/verilog-eval/test.sv",
-          });
-          if (id === "Prob099_m2014_q6c") {
-            // VerilogEval issue #13: this testbench names Y1/Y3 as Y2/Y4.
-            await $`sed -i -e 's/\.Y2(/.Y1(/g' -e 's/\.Y4(/.Y3(/g' /tmp/verilog-eval/test.sv`;
-          }
+        grader: Grade.make(
+          async ({ upload, $ }) => {
+            await $`mkdir -p /tmp/verilog-eval`;
+            await upload({
+              hostPath: refPath,
+              sandboxPath: "/tmp/verilog-eval/ref.sv",
+            });
+            await upload({
+              hostPath: testPath,
+              sandboxPath: "/tmp/verilog-eval/test.sv",
+            });
+            if (id === "Prob099_m2014_q6c") {
+              // VerilogEval issue #13: this testbench names Y1/Y3 as Y2/Y4.
+              await $`sed -i -e 's/\.Y2(/.Y1(/g' -e 's/\.Y4(/.Y3(/g' /tmp/verilog-eval/test.sv`;
+            }
 
-          const hasNoMismatches = (output: string): boolean =>
-            /Mismatches:\s*0\s+in\s+\d+\s+samples/.test(output);
+            const hasNoMismatches = (output: string): boolean =>
+              /Mismatches:\s*0\s+in\s+\d+\s+samples/.test(output);
 
-          const artifactPresent =
-            (await $`if [ -f top.v ]; then printf present; else printf missing; fi`).trim() ===
-            "present";
-          const topV = artifactPresent ? await $`cat top.v` : null;
-          const output = await $`if \\
+            const artifactPresent =
+              (await $`if [ -f top.v ]; then printf present; else printf missing; fi`).trim() ===
+              "present";
+            const topV = artifactPresent ? await $`cat top.v` : null;
+            const output = await $`if \\
                   cp top.v /tmp/verilog-eval/top.v && \\
                   cd /tmp/verilog-eval && \\
                   iverilog -g2012 -s tb -o simv top.v ref.sv test.sv; \\
                 then \\
                   vvp simv || true; \\
                 fi 2>&1`;
-          const simPass = hasNoMismatches(output);
-          const diagnostic = { artifactPresent, topV, simulatorOutput: output };
+            const simPass = hasNoMismatches(output);
+            const diagnostic = { artifactPresent, topV, simulatorOutput: output };
 
-          return { simPass, ...(simPass ? {} : { diagnostic }) };
-        },
-        verif: async ({ upload, $ }) => {
-          await upload({ hostPath: refPath, sandboxPath: "/tmp/ref.sv" });
-          await $`sed 's/RefModule/TopModule/g' /tmp/ref.sv > top.v`;
-          return null;
-        },
-        expect: { simPass: true },
+            return { simPass, ...(simPass ? {} : { diagnostic }) };
+          },
+          {
+            verif: async ({ upload, $ }) => {
+              await upload({ hostPath: refPath, sandboxPath: "/tmp/ref.sv" });
+              await $`sed 's/RefModule/TopModule/g' /tmp/ref.sv > top.v`;
+              return null;
+            },
+            expect: { simPass: true },
+          },
+        ),
       }),
       Task.metric(
         TaskMetric.passAtK(1).pipe(TaskMetric.mapGrade(({ simPass }) => ({ pass: simPass }))),
@@ -189,7 +193,6 @@ async function* loadTasks(repoPath: string) {
         ],
         when: When.traj(When.toolCall()),
       }),
-      Task.build,
     );
   }
 }

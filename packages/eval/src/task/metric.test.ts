@@ -2,6 +2,7 @@ import { NodeCrypto } from "@effect/platform-node";
 import { Snapshot } from "@open-insight/core/internal";
 import { assert, it } from "@effect/vitest";
 import { Effect, Schema } from "effect";
+import * as Grade from "#/grade/index.ts";
 import * as Metric from "#/metric/index.ts";
 import * as Task from "./index.ts";
 import { metric, trajMetric } from "./metric.ts";
@@ -25,15 +26,13 @@ it.effect("accepts raw and Effect metric executors", () =>
       name: "Metric exec inputs",
       snapshot: Snapshot.make("test-image"),
     }).pipe(
-      Task.stage("solve", {
-        schema: template.Grade.fields,
+      Task.endStage("solve", {
         prompt: "Solve the task",
-        grader: async () => ({ pass: true }),
+        grader: Grade.make(async () => ({ pass: true })),
       }),
       metric(taskExec, { id: "raw-task" }),
       metric(Metric.Task.exec(taskExec), { id: "effect-task" }),
       trajMetric(trajExec, { id: "raw-traj" }),
-      Task.build,
     );
 
     assert.deepStrictEqual(
@@ -48,3 +47,17 @@ it.effect("accepts raw and Effect metric executors", () =>
     assert.isTrue(task.trajMetrics.every(({ exec }) => exec === trajExec));
   }).pipe(Effect.provide(NodeCrypto.layer)),
 );
+
+it("only attaches metrics to completed tasks", () => {
+  const builder = Task.make(template)({
+    id: "unfinished-metric-task",
+    name: "Unfinished metric task",
+    snapshot: Snapshot.make("test-image"),
+  });
+  const trajExec: Metric.Traj.Exec<Readonly<{ count: number }>> = async () => ({ count: 1 });
+
+  // @ts-expect-error Metrics cannot be attached before endStage completes the task.
+  builder.pipe(trajMetric(trajExec));
+
+  assert.isTrue(true);
+});

@@ -8,14 +8,13 @@ each `Task.stage` is evaluated separately for each stage execution.
 Use a string for one user message:
 
 ```ts
-Task.stage("repair-checkout", {
-  schema: GradeResult.fields,
+Task.stage(GradeResult)("repair-checkout", {
   prompt:
     "A deployment caused some discount-code checkouts to charge twice. Find the regression, fix it without changing the public API, and add a regression test.",
-  grader: async ({ $ }) => {
+  grader: Grade.make(async ({ $ }) => {
     // Compute and return the confirmed grade fields here.
     return {};
-  },
+  }),
 });
 ```
 

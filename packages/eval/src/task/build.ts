@@ -48,16 +48,15 @@ export type Task<
   metrics: ReadonlyArray<Metric.Task.Metric>;
   trajMetrics: ReadonlyArray<Metric.Traj.Metric>;
   extras: X;
-}> & { _G?: G };
+}> &
+  Readonly<{
+    [TypeId]: TypeId;
+  }> & { _G?: G };
 
 /** @internal */
 export const BuilderTypeId: unique symbol = Symbol.for("~open-insight/eval/task/Builder");
 
-/**
- * A task definition that is still being assembled. Complete it with {@link build}.
- *
- * Builders track their changing grade through {@link BuilderTypeId}; `_G` is only for built tasks.
- */
+/** A task definition that is still being assembled. Complete it with an end stage. */
 export type Builder<
   /** Current grade result. */
   G extends Grade.Result = Grade.Result,
@@ -67,7 +66,7 @@ export type Builder<
   S extends Grade.Results = Grade.Results,
   /** Task template. */
   T extends Template.Unknown = Template.Template<Grade.ResultSchema<G>, Template.ExtrasSchema<X>>,
-> = Omit<Task<G, X, T>, "_G"> &
+> = Omit<Task<G, X, T>, TypeId | "_G"> &
   Readonly<{
     [BuilderTypeId]: Types.Invariant<readonly [G, X, S, T]>;
   }>;
@@ -126,18 +125,6 @@ export const make = <T extends Template.Unknown>(template: T) =>
       [BuilderTypeId]: (value) => value,
     } satisfies Builder<never, Template.Extras<T>, never, T>;
   });
-
-/** Completes a task builder whose final stage result conforms to its template. */
-export const build = <
-  T extends Template.Unknown,
-  G extends Template.GradeResult<T>,
-  X extends object,
-  S extends Grade.Results,
-  E,
-  R,
->(
-  self: Effect.Effect<Builder<G, X, S, T>, E, R>,
-): Effect.Effect<Task<G, X, T>, E, R> => self;
 
 export const metadata = <G extends Grade.Result, X extends object, T extends Template.Unknown>(
   task: Task<G, X, T>,

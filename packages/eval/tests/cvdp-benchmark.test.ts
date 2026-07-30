@@ -1,4 +1,4 @@
-import { Bench, Snapshot, Task } from "@open-insight/eval";
+import { Bench, Grade, Snapshot, Task } from "@open-insight/eval";
 import { NodeServices } from "@effect/platform-node";
 import { assert, layer } from "@effect/vitest";
 import { Effect, FileSystem, Layer, Path, Schema } from "effect";
@@ -84,31 +84,33 @@ const makeTask = Effect.fn(function* (datapoint: CvdpDatapoint) {
     snapshot,
     extras: { categories: datapoint.categories },
   }).pipe(
-    Task.stage("solve", {
-      schema: template.Grade.fields,
+    Task.endStage("solve", {
       prompt: [
         { role: "system", content: datapoint.system_message },
         { role: "user", content: datapoint.prompt },
       ],
-      grader: async ({ $ }) => {
-        try {
-          await $`pytest -s --log-cli-level=INFO -o cache_dir=/tmp/cvdp-pytest-cache /src/test_runner.py -v`;
-          return { passed: true };
-        } catch {
-          return { passed: false };
-        }
-      },
-      verif: async ({ $, writeFile }) => {
-        for (const [index, patch] of Object.values(datapoint.patch).entries()) {
-          const patchPath = `/tmp/cvdp-golden-${index}.patch`;
-          await writeFile({ sandboxPath: patchPath, content: patch });
-          await $`patch --directory=/code --strip=1 --forward --batch --input=${patchPath}`;
-        }
-        return null;
-      },
-      expect: { passed: true },
+      grader: Grade.make(
+        async ({ $ }) => {
+          try {
+            await $`pytest -s --log-cli-level=INFO -o cache_dir=/tmp/cvdp-pytest-cache /src/test_runner.py -v`;
+            return { passed: true };
+          } catch {
+            return { passed: false };
+          }
+        },
+        {
+          verif: async ({ $, writeFile }) => {
+            for (const [index, patch] of Object.values(datapoint.patch).entries()) {
+              const patchPath = `/tmp/cvdp-golden-${index}.patch`;
+              await writeFile({ sandboxPath: patchPath, content: patch });
+              await $`patch --directory=/code --strip=1 --forward --batch --input=${patchPath}`;
+            }
+            return null;
+          },
+          expect: { passed: true },
+        },
+      ),
     }),
-    Task.build,
   );
 });
 

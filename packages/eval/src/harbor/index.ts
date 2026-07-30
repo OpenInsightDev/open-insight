@@ -39,10 +39,10 @@ export const makeTask = Effect.fn("Task.Load.makeHarborTask")(function* (taskDir
   const stages = yield* makeStages(root, config);
   const pkg = config.task;
   const name = pkg?.name ?? path.basename(root);
-  const template = Task.Template.from({
+  const template = {
     Extras: Schema.Record(Schema.String, Schema.Json),
     Grade: GradeResult,
-  });
+  } satisfies Task.Template.Unknown;
 
   return yield* Task.make(template)({
     id: name,
@@ -53,5 +53,5 @@ export const makeTask = Effect.fn("Task.Load.makeHarborTask")(function* (taskDir
     snapshot,
     resources: makeResources(config),
     extras: config.metadata ?? {},
-  }).pipe(addStages(stages), Task.build, Effect.mapError(TasksError.init));
+  }).pipe(addStages(stages), Effect.mapError(TasksError.init));
 });

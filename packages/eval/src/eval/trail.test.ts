@@ -90,15 +90,14 @@ const makeRunTrail = Effect.fn(function* ({ initiallySolved }: { initiallySolved
     name: "Test task",
     snapshot,
   }).pipe(
-    Task.stage("solve", {
-      schema: passedTemplate.Grade.fields,
+    Task.endStage("solve", {
       id: "solve",
       prompt: "Solve the task",
-      grader,
-      verif: verifier,
-      expect: { passed: true },
+      grader: Grade.make(grader, {
+        verif: verifier,
+        expect: { passed: true },
+      }),
     }),
-    Task.build,
   );
   const sandboxProvider = {
     aquireSnapshot: () => Effect.succeed(handle),
@@ -140,8 +139,7 @@ describe("verification trail", () => {
           name: "Test task",
           snapshot,
         }).pipe(
-          Task.stage("solve", {
-            schema: initializedTemplate.Grade.fields,
+          Task.endStage("solve", {
             id: "solve",
             prompt: async (context) => {
               calls.push("prompt");
@@ -156,14 +154,13 @@ describe("verification trail", () => {
               calls.push("init");
               await writeFile({ sandboxPath: initializedPath, content: "ready" });
             },
-            grader: async ({ readFile }) => {
+            grader: Grade.make(async ({ readFile }) => {
               calls.push("grader");
               return {
                 initialized: (await readFile({ sandboxPath: initializedPath })) === "ready",
               };
-            },
+            }),
           }),
-          Task.build,
         );
         const sandboxProvider = {
           aquireSnapshot: () => Effect.succeed(handle),

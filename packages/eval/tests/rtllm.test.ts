@@ -4,6 +4,7 @@ import {
   Chart,
   Eval,
   Event,
+  Grade,
   Harness,
   Sandbox,
   Snapshot,
@@ -116,23 +117,23 @@ async function* loadTasks(repoPath: string) {
       snapshot,
       extras: { category },
     }).pipe(
-      Task.stage("solve", {
-        schema: template.Grade.fields,
+      Task.endStage("solve", {
         prompt: `${prompt.trimEnd()}\n\n${deliveryInstructions}`,
-        grader: async ({ upload, $ }) => {
-          await $`mkdir -p /tmp/rtllm`;
-          await upload({
-            hostPath: testbenchPath,
-            sandboxPath: "/tmp/rtllm/testbench.v",
-          });
-          for (const supportFile of supportFiles) {
+        grader: Grade.make(
+          async ({ upload, $ }) => {
+            await $`mkdir -p /tmp/rtllm`;
             await upload({
-              hostPath: path.resolve(designDir, supportFile),
-              sandboxPath: `/tmp/rtllm/${supportFile}`,
+              hostPath: testbenchPath,
+              sandboxPath: "/tmp/rtllm/testbench.v",
             });
-          }
-          if (id === "Control/Counter/ring_counter") {
-            await $`sed -i \
+            for (const supportFile of supportFiles) {
+              await upload({
+                hostPath: path.resolve(designDir, supportFile),
+                sandboxPath: `/tmp/rtllm/${supportFile}`,
+              });
+            }
+            if (id === "Control/Counter/ring_counter") {
+              await $`sed -i \
               -e 's/reg \[7:0\] data \[0:9\] = {.*};/reg [7:0] data [0:9];/' \
               -e '/^[[:space:]]*initial begin/a\
         data[0]=1; data[1]=1; data[2]=2; data[3]=4; data[4]=8;\
@@ -140,62 +141,65 @@ async function* loadTasks(repoPath: string) {
               -e 's/if (i == 9)/if (i >= 9)/' \
               -e 's/#100 \$finish;/#110 \$finish;/' \
               /tmp/rtllm/testbench.v`;
-          }
-          if (id === "Memory/FIFO/asyn_fifo") {
-            await $`sed -i \
+            }
+            if (id === "Memory/FIFO/asyn_fifo") {
+              await $`sed -i \
               -e '/^[[:space:]]*initial begin[[:space:]]*$/ { N; /repeat (17)/s/initial begin/initial begin : fill_fifo/; }' \
               -e 's/break;/disable fill_fifo;/' \
               /tmp/rtllm/testbench.v`;
-          }
-          if (id === "Miscellaneous/RISC-V/clkgenerator") {
-            await $`sed -i \
+            }
+            if (id === "Miscellaneous/RISC-V/clkgenerator") {
+              await $`sed -i \
               -e 's/#5; \/\/ Time delay between clock cycles/#4; \/\/ Sample before the clock edge/' \
               -e '/res = res + 1;/a\            #1;' \
               /tmp/rtllm/testbench.v`;
-          }
+            }
 
-          const artifactPresent =
-            (await $`if [ -f design.v ]; then printf present; else printf missing; fi`).trim() ===
-            "present";
-          const designV = artifactPresent ? await $`cat design.v` : null;
-          const compilerOutput = await $`if [ ! -f design.v ]; then \
+            const artifactPresent =
+              (await $`if [ -f design.v ]; then printf present; else printf missing; fi`).trim() ===
+              "present";
+            const designV = artifactPresent ? await $`cat design.v` : null;
+            const compilerOutput = await $`if [ ! -f design.v ]; then \
                   printf 'Missing /workspace/design.v\n'; \
                 elif iverilog -g2012 -o /tmp/rtllm/simv design.v /tmp/rtllm/testbench.v; then \
                   printf '\n__RTLLM_COMPILE_OK__\n'; \
                 fi 2>&1`;
-          const syntaxPass = compilerOutput.includes("__RTLLM_COMPILE_OK__");
-          const simulatorOutput = syntaxPass
-            ? await $`cd /tmp/rtllm && timeout 30s vvp simv 2>&1 || true`
-            : "";
-          const simPass = syntaxPass && /Your Design Passed/.test(simulatorOutput);
+            const syntaxPass = compilerOutput.includes("__RTLLM_COMPILE_OK__");
+            const simulatorOutput = syntaxPass
+              ? await $`cd /tmp/rtllm && timeout 30s vvp simv 2>&1 || true`
+              : "";
+            const simPass = syntaxPass && /Your Design Passed/.test(simulatorOutput);
 
-          return {
-            syntaxPass,
-            simPass,
-            ...(simPass
-              ? {}
-              : {
-                  diagnostic: {
-                    artifactPresent,
-                    designV,
-                    compilerOutput,
-                    simulatorOutput,
-                  },
-                }),
-          };
-        },
-        verif: async ({ upload, $ }) => {
-          await upload({ hostPath: verifiedPath, sandboxPath: "/workspace/design.v" });
-          await $`sed -i 's/module[[:space:]]\+verified_/module /g' design.v`;
-          if (id === "Arithmetic/Adder/adder_pipe_64bit") {
-            await $`sed -i 's/adder_64bit/adder_pipe_64bit/g' design.v`;
-          }
-          if (id === "Arithmetic/Multiplier/multi_pipe_4bit") {
-            await $`sed -i 's/module multi_pipe#/module multi_pipe_4bit#/' design.v`;
-          }
-          return null;
-        },
-        expect: { syntaxPass: true, simPass: true },
+            return {
+              syntaxPass,
+              simPass,
+              ...(simPass
+                ? {}
+                : {
+                    diagnostic: {
+                      artifactPresent,
+                      designV,
+                      compilerOutput,
+                      simulatorOutput,
+                    },
+                  }),
+            };
+          },
+          {
+            verif: async ({ upload, $ }) => {
+              await upload({ hostPath: verifiedPath, sandboxPath: "/workspace/design.v" });
+              await $`sed -i 's/module[[:space:]]\+verified_/module /g' design.v`;
+              if (id === "Arithmetic/Adder/adder_pipe_64bit") {
+                await $`sed -i 's/adder_64bit/adder_pipe_64bit/g' design.v`;
+              }
+              if (id === "Arithmetic/Multiplier/multi_pipe_4bit") {
+                await $`sed -i 's/module multi_pipe#/module multi_pipe_4bit#/' design.v`;
+              }
+              return null;
+            },
+            expect: { syntaxPass: true, simPass: true },
+          },
+        ),
       }),
       Task.metric(
         TaskMetric.passAtK(1).pipe(TaskMetric.mapGrade(({ simPass }) => ({ pass: simPass }))),
@@ -249,7 +253,6 @@ async function* loadTasks(repoPath: string) {
         ],
         when: When.traj(When.toolCall()),
       }),
-      Task.build,
     );
   }
 }

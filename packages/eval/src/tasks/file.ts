@@ -46,7 +46,7 @@ const isExportTask = <T extends Task.Task>(value: unknown): value is ExportTask<
  * The default export must be an Effect that produces a Task:
  *
  * ```ts
- * import { Task } from "@open-insight/eval";
+ * import { Grade, Task } from "@open-insight/eval";
  *
  * const template = Task.Template.make({
  *   Grade: {},
@@ -57,12 +57,10 @@ const isExportTask = <T extends Task.Task>(value: unknown): value is ExportTask<
  *   name: "static task",
  *   snapshot,
  * }).pipe(
- *   Task.stage("solve", {
- *     schema: template.Grade.fields,
+ *   Task.endStage("solve", {
  *     prompt: "Solve the task",
- *     grader: async () => ({}),
+ *     grader: Grade.make(async () => ({})),
  *   }),
- *   Task.build,
  * );
  * ```
  */

@@ -5,7 +5,7 @@ A task is an Effect-built definition with four parts:
 1. schema contracts for task metadata and the final grade;
 2. a `Task.Template` shared by tasks with those contracts;
 3. one or more ordered stages that prompt and grade the agent;
-4. task and trajectory metrics attached before `Task.build`.
+4. task and trajectory metrics attached after `Task.endStage` completes the task.
 
 Use this workflow in order. Do not write a grader or invent a generic `passed` or `score` field
 until the user confirms what the task must actually measure.
@@ -81,9 +81,9 @@ returns an `Effect`, so return or yield the completed pipeline rather than treat
 task value.
 
 ```ts
-import { Task, When } from "@open-insight/eval";
+import { Grade, Task, When } from "@open-insight/eval";
 
-Task.make(template, {
+Task.make(template)({
   id: taskId,
   name: taskName,
   snapshot,
@@ -91,16 +91,14 @@ Task.make(template, {
     // Set the confirmed per-task metadata fields here.
   },
 }).pipe(
-  Task.stage("solve", {
-    schema: template.Grade.fields,
+  Task.endStage("solve", {
     prompt: "<task-specific prompt>",
-    grader: async ({ $, results, trajectory }) => {
+    grader: Grade.make(async ({ $, results, trajectory }) => {
       // Inspect the sandbox and trajectory, then compute the confirmed grade fields here.
       return {
         // Return exactly the encoded template grade fields.
       };
-    },
-    // Add verif and expect together here only when verifier mode is required.
+    }),
   }),
   Task.metric(
     async (results) => ({ completedTrails: results.length }),
@@ -114,7 +112,6 @@ Task.make(template, {
     description: "Number of response parts observed in the current trajectory.",
     when: When.traj(When.toolCall()),
   }),
-  Task.build,
 );
 ```
 
@@ -124,10 +121,10 @@ one-use constants merely to pass them into the pipe.
 
 Keep this pipe order:
 
-1. `Task.stage(...)` in execution order;
-2. `Task.metric(...)` for metrics computed across completed trails of this task;
-3. `Task.trajMetric(...)` for metrics computed from one trajectory's event stream;
-4. `Task.build` last.
+1. `Task.stage(schema)(...)` for each intermediate stage, in execution order;
+2. `Task.endStage(...)` for the final stage, using the template grade schema;
+3. `Task.metric(...)` for metrics computed across completed trails of this task;
+4. `Task.trajMetric(...)` for metrics computed from one trajectory's event stream.
 
 ### `Task.make` Values
 
@@ -152,7 +149,7 @@ class PreparationResult extends Schema.Class<PreparationResult>("<Benchmark>Prep
   // Fields produced by this intermediate stage.
 }) {}
 
-Task.make(template, {
+Task.make(template)({
   id: taskId,
   name: taskName,
   snapshot,
@@ -160,34 +157,33 @@ Task.make(template, {
     // Set the confirmed per-task metadata fields here.
   },
 }).pipe(
-  Task.stage("prepare", {
-    schema: PreparationResult.fields,
+  Task.stage(PreparationResult)("prepare", {
     prompt: "<preparation-stage prompt>",
-    grader: async ({ $, trajectory }) => {
+    grader: Grade.make(async ({ $, trajectory }) => {
       // Compute and return the PreparationResult fields here.
       return {};
-    },
+    }),
   }),
-  Task.stage("solve", {
-    schema: template.Grade.fields,
+  Task.endStage("solve", {
     prompt: "<final-stage prompt>",
-    grader: async ({ $, results, trajectory }) => {
+    grader: Grade.make(async ({ $, results, trajectory }) => {
       const preparation = results.prepare;
       // Use preparation and the current sandbox state to compute the final grade here.
       return {};
-    },
+    }),
   }),
-  Task.build,
 );
 ```
 
-The final stage result must conform to `template.Grade`; `Task.build` enforces that relationship at
-the type level. Read [Define prompts](create-task-prompt.md) before using generated or multi-turn
+`Task.endStage` uses `template.Grade` for the final stage and completes the task. Read
+[Define prompts](create-task-prompt.md) before using generated or multi-turn
 prompts. Read [Define grading](create-task-grade.md) before using verification, retries, or multiple
 stages.
 
-`Task.stage` accepts struct fields and constructs the result schema. Use `Task.stage.from` when a
-stage needs a complete schema, such as a named `Schema.Class` or a root `Schema.Record`.
+`Task.stage` accepts the complete result schema for an intermediate stage, including a named
+`Schema.Class` or a root `Schema.Record`. `Task.endStage` uses `template.Grade` automatically.
+`Grade.make` defines only grading and optional verification behavior, so neither form repeats its
+schema there.
 
 ### Metric Selection
 
@@ -215,7 +211,7 @@ the confirmed metric design requires that mapping. See
 - `Extras` and every stage result use named `Schema.Class` definitions where reusable.
 - The template contains only `Extras` and the final `Grade` schema.
 - `Task.make` uses that template and provides correctly encoded extras.
-- Stage names are unique and ordered; the final stage schema matches `template.Grade`.
-- `verif` and `expect` either appear together or are both absent.
+- Stage names are unique and ordered; the final grader uses `template.Grade`.
+- `verif` and `expect` are defined together in `Grade.make` or are both absent.
 - Graders return schema-compatible JSON objects and do not hide infrastructure failures as passes.
-- Any required grade mapping is explicit, and `Task.build` is the last pipe operation.
+- Any required grade mapping is explicit, and `Task.endStage` precedes task metrics.

@@ -1,4 +1,4 @@
-import { Crypto, Effect, FileSystem, Path, Scope } from "effect";
+import { Crypto, Effect, FileSystem, Path } from "effect";
 import * as Grade from "#/grade/index.ts";
 import * as Task from "#/task/index.ts";
 import { Error as TasksError } from "#/tasks/error.ts";
@@ -10,15 +10,27 @@ import type { HarborTask } from "./types.ts";
 type StageSpec = Readonly<{
   name: string;
   instruction: string;
-  grader: Grade.Exec<GradeResult, Grade.Results>;
-  verification?: Grade.VerifOptions<GradeResult>;
+  grader: Grade.Definition<GradeResult, Grade.Results>;
   init: Task.Init | null;
 }>;
 
-type TaskBuilder<T extends Task.Template.Unknown = Task.Template.Unknown> = Effect.Effect<
-  Task.Builder<GradeResult, HarborTask["extras"], Grade.Results, T>,
-  Task.Error,
-  Crypto.Crypto | Scope.Scope
+type HarborTemplate = Task.Template.Template<
+  typeof GradeResult,
+  Task.Template.ExtrasSchema<HarborTask["extras"]>
+>;
+
+type TaskBuilder<
+  G extends Grade.Result,
+  S extends Grade.Results,
+  T extends HarborTemplate,
+  E,
+  R,
+> = Effect.Effect<Task.Builder<G, HarborTask["extras"], S, T>, E, R>;
+
+type BuiltTask<T extends HarborTemplate, E, R> = Effect.Effect<
+  Task.Task<Task.Template.GradeResult<T>, HarborTask["extras"], T>,
+  E | Task.Error,
+  R | Crypto.Crypto
 >;
 
 const invalid = (message: string) => TasksError.invalid(new Error(message));
@@ -67,7 +79,7 @@ export const makeStages = Effect.fn(function* (
     if (rootSolutionDir !== undefined) {
       yield* requireFile(path.join(rootSolutionDir, "solve.sh"), "Harbor solution script");
     }
-    const grader = makeGrader({
+    const grade = makeGrader({
       testDirs: [rootTestsDir],
       workdir,
       env: config.verifier?.env,
@@ -76,8 +88,8 @@ export const makeStages = Effect.fn(function* (
       {
         name: "main",
         instruction: yield* readPrompt(path.join(taskDir, "instruction.md")),
-        grader,
-        verification:
+        grader: Grade.make(
+          grade,
           rootSolutionDir === undefined
             ? undefined
             : {
@@ -88,6 +100,7 @@ export const makeStages = Effect.fn(function* (
                 }),
                 expect: { reward: 1 },
               },
+        ),
         init: makeInit({
           workdir,
           setup: false,
@@ -143,7 +156,7 @@ export const makeStages = Effect.fn(function* (
       (yield* fs
         .exists(path.join(workdirDir, "setup.sh"))
         .pipe(Effect.mapError(TasksError.source)));
-    const grader = wrapGrader(
+    const grade = wrapGrader(
       makeGrader({ testDirs, workdir, env: verifierEnv(config, step) }),
       config.multi_step_reward_strategy ?? "mean",
       index === steps.length - 1,
@@ -151,8 +164,8 @@ export const makeStages = Effect.fn(function* (
     specs.push({
       name: step.name,
       instruction: yield* readPrompt(path.join(stepDir, "instruction.md")),
-      grader,
-      verification:
+      grader: Grade.make(
+        grade,
         solutionDir === undefined
           ? undefined
           : {
@@ -163,6 +176,7 @@ export const makeStages = Effect.fn(function* (
               }),
               expect: { reward: 1 },
             },
+      ),
       init: makeInit({
         workdir,
         workdirDir,
@@ -177,25 +191,22 @@ export const makeStages = Effect.fn(function* (
 
 export const addStages =
   (stages: ReadonlyArray<StageSpec>) =>
-  <T extends Task.Template.Unknown>(base: TaskBuilder<T>): TaskBuilder<T> => {
-    let task = base;
-    for (const stage of stages) {
-      const common = {
-        prompt: stage.instruction,
-        grader: stage.grader,
-        init: stage.init,
-        resume: true,
-      };
-      task =
-        stage.verification === undefined
-          ? task.pipe(Task.stage(GradeResult)(stage.name, common))
-          : task.pipe(
-              Task.stage(GradeResult)(stage.name, {
-                ...common,
-                verif: stage.verification.verif,
-                expect: stage.verification.expect,
-              }),
-            );
+  <G extends Grade.Result, S extends Grade.Results, T extends HarborTemplate, E, R>(
+    base: TaskBuilder<G, S, T, E, R>,
+  ): BuiltTask<T, E, R> => {
+    const [current, ...remaining] = stages;
+    if (current === undefined) {
+      return Effect.fail(Task.Error.metadata(new Error("A Harbor task must have a stage")));
     }
-    return task;
+
+    const common = {
+      prompt: current.instruction,
+      grader: current.grader,
+      init: current.init,
+      resume: true,
+    };
+    if (remaining.length === 0) {
+      return base.pipe(Task.endStage(current.name, common));
+    }
+    return base.pipe(Task.stage(GradeResult)(current.name, common), addStages(remaining));
   };

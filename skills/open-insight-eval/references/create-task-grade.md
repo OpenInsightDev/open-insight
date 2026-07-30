@@ -41,7 +41,7 @@ class GradeResult extends Schema.Class<GradeResult>("<Benchmark>GradeResult")({
 This is a structural placeholder. Do not preserve its class identifier or empty field set in an
 implementation.
 
-The final `Task.stage` must use the template's grade schema. An intermediate stage may use a
+The final `Task.endStage` uses the template's grade schema. An intermediate stage may use a
 different named schema. Later graders can read prior decoded results through `results.<stageName>`.
 
 ## Grader Behavior
@@ -58,13 +58,13 @@ defines it that way, while failure to locate the judge usually indicates a broke
 should not be silently converted.
 
 ```ts
-grader: async ({ $, results, trajectory }) => {
+grader: Grade.make(async ({ $, results, trajectory }) => {
   // Run the benchmark's judge and parse its output here.
   // Use results only when this stage depends on preceding stages.
   return {
     // Return exactly the confirmed grade fields.
   };
-},
+}),
 ```
 
 Keep parsing deterministic. Prefer structured test output when the runner supports it.
@@ -73,25 +73,28 @@ process failures for cases where the benchmark could not compute a grade.
 
 ## Verification
 
-Add `verif` and `expect` together to prove that the grader recognizes a known-good state without
-running the real agent. `verif` prepares that state and may return a trajectory prompt or `null`.
-The resulting grade is deep-compared with `expect`.
+Add `verif` and `expect` together to the `Grade.make` options to prove that the grader recognizes a
+known-good state without running the real agent. `verif` prepares that state and may return a
+trajectory prompt or `null`. The resulting grade is deep-compared with `expect`.
 
 ```ts
-Task.stage("solve", {
-  schema: template.Grade.fields,
+Task.endStage("solve", {
   prompt: "<task-specific prompt>",
-  grader: async ({ $, results, trajectory }) => {
-    // Compute the confirmed grade from the current sandbox state.
-    return {};
-  },
-  verif: async ({ $, upload, writeFile }) => {
-    // Prepare the confirmed reference state directly in this verifier.
-    return null;
-  },
-  expect: {
-    // Write the exact expected encoded grade fields here.
-  },
+  grader: Grade.make(
+    async ({ $, results, trajectory }) => {
+      // Compute the confirmed grade from the current sandbox state.
+      return {};
+    },
+    {
+      verif: async ({ $, upload, writeFile }) => {
+        // Prepare the confirmed reference state directly in this verifier.
+        return null;
+      },
+      expect: {
+        // Write the exact expected encoded grade fields here.
+      },
+    },
+  ),
 });
 ```
 
@@ -105,14 +108,14 @@ task design. Throwing the retry value requests another prompt instead of produci
 ```ts
 import { Grade } from "@open-insight/eval";
 
-grader: async ({ $, results, trajectory }) => {
+grader: Grade.make(async ({ $, results, trajectory }) => {
   // Inspect the retry condition here.
   if (/* the confirmed retry condition */) {
     throw Grade.retry("<actionable follow-up prompt>");
   }
   // Compute and return the confirmed grade here.
   return {};
-},
+}),
 ```
 
 Do not retry infrastructure failures or use retries to conceal an ambiguous grade contract.

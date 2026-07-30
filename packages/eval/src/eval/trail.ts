@@ -29,6 +29,41 @@ export type RunTrail = (trailIdx: number) => Effect.Effect<TrailResult, Error, S
 
 type StageResults = Readonly<Record<string, Grade.Result>>;
 
+const makeVerifAgent = ({
+  verifier,
+  sandbox,
+}: {
+  verifier: Grade.Verifier;
+  sandbox: Sandbox.SandboxPromise;
+}): Agent.Agent => ({
+  trajectory: Effect.fn(function* () {
+    const input = yield* Effect.tryPromise(() =>
+      verifier({ ...sandbox, trajectory: Prompt.empty }),
+    ).pipe(Effect.mapError(Agent.Error.trajectory));
+    return input === null ? Prompt.empty : Prompt.make(input);
+  }),
+  prompt: () =>
+    Stream.fromIterable<Agent.StreamPart>([
+      Response.makePart("finish", {
+        reason: "stop",
+        usage: Schema.decodeSync(Response.Usage)({
+          inputTokens: {
+            uncached: 0,
+            total: 0,
+            cacheRead: 0,
+            cacheWrite: 0,
+          },
+          outputTokens: {
+            total: 0,
+            text: 0,
+            reasoning: 0,
+          },
+        }),
+        response: undefined,
+      }),
+    ]),
+});
+
 export const createTrail = Effect.fn("exec/createTrail")(
   function* ({
     task,
@@ -64,13 +99,13 @@ export const createTrail = Effect.fn("exec/createTrail")(
 
     yield* Effect.annotateCurrentSpan({ taskName: task.metadata.name });
 
-    // if verif mode enabled, all stages must have a verifier
+    // Verif mode requires a reference implementation for every stage.
     if (verifMode) {
-      const missings = stages
+      const missingStageIds = stages
         .filter(({ grader }) => !Grade.isVerifiable(grader))
         .map(({ metadata }) => metadata.id);
-      if (missings.length > 0) {
-        return yield* Effect.fail(Error.missingVerifier(task, missings));
+      if (missingStageIds.length > 0) {
+        return yield* Effect.fail(Error.missingVerifier(task, missingStageIds));
       }
     }
 
@@ -298,6 +333,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
           Scope.Scope
         > {
           yield* Effect.logDebug(`Starting stage ${metadata.id}`);
+          const verif = verifMode && Grade.isVerifiable(grader) ? grader.verif : undefined;
 
           if (init !== null) {
             yield* Effect.tryPromise({
@@ -306,10 +342,9 @@ export const createTrail = Effect.fn("exec/createTrail")(
             });
           }
 
-          if (verifMode) {
-            Grade.assertVerifiable(grader);
+          if (verif !== undefined) {
             const expectedGrade = yield* Schema.decodeUnknownEffect(grader.schema)(
-              grader.expect,
+              verif.expect,
             ).pipe(Effect.mapError((error) => Error.grade(Grade.Error.result(error))));
 
             const initialGrade = yield* executeGrader(grader, results, Prompt.empty).pipe(
@@ -317,10 +352,10 @@ export const createTrail = Effect.fn("exec/createTrail")(
               Effect.catchTag("Retry", () => Effect.succeed(Option.none())),
             );
             if (Option.isSome(initialGrade) && Equal.equals(initialGrade.value, expectedGrade)) {
-              return yield* Effect.fail(Error.verifInitialMatch(task, grader.expect));
+              return yield* Effect.fail(Error.verifInitialMatch(task, verif.expect));
             }
 
-            const session = Grade.makeVerifAgent({ verifier: grader.verif, sandbox: ctx });
+            const session = makeVerifAgent({ verifier: verif.run, sandbox: ctx });
             yield* Ref.set(sessionRef, Option.some(session));
           } else {
             const currentSession = yield* Ref.get(sessionRef);
@@ -342,9 +377,8 @@ export const createTrail = Effect.fn("exec/createTrail")(
           ): Effect.fn.Return<Response.Usage, Error> {
             const prompt = Prompt.make(input);
 
-            if (verifMode) {
-              Grade.assertVerifiable(grader);
-              return yield* Effect.fail(Error.verifMismatch(task, grader.expect, prompt));
+            if (verif !== undefined) {
+              return yield* Effect.fail(Error.verifMismatch(task, verif.expect, prompt));
             }
 
             yield* Effect.logDebug(`Grader requested agent retry ${attempt}/${maxRetries}`);
@@ -391,13 +425,12 @@ export const createTrail = Effect.fn("exec/createTrail")(
             Effect.catchTag("Retry", retryLimitExceeded),
           );
           const usage = yield* Ref.get(usageRef);
-          if (verifMode) {
-            Grade.assertVerifiable(grader);
+          if (verif !== undefined) {
             const expectedGrade = yield* Schema.decodeUnknownEffect(grader.schema)(
-              grader.expect,
+              verif.expect,
             ).pipe(Effect.mapError((error) => Error.grade(Grade.Error.result(error))));
             if (!Equal.equals(grade, expectedGrade)) {
-              return yield* Effect.fail(Error.verifMismatch(task, grader.expect, grade));
+              return yield* Effect.fail(Error.verifMismatch(task, verif.expect, grade));
             }
           }
 
