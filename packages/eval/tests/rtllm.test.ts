@@ -54,26 +54,22 @@ const snapshot = Snapshot.make({
   ],
 });
 
-class TaskExtras extends Schema.Class<TaskExtras>("RtllmTaskExtras")({
-  category: Schema.String,
-}) {}
-
-class GradeResult extends Schema.Class<GradeResult>("RtllmGradeResult")({
-  syntaxPass: Schema.Boolean,
-  simPass: Schema.Boolean,
-  diagnostic: Schema.optionalKey(
-    Schema.Struct({
-      artifactPresent: Schema.Boolean,
-      designV: Schema.NullOr(Schema.String),
-      compilerOutput: Schema.String,
-      simulatorOutput: Schema.String,
-    }),
-  ),
-}) {}
-
 const template = Task.Template.make({
-  extras: TaskExtras,
-  grade: GradeResult,
+  extras: {
+    category: Schema.String,
+  },
+  grade: {
+    syntaxPass: Schema.Boolean,
+    simPass: Schema.Boolean,
+    diagnostic: Schema.optionalKey(
+      Schema.Struct({
+        artifactPresent: Schema.Boolean,
+        designV: Schema.NullOr(Schema.String),
+        compilerOutput: Schema.String,
+        simulatorOutput: Schema.String,
+      }),
+    ),
+  },
 });
 
 async function* findDesignDirs(directory: string): AsyncGenerator<string> {
@@ -121,7 +117,7 @@ async function* loadTasks(repoPath: string) {
       extras: { category },
     }).pipe(
       Task.stage("solve", {
-        schema: GradeResult,
+        schema: template.grade,
         prompt: `${prompt.trimEnd()}\n\n${deliveryInstructions}`,
         grader: async ({ upload, $ }) => {
           await $`mkdir -p /tmp/rtllm`;
@@ -174,8 +170,8 @@ async function* loadTasks(repoPath: string) {
           const simPass = syntaxPass && /Your Design Passed/.test(simulatorOutput);
 
           return simPass
-            ? ({ syntaxPass, simPass } satisfies GradeResult)
-            : ({
+            ? { syntaxPass, simPass }
+            : {
                 syntaxPass,
                 simPass,
                 diagnostic: {
@@ -184,7 +180,7 @@ async function* loadTasks(repoPath: string) {
                   compilerOutput,
                   simulatorOutput,
                 },
-              } satisfies GradeResult);
+              };
         },
         verif: async ({ upload, $ }) => {
           await upload({ hostPath: verifiedPath, sandboxPath: "/workspace/design.v" });
@@ -464,7 +460,7 @@ layer(testLayer, { excludeTestServices: true })((it) => {
           );
 
           for (const [trailIdx, trail] of taskResult.trails.entries()) {
-            const grade = yield* Schema.decodeUnknownEffect(GradeResult)(trail.grade);
+            const grade = yield* Schema.decodeUnknownEffect(template.grade)(trail.grade);
             assert.isNotEmpty(trail.trajectory.content);
             assert.isAtMost(
               DateTime.toEpochMillis(trail.startedAt),

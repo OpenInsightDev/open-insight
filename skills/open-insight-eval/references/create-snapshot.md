@@ -96,7 +96,7 @@ export const makeTask = Effect.fn(function* () {
     ],
   });
 
-  const template = Task.Template.make({
+  const template = Task.Template.from({
     grade: Grade.Result,
   });
 

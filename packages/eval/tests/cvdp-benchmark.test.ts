@@ -19,17 +19,13 @@ class CvdpDatapoint extends Schema.Class<CvdpDatapoint>("CvdpDatapoint")({
   harness: Schema.Record(Schema.String, Schema.String),
 }) {}
 
-class TaskExtras extends Schema.Class<TaskExtras>("CvdpTaskExtras")({
-  categories: Schema.Array(Schema.String),
-}) {}
-
-class GradeResult extends Schema.Class<GradeResult>("CvdpGradeResult")({
-  passed: Schema.Boolean,
-}) {}
-
 const template = Task.Template.make({
-  extras: TaskExtras,
-  grade: GradeResult,
+  extras: {
+    categories: Schema.Array(Schema.String),
+  },
+  grade: {
+    passed: Schema.Boolean,
+  },
 });
 
 const writeFiles = Effect.fn(function* (root: string, files: Readonly<Record<string, string>>) {
@@ -89,7 +85,7 @@ const makeTask = Effect.fn(function* (datapoint: CvdpDatapoint) {
     extras: { categories: datapoint.categories },
   }).pipe(
     Task.stage("solve", {
-      schema: GradeResult,
+      schema: template.grade,
       prompt: [
         { role: "system", content: datapoint.system_message },
         { role: "user", content: datapoint.prompt },

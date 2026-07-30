@@ -7,12 +7,10 @@ import { Effect, Schema } from "effect";
 import { make } from "./build.ts";
 import { metric, taskMetric, trajMetric } from "./metric.ts";
 
-class GradeResult extends Schema.Class<GradeResult>("BenchMetricGradeResult")({
-  pass: Schema.Boolean,
-}) {}
-
 const template = Task.Template.make({
-  grade: GradeResult,
+  grade: {
+    pass: Schema.Boolean,
+  },
 });
 
 it.effect("accepts raw and Effect metric executors", () =>
@@ -21,9 +19,10 @@ it.effect("accepts raw and Effect metric executors", () =>
       Readonly<{ pass: boolean }>,
       Readonly<{ count: number }>
     > = async () => ({ count: 1 });
-    const taskExec: Metric.Task.Exec<GradeResult, Readonly<{ count: number }>> = async () => ({
-      count: 1,
-    });
+    const taskExec: Metric.Task.Exec<
+      typeof template.grade.Type,
+      Readonly<{ count: number }>
+    > = async () => ({ count: 1 });
     const trajExec: Metric.Traj.Exec<Readonly<{ count: number }>> = async () => ({ count: 1 });
     const task = yield* Task.make(template, {
       id: "bench-metric-task",
@@ -31,7 +30,7 @@ it.effect("accepts raw and Effect metric executors", () =>
       snapshot: Snapshot.make("test-image"),
     }).pipe(
       Task.stage("grade", {
-        schema: GradeResult,
+        schema: template.grade,
         prompt: "Grade the task",
         grader: async () => ({ pass: true }),
       }),

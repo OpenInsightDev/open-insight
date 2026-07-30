@@ -14,7 +14,7 @@ export const TypeId: TypeId = "~open-insight/eval/task";
 export const ID = Schema.String;
 export type ID = Schema.Schema.Type<typeof ID>;
 
-export type { JsonObjectSchema } from "./template.ts";
+export type { ExtrasSchema } from "./template.ts";
 
 export class BaseMetadata extends Schema.Class<BaseMetadata>("BaseMetadata")({
   id: Schema.String,
@@ -35,7 +35,7 @@ export type Task<
   G extends Grade.Result = Grade.Result,
   E extends object = object,
   S extends Grade.Results = Grade.Results,
-  T extends Template.Any = Template.Template<Grade.ResultSchema<G>, Template.JsonObjectSchema<E>>,
+  T extends Template.Any = Template.Template<Grade.ResultSchema<G>, Template.ExtrasSchema<E>>,
 > = Readonly<{
   metadata: BaseMetadata;
   snapshot: Snapshot.Snapshot;
@@ -57,7 +57,7 @@ export type Builder<
   G extends Grade.Result = Grade.Result,
   E extends object = object,
   S extends Grade.Results = Grade.Results,
-  T extends Template.Any = Template.Template<Grade.ResultSchema<G>, Template.JsonObjectSchema<E>>,
+  T extends Template.Any = Template.Template<Grade.ResultSchema<G>, Template.ExtrasSchema<E>>,
 > = Task<G, E, S, T> &
   Readonly<{
     [BuilderTypeId]: Types.Invariant<T>;
@@ -79,7 +79,7 @@ type NoExtrasOptions = BaseOptions &
     extras?: never;
   }>;
 
-type ExtrasOptions<ES extends Template.JsonObjectSchema> = BaseOptions &
+type ExtrasOptions<ES extends Template.ExtrasSchema> = BaseOptions &
   Readonly<{
     extras: ES["Encoded"];
   }>;

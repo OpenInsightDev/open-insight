@@ -6,9 +6,10 @@ import * as Metric from "#/metric/index.ts";
 import * as Task from "./index.ts";
 import { metric, trajMetric } from "./metric.ts";
 
-const GradeResult = Schema.Struct({ pass: Schema.Boolean });
 const template = Task.Template.make({
-  grade: GradeResult,
+  grade: {
+    pass: Schema.Boolean,
+  },
 });
 
 it.effect("accepts raw and Effect metric executors", () =>
@@ -25,7 +26,7 @@ it.effect("accepts raw and Effect metric executors", () =>
       snapshot: Snapshot.make("test-image"),
     }).pipe(
       Task.stage("solve", {
-        schema: GradeResult,
+        schema: template.grade,
         prompt: "Solve the task",
         grader: async () => ({ pass: true }),
       }),

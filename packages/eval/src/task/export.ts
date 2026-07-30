@@ -6,7 +6,7 @@ export {
   stage,
   metric,
   trajMetric,
-  type JsonObjectSchema,
+  type ExtrasSchema,
   type Builder,
   type Options,
   type Stage,

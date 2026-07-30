@@ -32,29 +32,13 @@ Wait for the answer. If the evidence does not establish a unique grade contract,
 to schemas, the template, or task construction. See
 [Define grading](create-task-grade.md) for the full discovery checklist and grader rules.
 
-## 2. Define Extras and Grade Schemas
+## 2. Define Extras and Grade Fields
 
-After confirmation, define named `Schema.Class` models. `Extras` contains per-task dataset metadata
-that is not part of the base task metadata. `GradeResult` is the output schema of the final stage.
-
-```ts
-import { Schema } from "effect";
-
-class TaskExtras extends Schema.Class<TaskExtras>("<Benchmark>TaskExtras")({
-  // Add only the per-task metadata fields established for this benchmark.
-}) {}
-
-class GradeResult extends Schema.Class<GradeResult>("<Benchmark>GradeResult")({
-  // Add exactly the grade fields and constraints confirmed by the user.
-}) {}
-```
-
-The angle-bracket names and comments above are placeholders, not a schema to copy. Replace them
-with the confirmed domain names and fields.
-
-Use stable, domain-specific class identifiers. Keep task inputs, diagnostics, and grade fields
-separate. Do not add a field solely because a built-in metric expects a different shape;
-`mapGrade` adapts the confirmed grade to the metric instead.
+After confirmation, define the field schemas directly in the template. `extras` contains per-task
+dataset metadata that is not part of the base task metadata. `grade` is the output schema of the
+final stage. Keep task inputs, diagnostics, and grade fields separate. Do not add a field solely
+because a built-in metric expects a different shape; `mapGrade` adapts the confirmed grade to the
+metric instead.
 
 If tasks need no extras, omit `extras` from both the template and `Task.make` rather than creating
 an empty class.
@@ -65,8 +49,12 @@ Create one template for all tasks that share the contracts:
 
 ```ts
 const template = Task.Template.make({
-  extras: TaskExtras,
-  grade: GradeResult,
+  extras: {
+    // Add only the per-task metadata fields established for this benchmark.
+  },
+  grade: {
+    // Add exactly the grade fields and constraints confirmed by the user.
+  },
 });
 ```
 
@@ -74,10 +62,17 @@ The template is schema-only. It does not contain task values, prompts, stages, o
 `template.grade` must match the result schema of the final stage. Intermediate stages may use
 different schema classes.
 
+`Task.Template.make` accepts struct fields and constructs the schemas. Use `Task.Template.from`
+when the contract needs complete root schemas such as `Schema.Record`.
+
 Without extras:
 
 ```ts
-const template = Task.Template.make({ grade: GradeResult });
+const template = Task.Template.make({
+  grade: {
+    // Add exactly the confirmed grade fields.
+  },
+});
 ```
 
 ## 4. Make and Build the Task
@@ -98,12 +93,12 @@ Task.make(template, {
   },
 }).pipe(
   Task.stage("solve", {
-    schema: GradeResult,
+    schema: template.grade,
     prompt: "<task-specific prompt>",
     grader: async ({ $, results, trajectory }) => {
       // Inspect the sandbox and trajectory, then compute the confirmed grade fields here.
       return {
-        // Return exactly the encoded GradeResult fields.
+        // Return exactly the encoded template grade fields.
       };
     },
     // Add verif and expect together here only when verifier mode is required.

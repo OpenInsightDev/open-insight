@@ -4,11 +4,6 @@ import { Snapshot } from "@open-insight/core/internal";
 import { Effect, Schema } from "effect";
 import * as Task from "./index.ts";
 
-class Extras extends Schema.Class<Extras>("TestTaskExtras")({
-  owner: Schema.String,
-  revision: Schema.NumberFromString,
-}) {}
-
 class Setup extends Schema.Class<Setup>("TestSetupGradeResult")({
   ready: Schema.Boolean,
 }) {}
@@ -17,13 +12,23 @@ class Inspection extends Schema.Class<Inspection>("TestInspectionGradeResult")({
   clean: Schema.Boolean,
 }) {}
 
-class GradeResult extends Schema.Class<GradeResult>("TestFinalGradeResult")({
-  passed: Schema.Boolean,
-}) {}
-
 const template = Task.Template.make({
-  extras: Extras,
-  grade: GradeResult,
+  extras: {
+    owner: Schema.String,
+    revision: Schema.NumberFromString,
+  },
+  grade: {
+    passed: Schema.Boolean,
+  },
+});
+
+it("preserves complete schemas passed to Template.from", () => {
+  const grade = Schema.Record(Schema.String, Schema.Number);
+  const extras = Schema.Record(Schema.String, Schema.Json);
+  const template = Task.Template.from({ grade, extras });
+
+  assert.strictEqual(template.grade, grade);
+  assert.strictEqual(template.extras, extras);
 });
 
 const values = {
@@ -40,7 +45,7 @@ const task = Task.make(template, values).pipe(
     grader: async () => ({ ready: true }),
   }),
   Task.stage("solve", {
-    schema: GradeResult,
+    schema: template.grade,
     prompt: "Solve the task",
     grader: async ({ results }) => ({ passed: results.setup.ready }),
   }),
@@ -51,14 +56,13 @@ it.effect("keeps template schemas separate from task values", () =>
   Effect.gen(function* () {
     const built = yield* task;
 
-    assert.strictEqual(built.template.extras, Extras);
-    assert.strictEqual(built.template.grade, GradeResult);
+    assert.strictEqual(built.template, template);
     assert.deepStrictEqual(Schema.encodeSync(built.template.extras)(built.extras), {
       owner: "eval",
       revision: "1",
     });
     assert.strictEqual(built.stages[0]?.grader.schema, Setup);
-    assert.strictEqual(built.stages[1]?.grader.schema, GradeResult);
+    assert.strictEqual(built.stages[1]?.grader.schema, template.grade);
 
     const metadata = Task.metadata(built);
     assert.deepStrictEqual(metadata.extras, { owner: "eval", revision: "1" });
@@ -81,7 +85,7 @@ it.effect("allows task-local intermediate stages and infers every preceding resu
         grader: async ({ results }) => ({ clean: results.setup.ready }),
       }),
       Task.stage("solve", {
-        schema: GradeResult,
+        schema: template.grade,
         prompt: "Solve the task",
         grader: async ({ results }) => ({
           passed: results.setup.ready && results.inspect.clean,

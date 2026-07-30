@@ -10,20 +10,16 @@ import * as Task from "#/task/index.ts";
 import * as Config from "./config.ts";
 import { createTrail } from "./trail.ts";
 
-class PassedGrade extends Schema.Class<PassedGrade>("TrailPassedGrade")({
-  passed: Schema.Boolean,
-}) {}
-
-class InitializedGrade extends Schema.Class<InitializedGrade>("TrailInitializedGrade")({
-  initialized: Schema.Boolean,
-}) {}
-
 const passedTemplate = Task.Template.make({
-  grade: PassedGrade,
+  grade: {
+    passed: Schema.Boolean,
+  },
 });
 
 const initializedTemplate = Task.Template.make({
-  grade: InitializedGrade,
+  grade: {
+    initialized: Schema.Boolean,
+  },
 });
 
 const makeSandbox = (files: Map<string, string>): Sandbox.Sandbox => {
@@ -74,7 +70,9 @@ const makeRunTrail = Effect.fn(function* ({ initiallySolved }: { initiallySolved
 
   const grades: boolean[] = [];
   let verifierRuns = 0;
-  const grader: Grade.Exec<PassedGrade, Grade.Results> = async ({ readFile }) => {
+  const grader: Grade.Exec<typeof passedTemplate.grade.Type, Grade.Results> = async ({
+    readFile,
+  }) => {
     const solved = (await readFile({ sandboxPath: solutionPath })) === "solved";
     grades.push(solved);
     return { passed: solved };
@@ -94,7 +92,7 @@ const makeRunTrail = Effect.fn(function* ({ initiallySolved }: { initiallySolved
   }).pipe(
     Task.stage("solve", {
       id: "solve",
-      schema: PassedGrade,
+      schema: passedTemplate.grade,
       prompt: "Solve the task",
       grader,
       verif: verifier,
@@ -143,7 +141,7 @@ describe("verification trail", () => {
         }).pipe(
           Task.stage("solve", {
             id: "solve",
-            schema: InitializedGrade,
+            schema: initializedTemplate.grade,
             prompt: "Solve the task",
             init: async ({ writeFile }) => {
               calls.push("init");
@@ -188,10 +186,10 @@ describe("verification trail", () => {
         );
 
         const result = yield* runTrail(0);
+        const grade = yield* Schema.decodeUnknownEffect(initializedTemplate.grade)(result.grade);
 
         assert.deepStrictEqual(calls, ["init", "agent", "grader"]);
-        assert.instanceOf(result.grade, InitializedGrade);
-        assert.isTrue(result.grade.initialized);
+        assert.isTrue(grade.initialized);
         assert.isTrue(DateTime.isLessThanOrEqualTo(result.startedAt, result.finishedAt));
       }),
     );
@@ -200,11 +198,11 @@ describe("verification trail", () => {
       Effect.gen(function* () {
         const { runTrail, grades, verifierRuns } = yield* makeRunTrail({ initiallySolved: false });
         const result = yield* runTrail(0);
+        const grade = yield* Schema.decodeUnknownEffect(passedTemplate.grade)(result.grade);
 
         assert.deepStrictEqual(grades, [false, true]);
         assert.isAbove(verifierRuns(), 0);
-        assert.instanceOf(result.grade, PassedGrade);
-        assert.isTrue(result.grade.passed);
+        assert.isTrue(grade.passed);
       }),
     );
 

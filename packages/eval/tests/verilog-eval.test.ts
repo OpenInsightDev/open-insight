@@ -55,24 +55,20 @@ const snapshot = Snapshot.make({
   ],
 });
 
-class TaskExtras extends Schema.Class<TaskExtras>("VerilogEvalTaskExtras")({
-  category: Schema.String,
-}) {}
-
-class GradeResult extends Schema.Class<GradeResult>("VerilogEvalGradeResult")({
-  simPass: Schema.Boolean,
-  diagnostic: Schema.optionalKey(
-    Schema.Struct({
-      artifactPresent: Schema.Boolean,
-      topV: Schema.NullOr(Schema.String),
-      simulatorOutput: Schema.String,
-    }),
-  ),
-}) {}
-
 const template = Task.Template.make({
-  extras: TaskExtras,
-  grade: GradeResult,
+  extras: {
+    category: Schema.String,
+  },
+  grade: {
+    simPass: Schema.Boolean,
+    diagnostic: Schema.optionalKey(
+      Schema.Struct({
+        artifactPresent: Schema.Boolean,
+        topV: Schema.NullOr(Schema.String),
+        simulatorOutput: Schema.String,
+      }),
+    ),
+  },
 });
 
 async function* loadTasks(repoPath: string) {
@@ -97,7 +93,7 @@ async function* loadTasks(repoPath: string) {
       extras: { category: "verilog-eval" },
     }).pipe(
       Task.stage("solve", {
-        schema: GradeResult,
+        schema: template.grade,
         prompt: `${prompt.trimEnd()}\n\n${deliveryInstructions}`,
         grader: async ({ upload, $ }) => {
           await $`mkdir -p /tmp/verilog-eval`;
@@ -131,11 +127,11 @@ async function* loadTasks(repoPath: string) {
           const simPass = hasNoMismatches(output);
 
           return simPass
-            ? ({ simPass } satisfies GradeResult)
-            : ({
+            ? { simPass }
+            : {
                 simPass,
                 diagnostic: { artifactPresent, topV, simulatorOutput: output },
-              } satisfies GradeResult);
+              };
         },
         verif: async ({ upload, $ }) => {
           await upload({ hostPath: refPath, sandboxPath: "/tmp/ref.sv" });
@@ -260,11 +256,12 @@ export const main = async () => {
       dotenvPath: envPath,
       model: "deepseek-chat",
     });
+    const sandbox = yield* Sandbox.Docker.make({});
 
     const harness = yield* Harness.make({
       id: "deepseek-agent",
       agent,
-      sandbox: yield* Sandbox.Docker.make({}),
+      sandbox,
     });
 
     return yield* Eval.run({
@@ -417,7 +414,7 @@ layer(testLayer, { excludeTestServices: true })((it) => {
           }
 
           for (const [trailIdx, trail] of taskResult.trails.entries()) {
-            const grade = yield* Schema.decodeUnknownEffect(GradeResult)(trail.grade);
+            const grade = yield* Schema.decodeUnknownEffect(template.grade)(trail.grade);
             assert.isAtMost(
               DateTime.toEpochMillis(taskResult.startedAt),
               DateTime.toEpochMillis(trail.startedAt),
@@ -537,7 +534,9 @@ layer(testLayer, { excludeTestServices: true })((it) => {
             const value = event.result["pass^k"];
             return typeof value === "number" ? [value] : [];
           });
-          const grade = yield* Schema.decodeUnknownEffect(GradeResult)(taskResult.trails[0]?.grade);
+          const grade = yield* Schema.decodeUnknownEffect(template.grade)(
+            taskResult.trails[0]?.grade,
+          );
           assert.deepEqual(
             passAtKValues.sort((left, right) => left - right),
             [Number(grade.simPass), 1].sort((left, right) => left - right),

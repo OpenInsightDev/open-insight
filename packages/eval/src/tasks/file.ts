@@ -48,7 +48,7 @@ const isExportTask = <T extends Task.Task>(value: unknown): value is ExportTask<
  * ```ts
  * import { Grade, Task } from "@open-insight/eval";
  *
- * const template = Task.Template.make({
+ * const template = Task.Template.from({
  *   grade: Grade.Result,
  * });
  *
