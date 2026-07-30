@@ -30,9 +30,12 @@ export class Metadata extends Schema.Class<Metadata>("Metadata")({
 }) {}
 
 export type Task<
+  /** Grade result. */
   G extends Grade.Result = Grade.Result,
-  E extends object = object,
-  T extends Template.Unknown = Template.Template<Grade.ResultSchema<G>, Template.ExtrasSchema<E>>,
+  /** Task extras. */
+  X extends object = object,
+  /** Task template. */
+  T extends Template.Unknown = Template.Template<Grade.ResultSchema<G>, Template.ExtrasSchema<X>>,
 > = Readonly<{
   metadata: BaseMetadata;
   snapshot: Snapshot.Snapshot;
@@ -44,27 +47,35 @@ export type Task<
   /** Task-local metrics. Metric schemas are intentionally not part of a template yet. */
   metrics: ReadonlyArray<Metric.Task.Metric>;
   trajMetrics: ReadonlyArray<Metric.Traj.Metric>;
-  extras: E;
-}>;
+  extras: X;
+}> & { _G?: G };
 
 /** @internal */
 export const BuilderTypeId: unique symbol = Symbol.for("~open-insight/eval/task/Builder");
 
-/** A task definition that is still being assembled. Complete it with {@link build}. */
+/**
+ * A task definition that is still being assembled. Complete it with {@link build}.
+ *
+ * Builders track their changing grade through {@link BuilderTypeId}; `_G` is only for built tasks.
+ */
 export type Builder<
+  /** Current grade result. */
   G extends Grade.Result = Grade.Result,
-  E extends object = object,
+  /** Task extras. */
+  X extends object = object,
+  /** Stage results. */
   S extends Grade.Results = Grade.Results,
-  T extends Template.Unknown = Template.Template<Grade.ResultSchema<G>, Template.ExtrasSchema<E>>,
-> = Task<G, E, T> &
+  /** Task template. */
+  T extends Template.Unknown = Template.Template<Grade.ResultSchema<G>, Template.ExtrasSchema<X>>,
+> = Omit<Task<G, X, T>, "_G"> &
   Readonly<{
-    [BuilderTypeId]: Types.Invariant<readonly [G, E, S, T]>;
+    [BuilderTypeId]: Types.Invariant<readonly [G, X, S, T]>;
   }>;
 
 export type Array<
   G extends Grade.Result = Grade.Result,
-  E extends object = EmptyRecord,
-> = ReadonlyArray<Task<G, E>>;
+  X extends object = EmptyRecord,
+> = ReadonlyArray<Task<G, X>>;
 
 type BaseOptions = BaseMetadataEncoded &
   Readonly<{
@@ -120,16 +131,16 @@ export const make = <T extends Template.Unknown>(template: T) =>
 export const build = <
   T extends Template.Unknown,
   G extends Template.GradeResult<T>,
-  E extends object,
+  X extends object,
   S extends Grade.Results,
-  Err,
+  E,
   R,
 >(
-  self: Effect.Effect<Builder<G, E, S, T>, Err, R>,
-): Effect.Effect<Task<G, E, T>, Err, R> => self;
+  self: Effect.Effect<Builder<G, X, S, T>, E, R>,
+): Effect.Effect<Task<G, X, T>, E, R> => self;
 
-export const metadata = <G extends Grade.Result, E extends object, T extends Template.Unknown>(
-  task: Task<G, E, T>,
+export const metadata = <G extends Grade.Result, X extends object, T extends Template.Unknown>(
+  task: Task<G, X, T>,
 ): Metadata =>
   Metadata.make({
     base: task.metadata,
@@ -139,10 +150,10 @@ export const metadata = <G extends Grade.Result, E extends object, T extends Tem
 
 export const metadataSchema = <
   G extends Grade.Result,
-  E extends object,
+  X extends object,
   T extends Template.Unknown,
 >(
-  task: Task<G, E, T>,
+  task: Task<G, X, T>,
 ) =>
   Schema.Struct({
     base: BaseMetadata,

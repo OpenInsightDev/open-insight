@@ -18,3 +18,4 @@ Docs are local at `node_modules/vite-plus/docs` or online at https://viteplus.de
 ## Rules
 
 - Do not run `vp test` from the repository root. Run tests only from the specified project directory.
+- When debugging type-related issues, STRICTLY FORBIDDEN to annotate types manually just to make the type checker happy. Instead, fix the real underlying type issue. If you are unsure how to fix it, ask for help.

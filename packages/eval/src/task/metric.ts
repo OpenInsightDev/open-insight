@@ -6,49 +6,63 @@ import type { Builder } from "./build.ts";
 import { Error } from "./error.ts";
 import type * as Template from "./template.ts";
 
-type TaskMetricOptions<G extends Grade.Result, R extends Schema.JsonObject> = Omit<
-  Metric.Task.Options<G, R>,
+type TaskMetricOptions<G extends Grade.Result, M extends Schema.JsonObject> = Omit<
+  Metric.Task.Options<G, M>,
   "exec"
 >;
 
-type TrajMetricOptions<R extends Schema.JsonObject> = Omit<Metric.Traj.Options<R>, "exec">;
+type TrajMetricOptions<M extends Schema.JsonObject> = Omit<Metric.Traj.Options<M>, "exec">;
 
-type TaskMetricBuilder<G extends Grade.Result> = <
-  Ex extends object,
+type TaskMetricBuilder<
+  /** Grade result. */
+  G extends Grade.Result,
+> = <
+  /** Task extras. */
+  X extends object,
+  /** Stage results. */
   S extends Grade.Results,
+  /** Task template. */
   T extends Template.Unknown,
+  /** Effect error. */
   E,
-  Env,
+  /** Effect requirements. */
+  R,
 >(
-  task: Effect.Effect<Builder<G, Ex, S, T>, E, Env>,
-) => Effect.Effect<Builder<G, Ex, S, T>, E | Error, Env | Crypto.Crypto>;
+  task: Effect.Effect<Builder<G, X, S, T>, E, R>,
+) => Effect.Effect<Builder<G, X, S, T>, E | Error, R | Crypto.Crypto>;
 
 type TrajMetricBuilder = <
+  /** Grade result. */
   G extends Grade.Result,
-  Ex extends object,
+  /** Task extras. */
+  X extends object,
+  /** Stage results. */
   S extends Grade.Results,
+  /** Task template. */
   T extends Template.Unknown,
+  /** Effect error. */
   E,
-  Env,
+  /** Effect requirements. */
+  R,
 >(
-  task: Effect.Effect<Builder<G, Ex, S, T>, E, Env>,
-) => Effect.Effect<Builder<G, Ex, S, T>, E | Error, Env | Crypto.Crypto>;
+  task: Effect.Effect<Builder<G, X, S, T>, E, R>,
+) => Effect.Effect<Builder<G, X, S, T>, E | Error, R | Crypto.Crypto>;
 
-export function metric<G extends Grade.Result, R extends Schema.JsonObject = Schema.JsonObject>(
-  exec: Metric.Task.ExecEffect<G, R>,
-  options?: TaskMetricOptions<G, R>,
+export function metric<G extends Grade.Result, M extends Schema.JsonObject = Schema.JsonObject>(
+  exec: Metric.Task.ExecEffect<G, M>,
+  options?: TaskMetricOptions<G, M>,
 ): TaskMetricBuilder<G>;
-export function metric<G extends Grade.Result, R extends Schema.JsonObject = Schema.JsonObject>(
-  exec: Metric.Task.Exec<G, R>,
-  options?: TaskMetricOptions<G, R>,
+export function metric<G extends Grade.Result, M extends Schema.JsonObject = Schema.JsonObject>(
+  exec: Metric.Task.Exec<G, M>,
+  options?: TaskMetricOptions<G, M>,
 ): TaskMetricBuilder<G>;
-export function metric<G extends Grade.Result, R extends Schema.JsonObject = Schema.JsonObject>(
-  exec: Metric.Task.ExecEffect<G, R> | Metric.Task.Exec<G, R>,
-  options: TaskMetricOptions<G, R> = {},
+export function metric<G extends Grade.Result, M extends Schema.JsonObject = Schema.JsonObject>(
+  exec: Metric.Task.ExecEffect<G, M> | Metric.Task.Exec<G, M>,
+  options: TaskMetricOptions<G, M> = {},
 ): TaskMetricBuilder<G> {
-  return <Ex extends object, S extends Grade.Results, T extends Template.Unknown, E, Env>(
-    task: Effect.Effect<Builder<G, Ex, S, T>, E, Env>,
-  ): Effect.Effect<Builder<G, Ex, S, T>, E | Error, Env | Crypto.Crypto> =>
+  return <X extends object, S extends Grade.Results, T extends Template.Unknown, E, R>(
+    task: Effect.Effect<Builder<G, X, S, T>, E, R>,
+  ): Effect.Effect<Builder<G, X, S, T>, E | Error, R | Crypto.Crypto> =>
     task.pipe(
       Effect.flatMap(
         Effect.fn(function* (task) {
@@ -64,24 +78,24 @@ export function metric<G extends Grade.Result, R extends Schema.JsonObject = Sch
     );
 }
 
-export function trajMetric<R extends Schema.JsonObject = Schema.JsonObject>(
-  exec: Metric.Traj.Exec<R>,
-  options?: TrajMetricOptions<R>,
+export function trajMetric<M extends Schema.JsonObject = Schema.JsonObject>(
+  exec: Metric.Traj.Exec<M>,
+  options?: TrajMetricOptions<M>,
 ): TrajMetricBuilder;
-export function trajMetric<R extends Schema.JsonObject = Schema.JsonObject>(
-  exec: Metric.Traj.Exec<R>,
-  options: TrajMetricOptions<R> = {},
+export function trajMetric<M extends Schema.JsonObject = Schema.JsonObject>(
+  exec: Metric.Traj.Exec<M>,
+  options: TrajMetricOptions<M> = {},
 ): TrajMetricBuilder {
   return <
     G extends Grade.Result,
-    Ex extends object,
+    X extends object,
     S extends Grade.Results,
     T extends Template.Unknown,
     E,
-    Env,
+    R,
   >(
-    task: Effect.Effect<Builder<G, Ex, S, T>, E, Env>,
-  ): Effect.Effect<Builder<G, Ex, S, T>, E | Error, Env | Crypto.Crypto> =>
+    task: Effect.Effect<Builder<G, X, S, T>, E, R>,
+  ): Effect.Effect<Builder<G, X, S, T>, E | Error, R | Crypto.Crypto> =>
     task.pipe(
       Effect.flatMap(
         Effect.fn(function* (task) {

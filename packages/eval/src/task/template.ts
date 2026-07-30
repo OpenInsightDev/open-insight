@@ -1,13 +1,18 @@
 import * as Grade from "#/grade/index.ts";
 import { Schema } from "effect";
 
-export type ExtrasSchema<T extends object = object> = Schema.Codec<T, Schema.JsonObject>;
+export type ExtrasSchema<X extends object = object> = Schema.Codec<X, Schema.JsonObject>;
 
 /** An empty extras schema for templates that do not need per-task extras. */
 export const EmptyExtras = Schema.Record(Schema.String, Schema.Never);
 
 /** A schema-only contract shared by every task in a bench. */
-export type Template<GS = Grade.ResultSchema, ES = ExtrasSchema> = Readonly<{
+export type Template<
+  /** Grade schema. */
+  GS = Grade.ResultSchema,
+  /** Extras schema. */
+  ES = ExtrasSchema,
+> = Readonly<{
   Grade: GS;
   Extras: ES;
 }>;

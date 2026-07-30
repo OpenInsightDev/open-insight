@@ -169,18 +169,20 @@ async function* loadTasks(repoPath: string) {
             : "";
           const simPass = syntaxPass && /Your Design Passed/.test(simulatorOutput);
 
-          return simPass
-            ? { syntaxPass, simPass }
-            : {
-                syntaxPass,
-                simPass,
-                diagnostic: {
-                  artifactPresent,
-                  designV,
-                  compilerOutput,
-                  simulatorOutput,
-                },
-              };
+          return {
+            syntaxPass,
+            simPass,
+            ...(simPass
+              ? {}
+              : {
+                  diagnostic: {
+                    artifactPresent,
+                    designV,
+                    compilerOutput,
+                    simulatorOutput,
+                  },
+                }),
+          };
         },
         verif: async ({ upload, $ }) => {
           await upload({ hostPath: verifiedPath, sandboxPath: "/workspace/design.v" });

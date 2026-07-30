@@ -55,20 +55,21 @@ const snapshot = Snapshot.make({
   ],
 });
 
+const GradeFields = {
+  simPass: Schema.Boolean,
+  diagnostic: Schema.optionalKey(
+    Schema.Struct({
+      artifactPresent: Schema.Boolean,
+      topV: Schema.NullOr(Schema.String),
+      simulatorOutput: Schema.String,
+    }),
+  ),
+};
 const template = Task.Template.make({
   Extras: {
     category: Schema.String,
   },
-  Grade: {
-    simPass: Schema.Boolean,
-    diagnostic: Schema.optionalKey(
-      Schema.Struct({
-        artifactPresent: Schema.Boolean,
-        topV: Schema.NullOr(Schema.String),
-        simulatorOutput: Schema.String,
-      }),
-    ),
-  },
+  Grade: GradeFields,
 });
 
 async function* loadTasks(repoPath: string) {
@@ -93,7 +94,7 @@ async function* loadTasks(repoPath: string) {
       extras: { category: "verilog-eval" },
     }).pipe(
       Task.stage("solve", {
-        schema: template.Grade.fields,
+        schema: GradeFields,
         prompt: `${prompt.trimEnd()}\n\n${deliveryInstructions}`,
         grader: async ({ upload, $ }) => {
           await $`mkdir -p /tmp/verilog-eval`;
@@ -125,13 +126,9 @@ async function* loadTasks(repoPath: string) {
                   vvp simv || true; \\
                 fi 2>&1`;
           const simPass = hasNoMismatches(output);
+          const diagnostic = { artifactPresent, topV, simulatorOutput: output };
 
-          return simPass
-            ? { simPass }
-            : {
-                simPass,
-                diagnostic: { artifactPresent, topV, simulatorOutput: output },
-              };
+          return { simPass, ...(simPass ? {} : { diagnostic }) };
         },
         verif: async ({ upload, $ }) => {
           await upload({ hostPath: refPath, sandboxPath: "/tmp/ref.sv" });

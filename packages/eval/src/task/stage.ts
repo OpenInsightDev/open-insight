@@ -28,8 +28,11 @@ export type StageBase = Readonly<{
 
 /** A stage and the result record produced by all stages that precede it. */
 export type Stage<
+  /** Stage name. */
   N extends string = string,
+  /** Grade result. */
   G extends Grade.Result = Grade.Result,
+  /** Previous stage results. */
   S extends Grade.Results = never,
 > = Readonly<{
   metadata: StageMetadata;
@@ -47,41 +50,46 @@ type AppendResult<S extends Grade.Results, N extends string, G extends Grade.Res
   ? Readonly<{ [K in N]: G }>
   : S & Readonly<{ [K in N]: G }>;
 
-type Verification<R extends Schema.JsonObject> =
+type StageSchema<F extends Schema.Struct.Fields> = Schema.Struct<F> &
+  Grade.ResultSchema<Schema.Struct.Type<F>>;
+type StageGrade<F extends Schema.Struct.Fields> = StageSchema<F>["Type"];
+type StageGradeEncoded<F extends Schema.Struct.Fields> = StageSchema<F>["Encoded"];
+
+type Verification<F extends Schema.Struct.Fields> =
   | Readonly<{
       verif?: never;
       expect?: never;
     }>
-  | Grade.VerifOptions<R>;
+  | Grade.VerifOptions<StageGradeEncoded<F>>;
 
-type StructResultSchema<F extends Schema.Struct.Fields> = Schema.Struct<F> &
-  Grade.ResultSchema<Schema.Struct.Type<F>>;
-
-function makeStructResult<const F extends Schema.Struct.Fields>(fields: F): StructResultSchema<F>;
+function makeStructResult<const F extends Schema.Struct.Fields>(fields: F): StageSchema<F>;
 function makeStructResult(fields: Schema.Struct.Fields) {
   return Schema.Struct(fields);
 }
 
 type StageOptionsBase<
   N extends string,
-  R extends Schema.JsonObject,
+  F extends Schema.Struct.Fields,
   S extends Grade.Results,
 > = Readonly<{
   name: N;
   prompt: PromptOptions;
-  grader: Grade.Exec<R, StageResults<S>>;
+  grader: Grade.Exec<StageGradeEncoded<F>, StageResults<S>>;
   init?: Init | null;
   resume?: boolean;
 }> &
   Omit<StageMetadataEncoded, "name"> &
-  Verification<R>;
+  Verification<F>;
 
 /** Options for defining a new stage schema inline via struct fields. */
 export type StageOptions<
+  /** Stage name. */
   N extends string = string,
+  /** Grade schema fields. */
   F extends Schema.Struct.Fields = Schema.Struct.Fields,
+  /** Previous stage results. */
   S extends Grade.Results = never,
-> = StageOptionsBase<N, StructResultSchema<F>["Encoded"], S> &
+> = StageOptionsBase<N, F, S> &
   Readonly<{
     schema: F;
   }>;
@@ -92,15 +100,10 @@ export const stage =
     name: N,
     options: Omit<StageOptions<N, F, NoInfer<S>>, "name">,
   ) =>
-  <CurrentG extends Grade.Result, Ex extends object, T extends Template.Unknown, E, R>(
-    task: Effect.Effect<Builder<CurrentG, Ex, S, T>, E, R>,
+  <G extends Grade.Result, X extends object, T extends Template.Unknown, E, R>(
+    task: Effect.Effect<Builder<G, X, S, T>, E, R>,
   ): Effect.Effect<
-    Builder<
-      StructResultSchema<F>["Type"],
-      Ex,
-      AppendResult<S, N, StructResultSchema<F>["Type"]>,
-      T
-    >,
+    Builder<StageGrade<F>, X, AppendResult<S, N, StageGrade<F>>, T>,
     E | Error,
     R | Crypto.Crypto
   > =>
@@ -112,10 +115,7 @@ export const stage =
             Effect.mapError(Error.metadata),
           );
           const schema = makeStructResult(options.schema);
-          const grader: Grade.Grader<
-            StructResultSchema<F>["Type"],
-            StageResults<S>
-          > = options.verif === undefined
+          const grader: Grade.Grader<StageGrade<F>, StageResults<S>> = options.verif === undefined
             ? { schema, grade: options.grader }
             : {
                 schema,
@@ -123,7 +123,7 @@ export const stage =
                 verif: options.verif,
                 expect: options.expect,
               };
-          const next: Stage<N, StructResultSchema<F>["Type"], S> = {
+          const next: Stage<N, StageGrade<F>, S> = {
             metadata,
             prompt,
             grader,
@@ -134,12 +134,7 @@ export const stage =
             ...task,
             stages: [...task.stages, next],
             [BuilderTypeId]: (value) => value,
-          } satisfies Builder<
-            StructResultSchema<F>["Type"],
-            Ex,
-            AppendResult<S, N, StructResultSchema<F>["Type"]>,
-            T
-          >;
+          } satisfies Builder<StageGrade<F>, X, AppendResult<S, N, StageGrade<F>>, T>;
         }),
       ),
     );
