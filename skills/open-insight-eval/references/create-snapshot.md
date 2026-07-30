@@ -105,7 +105,7 @@ export const makeTask = Effect.fn(function* () {
     name: "Fix the Python implementation",
     snapshot,
   }).pipe(
-    Task.stage("solve", {
+    Task.stage.from("solve", {
       schema: Grade.Result,
       prompt: "Fix the Python implementation.",
       grader: async () => ({}),

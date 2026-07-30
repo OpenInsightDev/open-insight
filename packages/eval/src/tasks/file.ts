@@ -57,7 +57,7 @@ const isExportTask = <T extends Task.Task>(value: unknown): value is ExportTask<
  *   name: "static task",
  *   snapshot,
  * }).pipe(
- *   Task.stage("solve", {
+ *   Task.stage.from("solve", {
  *     schema: Grade.Result,
  *     prompt: "Solve the task",
  *     grader: async () => ({}),

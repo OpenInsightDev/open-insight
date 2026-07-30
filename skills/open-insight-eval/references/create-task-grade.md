@@ -79,7 +79,7 @@ The resulting grade is deep-compared with `expect`.
 
 ```ts
 Task.stage("solve", {
-  schema: GradeResult,
+  schema: template.grade.fields,
   prompt: "<task-specific prompt>",
   grader: async ({ $, results, trajectory }) => {
     // Compute the confirmed grade from the current sandbox state.

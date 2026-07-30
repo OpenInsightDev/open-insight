@@ -30,7 +30,7 @@ it.effect("accepts raw and Effect metric executors", () =>
       snapshot: Snapshot.make("test-image"),
     }).pipe(
       Task.stage("grade", {
-        schema: template.grade,
+        schema: template.grade.fields,
         prompt: "Grade the task",
         grader: async () => ({ pass: true }),
       }),

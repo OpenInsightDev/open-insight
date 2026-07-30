@@ -12,6 +12,7 @@ export {
   type Stage,
   type StageResults,
   type StageBase,
+  type StageFromOptions,
   type StageOptions,
   type Task,
 } from "./index.ts";

@@ -93,7 +93,7 @@ Task.make(template, {
   },
 }).pipe(
   Task.stage("solve", {
-    schema: template.grade,
+    schema: template.grade.fields,
     prompt: "<task-specific prompt>",
     grader: async ({ $, results, trajectory }) => {
       // Inspect the sandbox and trajectory, then compute the confirmed grade fields here.
@@ -161,7 +161,7 @@ Task.make(template, {
     // Set the confirmed per-task metadata fields here.
   },
 }).pipe(
-  Task.stage("prepare", {
+  Task.stage.from("prepare", {
     schema: PreparationResult,
     prompt: "<preparation-stage prompt>",
     grader: async ({ $, trajectory }) => {
@@ -170,7 +170,7 @@ Task.make(template, {
     },
   }),
   Task.stage("solve", {
-    schema: GradeResult,
+    schema: template.grade.fields,
     prompt: "<final-stage prompt>",
     grader: async ({ $, results, trajectory }) => {
       const preparation = results.prepare;
@@ -186,6 +186,9 @@ The final stage result must conform to `template.grade`; `Task.build` enforces t
 the type level. Read [Define prompts](create-task-prompt.md) before using generated or multi-turn
 prompts. Read [Define grading](create-task-grade.md) before using verification, retries, or multiple
 stages.
+
+`Task.stage` accepts struct fields and constructs the result schema. Use `Task.stage.from` when a
+stage needs a complete schema, such as a named `Schema.Class` or a root `Schema.Record`.
 
 ### Metric Selection
 

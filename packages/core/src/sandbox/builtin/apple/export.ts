@@ -1,1 +1,1 @@
-export { make, type MakeOptions, type PortMapping } from "./index.ts";
+export { make, type MakeOptions } from "./index.ts";

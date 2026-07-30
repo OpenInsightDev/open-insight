@@ -92,7 +92,7 @@ async function* loadTasks(repoPath: string) {
       snapshot,
       extras: { category: "verilog-eval" },
     }).pipe(
-      Task.stage("solve", {
+      Task.stage.from("solve", {
         schema: template.grade,
         prompt: `${prompt.trimEnd()}\n\n${deliveryInstructions}`,
         grader: async ({ upload, $ }) => {

@@ -26,7 +26,7 @@ it.effect("accepts raw and Effect metric executors", () =>
       snapshot: Snapshot.make("test-image"),
     }).pipe(
       Task.stage("solve", {
-        schema: template.grade,
+        schema: template.grade.fields,
         prompt: "Solve the task",
         grader: async () => ({ pass: true }),
       }),

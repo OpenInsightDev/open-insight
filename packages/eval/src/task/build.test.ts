@@ -39,13 +39,13 @@ const values = {
 };
 
 const task = Task.make(template, values).pipe(
-  Task.stage("setup", {
+  Task.stage.from("setup", {
     schema: Setup,
     prompt: "Prepare the task",
     grader: async () => ({ ready: true }),
   }),
   Task.stage("solve", {
-    schema: template.grade,
+    schema: template.grade.fields,
     prompt: "Solve the task",
     grader: async ({ results }) => ({ passed: results.setup.ready }),
   }),
@@ -62,7 +62,14 @@ it.effect("keeps template schemas separate from task values", () =>
       revision: "1",
     });
     assert.strictEqual(built.stages[0]?.grader.schema, Setup);
-    assert.strictEqual(built.stages[1]?.grader.schema, template.grade);
+    const finalStage = built.stages[1];
+    if (finalStage === undefined) {
+      return assert.fail("Missing final stage");
+    }
+    assert.notStrictEqual(finalStage.grader.schema, template.grade);
+    assert.deepStrictEqual(Schema.encodeSync(finalStage.grader.schema)({ passed: true }), {
+      passed: true,
+    });
 
     const metadata = Task.metadata(built);
     assert.deepStrictEqual(metadata.extras, { owner: "eval", revision: "1" });
@@ -74,18 +81,18 @@ it.effect("keeps template schemas separate from task values", () =>
 it.effect("allows task-local intermediate stages and infers every preceding result", () =>
   Effect.gen(function* () {
     const task = yield* Task.make(template, values).pipe(
-      Task.stage("setup", {
+      Task.stage.from("setup", {
         schema: Setup,
         prompt: "Prepare the task",
         grader: async () => ({ ready: true }),
       }),
-      Task.stage("inspect", {
+      Task.stage.from("inspect", {
         schema: Inspection,
         prompt: "Inspect the task",
         grader: async ({ results }) => ({ clean: results.setup.ready }),
       }),
       Task.stage("solve", {
-        schema: template.grade,
+        schema: template.grade.fields,
         prompt: "Solve the task",
         grader: async ({ results }) => ({
           passed: results.setup.ready && results.inspect.clean,
@@ -102,7 +109,7 @@ it.effect("allows task-local intermediate stages and infers every preceding resu
 
 it("enforces template conformance entirely at the type level", () => {
   const wrongFinalGrade = Task.make(template, values).pipe(
-    Task.stage("setup", {
+    Task.stage.from("setup", {
       schema: Setup,
       prompt: "Prepare the task",
       grader: async () => ({ ready: true }),

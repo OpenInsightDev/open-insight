@@ -84,7 +84,7 @@ const makeTask = Effect.fn(function* (datapoint: CvdpDatapoint) {
     snapshot,
     extras: { categories: datapoint.categories },
   }).pipe(
-    Task.stage("solve", {
+    Task.stage.from("solve", {
       schema: template.grade,
       prompt: [
         { role: "system", content: datapoint.system_message },

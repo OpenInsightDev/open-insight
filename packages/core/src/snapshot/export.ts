@@ -9,6 +9,7 @@ export {
   isContainerfile,
   isInstructions,
   make,
+  writeInstructions,
 } from "./build.ts";
 export {
   BuildError,

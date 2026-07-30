@@ -90,7 +90,7 @@ const makeRunTrail = Effect.fn(function* ({ initiallySolved }: { initiallySolved
     name: "Test task",
     snapshot,
   }).pipe(
-    Task.stage("solve", {
+    Task.stage.from("solve", {
       id: "solve",
       schema: passedTemplate.grade,
       prompt: "Solve the task",
@@ -139,7 +139,7 @@ describe("verification trail", () => {
           name: "Test task",
           snapshot,
         }).pipe(
-          Task.stage("solve", {
+          Task.stage.from("solve", {
             id: "solve",
             schema: initializedTemplate.grade,
             prompt: "Solve the task",

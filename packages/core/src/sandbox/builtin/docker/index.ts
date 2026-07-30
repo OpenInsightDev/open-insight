@@ -119,16 +119,8 @@ export const make = Effect.fn("sandbox/provider/docker")(
 
         const containerfilePath = yield* Match.value(snapshot).pipe(
           Match.tag("Containerfile", ({ filePath }) => Effect.succeed(filePath)),
-          Match.tag(
-            "Instructions",
-            Effect.fn(function* ({ image, instructions }) {
-              const filePath = yield* fs.makeTempFile({
-                prefix: "open-insight-",
-                suffix: ".Containerfile",
-              });
-              yield* fs.writeFileString(filePath, Snapshot.encode({ image, instructions }));
-              return filePath;
-            }),
+          Match.tag("Instructions", (instructionsSnapshot) =>
+            Snapshot.writeInstructions(instructionsSnapshot),
           ),
           Match.exhaustive,
         );
@@ -152,6 +144,7 @@ export const make = Effect.fn("sandbox/provider/docker")(
       (effect, { snapshot }) =>
         effect.pipe(
           Effect.provideService(Crypto.Crypto, crypto),
+          Effect.provideService(FileSystem.FileSystem, fs),
           Effect.annotateLogs({
             snapshotContext: snapshot.context,
           }),
@@ -184,16 +177,9 @@ export const make = Effect.fn("sandbox/provider/docker")(
           cache: cache ?? false,
         });
 
-        const containerfile = Snapshot.encode({
-          image: handle.name,
-          instructions,
-        });
-
-        const containerfilePath = yield* fs.makeTempFile({
-          prefix: "open-insight-",
-          suffix: ".Containerfile",
-        });
-        yield* fs.writeFileString(containerfilePath, containerfile);
+        const containerfilePath = yield* Snapshot.writeInstructions(
+          Snapshot.make({ image: handle.name, instructions, context }),
+        );
 
         const build = CP.make`build -f ${containerfilePath} -t ${derived.name} ${context}`.pipe(
           runtime,
@@ -214,6 +200,7 @@ export const make = Effect.fn("sandbox/provider/docker")(
       (effect, { handle, instructions }) =>
         effect.pipe(
           Effect.provideService(Crypto.Crypto, crypto),
+          Effect.provideService(FileSystem.FileSystem, fs),
           Effect.annotateLogs({
             baseDockerImage: handle.name,
           }),

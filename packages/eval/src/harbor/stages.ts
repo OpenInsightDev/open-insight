@@ -189,9 +189,9 @@ export const addStages =
       };
       task =
         stage.verification === undefined
-          ? task.pipe(Task.stage(stage.name, common))
+          ? task.pipe(Task.stage.from(stage.name, common))
           : task.pipe(
-              Task.stage(stage.name, {
+              Task.stage.from(stage.name, {
                 ...common,
                 verif: stage.verification.verif,
                 expect: stage.verification.expect,
