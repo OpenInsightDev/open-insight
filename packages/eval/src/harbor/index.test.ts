@@ -2,9 +2,10 @@ import { NodeServices } from "@effect/platform-node";
 import { assert, describe, it, layer } from "@effect/vitest";
 import { Effect, FileSystem, Option, Path } from "effect";
 import * as Grade from "#/grade/index.ts";
+import * as Task from "#/task/index.ts";
 import { Error } from "#/tasks/error.ts";
 import { fromDir } from "./local.ts";
-import { makeTask } from "./index.ts";
+import { GradeResult, makeTask } from "./index.ts";
 import { mean } from "./reward.ts";
 import { Resource, Snapshot } from "@open-insight/core/internal";
 
@@ -175,6 +176,8 @@ name = "finish"
         assert.isNull(task.stages[1]?.init);
         assert.isTrue(task.stages.every((stage) => stage.resume));
         assert.isTrue(task.stages.every((stage) => Grade.isVerifiable(stage.grader)));
+        assert.strictEqual(task.stages[0]?.grader.schema, GradeResult);
+        assert.strictEqual(task.stages[1]?.grader.schema, GradeResult);
       }),
     );
 
