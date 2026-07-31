@@ -5,58 +5,91 @@ import * as Task from "../task/index.ts";
 import * as Bench from "#/bench/index.ts";
 import * as Harness from "#/harness/index.ts";
 import * as Event from "#/event/index.ts";
-import { Agent, Prompt, Snapshot } from "@open-insight/core/internal";
+import { Agent, Snapshot } from "@open-insight/core/internal";
 
+const Cause = Schema.Error();
 const NonNegativeInt = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0));
-type ExecTask = Task.Task<Grade.Result, object>;
+type ExecTask = Task.AnyTask;
 
 export class InitError extends Schema.TaggedErrorClass<InitError>()("InitError", {
-  cause: Schema.Defect(),
-}) {}
+  cause: Cause,
+}) {
+  override get message(): string {
+    return `Failed to initialize evaluation: ${this.cause.message}`;
+  }
+}
 
 export class TaskInitError extends Schema.TaggedErrorClass<TaskInitError>()("TaskInitError", {
   task: Task.ID,
-  cause: Schema.Defect(),
-}) {}
+  cause: Cause,
+}) {
+  override get message(): string {
+    return `Failed to initialize task "${this.task}": ${this.cause.message}`;
+  }
+}
 
 export class TaskExecError extends Schema.TaggedErrorClass<TaskExecError>()("TaskExecError", {
   task: Task.ID,
   trailIdx: NonNegativeInt,
-  cause: Schema.Defect(),
-}) {}
+  cause: Cause,
+}) {
+  override get message(): string {
+    return `Task "${this.task}" trail ${this.trailIdx} failed: ${this.cause.message}`;
+  }
+}
 
 export class TaskVerifExecError extends Schema.TaggedErrorClass<TaskVerifExecError>()(
   "TaskVerifExecError",
   {
     task: Task.ID,
-    cause: Schema.Defect(),
+    cause: Cause,
   },
-) {}
+) {
+  override get message(): string {
+    return `Task "${this.task}" verification execution failed: ${this.cause.message}`;
+  }
+}
 
 export class MissingVerifier extends Schema.TaggedErrorClass<MissingVerifier>()("MissingVerifier", {
   task: Task.ID,
   stages: Schema.Array(Schema.String),
-}) {}
+}) {
+  override get message(): string {
+    return `Task "${this.task}" is missing verifiers for stages: ${this.stages.join(", ")}`;
+  }
+}
 
 export class VerifMismatch extends Schema.TaggedErrorClass<VerifMismatch>()("VerifMismatch", {
   task: Task.ID,
-  expect: Grade.Result,
-  actual: Schema.Union([Grade.Result, Prompt.Prompt]),
-}) {}
+  expect: Schema.Unknown,
+  actual: Schema.Unknown,
+}) {
+  override get message(): string {
+    return `Task "${this.task}" verification result does not match the expected grade`;
+  }
+}
 
 export class VerifInitialMatch extends Schema.TaggedErrorClass<VerifInitialMatch>()(
   "VerifInitialMatch",
   {
     task: Task.ID,
-    expect: Grade.Result,
+    expect: Schema.Unknown,
   },
-) {}
+) {
+  override get message(): string {
+    return `Task "${this.task}" already matches the expected grade before verification`;
+  }
+}
 
 export class SnapshotError extends Schema.TaggedErrorClass<SnapshotError>()("SnapshotError", {
   task: Task.ID,
   snapshot: Snapshot.Snapshot,
-  cause: Schema.Defect(),
-}) {}
+  cause: Cause,
+}) {
+  override get message(): string {
+    return `Failed to prepare snapshot for task "${this.task}": ${this.cause.message}`;
+  }
+}
 
 export const ErrorReason = Schema.Union([
   InitError,
@@ -79,8 +112,18 @@ export class Error extends Schema.TaggedErrorClass<Error>()("EvalError", {
   benchmark: Schema.optional(Bench.Metadata),
   harness: Schema.optional(Harness.Metadata),
 }) {
-  static mapUnknownError = (mapper: (cause: unknown) => ErrorReason) => (cause: unknown) =>
-    cause instanceof Error ? cause : new Error({ reason: mapper(cause) });
+  override get message(): string {
+    return this.reason.message;
+  }
+
+  override get cause(): ErrorReason {
+    return this.reason;
+  }
+
+  static mapUnknownError = (mapper: (cause: globalThis.Error) => ErrorReason) => (cause: unknown) =>
+    cause instanceof Error
+      ? cause
+      : new Error({ reason: mapper(Schema.decodeUnknownSync(Cause)(cause)) });
 
   static init = this.mapUnknownError((cause) => new InitError({ cause }));
 
@@ -106,13 +149,10 @@ export class Error extends Schema.TaggedErrorClass<Error>()("EvalError", {
       reason: new MissingVerifier({ task: task.metadata.id, stages }),
     });
 
-  static verifMismatch = (
-    task: ExecTask,
-    expect: Grade.Result,
-    actual: Grade.Result | Prompt.Prompt,
-  ) => new Error({ reason: new VerifMismatch({ task: task.metadata.id, expect, actual }) });
+  static verifMismatch = (task: ExecTask, expect: Grade.Result["Encoded"], actual: unknown) =>
+    new Error({ reason: new VerifMismatch({ task: task.metadata.id, expect, actual }) });
 
-  static verifInitialMatch = (task: ExecTask, expect: Grade.Result) =>
+  static verifInitialMatch = (task: ExecTask, expect: Grade.Result["Encoded"]) =>
     new Error({ reason: new VerifInitialMatch({ task: task.metadata.id, expect }) });
 
   static verifExec = (task: ExecTask) =>

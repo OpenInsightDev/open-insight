@@ -3,7 +3,6 @@ export * as Chart from "#/chart/export.ts";
 export * as Event from "#/event/export.ts";
 export * as Eval from "#/eval/export.ts";
 export * as Grade from "#/grade/export.ts";
-export * as Harbor from "#/harbor/export.ts";
 export * as Harness from "#/harness/export.ts";
 
 export * as Metric from "#/metric/export.ts";

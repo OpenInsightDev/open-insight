@@ -8,6 +8,7 @@ import { Entry, Error, Metadata, type Operation, type Options } from "./schema.t
 
 const metadataKey = "metadata";
 const replayBatchSize = 128;
+const Cause = Schema.Error();
 
 export interface Journal {
   /** Appends one event and returns its zero-based sequence number. */
@@ -42,7 +43,7 @@ export const make = Effect.fn("Persist.make")(function* (
   const journalError =
     (operation: Operation, sequence: number | null = null) =>
     (cause: unknown) =>
-      new Error({ storeId, operation, sequence, cause });
+      new Error({ storeId, operation, sequence, cause: Schema.decodeUnknownSync(Cause)(cause) });
 
   const loadMetadata = store.get(metadataKey).pipe(
     Effect.mapError(journalError("load")),

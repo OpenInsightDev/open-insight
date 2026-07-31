@@ -12,6 +12,7 @@ import {
   Stream,
 } from "effect";
 import { LanguageModel, Prompt, Response, Tool, Toolkit } from "effect/unstable/ai";
+import * as Cli from "#/cli/index.ts";
 import * as Mcp from "#/mcp/index.ts";
 import type * as SkillsConfig from "#/skills/config.ts";
 import * as Skills from "#/skills/index.ts";
@@ -34,6 +35,7 @@ export type Config<Tools extends Record<string, Tool.Any> = {}> = Readonly<{
   toolkit?: Toolkit.Toolkit<Tools>;
   skills?: SkillsConfig.Config;
   mcp?: ReadonlyArray<Mcp.Server>;
+  cli?: ReadonlyArray<Cli.Cli>;
   maxSteps?: number;
 }>;
 
@@ -43,6 +45,13 @@ type LoopState = {
   usage: Response.Usage;
   trajectory: Prompt.Prompt;
 };
+
+type ProviderOptions = Readonly<{
+  snapshot?: Agent.SnapshotExtension;
+  instructions?: Option.Option<string>;
+  cli?: ReadonlyArray<Cli.Cli>;
+  maxSteps?: number;
+}>;
 
 const addOptional = (left: number | undefined, right: number | undefined) =>
   left === undefined && right === undefined ? undefined : (left ?? 0) + (right ?? 0);
@@ -64,9 +73,9 @@ const addUsage = (left: Response.Usage, right: Response.Usage) =>
     },
   });
 
-const joinInstructions = (...instructions: ReadonlyArray<string | undefined>) => {
-  const defined = instructions.filter((instruction) => instruction !== undefined);
-  return defined.length === 0 ? undefined : defined.join("\n\n");
+const joinInstructions = (...instructions: ReadonlyArray<Option.Option<string>>) => {
+  const defined = instructions.flatMap(Option.toArray);
+  return defined.length === 0 ? Option.none() : Option.some(defined.join("\n\n"));
 };
 
 const resolveMaxSteps = Effect.fn("Agent.resolveMaxSteps")(function* (maxSteps?: number) {
@@ -83,7 +92,9 @@ const resolveMaxSteps = Effect.fn("Agent.resolveMaxSteps")(function* (maxSteps?:
   return maxSteps;
 });
 
-const makeSession = Effect.fn(function* <Tools extends Record<string, Tool.Any>>({
+const makeSession = Effect.fn("Agent.makeSession")(function* <
+  Tools extends Record<string, Tool.Any>,
+>({
   sandbox,
   toolkit,
   ctx,
@@ -147,32 +158,32 @@ const makeSession = Effect.fn(function* <Tools extends Record<string, Tool.Any>>
           return Result.failVoid;
         }),
       );
-      const commit = Stream.fromEffect(
+      const complete = Stream.fromEffect(
         Effect.sync(() => {
           const trajectory = Prompt.concat(nextTrajectory, Prompt.fromResponseParts(responseParts));
           state.trajectory = trajectory;
           return trajectory;
-        }).pipe(Effect.flatMap((trajectory) => Ref.set(history, trajectory))),
+        }).pipe(Effect.tap((trajectory) => Ref.set(history, trajectory))),
       ).pipe(
-        Stream.flatMap(() =>
-          finalFinish === undefined ? Stream.empty : Stream.succeed(finalFinish),
-        ),
+        Stream.flatMap(() => {
+          if (finalFinish !== undefined) {
+            return Stream.succeed(finalFinish);
+          }
+          if (!hasToolResult) {
+            return Stream.empty;
+          }
+          if (step >= maxSteps) {
+            return Stream.fail(
+              Agent.Error.stream(
+                new Error(`Agent exceeded maxSteps (${maxSteps}) while resolving tool calls`),
+              ),
+            );
+          }
+          return runLoop(Prompt.empty, step + 1, state);
+        }),
       );
-      const continuation = Stream.suspend(() => {
-        if (!hasToolResult) {
-          return Stream.empty;
-        }
-        if (step >= maxSteps) {
-          return Stream.fail(
-            Agent.Error.stream(
-              new Error(`Agent exceeded maxSteps (${maxSteps}) while resolving tool calls`),
-            ),
-          );
-        }
-        return runLoop(Prompt.empty, step + 1, state);
-      });
 
-      return Stream.concat(turn, Stream.concat(commit, continuation));
+      return Stream.concat(turn, complete);
     });
 
   return {
@@ -196,13 +207,11 @@ const makeSession = Effect.fn(function* <Tools extends Record<string, Tool.Any>>
   } satisfies Agent.Agent<Tools>;
 });
 
-const makeProvider = Effect.fn(function* <Tools extends Record<string, Tool.Any>>(
+const makeProvider = Effect.fn("Agent.makeProvider")(function* <
+  Tools extends Record<string, Tool.Any>,
+>(
   toolkit: Toolkit.Toolkit<Tools>,
-  options?: {
-    readonly snapshot?: Agent.SnapshotExtension;
-    readonly instructions?: string;
-    readonly maxSteps?: number;
-  },
+  options?: ProviderOptions,
 ): Effect.fn.Return<
   Agent.Provider<Tools>,
   Agent.Error,
@@ -213,13 +222,21 @@ const makeProvider = Effect.fn(function* <Tools extends Record<string, Tool.Any>
   const tools = yield* toolkit;
   const maxSteps = yield* resolveMaxSteps(options?.maxSteps);
 
-  const runSession = Effect.fn(
+  const runSession = Effect.fn("Agent.runSession")(
     function* (sandbox: Sandbox.Sandbox) {
+      const cliInstructions = yield* Effect.transposeOption(
+        Option.fromUndefinedOr(options?.cli).pipe(
+          Option.map((cli) =>
+            Cli.instructions(cli, sandbox).pipe(Effect.mapError(Agent.Error.stream)),
+          ),
+        ),
+      ).pipe(Effect.map(Option.flatMap(Option.fromUndefinedOr)));
+
       return yield* makeSession({
         sandbox,
         toolkit: tools,
         ctx,
-        instructions: Option.fromUndefinedOr(options?.instructions),
+        instructions: joinInstructions(options?.instructions ?? Option.none(), cliInstructions),
         maxSteps,
       });
     },
@@ -232,31 +249,35 @@ const makeProvider = Effect.fn(function* <Tools extends Record<string, Tool.Any>
   } satisfies Agent.Provider<Tools>;
 });
 
-const makeCustom = Effect.fn(function* <Tools extends Record<string, Tool.Any>>(
+const makeCustom = Effect.fn("Agent.makeCustom")(function* <Tools extends Record<string, Tool.Any>>(
   toolkit: Toolkit.Toolkit<Tools>,
-  maxSteps?: number,
+  options?: { readonly cli?: ReadonlyArray<Cli.Cli>; readonly maxSteps?: number },
 ): Effect.fn.Return<
   Agent.Provider<ToolkitTools<Tools>>,
   Agent.Error,
   LanguageModel.LanguageModel | Tool.HandlersFor<Tools> | ToolkitServices<ToolkitTools<Tools>>
 > {
   const combined = Toolkit.merge(SandboxToolkit.toolkit, toolkit);
-  return yield* makeProvider(combined, { maxSteps }).pipe(Effect.provide(SandboxToolkit.layer));
+  return yield* makeProvider(combined, options).pipe(Effect.provide(SandboxToolkit.layer));
 });
 
-const makeBase = Effect.fn(function* (
-  maxSteps?: number,
-): Effect.fn.Return<
+const makeBase = Effect.fn("Agent.makeBase")(function* (options?: {
+  readonly cli?: ReadonlyArray<Cli.Cli>;
+  readonly maxSteps?: number;
+}): Effect.fn.Return<
   Agent.Provider<SandboxToolkit.Tools>,
   Agent.Error,
   LanguageModel.LanguageModel
 > {
-  return yield* makeCustom(Toolkit.empty, maxSteps);
+  return yield* makeCustom(Toolkit.empty, options);
 });
 
-const makeSkills = Effect.fn(function* <Tools extends Record<string, Tool.Any>>(config: {
+const makeSkills = Effect.fn("Agent.makeSkills")(function* <
+  Tools extends Record<string, Tool.Any>,
+>(config: {
   readonly toolkit?: Toolkit.Toolkit<Tools>;
   readonly skills: SkillsConfig.Config;
+  readonly cli?: ReadonlyArray<Cli.Cli>;
   readonly maxSteps?: number;
 }) {
   const toolkit = config.toolkit ?? Toolkit.empty;
@@ -265,14 +286,20 @@ const makeSkills = Effect.fn(function* <Tools extends Record<string, Tool.Any>>(
 
   return yield* makeProvider(base, {
     snapshot: skills.snapshotExtension,
-    instructions: skills.systemInstructions,
+    instructions: Option.fromUndefinedOr(skills.systemInstructions),
+    cli: config.cli,
     maxSteps: config.maxSteps,
   }).pipe(Effect.provide(SandboxToolkit.layer));
 });
 
-const makeMcp = Effect.fn(function* <Tools extends Record<string, Tool.Any>>(config: {
+const makeMcp = Effect.fn("Agent.makeMcp")(function* <
+  Tools extends Record<string, Tool.Any>,
+>(config: {
   readonly toolkit?: Toolkit.Toolkit<Tools>;
   readonly mcp: ReadonlyArray<Mcp.Server>;
+  readonly snapshot?: Agent.SnapshotExtension;
+  readonly instructions?: Option.Option<string>;
+  readonly cli?: ReadonlyArray<Cli.Cli>;
   readonly maxSteps?: number;
 }) {
   const toolkit = config.toolkit ?? Toolkit.empty;
@@ -283,38 +310,38 @@ const makeMcp = Effect.fn(function* <Tools extends Record<string, Tool.Any>>(con
   const combined = Toolkit.merge(base, mcp.toolkit);
 
   return yield* makeProvider(combined, {
-    instructions: mcp.systemInstructions,
+    snapshot: config.snapshot,
+    instructions: joinInstructions(
+      config.instructions ?? Option.none(),
+      Option.fromUndefinedOr(mcp.systemInstructions),
+    ),
+    cli: config.cli,
     maxSteps: config.maxSteps,
   }).pipe(
-    Effect.provide(SandboxToolkit.layer),
-    Effect.provide(mcp.layer),
+    Effect.provide([SandboxToolkit.layer, mcp.layer]),
     Effect.onError((cause) => mcp.close(Exit.failCause(cause))),
   );
 });
 
-const makeCombined = Effect.fn(function* <Tools extends Record<string, Tool.Any>>(config: {
+const makeCombined = Effect.fn("Agent.makeCombined")(function* <
+  Tools extends Record<string, Tool.Any>,
+>(config: {
   readonly toolkit?: Toolkit.Toolkit<Tools>;
   readonly skills: SkillsConfig.Config;
   readonly mcp: ReadonlyArray<Mcp.Server>;
+  readonly cli?: ReadonlyArray<Cli.Cli>;
   readonly maxSteps?: number;
 }) {
-  const toolkit = config.toolkit ?? Toolkit.empty;
-  const base = Toolkit.merge(SandboxToolkit.toolkit, toolkit);
   const skills = yield* Skills.prepare(config.skills);
-  const mcp = yield* Mcp.make(config.mcp, {
-    reservedNames: Object.keys(base.tools),
-  });
-  const combined = Toolkit.merge(base, mcp.toolkit);
 
-  return yield* makeProvider(combined, {
+  return yield* makeMcp({
+    toolkit: config.toolkit,
+    mcp: config.mcp,
     snapshot: skills.snapshotExtension,
-    instructions: joinInstructions(skills.systemInstructions, mcp.systemInstructions),
+    instructions: Option.fromUndefinedOr(skills.systemInstructions),
+    cli: config.cli,
     maxSteps: config.maxSteps,
-  }).pipe(
-    Effect.provide(SandboxToolkit.layer),
-    Effect.provide(mcp.layer),
-    Effect.onError((cause) => mcp.close(Exit.failCause(cause))),
-  );
+  });
 });
 
 type Base = Effect.Effect<
@@ -364,30 +391,35 @@ export function make(config: {
   readonly toolkit?: undefined;
   readonly skills?: undefined;
   readonly mcp?: undefined;
+  readonly cli?: ReadonlyArray<Cli.Cli>;
   readonly maxSteps?: number;
 }): Base;
 export function make<Tools extends Record<string, Tool.Any>>(config: {
   readonly toolkit: Toolkit.Toolkit<Tools>;
   readonly skills?: undefined;
   readonly mcp?: undefined;
+  readonly cli?: ReadonlyArray<Cli.Cli>;
   readonly maxSteps?: number;
 }): Custom<Tools>;
 export function make<Tools extends Record<string, Tool.Any> = {}>(config: {
   readonly toolkit?: Toolkit.Toolkit<Tools>;
   readonly skills: SkillsConfig.Config;
   readonly mcp?: undefined;
+  readonly cli?: ReadonlyArray<Cli.Cli>;
   readonly maxSteps?: number;
 }): Skilled<Tools>;
 export function make<Tools extends Record<string, Tool.Any> = {}>(config: {
   readonly toolkit?: Toolkit.Toolkit<Tools>;
   readonly skills?: undefined;
   readonly mcp: ReadonlyArray<Mcp.Server>;
+  readonly cli?: ReadonlyArray<Cli.Cli>;
   readonly maxSteps?: number;
 }): McpProvider<Tools>;
 export function make<Tools extends Record<string, Tool.Any> = {}>(config: {
   readonly toolkit?: Toolkit.Toolkit<Tools>;
   readonly skills: SkillsConfig.Config;
   readonly mcp: ReadonlyArray<Mcp.Server>;
+  readonly cli?: ReadonlyArray<Cli.Cli>;
   readonly maxSteps?: number;
 }): Combined<Tools>;
 export function make<Tools extends Record<string, Tool.Any>>(config?: Config<Tools>) {
@@ -397,15 +429,21 @@ export function make<Tools extends Record<string, Tool.Any>>(config?: Config<Too
   if (config.skills === undefined) {
     if (config.mcp === undefined) {
       return config.toolkit === undefined
-        ? makeBase(config.maxSteps)
-        : makeCustom(config.toolkit, config.maxSteps);
+        ? makeBase({ cli: config.cli, maxSteps: config.maxSteps })
+        : makeCustom(config.toolkit, { cli: config.cli, maxSteps: config.maxSteps });
     }
-    return makeMcp({ toolkit: config.toolkit, mcp: config.mcp, maxSteps: config.maxSteps });
+    return makeMcp({
+      toolkit: config.toolkit,
+      mcp: config.mcp,
+      cli: config.cli,
+      maxSteps: config.maxSteps,
+    });
   }
   if (config.mcp === undefined) {
     return makeSkills({
       toolkit: config.toolkit,
       skills: config.skills,
+      cli: config.cli,
       maxSteps: config.maxSteps,
     });
   }
@@ -413,6 +451,7 @@ export function make<Tools extends Record<string, Tool.Any>>(config?: Config<Too
     toolkit: config.toolkit,
     skills: config.skills,
     mcp: config.mcp,
+    cli: config.cli,
     maxSteps: config.maxSteps,
   });
 }

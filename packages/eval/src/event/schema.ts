@@ -1,6 +1,5 @@
 import * as Chart from "#/chart/index.ts";
 import { Schema } from "effect";
-import * as Grade from "#/grade/index.ts";
 import * as Bench from "#/bench/index.ts";
 import * as Harness from "#/harness/index.ts";
 import { Response } from "effect/unstable/ai";
@@ -59,7 +58,7 @@ export class TrailScheduleEvent extends Schema.TaggedClass<TrailScheduleEvent>()
 export class TrailStagedEvent extends Schema.TaggedClass<TrailStagedEvent>()("TrailStagedEvent", {
   ...TrailFields,
   stage: Schema.String,
-  grade: Grade.Result,
+  grade: Schema.Unknown,
   usage: Schema.NullOr(Response.Usage),
 }) {}
 

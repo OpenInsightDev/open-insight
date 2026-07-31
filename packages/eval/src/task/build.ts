@@ -16,7 +16,7 @@ export type ID = Schema.Schema.Type<typeof ID>;
 
 export class BaseMetadata extends Schema.Class<BaseMetadata>("BaseMetadata")({
   id: Schema.String,
-  name: Schema.PropertyKey,
+  name: Schema.String,
   description: Schema.OptionFromOptionalNullOr(Schema.String),
   keywords: Schema.OptionFromOptionalNullOr(Schema.Array(Schema.String)),
   authors: Schema.OptionFromOptionalNullOr(Schema.Array(Schema.String)),
@@ -25,7 +25,7 @@ type BaseMetadataEncoded = Schema.Codec.Encoded<typeof BaseMetadata>;
 
 export class StageMetadata extends Schema.Class<StageMetadata>("StageMetadata")({
   id: IDSchema,
-  name: Schema.PropertyKey,
+  name: Schema.String,
   description: Schema.OptionFromOptionalNullOr(Schema.String),
 }) {}
 type StageMetadataEncoded = Schema.Codec.Encoded<typeof StageMetadata>;
@@ -77,7 +77,7 @@ export const make = Effect.fn(function* (
 export type Init = BivariantFn<(sandbox: Sandbox.SandboxPromise) => PromiseLike<void>>;
 
 export type Stage<
-  N extends PropertyKey = PropertyKey,
+  N extends string = string,
   G extends Grade.Result = Grade.Result,
   S extends Stage = never,
 > = Readonly<{
@@ -100,10 +100,7 @@ type Options<G extends Grade.Result, S extends Stage> = Readonly<{
   Omit<StageMetadataEncoded, "name">;
 
 export const stage =
-  <N extends PropertyKey, G extends Grade.Result, S extends Stage>(
-    name: N,
-    options: Options<G, S>,
-  ) =>
+  <N extends string, G extends Grade.Result, S extends Stage>(name: N, options: Options<G, S>) =>
   <PrevG extends Grade.Result, E, R>(task: Effect.Effect<Task<PrevG, S>, E, R>) =>
     task.pipe(
       Effect.flatMap(
@@ -137,7 +134,7 @@ export const stage =
     );
 
 export const satisfies =
-  <N extends PropertyKey, G extends Grade.Result>() =>
+  <N extends string, G extends Grade.Result>() =>
   <S extends Stage, E, R>(task: Effect.Effect<Task<G, S | Stage<N, G, S>>, E, R>) =>
     task;
 

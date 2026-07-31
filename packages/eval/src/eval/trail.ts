@@ -16,7 +16,6 @@ import { Response } from "effect/unstable/ai";
 import { ChildProcessSpawner } from "effect/unstable/process";
 import { Agent, Sandbox } from "@open-insight/core";
 import { Prompt } from "@open-insight/core/internal";
-import { produce } from "immer";
 import * as Grade from "#/grade/index.ts";
 import * as Metric from "#/metric/index.ts";
 import * as Task from "#/task/index.ts";
@@ -27,7 +26,7 @@ import * as Event from "#/event/index.ts";
 
 export type RunTrail = (trailIdx: number) => Effect.Effect<TrailResult, Error, Scope.Scope>;
 
-type StageResults = Readonly<Record<string, Grade.Result>>;
+type StageResults = Readonly<Grade.Results>;
 type Usage = Response.Usage | null;
 
 const makeVerifAgent = ({
@@ -155,12 +154,6 @@ export const createTrail = Effect.fn("exec/createTrail")(
           .runSandbox({ handle: trailSnapshot, resources })
           .pipe(Effect.mapError(Error.taskExec(task, idx)));
         const ctx = yield* Sandbox.asPromise(sandbox);
-        const promptSandbox = {
-          $: ctx.$,
-          cmd: ctx.cmd,
-          readFile: ctx.readFile,
-          download: ctx.download,
-        } satisfies Task.SandboxContext;
 
         const stageStream = Stream.fromIterable(stages);
 
@@ -238,7 +231,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
               Error
             > {
               const trajectory = yield* getTrajectory;
-              const prompt = yield* fn({ ...promptSandbox, trajectory }).pipe(
+              const prompt = yield* fn({ ...ctx, trajectory }).pipe(
                 Effect.mapError(Error.taskExec(task, idx)),
               );
 
@@ -274,7 +267,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
           grader: Grade.Grader<G, StageResults>,
           results: StageResults,
           trajectory: Prompt.Trajectory,
-        ): Effect.fn.Return<G, Error | Grade.Retry, Scope.Scope> {
+        ): Effect.fn.Return<G["Type"], Error | Grade.Retry, Scope.Scope> {
           return yield* Grade.run(grader)({
             ...ctx,
             prevResults: results,
@@ -290,15 +283,19 @@ export const createTrail = Effect.fn("exec/createTrail")(
         const runGrader = Effect.fn("exec/runTrail/runGrader")(function* <G extends Grade.Result>(
           grader: Grade.Grader<G, StageResults>,
           results: StageResults,
-        ): Effect.fn.Return<G, Error | Grade.Retry, Scope.Scope> {
+        ): Effect.fn.Return<G["Type"], Error | Grade.Retry, Scope.Scope> {
           const trajectory = yield* getTrajectory;
           return yield* executeGrader(grader, results, trajectory);
         });
 
         const runStage = Effect.fn("exec/runTrail/runStage")(function* (
-          { metadata, prompt: promptOptions, grader, init, resume }: Task.Stage,
+          { metadata, prompt, grader, init, resume }: Task.Stage,
           results: StageResults,
-        ): Effect.fn.Return<Readonly<{ grade: Grade.Result; usage: Usage }>, Error, Scope.Scope> {
+        ): Effect.fn.Return<
+          Readonly<{ grade: Grade.Result["Type"]; usage: Usage }>,
+          Error,
+          Scope.Scope
+        > {
           yield* Effect.logDebug(`Starting stage ${metadata.id}`);
           const verif = verifMode && Grade.isVerifiable(grader) ? grader.verif : undefined;
 
@@ -322,7 +319,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
               return yield* Effect.fail(Error.verifInitialMatch(task, verif.expect));
             }
 
-            const session = makeVerifAgent({ verifier: verif.run, sandbox: ctx });
+            const session = makeVerifAgent({ verifier: verif.verif, sandbox: ctx });
             yield* Ref.set(sessionRef, Option.some(session));
           } else {
             const currentSession = yield* Ref.get(sessionRef);
@@ -335,7 +332,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
             }
           }
 
-          const initialUsage = yield* runPromptFn(Task.makePromptFn(promptOptions));
+          const initialUsage = yield* runPromptFn(prompt);
           const usageRef = yield* Ref.make(initialUsage);
 
           const promptRetry = Effect.fn("exec/runTrail/runStage/promptRetry")(function* (
@@ -421,7 +418,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
 
         type StagesState = Readonly<{
           results: StageResults;
-          grade: Option.Option<Grade.Result>;
+          grade: Option.Option<Grade.Result["Type"]>;
           usage: Usage;
         }>;
 
@@ -435,9 +432,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
             (state, stage) =>
               runStage(stage, state.results).pipe(
                 Effect.map(({ grade, usage }) => ({
-                  results: produce(state.results, (draft) => {
-                    draft[stage.metadata.name] = grade;
-                  }),
+                  results: { ...state.results, [stage.metadata.name]: grade },
                   grade: Option.some(grade),
                   usage,
                 })),

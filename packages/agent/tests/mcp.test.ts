@@ -55,6 +55,8 @@ it.effect("closes the MCP client when initialization fails", () =>
     assert.instanceOf(error, Mcp.Error);
     assert.instanceOf(error.reason, Mcp.ClientError);
     assert.strictEqual(error.reason.operation, "connect");
+    assert.include(error.message, 'MCP server "failing-server" failed during connect');
+    assert.strictEqual(error.cause, error.reason);
     assert.isTrue(closed);
   }),
 );

@@ -1,5 +1,11 @@
 # @open-insight/core
 
+## 0.0.22
+
+### Patch Changes
+
+- cccf8df: Resolve Apple sandbox exposed ports from the container IP and remove manual port mapping configuration.
+
 ## 0.0.21
 
 ### Patch Changes

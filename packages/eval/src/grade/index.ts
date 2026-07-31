@@ -3,8 +3,8 @@ import type { BivariantFn, UnionToIntersection } from "#/utils/variant.ts";
 import { Effect, Schema } from "effect";
 import { Retry, Error } from "./error.ts";
 
-export type Result = Schema.Constraint;
-export type Results = Record<PropertyKey, Result["Type"]>;
+export type Result = Schema.ConstraintCodec<unknown, unknown>;
+export type Results = Record<string, Result["Type"]>;
 
 export type Context<Rs extends Results = never> = Sandbox.SandboxPromise &
   Readonly<{

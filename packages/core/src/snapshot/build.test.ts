@@ -62,6 +62,11 @@ describe("Snapshot", () => {
           assert.strictEqual(reason.name, "remote");
           assert.strictEqual(reason.snapshot.filePath, snapshot.filePath);
           assert.strictEqual(reason.snapshot.context, snapshot.context);
+          assert.strictEqual(
+            error.message,
+            'Sandbox provider "remote" does not support Containerfile snapshots',
+          );
+          assert.strictEqual(error.cause, reason);
         }),
       ),
     );

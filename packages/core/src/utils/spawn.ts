@@ -25,6 +25,10 @@ export class Error extends Data.TaggedError("SpawnError")<{
     return this.reason.message;
   }
 
+  override get cause(): ErrorReason {
+    return this.reason;
+  }
+
   static platform = (reason: PlatformError.PlatformError) => new Error({ reason });
 
   static exit = (exitCode: ExitCode, stdout: string, stderr: string) =>

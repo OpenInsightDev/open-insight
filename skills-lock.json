@@ -13,6 +13,36 @@
       "skillPath": "skills/effect-ts/SKILL.md",
       "computedHash": "301521e167410dd42d834dd0e7cedbe9cfffa519f630a12241dbea7b1d932324"
     },
+    "impeccable": {
+      "source": "OpenInsightDev/open-insight",
+      "sourceType": "github",
+      "skillPath": ".agents/skills/impeccable/SKILL.md",
+      "computedHash": "1e310d65fb286f8bd22c193f48e4aef8dc6c8b9caa6816eecca582b8faa5a096"
+    },
+    "open-insight-agent": {
+      "source": "OpenInsightDev/open-insight",
+      "sourceType": "github",
+      "skillPath": "skills/open-insight-agent/SKILL.md",
+      "computedHash": "5b02fc7198a2da8f7ccf2ea1f24b3de77724a365c5c4448cb1c82106bf9b33d2"
+    },
+    "open-insight-core": {
+      "source": "OpenInsightDev/open-insight",
+      "sourceType": "github",
+      "skillPath": "skills/open-insight-core/SKILL.md",
+      "computedHash": "b0bd80e94781b062952a451d6065ebbb1f9ca91ffd8891e8a32b147eca00c641"
+    },
+    "open-insight-eval": {
+      "source": "OpenInsightDev/open-insight",
+      "sourceType": "github",
+      "skillPath": "skills/open-insight-eval/SKILL.md",
+      "computedHash": "135ce6f3d9089b6b7206cb2855c83267adaa8203197c45e98c168b47b71ffc4f"
+    },
+    "open-insight-rl": {
+      "source": "OpenInsightDev/open-insight",
+      "sourceType": "github",
+      "skillPath": "skills/open-insight-rl/SKILL.md",
+      "computedHash": "2479001621ab9361989376b09093f83075c6fe7a6ccd8db6a800259a46de40ff"
+    },
     "shadcn": {
       "source": "shadcn/ui",
       "sourceType": "github",

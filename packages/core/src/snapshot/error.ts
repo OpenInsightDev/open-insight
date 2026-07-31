@@ -2,21 +2,35 @@ import { Schema } from "effect";
 import { Snapshot } from "./build.ts";
 import { Instruction, Instructions } from "./inst.ts";
 
+const Cause = Schema.Error();
+
 export class BuildError extends Schema.TaggedErrorClass<BuildError>()("SnapshotBuildError", {
   snapshot: Schema.suspend(() => Snapshot),
-  cause: Schema.Defect(),
-}) {}
+  cause: Cause,
+}) {
+  override get message(): string {
+    return `Failed to build snapshot: ${this.cause.message}`;
+  }
+}
 
 export class DeriveError extends Schema.TaggedErrorClass<DeriveError>()("SnapshotDeriveError", {
   name: Schema.String,
   instructions: Instructions,
-  cause: Schema.Defect(),
-}) {}
+  cause: Cause,
+}) {
+  override get message(): string {
+    return `Failed to derive snapshot "${this.name}": ${this.cause.message}`;
+  }
+}
 
 export class UseError extends Schema.TaggedErrorClass<UseError>()("SnapshotUseError", {
   name: Schema.String,
-  cause: Schema.Defect(),
-}) {}
+  cause: Cause,
+}) {
+  override get message(): string {
+    return `Failed to use snapshot "${this.name}": ${this.cause.message}`;
+  }
+}
 
 export class InstructionUnsupportedError extends Schema.TaggedErrorClass<InstructionUnsupportedError>()(
   "InstructionUnsupportedError",
@@ -25,7 +39,11 @@ export class InstructionUnsupportedError extends Schema.TaggedErrorClass<Instruc
     snapshot: Schema.suspend(() => Snapshot),
     instruction: Instruction,
   },
-) {}
+) {
+  override get message(): string {
+    return `Snapshot provider "${this.name}" does not support ${this.instruction._tag} instructions`;
+  }
+}
 
 export const ErrorReason = Schema.Union([
   BuildError,
@@ -38,8 +56,18 @@ export type ErrorReason = Schema.Schema.Type<typeof ErrorReason>;
 export class Error extends Schema.TaggedErrorClass<Error>()("SnapshotError", {
   reason: ErrorReason,
 }) {
-  static mapUnknownError = (mapper: (cause: unknown) => ErrorReason) => (cause: unknown) =>
-    cause instanceof Error ? cause : new Error({ reason: mapper(cause) });
+  override get message(): string {
+    return this.reason.message;
+  }
+
+  override get cause(): ErrorReason {
+    return this.reason;
+  }
+
+  static mapUnknownError = (mapper: (cause: globalThis.Error) => ErrorReason) => (cause: unknown) =>
+    cause instanceof Error
+      ? cause
+      : new Error({ reason: mapper(Schema.decodeUnknownSync(Cause)(cause)) });
 
   static build = (snapshot: Snapshot) =>
     this.mapUnknownError((cause) => BuildError.make({ snapshot, cause }));

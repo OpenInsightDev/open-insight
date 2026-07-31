@@ -195,6 +195,8 @@ it.effect("rejects optional ACP content when its capability is not enabled", () 
     assert.strictEqual(imageError.reason._tag, "AcpPromptError");
     assert.strictEqual(imageError.reason.reason, "capability_not_enabled");
     assert.strictEqual(imageError.reason.capability, "image");
+    assert.strictEqual(imageError.message, "ACP prompt part 0 requires the image capability");
+    assert.strictEqual(imageError.cause, imageError.reason);
     assert.strictEqual(audioError.reason.capability, "audio");
     assert.strictEqual(embeddedError.reason.capability, "embeddedContext");
   }),
@@ -213,6 +215,7 @@ it.effect("rejects malformed base64 without returning a partial prompt", () =>
     assert.strictEqual(error.reason.reason, "invalid_base64");
     assert.strictEqual(error.reason.partIndex, 1);
     assert.strictEqual(error.reason.mediaType, "image/png");
+    assert.strictEqual(error.message, "ACP prompt part 1 contains invalid base64 data");
   }),
 );
 

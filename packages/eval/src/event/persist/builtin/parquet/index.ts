@@ -1,14 +1,15 @@
 import { parquetReadObjects } from "hyparquet";
 import { parquetWriteBuffer } from "hyparquet-writer";
 import { Effect, FileSystem, Layer, Path, Schema, Semaphore, Stream } from "effect";
-import { Error as EventError } from "../../../error.ts";
-import type { EventStream } from "../../../queue.ts";
-import { Event } from "../../../schema.ts";
-import { Service as TransportService } from "../../../transport/service.ts";
-import type { Transport } from "../../../transport/schema.ts";
-import { Error as PersistError, Sequence } from "../../schema.ts";
+import { Error as EventError } from "#/event/error.ts";
+import type { EventStream } from "#/event/queue.ts";
+import { Event } from "#/event/schema.ts";
+import { Service as TransportService } from "#/event/transport/service.ts";
+import type { Transport } from "#/event/transport/schema.ts";
+import { Error as PersistError, Sequence } from "#/event/persist/schema.ts";
 
 const formatVersion = "1";
+const Cause = Schema.Error();
 
 class Row extends Schema.Class<Row>("PersistParquetRow")({
   sequence: Sequence,
@@ -59,7 +60,7 @@ const readObjects = Effect.fn("Persist.Parquet.readObjects")(function* (
         storeId: filePath,
         operation: "load",
         sequence: null,
-        cause,
+        cause: Schema.decodeUnknownSync(Cause)(cause),
       }),
   });
 });

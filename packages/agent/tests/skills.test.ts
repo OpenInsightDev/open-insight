@@ -219,6 +219,8 @@ layer(NodeServices.layer)("Skills.fromDir", (it) => {
       assert.instanceOf(error, Skills.Error);
       assert.instanceOf(error.reason, Skills.SourceError);
       assert.strictEqual(error.reason.path, missing);
+      assert.include(error.message, `Failed to read Agent Skills source "${missing}"`);
+      assert.strictEqual(error.cause, error.reason);
     }),
   );
 });

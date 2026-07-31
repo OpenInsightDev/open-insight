@@ -39,6 +39,7 @@ catalog:
   lucide-react: ^1.23.0
   '@shadcn/react': ^0.2.0
   smolmachines: ^1.4.1
+  skills: ^1.5.21
   '@base-ui/react': ^1.6.0
   hyparquet: ^1.26.2
   '@opentelemetry/sdk-trace-node': ^2.10.0

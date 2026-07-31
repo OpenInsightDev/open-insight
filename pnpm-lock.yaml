@@ -346,6 +346,9 @@ catalogs:
     semver:
       specifier: ^7.8.5
       version: 7.8.5
+    skills:
+      specifier: ^1.5.21
+      version: 1.5.21
     smol-toml:
       specifier: ^1.7.1
       version: 1.7.1
@@ -400,6 +403,9 @@ importers:
       '@typescript/native-preview':
         specifier: 'catalog:'
         version: 7.0.0-dev.20260707.2
+      skills:
+        specifier: 'catalog:'
+        version: 1.5.21
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
@@ -3951,6 +3957,11 @@ packages:
     resolution: {integrity: sha512-2wcC/oGxHis/BoHkkPwldgiPSYcpZK3JU28WoMVv55yHJgcZ8rlXvuG9iZggz+sU1d4bRgIGASwyWqjxu3FM0g==}
     engines: {node: '>=18'}
 
+  skills@1.5.21:
+    resolution: {integrity: sha512-CJ4wx692UkQAW+DLpjJg/ww6dJBojq5E8sQBOqP639GutO72v4EFiV/fq1etW2r9NhM/mwaIq8YoqKFJ9XV7ng==}
+    engines: {node: '>=22.20.0'}
+    hasBin: true
+
   slash@3.0.0:
     resolution: {integrity: sha512-g9Q1haeby36OSStwb4ntCGGGaKsaVSjQ68fBxoQcutl5fS1vuY18H3wSt3jFyFtrkx+Kz0V1G85A4MyAdDMi2Q==}
     engines: {node: '>=8'}
@@ -7213,6 +7224,11 @@ snapshots:
       '@polka/url': 1.0.0-next.29
       mrmime: 2.0.1
       totalist: 3.0.1
+
+  skills@1.5.21:
+    dependencies:
+      tar: 7.5.22
+      yaml: 2.9.0
 
   slash@3.0.0: {}
 

@@ -100,6 +100,30 @@ or a scoped layer. Configuring a skills directory requires `FileSystem` and `Pat
 provide `NodeServices.layer`. Skill files are copied into the sandbox snapshot and advertised to
 the model for progressive loading.
 
+To teach the model about command-line tools available in the sandbox, list them under `cli`.
+Each entry is either the command string or an options object. On every `runSession`, each CLI's
+help page is fetched in parallel and appended to the system prompt:
+
+```ts
+const provider =
+  yield *
+  make({
+    cli: [
+      "git",
+      {
+        command: "gh",
+        helpArgs: ["-h"], // args used to fetch help, defaults to ["--help"]
+        runArgs: ["repo", "view"], // args the agent should always include at runtime
+      },
+    ],
+  });
+```
+
+`helpArgs` controls how the help page is fetched (default `--help`), and `runArgs` are documented
+in the prompt as the runtime invocation prefix so the agent knows how to call the tool. CLI help
+is fetched per session inside the sandbox, so the tools must be available there; a failed fetch
+fails the session with a typed `Agent.Error` whose cause is `Cli.HelpError`.
+
 Each `agent.prompt` call runs an agent loop: it streams a model step, executes emitted tools, adds
 their results to the session history, and calls the model again until it produces a step without
 local tool results. `maxSteps` limits the number of model steps in one prompt and defaults to `32`;

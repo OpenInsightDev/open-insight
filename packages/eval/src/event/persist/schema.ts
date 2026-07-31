@@ -26,5 +26,10 @@ export class Error extends Schema.TaggedErrorClass<Error>()("PersistError", {
   storeId: Schema.String,
   operation: Operation,
   sequence: Schema.NullOr(Sequence),
-  cause: Schema.Defect(),
-}) {}
+  cause: Schema.Error(),
+}) {
+  override get message(): string {
+    const sequence = this.sequence === null ? "" : ` at sequence ${this.sequence}`;
+    return `Event store "${this.storeId}" failed to ${this.operation}${sequence}: ${this.cause.message}`;
+  }
+}

@@ -1,5 +1,14 @@
 # @open-insight/rl
 
+## 0.0.22
+
+### Patch Changes
+
+- Updated dependencies [cccf8df]
+- Updated dependencies
+  - @open-insight/core@0.0.22
+  - @open-insight/eval@0.0.22
+
 ## 0.0.21
 
 ### Patch Changes

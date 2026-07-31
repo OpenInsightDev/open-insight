@@ -1,5 +1,13 @@
 # @open-insight/eval
 
+## 0.0.22
+
+### Patch Changes
+
+- Align evaluation execution with the new task and grade APIs, including prompt handling, verifier execution, and schema-derived result types.
+- Updated dependencies [cccf8df]
+  - @open-insight/core@0.0.22
+
 ## 0.0.21
 
 ### Patch Changes

@@ -171,6 +171,29 @@ it.effect("injects the session sandbox into custom tools", () =>
   }),
 );
 
+it.effect("adds configured CLI help to the session instructions", () =>
+  Effect.gen(function* () {
+    const prompts: Array<string> = [];
+    const llm = yield* LanguageModel.make({
+      generateText: () => Effect.succeed([finishPart]),
+      streamText: ({ prompt }) => {
+        prompts.push(JSON.stringify(prompt));
+        return Stream.fromIterable([finishPart]);
+      },
+    });
+    const provider = yield* make({ cli: ["git"] }).pipe(
+      Effect.provideService(LanguageModel.LanguageModel, llm),
+    );
+    const agent = yield* provider.runSession(makeSandbox(new Map()));
+
+    yield* agent.prompt(Prompt.make("inspect the repository")).pipe(Stream.runDrain);
+
+    assert.lengthOf(prompts, 1);
+    assert.include(prompts[0], "CLI: git");
+    assert.include(prompts[0], "Usage: git [arguments...]");
+  }),
+);
+
 it.effect("stops an agent loop that exceeds maxSteps", () =>
   Effect.gen(function* () {
     let modelSteps = 0;
