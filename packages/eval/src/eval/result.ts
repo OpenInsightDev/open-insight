@@ -1,4 +1,3 @@
-import * as Grade from "#/grade/index.ts";
 import * as Event from "#/event/index.ts";
 import * as Bench from "#/bench/index.ts";
 import * as Harness from "#/harness/index.ts";
@@ -11,10 +10,10 @@ export const TrailResult = Schema.Struct({
   startedAt: TimestampSchema,
   finishedAt: TimestampSchema,
   usage: Schema.NullOr(Response.Usage),
-  grade: Grade.Result,
+  grade: Schema.Unknown,
   trajectory: Prompt.Trajectory,
 });
-export type TrailResult<G extends Grade.Result = Grade.Result> = Readonly<{
+export type TrailResult<G = unknown> = Readonly<{
   startedAt: Timestamp;
   finishedAt: Timestamp;
   usage: Response.Usage | null;
@@ -27,7 +26,7 @@ export const TaskResult = Schema.Struct({
   finishedAt: TimestampSchema,
   trails: Schema.Array(TrailResult),
 });
-export type TaskResult<G extends Grade.Result = Grade.Result> = Readonly<{
+export type TaskResult<G = unknown> = Readonly<{
   startedAt: Timestamp;
   finishedAt: Timestamp;
   trails: ReadonlyArray<TrailResult<G>>;
@@ -38,7 +37,7 @@ export const BenchResult = Schema.Struct({
   finishedAt: TimestampSchema,
   tasks: Schema.Record(Schema.String, TaskResult),
 });
-export type BenchResult<G extends Grade.Result = Grade.Result> = Readonly<{
+export type BenchResult<G = unknown> = Readonly<{
   startedAt: Timestamp;
   finishedAt: Timestamp;
   tasks: Record<string, TaskResult<G>>;
@@ -53,7 +52,7 @@ export const Result = Schema.Struct({
   result: BenchResult,
   events: Schema.Array(Event.Event),
 });
-export type Result<G extends Grade.Result = Grade.Result> = Readonly<{
+export type Result<G = unknown> = Readonly<{
   startedAt: Timestamp;
   updatedAt: Timestamp;
   finishedAt: Timestamp;

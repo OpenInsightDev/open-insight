@@ -12,7 +12,7 @@ import { createTrail, type RunTrail } from "./trail.ts";
 import { BenchResult, TaskResult } from "./result.ts";
 
 type ScheduledTask = Readonly<{
-  task: Task.Task;
+  task: Task.AnyTask;
   runTrail: RunTrail;
 }>;
 
@@ -46,11 +46,11 @@ export const run = Effect.fn("exec/schedule")(
     const benchId = bench.metadata.id;
     const harnessId = harness.metadata.id;
     const evalEventFields = { bench: benchId, harness: harnessId };
-    const taskEventFields = (task: Task.Task) => ({
+    const taskEventFields = (task: Task.AnyTask) => ({
       ...evalEventFields,
       task: task.metadata.id,
     });
-    const trailEventFields = (task: Task.Task, trailIdx: number) => ({
+    const trailEventFields = (task: Task.AnyTask, trailIdx: number) => ({
       ...taskEventFields(task),
       trailIdx,
     });
@@ -68,7 +68,7 @@ export const run = Effect.fn("exec/schedule")(
     );
 
     const prepareTask = Effect.fn("exec/prepareTask")(
-      function* (task: Task.Task) {
+      function* (task: Task.AnyTask) {
         yield* Effect.annotateCurrentSpan({
           benchmark: benchId,
           taskName: task.metadata.name,

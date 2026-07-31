@@ -1,6 +1,5 @@
 import * as Chart from "#/chart/index.ts";
 import type { TrailResult } from "#/eval/result.ts";
-import * as Grade from "#/grade/index.ts";
 import type { BivariantFn } from "#/utils/variant.ts";
 import { Effect, Ref, Schema } from "effect";
 import { Metadata, type MetadataEncoded } from "../metadata.ts";
@@ -14,60 +13,26 @@ import { Error } from "../error.ts";
  * @param delta The trail result that triggered this computation.
  * @param prev The previous output of this metric, or `null` on its first execution.
  */
-export type Exec<
-  G extends Grade.Result = Grade.Result,
-  R extends Schema.JsonObject = Schema.JsonObject,
-> = (results: ReadonlyArray<TrailResult<G>>, delta: TrailResult<G>, prev: R | null) => Promise<R>;
+export type Exec<G = unknown, R extends Schema.JsonObject = Schema.JsonObject> = (
+  results: ReadonlyArray<TrailResult<G>>,
+  delta: TrailResult<G>,
+  prev: R | null,
+) => Promise<R>;
 
-export type ExecEffect<
-  G extends Grade.Result = Grade.Result,
-  R extends Schema.JsonObject = Schema.JsonObject,
-> = Effect.Effect<Exec<G, R>>;
-
-export const exec = <
-  G extends Grade.Result = Grade.Result,
-  R extends Schema.JsonObject = Schema.JsonObject,
->(
-  fn: Exec<G, R>,
-): ExecEffect<G, R> => Effect.succeed(fn);
-
-export type Metric<
-  G extends Grade.Result = Grade.Result,
-  R extends Schema.JsonObject = Schema.JsonObject,
-> = Readonly<{
+export type Metric<G = unknown, R extends Schema.JsonObject = Schema.JsonObject> = Readonly<{
   exec: BivariantFn<Exec<G, R>>;
   chart: BivariantFn<Chart.Chart<R>> | null;
   metadata: Metadata;
 }>;
 
-export type Options<
-  G extends Grade.Result = Grade.Result,
-  R extends Schema.JsonObject = Schema.JsonObject,
-> = Readonly<{
+export type Options<G = unknown, R extends Schema.JsonObject = Schema.JsonObject> = Readonly<{
   exec: Exec<G, R>;
   chart?: Chart.Chart<R> | null;
 }> &
   MetadataEncoded;
 
-export const mapGrade =
-  <Input extends Grade.Result, Mapped extends Grade.Result, R extends Schema.JsonObject>(
-    map: (grade: Input) => Mapped,
-  ) =>
-  (exec: ExecEffect<Mapped, R>): ExecEffect<Input, R> => {
-    const mapTrail = (trail: TrailResult<Input>): TrailResult<Mapped> => ({
-      ...trail,
-      grade: map(trail.grade),
-    });
-    return exec.pipe(
-      Effect.map(
-        (exec) => async (results, delta, prev) =>
-          exec(results.map(mapTrail), mapTrail(delta), prev),
-      ),
-    );
-  };
-
 export const make = Effect.fn(function* <
-  G extends Grade.Result = Grade.Result,
+  G = unknown,
   R extends Schema.JsonObject = Schema.JsonObject,
 >(options: Options<G, R>) {
   const { exec, chart = null } = options;
@@ -77,10 +42,9 @@ export const make = Effect.fn(function* <
   return { exec, chart, metadata } satisfies Metric<G, R>;
 });
 
-export const run = Effect.fn("metric/task/run")(function* <
-  G extends Grade.Result,
-  R extends Schema.JsonObject,
->(metric: Metric<G, R>) {
+export const run = Effect.fn("metric/task/run")(function* <G, R extends Schema.JsonObject>(
+  metric: Metric<G, R>,
+) {
   const state = yield* Ref.make<
     Readonly<{
       results: ReadonlyArray<TrailResult<G>>;

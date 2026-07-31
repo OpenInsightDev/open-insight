@@ -25,7 +25,7 @@ export const withParquetDir = <S extends Schema.Constraint>({
   prefix: string;
   schema: S;
 }) =>
-  Effect.fn(function* <T extends Task.Task, E, R>(
+  Effect.fn(function* <T extends Task.AnyTask, E, R>(
     exec: (options: {
       items: Stream.Stream<S["Type"], Error, S["DecodingServices"]>;
     }) => Load<T, E, R> | Promise<Load<T, E, R>>,

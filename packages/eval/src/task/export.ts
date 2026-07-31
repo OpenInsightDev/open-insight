@@ -1,21 +1,19 @@
 export {
-  endStage,
+  BaseMetadata,
+  ID,
+  Metadata,
+  StageMetadata,
+  TypeId,
   make,
-  metadata,
-  metadataSchema,
-  stage,
+  mapMetric,
   metric,
+  satisfies,
+  stage,
   trajMetric,
-  type ExtrasSchema,
-  type Builder,
-  type Options,
+  type Init,
+  type ResultOf,
   type Stage,
-  type StageBase,
-  type StageOptions,
-  type EndStageOptions,
   type Task,
 } from "./index.ts";
-
-export { make as makeTemplate } from "./template.ts";
 
 export * as Internal from "./index.ts";

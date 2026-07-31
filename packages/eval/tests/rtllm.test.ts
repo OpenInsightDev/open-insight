@@ -201,43 +201,30 @@ async function* loadTasks(repoPath: string) {
           },
         ),
       }),
-      Task.metric(
-        TaskMetric.passAtK(1).pipe(TaskMetric.mapGrade(({ simPass }) => ({ pass: simPass }))),
-        {
-          name: "Functional pass@1",
-          description: "Estimated probability that one generated RTL solution passes simulation.",
-          chart: (result) => [
-            Chart.Pie.make({ legend: "Pass", value: result["pass@k"] }),
-            Chart.Pie.make({ legend: "Fail", value: 1 - result["pass@k"] }),
-          ],
-        },
-      ),
-      Task.metric(
-        TaskMetric.passAtK(trailCount).pipe(
-          TaskMetric.mapGrade(({ simPass }) => ({ pass: simPass })),
-        ),
-        {
-          name: `Functional pass@${trailCount}`,
-          description: `Estimated probability that at least one of ${trailCount} solutions passes simulation.`,
-          chart: (result) => [
-            Chart.Pie.make({ legend: "Pass", value: result["pass@k"] }),
-            Chart.Pie.make({ legend: "Fail", value: 1 - result["pass@k"] }),
-          ],
-        },
-      ),
-      Task.metric(
-        TaskMetric.passPowK(trailCount).pipe(
-          TaskMetric.mapGrade(({ simPass }) => ({ pass: simPass })),
-        ),
-        {
-          name: `Functional pass power ${trailCount}`,
-          description: `Estimated probability that all ${trailCount} solutions pass simulation.`,
-          chart: (result) => [
-            Chart.Pie.make({ legend: "All pass", value: result["pass^k"] }),
-            Chart.Pie.make({ legend: "Not all pass", value: 1 - result["pass^k"] }),
-          ],
-        },
-      ),
+      Task.mapMetric(({ simPass }) => ({ pass: simPass }), TaskMetric.passAtK(1), {
+        name: "Functional pass@1",
+        description: "Estimated probability that one generated RTL solution passes simulation.",
+        chart: (result) => [
+          Chart.Pie.make({ legend: "Pass", value: result["pass@k"] }),
+          Chart.Pie.make({ legend: "Fail", value: 1 - result["pass@k"] }),
+        ],
+      }),
+      Task.mapMetric(({ simPass }) => ({ pass: simPass }), TaskMetric.passAtK(trailCount), {
+        name: `Functional pass@${trailCount}`,
+        description: `Estimated probability that at least one of ${trailCount} solutions passes simulation.`,
+        chart: (result) => [
+          Chart.Pie.make({ legend: "Pass", value: result["pass@k"] }),
+          Chart.Pie.make({ legend: "Fail", value: 1 - result["pass@k"] }),
+        ],
+      }),
+      Task.mapMetric(({ simPass }) => ({ pass: simPass }), TaskMetric.passPowK(trailCount), {
+        name: `Functional pass power ${trailCount}`,
+        description: `Estimated probability that all ${trailCount} solutions pass simulation.`,
+        chart: (result) => [
+          Chart.Pie.make({ legend: "All pass", value: result["pass^k"] }),
+          Chart.Pie.make({ legend: "Not all pass", value: 1 - result["pass^k"] }),
+        ],
+      }),
       Task.trajMetric(TrajMetric.toolCallCount(), {
         name: "Tool call count",
         description: "Cumulative number of tool calls made while solving the task.",
@@ -267,43 +254,30 @@ export const makeBench = Effect.fn(function* () {
     id: "rtllm",
     tasks,
   }).pipe(
-    Bench.metric(
-      BenchMetric.avgPassAtK(1).pipe(BenchMetric.mapGrade(({ simPass }) => ({ pass: simPass }))),
-      {
-        name: "Average functional pass at 1",
-        description: "Mean functional pass@1 estimate across evaluated RTLLM designs.",
-        chart: (result) => [
-          Chart.Pie.make({ legend: "Pass", value: result["pass@k"] }),
-          Chart.Pie.make({ legend: "Fail", value: 1 - result["pass@k"] }),
-        ],
-      },
-    ),
-    Bench.metric(
-      BenchMetric.avgPassAtK(trailCount).pipe(
-        BenchMetric.mapGrade(({ simPass }) => ({ pass: simPass })),
-      ),
-      {
-        name: `Average functional pass at ${trailCount}`,
-        description: `Mean functional pass@${trailCount} estimate across evaluated RTLLM designs.`,
-        chart: (result) => [
-          Chart.Pie.make({ legend: "Pass", value: result["pass@k"] }),
-          Chart.Pie.make({ legend: "Fail", value: 1 - result["pass@k"] }),
-        ],
-      },
-    ),
-    Bench.metric(
-      BenchMetric.avgPassPowK(trailCount).pipe(
-        BenchMetric.mapGrade(({ simPass }) => ({ pass: simPass })),
-      ),
-      {
-        name: `Average functional pass power ${trailCount}`,
-        description: `Mean functional pass^${trailCount} estimate across evaluated RTLLM designs.`,
-        chart: (result) => [
-          Chart.Pie.make({ legend: "All pass", value: result["pass^k"] }),
-          Chart.Pie.make({ legend: "Not all pass", value: 1 - result["pass^k"] }),
-        ],
-      },
-    ),
+    Bench.mapMetric(({ simPass }) => ({ pass: simPass }), BenchMetric.avgPassAtK(1), {
+      name: "Average functional pass at 1",
+      description: "Mean functional pass@1 estimate across evaluated RTLLM designs.",
+      chart: (result) => [
+        Chart.Pie.make({ legend: "Pass", value: result["pass@k"] }),
+        Chart.Pie.make({ legend: "Fail", value: 1 - result["pass@k"] }),
+      ],
+    }),
+    Bench.mapMetric(({ simPass }) => ({ pass: simPass }), BenchMetric.avgPassAtK(trailCount), {
+      name: `Average functional pass at ${trailCount}`,
+      description: `Mean functional pass@${trailCount} estimate across evaluated RTLLM designs.`,
+      chart: (result) => [
+        Chart.Pie.make({ legend: "Pass", value: result["pass@k"] }),
+        Chart.Pie.make({ legend: "Fail", value: 1 - result["pass@k"] }),
+      ],
+    }),
+    Bench.mapMetric(({ simPass }) => ({ pass: simPass }), BenchMetric.avgPassPowK(trailCount), {
+      name: `Average functional pass power ${trailCount}`,
+      description: `Mean functional pass^${trailCount} estimate across evaluated RTLLM designs.`,
+      chart: (result) => [
+        Chart.Pie.make({ legend: "All pass", value: result["pass^k"] }),
+        Chart.Pie.make({ legend: "Not all pass", value: 1 - result["pass^k"] }),
+      ],
+    }),
   );
 });
 

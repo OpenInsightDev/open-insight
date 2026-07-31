@@ -54,7 +54,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
     config,
     eventQueue,
   }: {
-    task: Task.Task;
+    task: Task.AnyTask;
     bench: string;
     harness: string;
     config: Config;

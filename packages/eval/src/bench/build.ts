@@ -17,19 +17,19 @@ export class Metadata extends Schema.Class<Metadata>("BenchMetadata")({
   tasks: Schema.Array(Task.Metadata),
 }) {}
 
-export type Bench<T extends Task.Task = Task.Task> = Readonly<{
+export type Bench<T extends Task.AnyTask = Task.AnyTask> = Readonly<{
   metadata: BaseMetadata;
   tasks: Tasks.Tasks<T>;
   metrics: ReadonlyArray<Metric.Bench.Metric>;
 }> & { _T?: T };
 
-type Options<T extends Task.Task> = BaseMetadataEncoded &
+type Options<T extends Task.AnyTask> = BaseMetadataEncoded &
   Readonly<{
     tasks: Tasks.Tasks<T>;
     metrics?: ReadonlyArray<Metric.Bench.Metric>;
   }>;
 
-export const make = Effect.fn(function* <T extends Task.Task>(options: Options<T>) {
+export const make = Effect.fn(function* <T extends Task.AnyTask>(options: Options<T>) {
   const { tasks, metrics = [] } = options;
   const metadata = yield* Schema.decodeEffect(BaseMetadata)(options).pipe();
 
@@ -44,7 +44,13 @@ export const metadata = (bench: Bench): Metadata =>
   Metadata.make(
     {
       base: bench.metadata,
-      tasks: bench.tasks.map(Task.metadata),
+      tasks: bench.tasks.map((task) =>
+        Task.Metadata.make({
+          base: task.metadata,
+          stages: task.stages.map((stage) => stage.metadata),
+          extras: {},
+        }),
+      ),
     },
     { parseOptions: { onExcessProperty: "ignore" } },
   );

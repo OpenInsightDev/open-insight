@@ -4,16 +4,15 @@ import { Effect, Schema } from "effect";
 import { Retry, Error } from "./error.ts";
 
 export type Result = Schema.Constraint;
+export type Results = Record<PropertyKey, Result["Type"]>;
 
-export type ResultsOf<Rs extends Result> = UnionToIntersection<Rs>;
-
-export type Context<Rs extends Result = never> = Sandbox.SandboxPromise &
+export type Context<Rs extends Results = never> = Sandbox.SandboxPromise &
   Readonly<{
     prevResults: UnionToIntersection<Rs>;
     trajectory: Prompt.Trajectory;
   }>;
 
-export type Exec<R extends Result = Result, Rs extends Result = never> = BivariantFn<
+export type Exec<R extends Result = Result, Rs extends Results = never> = BivariantFn<
   (ctx: Context<Rs>) => PromiseLike<R["Encoded"]>
 >;
 
@@ -24,11 +23,11 @@ export type VerifExec = (
     Sandbox.SandboxPromise,
 ) => PromiseLike<Prompt.RawInput | null>;
 export type Verif = Readonly<{
-  exec: VerifExec;
-  expect: Result;
+  verif: VerifExec;
+  expect: Result["Encoded"];
 }>;
 
-export type Grader<R extends Result = Result, Rs extends Result = never> = Readonly<{
+export type Grader<R extends Result = Result, Rs extends Results = never> = Readonly<{
   schema: R;
   grade: Exec<R, Rs>;
   verif?: Verif;
@@ -36,14 +35,14 @@ export type Grader<R extends Result = Result, Rs extends Result = never> = Reado
 
 export const make =
   <R extends Result>(schema: R) =>
-  <Rs extends Result>(grade: Exec<R, Rs>, verif?: Verif) => ({ schema, grade, verif });
+  <Rs extends Results>(grade: Exec<R, Rs>, verif?: Verif) => ({ schema, grade, verif });
 
 export const isVerifiable = (
   grader: Grader,
 ): grader is Grader & Readonly<{ verif: NonNullable<Grader["verif"]> }> =>
   grader.verif !== undefined;
 
-export const run = <R extends Result, Rs extends Result>(grader: Grader<R, Rs>) =>
+export const run = <R extends Result, Rs extends Results>(grader: Grader<R, Rs>) =>
   Effect.fn(function* (
     ctx: Context<Rs>,
   ): Effect.fn.Return<R["Type"], Error | Retry, R["DecodingServices"]> {

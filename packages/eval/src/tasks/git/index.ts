@@ -134,7 +134,7 @@ const loadGitRepo = Effect.fn(function* (repoPath: string, repoURL: string, opti
 
 export const withGitRepo = (repoURL: string, options: Options = {}) =>
   Effect.fn(
-    function* <T extends Task.Task, E, R>(
+    function* <T extends Task.AnyTask, E, R>(
       exec: (repoPath: string) => Load<T, E, R> | Promise<Load<T, E, R>>,
     ) {
       const fs = yield* FileSystem.FileSystem;

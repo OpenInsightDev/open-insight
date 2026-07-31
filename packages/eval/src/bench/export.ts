@@ -1,6 +1,8 @@
 export {
   Error,
   make,
+  mapMetric,
+  mapTaskMetric,
   metric,
   taskMetric,
   trajMetric,

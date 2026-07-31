@@ -1,6 +1,6 @@
 import { Prompt } from "@open-insight/core/internal";
 import { describe, expect, it } from "vite-plus/test";
-import { DateTime, Effect } from "effect";
+import { DateTime } from "effect";
 import { Response } from "effect/unstable/ai";
 import { passAtK, passPowK } from "./passk.ts";
 import type { TrailResult } from "#/eval/result.ts";
@@ -20,7 +20,7 @@ const trail = (pass: boolean): TrailResult<{ pass: boolean }> => ({
 
 describe("passAtK", () => {
   it("returns zero when every attempt fails", async () => {
-    const metric = await Effect.runPromise(passAtK(2));
+    const metric = passAtK(2);
     await expect(
       metric([trail(false), trail(false), trail(false)], trail(false), null),
     ).resolves.toEqual({
@@ -29,7 +29,7 @@ describe("passAtK", () => {
   });
 
   it("returns one when every attempt passes", async () => {
-    const metric = await Effect.runPromise(passAtK(2));
+    const metric = passAtK(2);
     await expect(
       metric([trail(true), trail(true), trail(true)], trail(true), null),
     ).resolves.toEqual({
@@ -38,7 +38,7 @@ describe("passAtK", () => {
   });
 
   it("uses the unbiased pass@k estimator", async () => {
-    const metric = await Effect.runPromise(passAtK(2));
+    const metric = passAtK(2);
     await expect(
       metric(
         [trail(true), trail(false), trail(true), trail(false), trail(false)],
@@ -49,7 +49,7 @@ describe("passAtK", () => {
   });
 
   it("accepts grade types extending pass", async () => {
-    const metric = await Effect.runPromise(passAtK<{ pass: boolean; score: number }>(1));
+    const metric = passAtK<{ pass: boolean; score: number }>(1);
     const trailGrade = (score: number): TrailResult<{ pass: boolean; score: number }> => ({
       startedAt: now,
       finishedAt: now,
@@ -66,7 +66,7 @@ describe("passAtK", () => {
 
 describe("passPowK", () => {
   it("returns zero with fewer than k passing attempts", async () => {
-    const metric = await Effect.runPromise(passPowK(2));
+    const metric = passPowK(2);
     await expect(
       metric([trail(true), trail(false), trail(false)], trail(false), null),
     ).resolves.toEqual({
@@ -75,7 +75,7 @@ describe("passPowK", () => {
   });
 
   it("returns one when every attempt passes", async () => {
-    const metric = await Effect.runPromise(passPowK(2));
+    const metric = passPowK(2);
     await expect(
       metric([trail(true), trail(true), trail(true)], trail(true), null),
     ).resolves.toEqual({
@@ -84,7 +84,7 @@ describe("passPowK", () => {
   });
 
   it("uses the unbiased pass^k estimator", async () => {
-    const metric = await Effect.runPromise(passPowK(2));
+    const metric = passPowK(2);
     await expect(
       metric(
         [trail(true), trail(false), trail(true), trail(false), trail(true)],

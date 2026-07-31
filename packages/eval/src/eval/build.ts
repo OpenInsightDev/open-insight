@@ -3,7 +3,7 @@ import type * as Harness from "#/harness/index.ts";
 import type * as Task from "#/task/index.ts";
 import { Effect } from "effect";
 
-export type Executor<T extends Task.Task = Task.Task> = Readonly<{
+export type Executor<T extends Task.AnyTask = Task.AnyTask> = Readonly<{
   bench: Bench.Bench;
   harness: Harness.Harness;
   trailCount: number;
@@ -16,7 +16,11 @@ type Options = Readonly<{
 }>;
 
 export const make = Effect.fn(
-  <T extends Task.Task>({ bench, harness, trailCount = 1 }: Options): Effect.Effect<Executor<T>> =>
+  <T extends Task.AnyTask>({
+    bench,
+    harness,
+    trailCount = 1,
+  }: Options): Effect.Effect<Executor<T>> =>
     Effect.succeed({
       bench,
       harness,

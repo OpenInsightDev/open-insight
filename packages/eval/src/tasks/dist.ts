@@ -38,7 +38,7 @@ export const withDist = ({
   url: string;
   format?: "tar.gz" | "tar.zst";
 }) =>
-  Effect.fn(function* <T extends Task.Task, E, R>(
+  Effect.fn(function* <T extends Task.AnyTask, E, R>(
     exec: (options: { distPath: string }) => Load<T, E, R>,
   ) {
     const fs = yield* FileSystem.FileSystem;

@@ -1,5 +1,5 @@
 import { Prompt } from "@open-insight/core/internal";
-import { DateTime, Effect } from "effect";
+import { DateTime } from "effect";
 import { Response } from "effect/unstable/ai";
 import { describe, expect, it } from "vite-plus/test";
 import type { TrailResult } from "#/eval/result.ts";
@@ -24,7 +24,7 @@ describe("avgPassAtK", () => {
       second: [trail(true), trail(true), trail(true), trail(true), trail(true)],
     };
 
-    const metric = await Effect.runPromise(avgPassAtK(2));
+    const metric = avgPassAtK(2);
 
     await expect(metric(results, delta("second", true), null)).resolves.toEqual({
       "pass@k": 0.85,
@@ -39,7 +39,7 @@ describe("avgPassPowK", () => {
       second: [trail(true), trail(true), trail(true), trail(true), trail(true)],
     };
 
-    const metric = await Effect.runPromise(avgPassPowK(2));
+    const metric = avgPassPowK(2);
 
     await expect(metric(results, delta("second", true), null)).resolves.toEqual({
       "pass^k": 0.65,

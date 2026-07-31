@@ -20,7 +20,7 @@ const invalidDefaultExport = (taskFile: string) =>
     ),
   );
 
-type ExportTask<T extends Task.Task> = Effect.Effect<
+type ExportTask<T extends Task.AnyTask> = Effect.Effect<
   T,
   UnknownError,
   | FileSystem.FileSystem
@@ -31,7 +31,7 @@ type ExportTask<T extends Task.Task> = Effect.Effect<
   | Stdio.Stdio
 >;
 
-const isExportTask = <T extends Task.Task>(value: unknown): value is ExportTask<T> =>
+const isExportTask = <T extends Task.AnyTask>(value: unknown): value is ExportTask<T> =>
   Effect.isEffect(value);
 
 /**
@@ -64,7 +64,7 @@ const isExportTask = <T extends Task.Task>(value: unknown): value is ExportTask<
  * );
  * ```
  */
-export const fromDir = Effect.fn(function* <T extends Task.Task>({
+export const fromDir = Effect.fn(function* <T extends Task.AnyTask>({
   dir,
   glob = "**/index.ts",
 }: {

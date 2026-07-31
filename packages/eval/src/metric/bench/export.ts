@@ -1,11 +1,8 @@
 export {
-  exec,
   make,
-  mapGrade,
   run,
   type Delta,
   type Exec,
-  type ExecEffect,
   type Metric,
   type Options,
   type Results,
