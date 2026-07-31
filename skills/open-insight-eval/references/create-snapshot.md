@@ -77,7 +77,7 @@ The following general example follows the patterns used in `packages/eval/tests/
 ```ts
 import { Grade, Snapshot, Task } from "@open-insight/eval";
 import { resolve } from "@std/path";
-import { Effect } from "effect";
+import { Effect, Schema } from "effect";
 
 export const makeTask = Effect.fn(function* () {
   const context = resolve(import.meta.dirname!, "environment");
@@ -96,18 +96,16 @@ export const makeTask = Effect.fn(function* () {
     ],
   });
 
-  const template = Task.Template.make({
-    Grade: {},
-  });
-
-  return yield* Task.make(template)({
+  return yield* Task.make({
     id: "python-fix",
     name: "Fix the Python implementation",
     snapshot,
   }).pipe(
-    Task.endStage("solve", {
+    Task.stage("solve", {
       prompt: "Fix the Python implementation.",
-      grader: Grade.make(async () => ({})),
+      grader: Grade.make(Schema.Struct({ passed: Schema.Boolean }))(
+        async () => ({ passed: true }),
+      ),
     }),
   );
 });

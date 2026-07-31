@@ -8,10 +8,10 @@ each `Task.stage` is evaluated separately for each stage execution.
 Use a string for one user message:
 
 ```ts
-Task.stage(GradeResult)("repair-checkout", {
+Task.stage("repair-checkout", {
   prompt:
     "A deployment caused some discount-code checkouts to charge twice. Find the regression, fix it without changing the public API, and add a regression test.",
-  grader: Grade.make(async ({ $ }) => {
+  grader: Grade.make(GradeResult)(async ({ $ }) => {
     // Compute and return the confirmed grade fields here.
     return {};
   }),
@@ -153,6 +153,7 @@ Prefer separate `Task.stage` calls when phases have different grade schemas, ver
 metrics. Prefer follow-up prompts when the work remains one graded phase and only the instruction
 needs to react to the trajectory.
 
-Set a stage's `resume` option only when session continuity is intentional. Its default is `true`.
+Set a stage's `resume` option only when session continuity is intentional. Its default is `false`,
+so each stage starts a fresh session unless you opt in.
 Use `init` on the stage for sandbox setup that must run once before verifier checks or agent
 interaction; do not use a prompt callback for filesystem initialization.

@@ -2,13 +2,13 @@ packages:
   - apps/*
   - packages/*
 
-catalogMode: prefer
+catalogMode: strict
 
 catalog:
   "@types/node": ^26.1.1
   effect: 4.0.0-beta.102
-  "@effect/language-service": ^0.86.2
-  "@effect/tsgo": ^0.16.2
+  "@effect/language-service": ^0.87.1
+  "@effect/tsgo": 0.24.3
   typescript: ^7.0.2
   vite: npm:@voidzero-dev/vite-plus-core@^0.2.6
   vitest: 4.1.10
@@ -69,7 +69,7 @@ catalog:
   '@heroicons/react': ^2.2.0
   openai: ^6.49.0
   smol-toml: ^1.7.1
-  uuid: ^14.0.0
+  uuid: ^14.0.1
   yaml: ^2.9.0
   zod: ^4.4.3
   '@cloudflare/sandbox': ^0.12.4

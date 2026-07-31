@@ -107,10 +107,13 @@ matching part arrives.
 Define the executor, trigger, and metadata together at the task boundary:
 
 ```ts
-import { Task, When } from "@open-insight/eval";
+import { Grade, Task, When } from "@open-insight/eval";
 
-Task.make(template)(taskOptions).pipe(
-  Task.endStage("solve", stageOptions),
+Task.make(taskOptions).pipe(
+  Task.stage("solve", {
+    prompt: "<task-specific prompt>",
+    grader: Grade.make(GradeResult)(async () => ({})),
+  }),
   Task.trajMetric(
     async ({ parts }, prev) => {
       const attempts = typeof prev?.attempts === "number" ? prev.attempts : 0;
@@ -174,8 +177,7 @@ chart: ({ attempts }) => [
 Import `Chart` from `@open-insight/eval`. Keep measurement in `exec`, not in `chart`.
 
 Set a stable, task-unique `id` whenever results are stored or compared. Without an explicit ID,
-metric construction generates one. Add all trajectory metrics after stages and before the final
-`Task.endStage`.
+metric construction generates one. Add trajectory metrics after all stages.
 
 ## Checklist
 
@@ -186,4 +188,4 @@ metric construction generates one. Add all trajectory metrics after stages and b
 - Per-task configuration is captured immutably.
 - Sandbox access is observational.
 - IDs are stable and unique within the task.
-- `Task.endStage` completes the task before `Task.trajMetric` is applied.
+- All stages are added before `Task.trajMetric` is applied.

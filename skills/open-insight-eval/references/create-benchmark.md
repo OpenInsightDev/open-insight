@@ -86,10 +86,9 @@ available integrations can grow over time.
 
 Every task must be built before it enters the benchmark. The usual task pipeline is:
 
-1. `Task.make(template)(options)`;
-2. `Task.stage(schema)(...)` for intermediate stages in execution order;
-3. `Task.endStage(...)` for the final stage;
-4. `Task.metric(...)` and `Task.trajMetric(...)` on the completed task.
+1. `Task.make(options)`;
+2. `Task.stage(name, ...)` for each stage in execution order, the last one being the final stage;
+3. `Task.metric(...)` and `Task.trajMetric(...)` on the completed task.
 
 See [Create a task](create-task.md) for the grade schema, stages, grader, verification mode, and
 task-local metrics. A benchmark loader should not silently catch a task construction failure and
@@ -289,7 +288,7 @@ produce a valid-looking evaluation with no meaningful task coverage.
 ## Review Checklist
 
 - The benchmark ID is stable and the dataset source is pinned.
-- Tasks are completed with `Task.endStage` before they are passed to `Bench.make`.
+- Tasks are fully built (all stages and metrics attached) before they are passed to `Bench.make`.
 - Task IDs are unique and task order is intentional.
 - Task, trajectory, and benchmark metrics are attached at their correct scopes.
 - Benchmark metrics use explicit grade mappings when their input shape differs from the task grade.

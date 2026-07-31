@@ -41,31 +41,36 @@ class GradeResult extends Schema.Class<GradeResult>("<Benchmark>GradeResult")({
 This is a structural placeholder. Do not preserve its class identifier or empty field set in an
 implementation.
 
-The final `Task.endStage` uses the template's grade schema. An intermediate stage may use a
-different named schema. Later graders can read prior decoded results through `results.<stageName>`.
+The final `Task.stage` in the pipe uses the confirmed grade schema; intermediate stages may use
+different named schemas. Later graders can read prior decoded results through
+`prevResults.<stageName>`.
 
 ## Grader Behavior
 
-A normal stage grader runs against the agent sandbox and receives sandbox operations together with:
-
-- `trajectory`, the agent trajectory for the current stage;
-- `results`, all preceding stage results keyed by stage name.
-
-Return the schema's encoded JSON object. Let infrastructure or malformed-output failures fail the
-grader unless the confirmed grade semantics explicitly classify them as a valid negative result.
-For example, a judge command's non-zero exit may represent a valid negative grade if the benchmark
-defines it that way, while failure to locate the judge usually indicates a broken benchmark and
-should not be silently converted.
+`Grade.make(schema)` builds a grader: it takes the result schema first, then the grade function and
+an optional verifier.
 
 ```ts
-grader: Grade.make(async ({ $, results, trajectory }) => {
+grader: Grade.make(GradeResult)(async ({ $, prevResults, trajectory }) => {
   // Run the benchmark's judge and parse its output here.
-  // Use results only when this stage depends on preceding stages.
+  // Use prevResults only when this stage depends on preceding stages.
   return {
     // Return exactly the confirmed grade fields.
   };
 }),
 ```
+
+A normal stage grader runs against the agent sandbox and receives the promise-based sandbox
+operations together with:
+
+- `trajectory`, the agent trajectory for the current stage;
+- `prevResults`, all preceding stage results keyed by stage name.
+
+The grade function returns the schema's encoded JSON object (a `Promise`). Let infrastructure or
+malformed-output failures fail the grader unless the confirmed grade semantics explicitly classify
+them as a valid negative result. For example, a judge command's non-zero exit may represent a valid
+negative grade if the benchmark defines it that way, while failure to locate the judge usually
+indicates a broken benchmark and should not be silently converted.
 
 Keep parsing deterministic. Prefer structured test output when the runner supports it.
 Design judge scripts to exit successfully when they produced a valid failing grade report. Reserve
@@ -73,29 +78,26 @@ process failures for cases where the benchmark could not compute a grade.
 
 ## Verification
 
-Add `verif` and `expect` together to the `Grade.make` options to prove that the grader recognizes a
-known-good state without running the real agent. `verif` prepares that state and may return a
-trajectory prompt or `null`. The resulting grade is deep-compared with `expect`.
+Pass `verif` and `expect` together as the second argument to `Grade.make` to prove that the grader
+recognizes a known-good state without running the real agent. `verif` prepares that state and may
+return a follow-up prompt or `null`. The resulting grade is deep-compared with `expect`.
 
 ```ts
-Task.endStage("solve", {
-  prompt: "<task-specific prompt>",
-  grader: Grade.make(
-    async ({ $, results, trajectory }) => {
-      // Compute the confirmed grade from the current sandbox state.
-      return {};
+grader: Grade.make(GradeResult)(
+  async ({ $, prevResults, trajectory }) => {
+    // Compute the confirmed grade from the current sandbox state.
+    return {};
+  },
+  {
+    verif: async ({ $, writeFile, trajectory }) => {
+      // Prepare the confirmed reference state directly in this verifier.
+      return null;
     },
-    {
-      verif: async ({ $, upload, writeFile }) => {
-        // Prepare the confirmed reference state directly in this verifier.
-        return null;
-      },
-      expect: {
-        // Write the exact expected encoded grade fields here.
-      },
+    expect: {
+      // Write the exact expected encoded grade fields here.
     },
-  ),
-});
+  },
+),
 ```
 
 Use exact expected values for every grade field. Do not add verifier-only fields to the grade.
@@ -108,7 +110,7 @@ task design. Throwing the retry value requests another prompt instead of produci
 ```ts
 import { Grade } from "@open-insight/eval";
 
-grader: Grade.make(async ({ $, results, trajectory }) => {
+grader: Grade.make(GradeResult)(async ({ $, prevResults, trajectory }) => {
   // Inspect the retry condition here.
   if (/* the confirmed retry condition */) {
     throw Grade.retry("<actionable follow-up prompt>");
@@ -124,6 +126,6 @@ Do not retry infrastructure failures or use retries to conceal an ambiguous grad
 
 Metrics consume the confirmed final grade, but metric design does not determine the grade schema.
 Prefer metrics that operate directly on that grade. When an existing metric requires another grade
-shape, use `TaskMetric.mapGrade(...)` at the `Task.metric` call site and implement the mapping
-there. Do not add or rename grade fields to satisfy a metric, and do not invent a pass/fail
-interpretation unless the user confirms one.
+shape, use `Task.mapMetric(...)` at the `Task.metric` call site and implement the mapping there. Do
+not add or rename grade fields to satisfy a metric, and do not invent a pass/fail interpretation
+unless the user confirms one.
