@@ -47,6 +47,7 @@ export type SandboxPromise = Readonly<{
   upload(options: Readonly<{ sandboxPath: string; hostPath: string }>): Promise<void>;
   expose(options: Readonly<{ sandboxPort: number }>): Promise<{ hostUrl: string }>;
 }>;
+export type ReadonlySandboxPromise = Omit<SandboxPromise, "writeFile" | "upload" | "expose">;
 
 export const asPromise = Effect.fn(function* (sandbox: Sandbox) {
   const runPromise = yield* FiberSet.makeRuntimePromise();

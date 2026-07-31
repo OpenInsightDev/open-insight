@@ -10,14 +10,14 @@ import { Response } from "effect/unstable/ai";
 export const TrailResult = Schema.Struct({
   startedAt: TimestampSchema,
   finishedAt: TimestampSchema,
-  usage: Response.Usage,
-  grade: Schema.Record(Schema.String, Schema.Json),
+  usage: Schema.NullOr(Response.Usage),
+  grade: Grade.Result,
   trajectory: Prompt.Trajectory,
 });
 export type TrailResult<G extends Grade.Result = Grade.Result> = Readonly<{
   startedAt: Timestamp;
   finishedAt: Timestamp;
-  usage: Response.Usage;
+  usage: Response.Usage | null;
   grade: G;
   trajectory: Prompt.Trajectory;
 }>;

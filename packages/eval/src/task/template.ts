@@ -1,53 +1,58 @@
-import * as Grade from "#/grade/index.ts";
-import { Schema } from "effect";
+import { Schema, Struct } from "effect";
+import { EmptyRecord, IDSchema } from "#/utils/schema.ts";
 
-export type ExtrasSchema<X extends object = object> = Schema.Codec<X, Schema.JsonObject>;
+export const ID = Schema.String;
+export type ID = Schema.Schema.Type<typeof ID>;
 
-/** An empty extras schema for templates that do not need per-task extras. */
-export const EmptyExtras = Schema.Record(Schema.String, Schema.Never);
+export class StageMetadata extends Schema.Class<StageMetadata>("StageMetadata")({
+  id: IDSchema,
+  name: Schema.String,
+  description: Schema.OptionFromOptionalNullOr(Schema.String),
+}) {}
 
-/** A schema-only contract shared by every task in a bench. */
-export type Template<
-  /** Grade schema. */
-  GS = Grade.ResultSchema,
-  /** Extras schema. */
-  ES = ExtrasSchema,
+export class BaseMetadata extends Schema.Class<BaseMetadata>("BaseMetadata")({
+  id: Schema.String,
+  name: Schema.String,
+  description: Schema.OptionFromOptionalNullOr(Schema.String),
+  keywords: Schema.OptionFromOptionalNullOr(Schema.Array(Schema.String)),
+  authors: Schema.OptionFromOptionalNullOr(Schema.Array(Schema.String)),
+}) {}
+
+type Template<
+  S extends Record<PropertyKey, Schema.Constraint> = Record<string, Schema.Constraint>,
+  E extends Schema.Constraint = EmptyRecord,
 > = Readonly<{
-  Grade: GS;
-  Extras: ES;
+  stages: S;
+  extras: E;
 }>;
 
-export type Unknown = Template<Grade.ResultSchema, ExtrasSchema>;
-export const Unknown = {
-  Grade: Schema.Record(Schema.String, Schema.Json),
-  Extras: Schema.Record(Schema.String, Schema.Json),
-} satisfies Template<Grade.ResultSchema, ExtrasSchema>;
+export const make = <S extends Record<PropertyKey, Schema.Constraint>, E extends Schema.Constraint>(
+  stages: S,
+  extras: E,
+): Template<S, E> => ({ stages, extras });
 
-export type GradeResult<T extends Unknown> = T["Grade"]["Type"];
-export type GradeResultEncoded<T extends Unknown> = T["Grade"]["Encoded"];
-export type Extras<T extends Unknown> = T["Extras"]["Type"];
-export type ExtrasEncoded<T extends Unknown> = T["Extras"]["Encoded"];
-
-/** Creates a schema contract from struct field definitions. */
-export function make<const GF extends Schema.Struct.Fields, const EF extends Schema.Struct.Fields>(
-  options: Readonly<{
-    Grade: GF;
-    Extras: EF;
-  }>,
-): Template<Schema.Struct<GF>, Schema.Struct<EF>>;
-export function make<const GF extends Schema.Struct.Fields>(
-  options: Readonly<{
-    Grade: GF;
-  }>,
-): Template<Schema.Struct<GF>, typeof EmptyExtras>;
-export function make(
-  options: Readonly<{
-    Grade: Schema.Struct.Fields;
-    Extras?: Schema.Struct.Fields;
-  }>,
-) {
-  return {
-    Grade: Schema.Struct(options.Grade),
-    Extras: options.Extras === undefined ? EmptyExtras : Schema.Struct(options.Extras),
-  };
+interface makeTrail<S extends Schema.Constraint> extends Schema.Struct<{
+  metadata: typeof StageMetadata;
+  result: S;
+}> {}
+interface TrailFieldLambda extends Struct.Lambda {
+  <S extends Schema.Constraint>(schema: S): makeTrail<S>;
+  readonly "~lambda.out": this["~lambda.in"] extends Schema.Constraint
+    ? makeTrail<this["~lambda.in"]>
+    : never;
 }
+const makeTrail = Struct.lambda<TrailFieldLambda>((result) =>
+  Schema.Struct({ metadata: StageMetadata, result }),
+);
+
+export const makeResultTemplate = <
+  S extends Record<PropertyKey, Schema.Constraint>,
+  E extends Schema.Constraint,
+>(
+  template: Template<S, E>,
+) =>
+  Schema.Struct({
+    metadata: BaseMetadata,
+    extras: template.extras,
+    trails: Schema.Array(Schema.Struct(Struct.map(template.stages, makeTrail))),
+  });

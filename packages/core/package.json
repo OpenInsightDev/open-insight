@@ -62,13 +62,15 @@
     "ipaddr.js": "catalog:",
     "openai": "catalog:",
     "picomatch": "catalog:",
-    "semver": "catalog:"
+    "semver": "catalog:",
+    "validator": "catalog:"
   },
   "devDependencies": {
     "@effect/vitest": "catalog:",
     "@types/node": "catalog:",
     "@types/picomatch": "catalog:",
     "@types/semver": "catalog:",
+    "@types/validator": "catalog:",
     "bumpp": "catalog:",
     "typescript": "catalog:",
     "vite-plus": "catalog:",

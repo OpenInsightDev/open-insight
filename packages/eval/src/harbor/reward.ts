@@ -25,7 +25,7 @@ export const wrapGrader = (
   return async (context) => {
     const current = await grader(context);
     const previous = await Promise.all(
-      Object.values(context.results).map((result) =>
+      Object.values(context.prevResults).map((result) =>
         Schema.decodeUnknownPromise(GradeResult)(result),
       ),
     );

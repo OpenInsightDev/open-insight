@@ -1,19 +1,12 @@
 import { Schema } from "effect";
-import type { Grader } from "../index.ts";
+import { make, type Verif } from "../index.ts";
 
-class Exists extends Schema.Class<Exists>("FileExistsGrade")({
-  exists: Schema.Boolean,
-}) {}
-
-export const exists = (sandboxPath: string) =>
-  ({
-    schema: Exists,
-    grade: async ({ $ }) => {
-      try {
-        await $`test -e ${sandboxPath}`;
-        return { exists: true };
-      } catch {
-        return { exists: false };
-      }
-    },
-  }) satisfies Grader<Exists>;
+export const exists = (sandboxPath: string, options?: Verif) =>
+  make(Schema.Struct({ exists: Schema.Boolean }))(async ({ $ }) => {
+    try {
+      await $`test -e ${sandboxPath}`;
+      return { exists: true };
+    } catch {
+      return { exists: false };
+    }
+  }, options);

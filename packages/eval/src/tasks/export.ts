@@ -4,11 +4,10 @@ export {
   fromIter,
   fromStream,
   withDist,
-  withGitRepo,
-  withGithub,
-  withHuggingface,
   withParquetDir,
   type Load,
 } from "./index.ts";
+
+export * from "./git/export.ts";
 
 export * as Internal from "./index.ts";

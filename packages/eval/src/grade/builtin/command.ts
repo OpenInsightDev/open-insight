@@ -1,13 +1,8 @@
 import { Schema } from "effect";
-import type { Grader } from "../index.ts";
+import { make, type Verif } from "../index.ts";
 
-class Success extends Schema.Class<Success>("CommandSuccessGrade")({
-  success: Schema.Boolean,
-}) {}
-
-export const success = (bash: string) =>
-  ({
-    schema: Success,
-    grade: async ({ $ }) =>
-      $`${bash}`.then(() => ({ success: true })).catch(() => ({ success: false })),
-  }) satisfies Grader<Success>;
+export const success = (bash: string, options?: Verif) =>
+  make(Schema.Struct({ success: Schema.Boolean }))(
+    async ({ $ }) => $`${bash}`.then(() => ({ success: true })).catch(() => ({ success: false })),
+    options,
+  );

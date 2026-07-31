@@ -13,3 +13,6 @@ export const TimestampSchema = Schema.DateTimeUtcFromString.pipe(
   Schema.withDecodingDefaultType(Effect.sync(DateTime.nowUnsafe)),
 );
 export type Timestamp = Schema.Schema.Type<typeof TimestampSchema>;
+
+export const EmptyRecord = Schema.Record(Schema.String, Schema.Never);
+export type EmptyRecord = typeof EmptyRecord;

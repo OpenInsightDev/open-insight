@@ -28,12 +28,13 @@ import * as Event from "#/event/index.ts";
 export type RunTrail = (trailIdx: number) => Effect.Effect<TrailResult, Error, Scope.Scope>;
 
 type StageResults = Readonly<Record<string, Grade.Result>>;
+type Usage = Response.Usage | null;
 
 const makeVerifAgent = ({
   verifier,
   sandbox,
 }: {
-  verifier: Grade.Verifier;
+  verifier: Grade.VerifExec;
   sandbox: Sandbox.SandboxPromise;
 }): Agent.Agent => ({
   trajectory: Effect.fn(function* () {
@@ -42,26 +43,7 @@ const makeVerifAgent = ({
     ).pipe(Effect.mapError(Agent.Error.trajectory));
     return input === null ? Prompt.empty : Prompt.make(input);
   }),
-  prompt: () =>
-    Stream.fromIterable<Agent.StreamPart>([
-      Response.makePart("finish", {
-        reason: "stop",
-        usage: Schema.decodeSync(Response.Usage)({
-          inputTokens: {
-            uncached: 0,
-            total: 0,
-            cacheRead: 0,
-            cacheWrite: 0,
-          },
-          outputTokens: {
-            total: 0,
-            text: 0,
-            reasoning: 0,
-          },
-        }),
-        response: undefined,
-      }),
-    ]),
+  prompt: () => Stream.empty,
 });
 
 export const createTrail = Effect.fn("exec/createTrail")(
@@ -99,7 +81,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
 
     yield* Effect.annotateCurrentSpan({ taskName: task.metadata.name });
 
-    // Verif mode requires a reference implementation for every stage.
+    // Verif mode requires every grader is verifiable
     if (verifMode) {
       const missingStageIds = stages
         .filter(({ grader }) => !Grade.isVerifiable(grader))
@@ -203,7 +185,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
 
         const promptSession = Effect.fn("exec/runTrail/promptSession")(function* (
           trajectory: Prompt.Trajectory,
-        ): Effect.fn.Return<Response.Usage, Error> {
+        ): Effect.fn.Return<Usage, Error> {
           const session = yield* getSession;
           const prevTrajectory = yield* getTrajectory;
           const usageRef = yield* Ref.make(Option.none<Response.Usage>());
@@ -243,27 +225,16 @@ export const createTrail = Effect.fn("exec/createTrail")(
 
           const usage = yield* Ref.get(usageRef);
 
-          return yield* usage.pipe(
-            Option.match({
-              onNone: () =>
-                Effect.fail(
-                  Error.taskExec(
-                    task,
-                    idx,
-                  )(new globalThis.Error("Agent response did not include a finish part")),
-                ),
-              onSome: Effect.succeed,
-            }),
-          );
+          return Option.getOrNull(usage);
         });
 
         const runPromptFn = Effect.fn("exec/runTrail/runPromptFn")(function* (
           fn: Task.PromptFn,
-        ): Effect.fn.Return<Response.Usage, Error> {
+        ): Effect.fn.Return<Usage, Error> {
           const usages = Stream.unfold(
             undefined,
             Effect.fn(function* (): Effect.fn.Return<
-              readonly [Response.Usage, undefined] | undefined,
+              readonly [Usage, undefined] | undefined,
               Error
             > {
               const trajectory = yield* getTrajectory;
@@ -276,7 +247,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
               }
 
               const usage = yield* promptSession(prompt);
-              return [usage, undefined] satisfies readonly [Response.Usage, undefined];
+              return [usage, undefined] satisfies readonly [Usage, undefined];
             }),
           );
 
@@ -306,7 +277,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
         ): Effect.fn.Return<G, Error | Grade.Retry, Scope.Scope> {
           return yield* Grade.run(grader)({
             ...ctx,
-            results,
+            prevResults: results,
             trajectory,
           }).pipe(
             Effect.provideService(Sandbox.ProviderService, sandboxProvider),
@@ -327,11 +298,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
         const runStage = Effect.fn("exec/runTrail/runStage")(function* (
           { metadata, prompt: promptOptions, grader, init, resume }: Task.Stage,
           results: StageResults,
-        ): Effect.fn.Return<
-          Readonly<{ grade: Grade.Result; usage: Response.Usage }>,
-          Error,
-          Scope.Scope
-        > {
+        ): Effect.fn.Return<Readonly<{ grade: Grade.Result; usage: Usage }>, Error, Scope.Scope> {
           yield* Effect.logDebug(`Starting stage ${metadata.id}`);
           const verif = verifMode && Grade.isVerifiable(grader) ? grader.verif : undefined;
 
@@ -374,7 +341,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
           const promptRetry = Effect.fn("exec/runTrail/runStage/promptRetry")(function* (
             { prompt: input }: Grade.Retry,
             attempt: number,
-          ): Effect.fn.Return<Response.Usage, Error> {
+          ): Effect.fn.Return<Usage, Error> {
             const prompt = Prompt.make(input);
 
             if (verif !== undefined) {
@@ -455,7 +422,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
         type StagesState = Readonly<{
           results: StageResults;
           grade: Option.Option<Grade.Result>;
-          usage: Option.Option<Response.Usage>;
+          usage: Usage;
         }>;
 
         const state = yield* stageStream.pipe(
@@ -463,7 +430,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
             (): StagesState => ({
               results: {},
               grade: Option.none(),
-              usage: Option.none(),
+              usage: null,
             }),
             (state, stage) =>
               runStage(stage, state.results).pipe(
@@ -472,7 +439,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
                     draft[stage.metadata.name] = grade;
                   }),
                   grade: Option.some(grade),
-                  usage: Option.some(usage),
+                  usage,
                 })),
               ),
           ),
@@ -489,17 +456,14 @@ export const createTrail = Effect.fn("exec/createTrail")(
         );
 
         const trajectory = yield* getTrajectory;
-        const usage = yield* state.usage.pipe(
-          Option.match({
-            onNone: () =>
-              Effect.fail(
-                Error.taskExec(task, idx)(new globalThis.Error("Stage did not produce usage")),
-              ),
-            onSome: Effect.succeed,
-          }),
-        );
         const finishedAt = yield* DateTime.now;
-        return { startedAt, finishedAt, grade, trajectory, usage } satisfies TrailResult;
+        return {
+          startedAt,
+          finishedAt,
+          grade,
+          trajectory,
+          usage: state.usage,
+        } satisfies TrailResult;
       },
       (effect, trailIdx) =>
         effect.pipe(

@@ -60,7 +60,7 @@ export class TrailStagedEvent extends Schema.TaggedClass<TrailStagedEvent>()("Tr
   ...TrailFields,
   stage: Schema.String,
   grade: Grade.Result,
-  usage: Response.Usage,
+  usage: Schema.NullOr(Response.Usage),
 }) {}
 
 type ToolPart = Extract<Response.AnyPart, { readonly type: "tool-call" | "tool-result" }>;

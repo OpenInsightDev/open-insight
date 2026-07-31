@@ -56,21 +56,20 @@ const snapshot = Snapshot.make({
   ],
 });
 
-const GradeFields = {
-  simPass: Schema.Boolean,
-  diagnostic: Schema.optionalKey(
-    Schema.Struct({
-      artifactPresent: Schema.Boolean,
-      topV: Schema.NullOr(Schema.String),
-      simulatorOutput: Schema.String,
-    }),
-  ),
-};
-const template = Task.Template.make({
-  Extras: {
+const template = Task.makeTemplate({
+  Extras: Schema.Struct({
     category: Schema.String,
-  },
-  Grade: GradeFields,
+  }),
+  Grade: Schema.Struct({
+    simPass: Schema.Boolean,
+    diagnostic: Schema.optionalKey(
+      Schema.Struct({
+        artifactPresent: Schema.Boolean,
+        topV: Schema.NullOr(Schema.String),
+        simulatorOutput: Schema.String,
+      }),
+    ),
+  }),
 });
 
 async function* loadTasks(repoPath: string) {
@@ -518,8 +517,8 @@ layer(testLayer, { excludeTestServices: true })((it) => {
               task,
               trail: trailIdx,
               simPass: grade.simPass,
-              inputTokens: trail.usage.inputTokens.total ?? null,
-              outputTokens: trail.usage.outputTokens.total ?? null,
+              inputTokens: trail.usage?.inputTokens.total ?? null,
+              outputTokens: trail.usage?.outputTokens.total ?? null,
               toolCalls: toolCallEvents.length,
               toolFailures,
               streamParts: currentStreamEvents.length,

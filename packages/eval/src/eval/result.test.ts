@@ -19,4 +19,12 @@ it("generates timestamps when constructing and decoding a trail result", () => {
 
   assert.isTrue(DateTime.isUtc(decoded.startedAt));
   assert.isTrue(DateTime.isUtc(decoded.finishedAt));
+
+  const withoutUsage = Schema.decodeUnknownSync(TrailResult)({
+    grade: {},
+    trajectory: Prompt.empty,
+    usage: null,
+  });
+
+  assert.isNull(withoutUsage.usage);
 });

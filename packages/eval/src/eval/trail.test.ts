@@ -2,7 +2,6 @@ import { NodeServices } from "@effect/platform-node";
 import { assert, describe, layer } from "@effect/vitest";
 import { Agent, Prompt, Sandbox, Snapshot } from "@open-insight/core/internal";
 import { DateTime, Effect, Option, Schema, Stream } from "effect";
-import { Response } from "effect/unstable/ai";
 import { ExitCode } from "effect/unstable/process/ChildProcessSpawner";
 import * as Event from "#/event/index.ts";
 import * as Grade from "#/grade/index.ts";
@@ -43,24 +42,6 @@ const makeSandbox = (files: Map<string, string>): Sandbox.Sandbox => {
   };
 };
 
-const finishPart = Response.makePart("finish", {
-  reason: "stop",
-  usage: Schema.decodeSync(Response.Usage)({
-    inputTokens: {
-      uncached: 0,
-      total: 0,
-      cacheRead: 0,
-      cacheWrite: 0,
-    },
-    outputTokens: {
-      total: 0,
-      text: 0,
-      reasoning: 0,
-    },
-  }),
-  response: undefined,
-});
-
 const makeRunTrail = Effect.fn(function* ({ initiallySolved }: { initiallySolved: boolean }) {
   const solutionPath = "/workspace/solution.txt";
   const files = new Map<string, string>();
@@ -77,7 +58,7 @@ const makeRunTrail = Effect.fn(function* ({ initiallySolved }: { initiallySolved
     grades.push(solved);
     return { passed: solved };
   };
-  const verifier: Grade.Verifier = async ({ writeFile }) => {
+  const verifier: Grade.VerifExec = async ({ writeFile }) => {
     verifierRuns += 1;
     await writeFile({ sandboxPath: solutionPath, content: "solved" });
     return null;
@@ -175,7 +156,7 @@ describe("verification trail", () => {
               calls.push("agent");
               return {
                 trajectory: () => Effect.succeed(Prompt.make("completed")),
-                prompt: () => Stream.make(finishPart),
+                prompt: () => Stream.empty,
               } satisfies Agent.Agent;
             }),
         } satisfies Agent.Provider;
@@ -196,6 +177,7 @@ describe("verification trail", () => {
 
         assert.deepStrictEqual(calls, ["init", "agent", "prompt", "prompt", "grader"]);
         assert.isTrue(grade.initialized);
+        assert.isNull(result.usage);
         assert.isTrue(DateTime.isLessThanOrEqualTo(result.startedAt, result.finishedAt));
       }),
     );
@@ -209,6 +191,7 @@ describe("verification trail", () => {
         assert.deepStrictEqual(grades, [false, true]);
         assert.isAbove(verifierRuns(), 0);
         assert.isTrue(grade.passed);
+        assert.isNull(result.usage);
       }),
     );
 

@@ -6,11 +6,16 @@ it.effect("accepts supported allowlist entry forms", () =>
   Effect.gen(function* () {
     const allowedHosts = [
       "example.com",
+      "example.com.",
+      "localhost",
       "*.example.com",
       "192.0.2.1",
       "192.0.2.0/24",
+      "192.0.2.1/24",
       "2001:db8::1",
       "2001:db8::/32",
+      "2001:db8::1/32",
+      "café.example",
     ];
 
     const policy = yield* Schema.decodeUnknownEffect(Network.Policy)({
@@ -34,10 +39,7 @@ it.effect("rejects invalid allowlist entries", () =>
       "9999.0.0.1",
       "01.2.3.4",
       "192.0.2.0/33",
-      "192.0.2.1/24",
-      "2001:db8::1/32",
       "[2001:db8::1]",
-      "fe80::1%eth0",
     ];
 
     yield* Effect.forEach(

@@ -500,8 +500,8 @@ layer(testLayer, { excludeTestServices: true })((it) => {
               task: taskId,
               syntaxPass: grade.syntaxPass,
               simPass: grade.simPass,
-              inputTokens: trail.usage.inputTokens.total ?? null,
-              outputTokens: trail.usage.outputTokens.total ?? null,
+              inputTokens: trail.usage?.inputTokens.total ?? null,
+              outputTokens: trail.usage?.outputTokens.total ?? null,
             });
           }
         }

@@ -1,82 +1,57 @@
 import { Prompt, type Sandbox } from "@open-insight/core/internal";
-import type { BivariantFn } from "#/utils/variant.ts";
+import type { BivariantFn, UnionToIntersection } from "#/utils/variant.ts";
 import { Effect, Schema } from "effect";
-import { Error, Retry } from "./error.ts";
+import { Retry, Error } from "./error.ts";
 
-// Concrete grade schemas may decode to domain objects such as Schema.Class instances, while
-// every grade must still encode to a JSON object at persistence boundaries.
-export const Result: Schema.Codec<object, Schema.JsonObject> = Schema.Record(
-  Schema.String,
-  Schema.Json,
-);
-export type Result = Schema.Schema.Type<typeof Result>;
-export type ResultSchema<R extends Result = Result> = Schema.Codec<R, Schema.JsonObject>;
+export type Result = Schema.Constraint;
 
-export type Results = Readonly<Record<PropertyKey, Result>>;
+export type ResultsOf<Rs extends Result> = UnionToIntersection<Rs>;
 
-export type Context<Rs extends Results = never> = Sandbox.SandboxPromise &
+export type Context<Rs extends Result = never> = Sandbox.SandboxPromise &
   Readonly<{
-    results: Rs;
+    prevResults: UnionToIntersection<Rs>;
     trajectory: Prompt.Trajectory;
   }>;
 
-export type Exec<R extends Result = Result, Rs extends Results = never> = (
-  ctx: Context<Rs>,
-) => PromiseLike<R>;
-
-export type BaseGrader<R extends Result = Result, Rs extends Results = never> = BivariantFn<
-  Exec<R, Rs>
+export type Exec<R extends Result = Result, Rs extends Result = never> = BivariantFn<
+  (ctx: Context<Rs>) => PromiseLike<R["Encoded"]>
 >;
 
-export type Verifier = (
-  options: Sandbox.SandboxPromise &
-    Readonly<{
-      trajectory: Prompt.Trajectory;
-    }>,
+export type VerifExec = (
+  options: Readonly<{
+    trajectory: Prompt.Trajectory;
+  }> &
+    Sandbox.SandboxPromise,
 ) => PromiseLike<Prompt.RawInput | null>;
-
-export type Definition<
-  R extends Schema.JsonObject = Schema.JsonObject,
-  Rs extends Results = never,
-> = Readonly<{
-  grade: BaseGrader<R, Rs>;
-  verif?: Readonly<{
-    run: Verifier;
-    expect: R;
-  }>;
+export type Verif = Readonly<{
+  exec: VerifExec;
+  expect: Result;
 }>;
 
-export type Grader<R extends Result = Result, Rs extends Results = never> = Readonly<{
-  schema: ResultSchema<R>;
-}> &
-  Definition<Schema.JsonObject, Rs>;
+export type Grader<R extends Result = Result, Rs extends Result = never> = Readonly<{
+  schema: R;
+  grade: Exec<R, Rs>;
+  verif?: Verif;
+}>;
 
-/** Defines grading behavior. The enclosing task stage supplies the result schema. */
-export const make = <R extends Schema.JsonObject, Rs extends Results = never>(
-  grade: BaseGrader<NoInfer<R>, Rs>,
-  options?: Readonly<{
-    verif: Verifier;
-    expect: NoInfer<R>;
-  }>,
-): Definition<R, Rs> =>
-  options === undefined
-    ? { grade }
-    : { grade, verif: { run: options.verif, expect: options.expect } };
+export const make =
+  <R extends Result>(schema: R) =>
+  <Rs extends Result>(grade: Exec<R, Rs>, verif?: Verif) => ({ schema, grade, verif });
 
-export const isVerifiable = <R extends Result, Rs extends Results>(
-  grader: Grader<R, Rs>,
-): grader is Grader<R, Rs> & Readonly<{ verif: NonNullable<Grader<R, Rs>["verif"]> }> =>
+export const isVerifiable = (
+  grader: Grader,
+): grader is Grader & Readonly<{ verif: NonNullable<Grader["verif"]> }> =>
   grader.verif !== undefined;
 
-export const run = <R extends Result, Rs extends Results>(grader: Grader<R, Rs>) =>
-  Effect.fn(function* (ctx: Context<Rs>): Effect.fn.Return<R, Error | Retry> {
+export const run = <R extends Result, Rs extends Result>(grader: Grader<R, Rs>) =>
+  Effect.fn(function* (
+    ctx: Context<Rs>,
+  ): Effect.fn.Return<R["Type"], Error | Retry, R["DecodingServices"]> {
     const result = yield* Effect.tryPromise({
       try: () => grader.grade(ctx),
       catch: (cause) => (cause instanceof Retry ? cause : Error.exec(cause)),
     });
-    return yield* Schema.decodeUnknownEffect(grader.schema)(result).pipe(
-      Effect.mapError(Error.result),
-    );
+    return yield* Schema.decodeEffect(grader.schema)(result).pipe(Effect.mapError(Error.result));
   });
 
 export * from "./builtin/index.ts";

@@ -144,7 +144,7 @@ export const run = <R extends Result, Rs extends Results>(
               copyFromAgentPath(agentPath, gradePath),
             copyToAgent: ({ gradePath, agentPath = gradePath }) =>
               copyToAgentPath(gradePath, agentPath),
-            results: context.results,
+            results: context.prevResults,
             trajectory: context.trajectory,
           }),
         catch: (cause) => (cause instanceof Retry ? cause : Error.exec(cause)),

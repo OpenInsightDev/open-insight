@@ -18,6 +18,6 @@ export type LoadFnReturn<T extends Task.Task = Task.Task, E = never, R = never> 
 export * from "./error.ts";
 export * from "./file.ts";
 export * from "./dist.ts";
-export * from "./git.ts";
+export * from "./git/index.ts";
 export * from "./iter.ts";
 export * from "./parquet.ts";

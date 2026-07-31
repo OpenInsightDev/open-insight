@@ -2,8 +2,8 @@ import type * as Task from "#/task/index.ts";
 import { ChildProcess as CP } from "effect/unstable/process";
 import { Effect, FileSystem } from "effect";
 import { Spawn } from "@open-insight/core/utils";
-import type { Load } from "./index.ts";
-import { Error } from "./error.ts";
+import type { Load } from "../index.ts";
+import { Error } from "../error.ts";
 
 interface Options {
   /** Target directory. Defaults to a scoped temporary directory. */
@@ -172,3 +172,5 @@ export const withGithub = (id: string, options?: Options) =>
 
 export const withHuggingface = (id: string, options?: Options) =>
   withGitRepo(`https://huggingface.co/datasets/${id}.git`, options);
+
+export * from "./utils.ts";

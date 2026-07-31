@@ -16,6 +16,6 @@ export {
   type Task,
 } from "./index.ts";
 
-export * as Template from "./template.ts";
+export { make as makeTemplate } from "./template.ts";
 
 export * as Internal from "./index.ts";

@@ -101,7 +101,7 @@ export const makeVerifier =
     readonly solutionDir: string;
     readonly workdir?: string;
     readonly env?: Readonly<Record<string, string>>;
-  }): Grade.Verifier =>
+  }): Grade.VerifExec =>
   async (sandbox) => {
     await uploadDirs({
       sandbox,

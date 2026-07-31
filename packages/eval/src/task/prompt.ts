@@ -4,9 +4,7 @@ import { Error } from "./error.ts";
 
 export type PromptInit = Prompt.RawInput;
 
-/** Read-only sandbox operations available while producing the next prompt. */
-export type SandboxContext = Omit<Sandbox.SandboxPromise, "writeFile" | "expose" | "upload">;
-export type Context = SandboxContext & Readonly<{ trajectory: Prompt.Trajectory }>;
+export type Context = Sandbox.ReadonlySandboxPromise & Readonly<{ trajectory: Prompt.Trajectory }>;
 
 /**
  * Creates a fresh prompt iterable for one stage execution.

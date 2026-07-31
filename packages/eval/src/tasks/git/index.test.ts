@@ -4,8 +4,8 @@ import { Spawn } from "@open-insight/core/utils";
 import { Effect, FileSystem, Layer } from "effect";
 import { ChildProcess as CP } from "effect/unstable/process";
 import path from "node:path";
-import { Error } from "./error.ts";
-import { withGitRepo } from "./git.ts";
+import { Error } from "../error.ts";
+import { withGitRepo } from "./index.ts";
 
 const testLayer = Layer.merge(
   NodeServices.layer,
