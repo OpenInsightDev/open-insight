@@ -39,6 +39,9 @@ __pycache__/
 !/.repos
 !/.agents
 
+# Open Insight's own skills are maintained in skills/, not installed into .agents/
+.agents/skills/open-insight-*
+
 # AI agent worktrees
 .claude/worktrees/
 !.vscode/

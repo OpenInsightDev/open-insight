@@ -19,8 +19,8 @@ const StrictEnvironmentToolSchema = Schema.Struct({
               additionalProperties: Schema.Literal(false),
               required: Schema.Array(Schema.String),
               properties: Schema.Struct({
-                name: Schema.Unknown,
-                value: Schema.Unknown,
+                "0": Schema.Unknown,
+                "1": Schema.Unknown,
               }),
             }),
           }),
@@ -31,14 +31,11 @@ const StrictEnvironmentToolSchema = Schema.Struct({
   }),
 });
 
-it.effect("converts environment entries at the tool boundary", () =>
+it.effect("uses an environment record at the tool boundary", () =>
   Effect.gen(function* () {
     const decoded = yield* Schema.decodeUnknownEffect(Execute.parametersSchema)({
       command: "env",
-      env: [
-        { name: "PATH", value: "/usr/bin" },
-        { name: "MODE", value: "test" },
-      ],
+      env: { PATH: "/usr/bin", MODE: "test" },
     });
     assert.deepStrictEqual(decoded, {
       command: "env",
@@ -48,29 +45,31 @@ it.effect("converts environment entries at the tool boundary", () =>
     const encoded = yield* Schema.encodeUnknownEffect(Execute.parametersSchema)(decoded);
     assert.deepStrictEqual(encoded, {
       command: "env",
-      env: [
-        { name: "PATH", value: "/usr/bin" },
-        { name: "MODE", value: "test" },
-      ],
+      env: { PATH: "/usr/bin", MODE: "test" },
     });
   }),
 );
 
-it.effect("rejects duplicate environment variable names", () =>
+it.effect("accepts provider-decoded environment records", () =>
   Effect.gen(function* () {
-    const error = yield* Schema.decodeUnknownEffect(Execute.parametersSchema)({
+    const providerCodec = OpenAiStructuredOutput.toCodecOpenAI(Execute.parametersSchema).codec;
+    const providerDecoded = yield* Schema.decodeUnknownEffect(providerCodec)({
       command: "env",
       env: [
-        { name: "PATH", value: "/usr/bin" },
-        { name: "PATH", value: "/bin" },
+        { 0: "PATH", 1: "/usr/bin" },
+        { 0: "MODE", 1: "test" },
       ],
-    }).pipe(Effect.flip);
+    });
+    const decoded = yield* Schema.decodeUnknownEffect(Execute.parametersSchema)(providerDecoded);
 
-    assert.include(error.message, "Duplicate environment variable: PATH");
+    assert.deepStrictEqual(decoded, {
+      command: "env",
+      env: { PATH: "/usr/bin", MODE: "test" },
+    });
   }),
 );
 
-it.effect("emits a closed strict schema for environment entries", () =>
+it.effect("emits a closed strict provider schema for environment entries", () =>
   Effect.gen(function* () {
     const jsonSchema = Tool.getJsonSchema(Execute, {
       transformer: OpenAiStructuredOutput.toCodecOpenAI,
@@ -83,7 +82,7 @@ it.effect("emits a closed strict schema for environment entries", () =>
     assert.deepStrictEqual(strictSchema.required, ["command", "args", "cwd", "env"]);
     assert.isDefined(environment);
     if (environment?.type === "array") {
-      assert.deepStrictEqual(environment.items.required, ["name", "value"]);
+      assert.deepStrictEqual(environment.items.required, ["0", "1"]);
     }
   }),
 );

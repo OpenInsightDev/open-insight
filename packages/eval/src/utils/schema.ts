@@ -9,8 +9,8 @@ export const IDSchema = Schema.String.pipe(
 );
 
 export const TimestampSchema = Schema.DateTimeUtcFromString.pipe(
-  Schema.withConstructorDefault(Effect.sync(DateTime.nowUnsafe)),
-  Schema.withDecodingDefaultType(Effect.sync(DateTime.nowUnsafe)),
+  Schema.withConstructorDefault(DateTime.now),
+  Schema.withDecodingDefaultType(DateTime.now),
 );
 export type Timestamp = Schema.Schema.Type<typeof TimestampSchema>;
 

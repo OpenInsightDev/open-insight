@@ -1,39 +1,6 @@
 import { Sandbox } from "@open-insight/core";
-import { Effect, Option, Schema, SchemaIssue, SchemaTransformation } from "effect";
+import { Schema } from "effect";
 import { Tool } from "effect/unstable/ai";
-
-const EnvironmentEntry = Schema.Struct({
-  name: Schema.NonEmptyString,
-  value: Schema.String,
-});
-
-const Environment = Schema.Array(EnvironmentEntry)
-  .pipe(
-    Schema.decodeTo(
-      Schema.Record(Schema.String, Schema.String),
-      SchemaTransformation.transformOrFail({
-        decode: (entries) => {
-          const environment: Record<string, string> = {};
-          for (const { name, value } of entries) {
-            if (Object.hasOwn(environment, name)) {
-              return Effect.fail(
-                new SchemaIssue.InvalidValue(Option.some(entries), {
-                  message: `Duplicate environment variable: ${name}`,
-                }),
-              );
-            }
-            environment[name] = value;
-          }
-          return Effect.succeed(environment);
-        },
-        encode: (environment) =>
-          Effect.succeed(Object.entries(environment).map(([name, value]) => ({ name, value }))),
-      }),
-    ),
-  )
-  .annotate({
-    description: "Environment variables as entries with unique, non-empty names.",
-  });
 
 export const Execute = Tool.make("Execute", {
   description:
@@ -44,7 +11,7 @@ export const Execute = Tool.make("Execute", {
     command: Schema.String,
     args: Schema.optionalKey(Schema.Array(Schema.String)),
     cwd: Schema.optionalKey(Schema.String),
-    env: Schema.optionalKey(Environment),
+    env: Schema.UndefinedOr(Schema.Record(Schema.String, Schema.String)),
   }),
   success: Schema.Struct({
     exitCode: Schema.Number,

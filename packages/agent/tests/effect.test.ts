@@ -43,6 +43,7 @@ it.effect("executes commands through the current sandbox", () =>
         command: "printf",
         args: ["hello"],
         cwd: "/workspace",
+        env: undefined,
       })
       .pipe(Effect.flatMap(Stream.runCollect), Effect.provideService(Sandbox.Current, sandbox));
 

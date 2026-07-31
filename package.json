@@ -7,7 +7,6 @@
     "ready": "vp check && vp run -r test && vp run -r build",
     "dev": "vp run website#dev",
     "prepare": "vp config && effect-tsgo patch",
-    "postinstall": "npx --force --yes skills add https://github.com/OpenInsightDev/open-insight/tree/main/skills --yes",
     "version": "changeset version"
   },
   "devDependencies": {
