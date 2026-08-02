@@ -1,3 +1,10 @@
+[submodule "workspace"]
+	path = workspace
+	url = https://github.com/OpenInsightDev/workspace.git
+[submodule "packages/acp-agent"]
+	path = packages/acp-agent
+	url = https://github.com/OpenInsightDev/acp-agent.git
+
 [submodule ".repos/agentclientprotocol"]
 	path = .repos/agentclientprotocol
 	url = https://github.com/agentclientprotocol/typescript-sdk.git
@@ -16,9 +23,6 @@
 [submodule ".repos/slime"]
 	path = .repos/slime
 	url = https://github.com/THUDM/slime.git
-[submodule "packages/acp-agent"]
-	path = packages/acp-agent
-	url = https://github.com/OpenInsightDev/acp-agent.git
 [submodule ".repos/pier"]
 	path = .repos/pier
 	url = https://github.com/datacurve-ai/pier.git

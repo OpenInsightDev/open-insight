@@ -1,4 +1,4 @@
-import { Schema } from "effect";
+import { Formatter, Schema } from "effect";
 
 export const PromptErrorReason = Schema.Literals([
   "capability_not_enabled",
@@ -32,7 +32,33 @@ export class PromptError extends Schema.TaggedErrorClass<PromptError>()("AcpProm
   }
 }
 
-export const ErrorReason = PromptError;
+export const HttpTransportOperation = Schema.Literals([
+  "parse-url",
+  "connect",
+  "request",
+  "response",
+]);
+export type HttpTransportOperation = Schema.Schema.Type<typeof HttpTransportOperation>;
+
+export class HttpTransportError extends Schema.TaggedErrorClass<HttpTransportError>()(
+  "AcpHttpTransportError",
+  {
+    url: Schema.String,
+    operation: HttpTransportOperation,
+    status: Schema.optional(Schema.Number),
+    detail: Schema.optional(Schema.String),
+    cause: Schema.optional(Schema.Defect()),
+  },
+) {
+  override get message(): string {
+    const status = this.status === undefined ? "" : ` with HTTP status ${this.status}`;
+    const detail =
+      this.detail ?? (this.cause === undefined ? undefined : Formatter.format(this.cause));
+    return `ACP HTTP transport ${this.operation} failed for ${this.url}${status}${detail === undefined ? "" : `: ${detail}`}`;
+  }
+}
+
+export const ErrorReason = Schema.Union([PromptError, HttpTransportError]);
 export type ErrorReason = Schema.Schema.Type<typeof ErrorReason>;
 
 export class Error extends Schema.TaggedErrorClass<Error>()("AcpError", {
@@ -47,4 +73,23 @@ export class Error extends Schema.TaggedErrorClass<Error>()("AcpError", {
   }
 
   static prompt = (reason: PromptError): Error => new Error({ reason });
+
+  static http =
+    (url: string, operation: HttpTransportOperation, status?: number) =>
+    (cause: unknown): Error =>
+      cause instanceof Error
+        ? cause
+        : new Error({
+            reason: HttpTransportError.make({
+              url,
+              operation,
+              cause,
+              ...(status === undefined ? {} : { status }),
+            }),
+          });
+
+  static httpResponse = (url: string, status: number, detail: string): Error =>
+    new Error({
+      reason: HttpTransportError.make({ url, operation: "response", status, detail }),
+    });
 }

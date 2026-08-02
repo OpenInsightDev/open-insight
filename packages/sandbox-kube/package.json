@@ -30,6 +30,9 @@
     "check": "vp check",
     "prepublishOnly": "vp run build"
   },
+  "dependencies": {
+    "@kubernetes/client-node": "catalog:"
+  },
   "devDependencies": {
     "@types/node": "catalog:",
     "bumpp": "catalog:",

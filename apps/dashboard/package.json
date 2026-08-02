@@ -1,6 +1,6 @@
 {
   "name": "dashboard",
-  "version": "0.0.7",
+  "version": "0.0.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -10,26 +10,21 @@
     "preview": "vp preview"
   },
   "dependencies": {
-    "@astryxdesign/core": "catalog:",
-    "@astryxdesign/theme-neutral": "catalog:",
-    "@heroicons/react": "catalog:",
+    "@open-insight/core": "workspace:*",
     "@open-insight/eval": "workspace:*",
-    "idb-keyval": "catalog:",
-    "react": "catalog:",
-    "react-dom": "catalog:",
-    "zustand": "catalog:"
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
   },
   "devDependencies": {
-    "@astryxdesign/cli": "catalog:",
-    "@babel/core": "catalog:",
-    "@rolldown/plugin-babel": "catalog:",
-    "@types/babel__core": "catalog:",
-    "@types/node": "catalog:",
-    "@types/react": "catalog:",
-    "@types/react-dom": "catalog:",
-    "@vitejs/plugin-react": "catalog:",
-    "babel-plugin-react-compiler": "catalog:",
-    "typescript": "~7.0.2",
+    "@babel/core": "^7.29.7",
+    "@rolldown/plugin-babel": "^0.2.3",
+    "@types/babel__core": "^7.20.5",
+    "@types/node": "^24.13.3",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.4",
+    "babel-plugin-react-compiler": "^1.0.0",
+    "typescript": "~6.0.2",
     "vite": "catalog:",
     "vite-plus": "catalog:"
   }

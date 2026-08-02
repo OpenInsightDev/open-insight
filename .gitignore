@@ -20,9 +20,8 @@ __pycache__/
 .pytest_cache/
 
 # Editor directories and files
-.vscode/*
-!.vscode/settings.json
-!.vscode/extensions.json
+!.vscode/*
+!.zed/*
 .idea
 .DS_Store
 *.suo

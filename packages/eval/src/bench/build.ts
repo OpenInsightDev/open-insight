@@ -23,19 +23,19 @@ export type Bench<T extends Task.AnyTask = Task.AnyTask> = Readonly<{
   metrics: ReadonlyArray<Metric.Bench.Metric>;
 }> & { _T?: T };
 
-type Options<T extends Task.AnyTask> = BaseMetadataEncoded &
+type Options<T extends Task.AnyTask, E, R> = BaseMetadataEncoded &
   Readonly<{
-    tasks: Tasks.Tasks<T>;
+    tasks: Tasks.Load<T, E, R>;
     metrics?: ReadonlyArray<Metric.Bench.Metric>;
   }>;
 
-export const make = Effect.fn(function* <T extends Task.AnyTask>(options: Options<T>) {
-  const { tasks, metrics = [] } = options;
+export const make = Effect.fn(function* <T extends Task.AnyTask, E, R>(options: Options<T, E, R>) {
+  const { tasks: load, metrics = [] } = options;
   const metadata = yield* Schema.decodeEffect(BaseMetadata)(options).pipe();
 
   return {
     metadata,
-    tasks,
+    tasks: yield* load,
     metrics,
   } satisfies Bench<T>;
 });

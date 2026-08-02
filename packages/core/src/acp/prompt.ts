@@ -167,23 +167,20 @@ const fileToContentBlock = Effect.fn(function* (
   return blobBlock(part, partIndex, yield* fileBase64(part.data, partIndex, part.mediaType));
 });
 
-const convertUserMessage = Effect.fn(function* (
-  message: Prompt.UserMessage,
-  options: ToAcpPromptOptions = {},
-): Effect.fn.Return<PromptRequest["prompt"], PromptError> {
-  return yield* Effect.forEach(message.content, (part, partIndex) =>
-    part.type === "text"
-      ? Effect.succeed<ContentBlock>({
-          type: "text",
-          text: part.text,
-        })
-      : fileToContentBlock(part, partIndex, options.promptCapabilities),
-  );
-});
-
-export const toAcpPrompt = Effect.fn("Acp.toAcpPrompt")(function* (
-  message: Prompt.UserMessage,
-  options: ToAcpPromptOptions = {},
-): Effect.fn.Return<PromptRequest["prompt"], Error> {
-  return yield* convertUserMessage(message, options).pipe(Effect.mapError(Error.prompt));
-});
+export const toAcpPrompt = Effect.fn("Acp.toAcpPrompt")(
+  (
+    message: Prompt.UserMessage,
+    options: ToAcpPromptOptions = {},
+  ): Effect.Effect<PromptRequest["prompt"], Error> =>
+    Effect.mapError(
+      Effect.forEach(message.content, (part, partIndex) =>
+        part.type === "text"
+          ? Effect.succeed<ContentBlock>({
+              type: "text",
+              text: part.text,
+            })
+          : fileToContentBlock(part, partIndex, options.promptCapabilities),
+      ),
+      Error.prompt,
+    ),
+);

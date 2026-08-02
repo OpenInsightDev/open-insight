@@ -1,5 +1,5 @@
 import type { ContentBlock, SessionUpdate, ToolKind } from "@agentclientprotocol/sdk";
-import { Effect, Encoding, Result, Schema, Stream } from "effect";
+import { Encoding, Result, Schema, Stream } from "effect";
 import { Response, Tool } from "effect/unstable/ai";
 
 export type AcpTools = Record<string, Tool.AnyDynamic>;
@@ -369,14 +369,11 @@ const closeStream = (state: State): ReadonlyArray<StreamPart> => {
     : [...textParts, ...reasoningParts, finishPart(undefined)];
 };
 
-export const transform = Effect.fn(function* <E, R>(
+export const transform = <E, R>(
   stream: Stream.Stream<SessionUpdate, E, R>,
-): Effect.fn.Return<Stream.Stream<StreamPart, E, R>> {
-  return yield* Effect.succeed(
-    stream.pipe(
-      Stream.mapAccum(() => initialState, handleUpdate, {
-        onHalt: closeStream,
-      }),
-    ),
+): Stream.Stream<StreamPart, E, R> =>
+  stream.pipe(
+    Stream.mapAccum(() => initialState, handleUpdate, {
+      onHalt: closeStream,
+    }),
   );
-}, Stream.unwrap);

@@ -38,23 +38,24 @@ Keep benchmark-wide aggregation separate from task construction:
 
 ## Build the Task Collection
 
-`Bench.make` accepts `Tasks.Tasks<T>`, which is a `ReadonlyArray` of already built tasks. A loader
-may fetch or unpack data, but it must finish by producing an array of `Effect` values and resolving
-them with a `Tasks` loader such as `Tasks.fromAsyncIter`.
+`Bench.make` accepts a `Tasks.Load<T, E, R>`, an Effect that produces the ordered collection of
+already built tasks. The loader may fetch or unpack data, and its errors and service requirements
+remain part of the benchmark construction Effect.
 
 For a small static collection:
 
 ```ts
 import { Bench, Effect } from "@open-insight/eval";
 
-const tasks = Effect.all([
-  makeTask("task-a"),
-  makeTask("task-b"),
-]);
-
-const bench = tasks.pipe(
-  Effect.flatMap((tasks) => Bench.make({ id: "example-bench", tasks })),
-);
+const bench = Effect.gen(function*() {
+  return yield* Bench.make({
+    id: "example-bench",
+    tasks: Effect.all([
+      makeTask("task-a"),
+      makeTask("task-b"),
+    ]),
+  });
+});
 ```
 
 For a dataset discovered asynchronously, yield one task effect per source record and materialize
@@ -70,19 +71,19 @@ async function* loadTaskEffects(records: AsyncIterable<SourceRecord>) {
 }
 
 export const makeBench = Effect.fn(function* () {
-  const tasks = yield* Tasks.fromAsyncIter(loadTaskEffects(sourceRecords()));
   return yield* Bench.make({
     id: "example-bench",
-    tasks,
+    tasks: Tasks.fromAsyncIter(loadTaskEffects(sourceRecords())),
   });
 });
 ```
 
 `Tasks.fromIter`, `Tasks.fromAsyncIter`, and `Tasks.fromStream` resolve task effects and preserve
-their order. Use the source-specific loaders when appropriate: for example, `Harbor.fromDir` can
-load Harbor tasks, while `Tasks.withGithub` and `Tasks.withDist` can acquire a pinned source before
-passing its path to a loader. Inspect the current `Tasks` exports before choosing a loader; the
-available integrations can grow over time.
+their order. Pass the resulting loader Effect directly to `Bench.make`. Use the source-specific
+loaders when appropriate: for example, `Harbor.fromDir` can load Harbor tasks, while
+`Tasks.withGithub` and `Tasks.withDist` can acquire a pinned source before passing its path to a
+loader. Inspect the current `Tasks` exports before choosing a loader; the available integrations
+can grow over time.
 
 Every task must be built before it enters the benchmark. The usual task pipeline is:
 
@@ -100,26 +101,30 @@ failure.
 The minimal constructor is an Effect:
 
 ```ts
-import { Bench } from "@open-insight/eval";
+import { Bench, Effect, Tasks } from "@open-insight/eval";
 
-const bench = yield* Bench.make({
-  id: "example-bench",
-  tasks,
+const bench = Effect.gen(function*() {
+  return yield* Bench.make({
+    id: "example-bench",
+    tasks: Tasks.fromDir({ dir: "./tasks" }),
+  });
 });
 ```
 
 The options are:
 
 - `id: string`: stable identifier used in evaluation results, events, logs, and metric scope;
-- `tasks: ReadonlyArray<Task.Task>`: the complete ordered task collection for this benchmark value;
+- `tasks: Tasks.Load`: an Effect that produces the complete ordered task collection for this
+  benchmark value;
 - `subset?: boolean`: defaults to `false`; indicates that the benchmark is a selected subset;
 - `extras?: Record<string, Json>`: optional benchmark-level data;
 - `metrics?: ReadonlyArray<BenchMetric.Metric>`: optional metrics already constructed, normally
   supplied through the `Bench.metric(...)` builder described below.
 
-`Bench.make` decodes the base metadata and returns `Effect<Bench, BenchError, ...>`. Run it inside
-an `Effect.gen` or compose it with `pipe`; do not treat it as a plain object. The constructor does
-not deduplicate IDs or sort tasks, so validate those invariants in the loader when they matter.
+`Bench.make` decodes the base metadata, runs the task loader, and returns an Effect whose error and
+environment include the loader's error and service requirements. Run it inside an `Effect.gen` or
+compose it with `pipe`; do not treat it as a plain object. The constructor does not deduplicate IDs
+or sort tasks, so validate those invariants in the loader when they matter.
 
 The benchmark metadata has a deliberately small base shape. `Bench.metadata(bench)` creates the
 serializable metadata object containing the benchmark base metadata and each task's metadata. This
@@ -209,11 +214,9 @@ stages. This makes the full dataset reusable by smoke tests and production evalu
 import { Bench, BenchMetric, Chart, Effect, Tasks } from "@open-insight/eval";
 
 export const makeFullBench = Effect.fn(function* () {
-  const tasks = yield* Tasks.fromAsyncIter(loadTaskEffects());
-
   return yield* Bench.make({
     id: "example-bench",
-    tasks,
+    tasks: Tasks.fromAsyncIter(loadTaskEffects()),
   }).pipe(
     Bench.metric(
       BenchMetric.avgPassAtK(1).pipe(
@@ -288,7 +291,8 @@ produce a valid-looking evaluation with no meaningful task coverage.
 ## Review Checklist
 
 - The benchmark ID is stable and the dataset source is pinned.
-- Tasks are fully built (all stages and metrics attached) before they are passed to `Bench.make`.
+- Tasks are fully built (all stages and metrics attached) before the loader passed to `Bench.make`
+  yields them.
 - Task IDs are unique and task order is intentional.
 - Task, trajectory, and benchmark metrics are attached at their correct scopes.
 - Benchmark metrics use explicit grade mappings when their input shape differs from the task grade.

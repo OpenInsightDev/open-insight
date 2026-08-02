@@ -2,7 +2,7 @@ import type { PromptCapabilities, PromptRequest } from "@agentclientprotocol/sdk
 import { assert, it } from "@effect/vitest";
 import { Effect } from "effect";
 import { Prompt } from "effect/unstable/ai";
-import { type Error, toAcpPrompt } from "./index.ts";
+import { type Error, type PromptError, toAcpPrompt } from "./index.ts";
 
 const userMessage = (content: ReadonlyArray<Prompt.UserMessagePart>): Prompt.UserMessage =>
   Prompt.userMessage({ content });
@@ -12,6 +12,14 @@ const conversionError = (
   promptCapabilities?: PromptCapabilities,
 ): Effect.Effect<Error, PromptRequest["prompt"]> =>
   toAcpPrompt(message, { promptCapabilities }).pipe(Effect.flip);
+
+const promptError = (error: Error): PromptError => {
+  assert.strictEqual(error.reason._tag, "AcpPromptError");
+  if (error.reason._tag !== "AcpPromptError") {
+    assert.fail(`Expected AcpPromptError, received ${error.reason._tag}`);
+  }
+  return error.reason;
+};
 
 it.effect("preserves text blocks and their boundaries", () =>
   Effect.gen(function* () {
@@ -192,13 +200,12 @@ it.effect("rejects optional ACP content when its capability is not enabled", () 
     );
 
     assert.strictEqual(imageError._tag, "AcpError");
-    assert.strictEqual(imageError.reason._tag, "AcpPromptError");
-    assert.strictEqual(imageError.reason.reason, "capability_not_enabled");
-    assert.strictEqual(imageError.reason.capability, "image");
+    assert.strictEqual(promptError(imageError).reason, "capability_not_enabled");
+    assert.strictEqual(promptError(imageError).capability, "image");
     assert.strictEqual(imageError.message, "ACP prompt part 0 requires the image capability");
     assert.strictEqual(imageError.cause, imageError.reason);
-    assert.strictEqual(audioError.reason.capability, "audio");
-    assert.strictEqual(embeddedError.reason.capability, "embeddedContext");
+    assert.strictEqual(promptError(audioError).capability, "audio");
+    assert.strictEqual(promptError(embeddedError).capability, "embeddedContext");
   }),
 );
 
@@ -212,9 +219,10 @@ it.effect("rejects malformed base64 without returning a partial prompt", () =>
       { image: true },
     );
 
-    assert.strictEqual(error.reason.reason, "invalid_base64");
-    assert.strictEqual(error.reason.partIndex, 1);
-    assert.strictEqual(error.reason.mediaType, "image/png");
+    const reason = promptError(error);
+    assert.strictEqual(reason.reason, "invalid_base64");
+    assert.strictEqual(reason.partIndex, 1);
+    assert.strictEqual(reason.mediaType, "image/png");
     assert.strictEqual(error.message, "ACP prompt part 1 contains invalid base64 data");
   }),
 );
@@ -232,7 +240,7 @@ it.effect("rejects malformed data URLs and media type mismatches", () =>
       { image: true },
     );
 
-    assert.strictEqual(malformed.reason.reason, "invalid_data_url");
-    assert.strictEqual(mismatch.reason.reason, "data_url_media_type_mismatch");
+    assert.strictEqual(promptError(malformed).reason, "invalid_data_url");
+    assert.strictEqual(promptError(mismatch).reason, "data_url_media_type_mismatch");
   }),
 );
