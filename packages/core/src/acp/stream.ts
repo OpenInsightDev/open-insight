@@ -125,10 +125,11 @@ const segmentEndPart = (
     ? Response.makePart("text-end", { id, metadata: metadataFor(update) })
     : Response.makePart("reasoning-end", { id, metadata: metadataFor(update) });
 
-const base64ToBytes = (data: string): Uint8Array | undefined => {
-  const result = Encoding.decodeBase64(data);
-  return Result.isSuccess(result) ? result.success : undefined;
-};
+const base64ToBytes = (data: string): Uint8Array | undefined =>
+  Result.match(Encoding.decodeBase64(data), {
+    onFailure: () => undefined,
+    onSuccess: (bytes) => bytes,
+  });
 
 const filePartFromBase64 = (
   data: string,

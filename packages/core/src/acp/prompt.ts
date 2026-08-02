@@ -35,12 +35,11 @@ const normalizeBase64 = (
   input: string,
   partIndex: number,
   mediaType: string,
-): Effect.Effect<string, PromptError> => {
-  const decoded = Encoding.decodeBase64(input);
-  return Result.isFailure(decoded)
-    ? Effect.fail(makeError("invalid_base64", partIndex, mediaType))
-    : Effect.succeed(Encoding.encodeBase64(decoded.success));
-};
+): Effect.Effect<string, PromptError> =>
+  Result.match(Encoding.decodeBase64(input), {
+    onFailure: () => Effect.fail(makeError("invalid_base64", partIndex, mediaType)),
+    onSuccess: (bytes) => Effect.succeed(Encoding.encodeBase64(bytes)),
+  });
 
 const normalizeDataString = (
   input: string,

@@ -46,6 +46,13 @@ const unsupportedCapabilities = {
 
 export interface Options extends HttpStreamOptions {
   readonly agentArgs?: ReadonlyArray<string>;
+  /**
+   * Activates the agent's yolo/auto-approve mode by passing `--yolo` to
+   * `acp-agent serve`, which injects the agent's mapped startup flag from the
+   * published yolo-mode catalog. Enabled by default; set `disableYolo` to
+   * `true` to opt out.
+   */
+  readonly disableYolo?: boolean;
   readonly port?: number;
   readonly path?: string;
   readonly cwd?: string;
@@ -127,6 +134,7 @@ const snapshotExtension = (agentId: string, options: Options): Agent.SnapshotExt
     port,
     "--path",
     path,
+    ...(options.disableYolo === true ? [] : ["--yolo"]),
     ...(options.agentArgs === undefined ? [] : ["--", ...options.agentArgs]),
   ];
 
@@ -170,10 +178,8 @@ const sessionUpdateStream = (
   prompt: Array<ContentBlock>,
 ): Stream.Stream<SessionUpdate, Agent.Error> =>
   Effect.gen(function* () {
-    const acquired = yield* Ref.modify(context.turnActive, (active) =>
-      active ? [false, true] : [true, true],
-    );
-    if (!acquired) {
+    const wasActive = yield* Ref.getAndSet(context.turnActive, true);
+    if (wasActive) {
       return yield* Effect.fail(
         Agent.Error.stream(
           new globalThis.Error(
@@ -259,35 +265,31 @@ const promptStream = (
   context: SessionContext,
   trajectory: Prompt.Prompt,
 ): Stream.Stream<Agent.StreamPart, Agent.Error> =>
-  Stream.suspend(() => {
-    const responseParts: Array<Response.AnyPart> = [];
-
-    return Effect.gen(function* () {
-      const committed = yield* Ref.make(false);
-      const state: ResponseState = { trajectory, responseParts, committed };
-      const message = yield* userMessage(trajectory);
-      const prompt = yield* toAcpPrompt(message, {
-        promptCapabilities: context.promptCapabilities,
-      }).pipe(Effect.mapError(Agent.Error.stream));
-      return responseStream(context, prompt, state);
-    }).pipe(Stream.unwrap);
-  });
-
-const makeAgent = (options: MakeAgentOptions): Effect.Effect<Agent.Agent, never> =>
   Effect.gen(function* () {
-    const history = yield* Ref.make(Prompt.empty);
-    const turnActive = yield* Ref.make(false);
-    const context: SessionContext = {
-      ...options,
-      history,
-      turnActive,
-    };
+    const responseParts: Array<Response.AnyPart> = [];
+    const committed = yield* Ref.make(false);
+    const state: ResponseState = { trajectory, responseParts, committed };
+    const message = yield* userMessage(trajectory);
+    const prompt = yield* toAcpPrompt(message, {
+      promptCapabilities: context.promptCapabilities,
+    }).pipe(Effect.mapError(Agent.Error.stream));
+    return responseStream(context, prompt, state);
+  }).pipe(Stream.unwrap);
 
-    return {
-      trajectory: () => Ref.get(context.history),
-      prompt: (trajectory) => promptStream(context, trajectory),
-    } satisfies Agent.Agent;
-  });
+const makeAgent = Effect.fn(function* (options: MakeAgentOptions) {
+  const history = yield* Ref.make(Prompt.empty);
+  const turnActive = yield* Ref.make(false);
+  const context: SessionContext = {
+    ...options,
+    history,
+    turnActive,
+  };
+
+  return {
+    trajectory: () => Ref.get(context.history),
+    prompt: (trajectory) => promptStream(context, trajectory),
+  } satisfies Agent.Agent;
+});
 
 export const makeProvider = Effect.fn("Acp.makeProvider")(function* (
   transport: AcpStream,

@@ -132,9 +132,10 @@ it.effect("initializes once and keeps ACP sessions isolated across turns", () =>
             "--host",
             "0.0.0.0",
             "--port",
-            "8010",
+            "7689",
             "--path",
             "/acp",
+            "--yolo",
           ],
         },
       ]);
@@ -274,6 +275,47 @@ it.effect("rejects prompts that do not represent exactly one ACP user turn", () 
       assert.instanceOf(error, Agent.Error);
       assert.include(error.message, "exactly one user message");
       assert.strictEqual(promptCount, 0);
+    }),
+  ),
+);
+
+it.effect("omits --yolo from the acp-agent serve command when disabled", () =>
+  Effect.scoped(
+    Effect.gen(function* () {
+      const [clientStream, agentStream] = streamPair();
+      const app = agent({ name: "yolo-agent" })
+        .onRequest(methods.agent.initialize, () => ({
+          protocolVersion: PROTOCOL_VERSION,
+          agentCapabilities: { loadSession: false },
+        }))
+        .onRequest(methods.agent.session.new, () => ({ sessionId: "yolo-session" }))
+        .onRequest(methods.agent.authenticate, () => ({}))
+        .onRequest(methods.agent.session.prompt, () => ({ stopReason: "end_turn" }))
+        .onNotification(methods.agent.session.cancel, () => undefined);
+      const agentConnection = app.connect(agentStream);
+      yield* Effect.addFinalizer(() => Effect.sync(() => agentConnection.close()));
+      const provider = yield* makeProvider(clientStream, "yolo-agent", {
+        cwd: "/workspace",
+        disableYolo: true,
+      }).pipe(Effect.provide(Path.layer));
+
+      const extension = Option.getOrThrow(provider.snapshotExtension);
+      const serveInstruction = extension.instructions.at(-1);
+      assert.deepStrictEqual(serveInstruction, {
+        _tag: "Cmd",
+        cmd: [
+          "acp-agent",
+          "serve",
+          "yolo-agent",
+          "--host",
+          "0.0.0.0",
+          "--port",
+          "7689",
+          "--path",
+          "/acp",
+        ],
+      });
+      assert.notInclude(JSON.stringify(serveInstruction), "--yolo");
     }),
   ),
 );
