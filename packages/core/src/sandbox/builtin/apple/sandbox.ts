@@ -131,18 +131,7 @@ export const runSandbox = Effect.fn(
     const resourceArgs = yield* formatResources(handle.name, resources);
     const create = CP.make(
       "container",
-      [
-        "create",
-        "--rm",
-        "--detach",
-        "--name",
-        name,
-        ...networkArgs,
-        ...resourceArgs,
-        handle.name,
-        "sleep",
-        "infinity",
-      ],
+      ["create", "--rm", "--detach", "--name", name, ...networkArgs, ...resourceArgs, handle.name],
       containerOptions,
     );
     yield* Effect.acquireRelease(

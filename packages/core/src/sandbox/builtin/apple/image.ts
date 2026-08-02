@@ -104,7 +104,7 @@ export const deriveSnapshot = Effect.fn(
     });
 
     const containerfilePath = yield* Snapshot.writeInstructions(
-      Snapshot.make({ image: handle.name, instructions, context }),
+      Snapshot.makeWith({ image: handle.name, instructions, context }),
     );
     yield* spawner.success(
       CP.make`container build --file ${containerfilePath} --tag ${derived.name} ${context}`,

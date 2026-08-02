@@ -54,12 +54,12 @@ const makeSnapshot = Effect.fn(function* () {
 
 `Snapshot.build` returns an `Effect` because it resolves the file and context to real absolute paths.
 The context defaults to the Containerfile directory when omitted, and sources in `COPY` or `ADD` are relative to that context.
-Open Insight passes the Containerfile to the sandbox provider without parsing or reducing it.
+Open Insight appends `CMD ["sleep","infinity"]` to the Containerfile and passes it to the sandbox provider without otherwise parsing or reducing it.
 A provider that cannot build local Containerfiles fails with `SnapshotBuildUnsupported`.
 
 ## Define Instructions in Code
 
-`Snapshot.make` accepts a base OCI image, an absolute host build context, and an ordered list of instructions.
+`Snapshot.makeWith` accepts a base OCI image, an absolute host build context, and an ordered list of instructions.
 
 - `Snapshot.run(command)` runs a shell command during the build.
 - `Snapshot.env(values)` sets environment variables.
@@ -81,7 +81,7 @@ import { Effect, Schema } from "effect";
 
 export const makeTask = Effect.fn(function* () {
   const context = resolve(import.meta.dirname!, "environment");
-  const snapshot = Snapshot.make({
+  const snapshot = Snapshot.makeWith({
     image: "python:3.13-slim",
     context,
     instructions: [

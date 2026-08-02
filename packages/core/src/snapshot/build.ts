@@ -1,7 +1,10 @@
 import { Crypto, Effect, Encoding, FileSystem, Path, Schema } from "effect";
 import { Error } from "./error.ts";
 import * as Image from "./image.ts";
-import { Instruction, Instructions } from "./inst.ts";
+import { cmd, Instruction, Instructions } from "./inst.ts";
+
+// Sandbox environments only allow `sleep` as the default command.
+const defaultCommand = cmd("sleep", "infinity");
 
 /** A snapshot described with the provider-independent instruction set. */
 export class InstructionsSnapshot extends Schema.TaggedClass<InstructionsSnapshot>()(
@@ -94,7 +97,7 @@ export const extend =
   (snapshot: InstructionsSnapshot): InstructionsSnapshot =>
     new InstructionsSnapshot({
       image: snapshot.image,
-      instructions: [...snapshot.instructions, ...instructions],
+      instructions: [...snapshot.instructions, ...instructions, defaultCommand],
       context: snapshot.context,
     });
 
@@ -108,6 +111,11 @@ export const build = Effect.fn(function* ({
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const resolvedFilePath = yield* fs.realPath(path.resolve(filePath));
+  const containerfile = yield* fs.readFileString(resolvedFilePath);
+  yield* fs.writeFileString(
+    resolvedFilePath,
+    `${containerfile}${containerfile.endsWith("\n") ? "" : "\n"}${encodeInstruction(defaultCommand)}\n`,
+  );
   const resolvedContext =
     context === undefined
       ? path.dirname(resolvedFilePath)
@@ -125,15 +133,24 @@ export type MakeOptions = {
   instructions: Instructions;
 };
 
-/** Create a snapshot from an OCI image reference and optional provider-independent instructions. */
-export function make(image: string): InstructionsSnapshot;
-export function make(options: MakeOptions): InstructionsSnapshot;
-export function make(imageOrOptions: string | MakeOptions): InstructionsSnapshot {
-  const { image, context = "/tmp" } =
-    typeof imageOrOptions === "string" ? { image: imageOrOptions } : imageOrOptions;
-  const instructions = typeof imageOrOptions === "string" ? [] : imageOrOptions.instructions;
+/** Create a snapshot from an OCI image reference without build instructions. */
+export const make = (image: string): InstructionsSnapshot =>
+  new InstructionsSnapshot({
+    image: Image.make(image),
+    context: "/tmp",
+    instructions: [defaultCommand],
+  });
 
-  return new InstructionsSnapshot({ image: Image.make(image), context, instructions });
-}
+/** Create a snapshot from an OCI image reference and provider-independent instructions. */
+export const makeWith = ({
+  image,
+  context = "/tmp",
+  instructions,
+}: MakeOptions): InstructionsSnapshot =>
+  new InstructionsSnapshot({
+    image: Image.make(image),
+    context,
+    instructions: [...instructions, defaultCommand],
+  });
 
 export const Scratch = make("scratch");

@@ -13,13 +13,13 @@ describe("Snapshot", () => {
         assert.strictEqual(snapshot._tag, "Instructions");
         assert.strictEqual(snapshot.image, "alpine:3.22");
         assert.strictEqual(snapshot.context, "/tmp");
-        assert.deepStrictEqual(snapshot.instructions, []);
+        assert.deepStrictEqual(snapshot.instructions, [Snapshot.Inst.cmd("sleep", "infinity")]);
       }),
     );
 
     it.effect("constructs and encodes provider-independent instructions", () =>
       Effect.sync(() => {
-        const snapshot = Snapshot.make({
+        const snapshot = Snapshot.makeWith({
           image: "alpine:3.22",
           context: "/workspace",
           instructions: [
@@ -40,7 +40,7 @@ describe("Snapshot", () => {
         assert.strictEqual(snapshot._tag, "Instructions");
         assert.strictEqual(
           Snapshot.encode(snapshot),
-          'FROM alpine:3.22\nENV A="first" B="second"\nRUN echo ready\nCMD ["acp-agent","serve","codex-acp","--host","0.0.0.0","--port","8010"]\n',
+          'FROM alpine:3.22\nENV A="first" B="second"\nRUN echo ready\nCMD ["acp-agent","serve","codex-acp","--host","0.0.0.0","--port","8010"]\nCMD ["sleep","infinity"]\n',
         );
       }),
     );
@@ -62,6 +62,10 @@ describe("Snapshot", () => {
           assert.strictEqual(snapshot._tag, "Containerfile");
           assert.strictEqual(snapshot.filePath, yield* fs.realPath(filePath));
           assert.strictEqual(snapshot.context, yield* fs.realPath(context));
+          assert.strictEqual(
+            yield* fs.readFileString(filePath),
+            '# syntax=docker/dockerfile:1\nFROM alpine\nRUN --mount=type=cache,target=/var/cache echo ready\nCMD ["sleep","infinity"]\n',
+          );
 
           const error = Sandbox.Error.buildUnsupported("remote", snapshot);
           const reason = error.reason;

@@ -178,7 +178,7 @@ export const make = Effect.fn("sandbox/provider/docker")(
         });
 
         const containerfilePath = yield* Snapshot.writeInstructions(
-          Snapshot.make({ image: handle.name, instructions, context }),
+          Snapshot.makeWith({ image: handle.name, instructions, context }),
         );
 
         const build = CP.make`build -f ${containerfilePath} -t ${derived.name} ${context}`.pipe(
@@ -230,8 +230,7 @@ export const make = Effect.fn("sandbox/provider/docker")(
           --name ${name}
           ${portArgs}
           ${resourceArgs}
-          ${handle.name}
-          sleep infinity`.pipe(runtime);
+          ${handle.name}`.pipe(runtime);
 
         yield* Effect.acquireRelease(
           spawner.success(run).pipe(
