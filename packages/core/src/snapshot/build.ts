@@ -43,6 +43,7 @@ const encodeInstruction = (instruction: Instruction): string =>
     Workdir: ({ path }) => `WORKDIR ${path}`,
     User: ({ user }) => `USER ${user}`,
     Run: ({ cmd }) => `RUN ${cmd}`,
+    Cmd: ({ cmd }) => `CMD ${JSON.stringify(cmd)}`,
     Env: ({ env }) => {
       const keys = Object.keys(env).sort();
       return `ENV ${keys.map((key) => `${key}=${JSON.stringify(env[key])}`).join(" ")}`;

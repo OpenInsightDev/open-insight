@@ -25,13 +25,22 @@ describe("Snapshot", () => {
           instructions: [
             Snapshot.Inst.env({ B: "second", A: "first" }),
             Snapshot.Inst.run("echo ready"),
+            Snapshot.Inst.cmd(
+              "acp-agent",
+              "serve",
+              "codex-acp",
+              "--host",
+              "0.0.0.0",
+              "--port",
+              "8010",
+            ),
           ],
         });
 
         assert.strictEqual(snapshot._tag, "Instructions");
         assert.strictEqual(
           Snapshot.encode(snapshot),
-          'FROM alpine:3.22\nENV A="first" B="second"\nRUN echo ready\n',
+          'FROM alpine:3.22\nENV A="first" B="second"\nRUN echo ready\nCMD ["acp-agent","serve","codex-acp","--host","0.0.0.0","--port","8010"]\n',
         );
       }),
     );

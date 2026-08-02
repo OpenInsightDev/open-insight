@@ -13,9 +13,13 @@ export const Instruction = Schema.TaggedUnion({
   Run: {
     cmd: Schema.String,
   },
+  Cmd: {
+    cmd: Schema.NonEmptyArray(Schema.String),
+  },
   Env: {
     env: Schema.Record(Schema.String, Schema.String),
   },
+  // TODO support copy from another oci image
   Copy: {
     src: Schema.Array(Schema.String),
     dest: Schema.String,
@@ -29,6 +33,9 @@ export const workdir = (workdir: string): Instruction =>
 export const user = (user: string): Instruction => Instruction.make({ _tag: "User", user });
 
 export const run = (cmd: string): Instruction => Instruction.make({ _tag: "Run", cmd });
+
+export const cmd = (program: string, ...args: ReadonlyArray<string>): Instruction =>
+  Instruction.make({ _tag: "Cmd", cmd: [program, ...args] });
 
 export const assert = (...cmd: string[]): Instruction =>
   Instruction.make({ _tag: "Run", cmd: cmd.join(" && ") + " || exit 1" });

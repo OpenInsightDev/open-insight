@@ -4,7 +4,8 @@ import type { Instructions } from "./inst.ts";
 
 export type Handle = Readonly<{
   /**
-   * The name of the snapshot handle, which is guaranteed to be unique and can be used to reference the real snapshot in the provider's storage.
+   * The name of the snapshot handle.
+   * Guaranteed to be unique and can be used to reference the real snapshot in the provider's storage.
    */
   name: string;
 }> &
