@@ -93,8 +93,6 @@ peerDependencyRules:
     vite: "*"
     vitest: "*"
 allowBuilds:
-  '@astryxdesign/cli': true
-  '@astryxdesign/core': true
   esbuild: true
   msgpackr-extract: true
 minimumReleaseAgeExclude:
