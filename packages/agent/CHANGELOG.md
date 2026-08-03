@@ -1,5 +1,18 @@
 # @open-insight/agent
 
+## 1.0.0
+
+### Minor Changes
+
+- 94dd07c: Replace capability-specific agent constructors and overloads with one `make` function. Configure
+  Skills and MCP independently through Effect layers.
+
+### Patch Changes
+
+- patch
+- Updated dependencies
+  - @open-insight/core@1.0.0
+
 ## 0.0.25
 
 ### Patch Changes
