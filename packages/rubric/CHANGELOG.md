@@ -1,5 +1,15 @@
 # @open-insight/rubric
 
+## 0.0.25
+
+### Patch Changes
+
+- patch
+- Updated dependencies
+  - @open-insight/core@0.0.25
+  - @open-insight/agent@0.0.25
+  - @open-insight/eval@0.0.25
+
 ## 0.0.24
 
 ### Patch Changes
