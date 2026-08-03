@@ -1,9 +1,10 @@
 # ACP 模块端到端测试问题汇总（open-insight 仓库）
 
 > 测试对象：`packages/core/src/acp/` 全模块（`http.ts` / `service.ts` / `stream.ts` / `prompt.ts` / `error.ts`）
-> 被测环境：`ghcr.io/openinsightdev/acp-agent:0.0.2` + `codex-acp@1.1.9` + DeepSeek（`deepseek-v4-flash`，`https://api.deepseek.com/v1`）
+> 初测环境：`ghcr.io/openinsightdev/acp-agent:0.0.2` + `codex-acp@1.1.9` + DeepSeek（`deepseek-v4-flash`，`https://api.deepseek.com/v1`）
+> 修复验证环境：本地构建 `acp-agent@c467d25`（arm64）+ `codex-acp@1.1.9` + DeepSeek
 > 测试入口：`packages/core/e2e/acp.e2e.test.ts`（需先按文件头注释启动容器）
-> 结论：**本模块无法直接对接已发布的 acp-agent 镜像**。流转换、prompt 转换、轨迹、会话隔离在真实 agent 下验证正常，但存在 2 个代码级缺口和 1 个文档级缺口。acp-agent 自身的问题（Deno 依赖年龄策略、镜像平台、可观测性等）见 `packages/acp-agent/docs/e2e-findings.md`。
+> 当前结论：文中 2 个 P0 代码缺口、1 个 P1 部署缺口和相应测试盲区均已修复。`Acp.layer()` 已在本地最新 acp-agent 镜像上通过 Streamable HTTP 与 WebSocket 真实 E2E；初测现象保留为问题背景。
 
 ---
 
@@ -25,16 +26,7 @@ $ curl --http2-prior-knowledge -X POST http://127.0.0.1:8010/acp \
 - `Upgrade: h2c` 头协商方式也不支持（返回 200 而非 101），仅 prior-knowledge 一种 h2c 可用；
 - 服务端实际暴露的传输是 **Streamable HTTP**（POST JSON + SSE GET）与 **WebSocket**，两者均验证可用。SDK 自带的 `createHttpStream`（`@agentclientprotocol/sdk/experimental/http-client`，即 `http.ts` 注释里提到的 “POST + SSE Streamable HTTP transport”）与已发布镜像语义完全对齐——本模块没有使用它，而是针对一个服务端不存在的帧格式开发，且没有兜底。
 
-**影响**：`Acp.layer(url, ...)` 无法连接任何已发布版本的 acp-agent。当前唯一能跑通真实 agent 的路径是绕过 `layer()`，直接用 SDK 的 `createWebSocketStream`（`@agentclientprotocol/sdk/experimental/ws-client`）构造 `AcpStream` 后调用 `makeProvider`——e2e 测试即采用此方式。
-
-**建议（下一步修复）**：
-
-- 短期：`http.ts` 对接服务端真实存在的传输，两种按 URL scheme 并存分流——
-  - **Streamable HTTP**：改用 SDK `createHttpStream`（POST `application/json` + GET SSE），与已发布镜像语义精确匹配，`http:` URL 走此路径；
-  - **WebSocket**：补充 `openWebSocketStream`，`ws:` URL 走此路径（e2e 已验证可用）；
-- `openHttpStream` 的 octet-stream 帧格式在服务端支持之前不可用，不应再作为 `layer()` 的默认路径；
-- 客户端必须遵守镜像的传输面约束（见 §5 支持矩阵：HTTP 只发 JSON、WS 只发文本帧、不能依赖 WS 优雅关闭等）；
-- e2e 测试已固定该缺口（415 + `AcpHttpTransportError`），防止未来无感知回归。
+**修复**：`openHttpStream` 已改用 SDK `createHttpStream`（POST JSON + GET SSE + DELETE）；新增 `openWebSocketStream`，`openStream` 和 `Acp.layer()` 按 `http(s)` / `ws(s)` URL scheme 分流并透传完整 SDK transport 选项。服务端不支持的 octet-stream 实现已删除。单测覆盖 HTTP JSON/SSE/DELETE、headers、错误类型和 WebSocket 文本帧/关闭；真实 E2E 同时覆盖两个 `layer()` 入口。
 
 ## 2. 鉴权缺口：`makeProvider` 从不调用 `agent/authenticate`（P0）
 
@@ -49,11 +41,7 @@ Caused by: StreamError: Agent response stream failed: Authentication required
 
 **影响**：模块对任何需要鉴权的真实 agent（当前主流 ACP agent 均如此）都无法建立会话。e2e 中通过 agent 侧环境变量 `DEFAULT_AUTH_REQUEST={"methodId":"api-key"}` 绕过（codex-acp 内部代为完成 authenticate）。
 
-**建议**：
-
-- `Options` 增加鉴权配置（如 `auth?: { methodId; credentials }`），`makeProvider` 在 initialize 后、建会话前执行 `agent/authenticate`；
-- 鉴权失败/被要求交互时应给出语义明确的 `Acp.Error`（当前 `Authentication required` 被包装成通用 `StreamError`，无法区分是网络错误还是鉴权错误）；
-- 单元测试补充"agent 要求鉴权但客户端未提供"的失败用例。
+**修复**：`Options.auth` 接受稳定 ACP SDK 的 `AuthenticateRequest`（当前协议字段为 `methodId`）。显式配置 auth 时，`makeProvider` 会在 initialize 之后、session/new 之前验证 agent 公布的方法并调用 `agent/authenticate`；未配置时不会把“公布可用鉴权方式”误判为“当前连接必须鉴权”，而是在 session/new 真正返回 `auth_required` 时将结构化 `AcpAuthenticationError` 保留在 `Agent.Error` cause 链中。方法不支持和远端拒绝也映射为 `AcpAuthenticationError`。单测覆盖可匿名 session、请求参数与顺序、真实 auth_required、方法不支持和远端拒绝。真实 E2E 不再注入 `DEFAULT_AUTH_REQUEST`，因此会实际经过客户端鉴权。
 
 ## 3. snapshot 指令不含任何运行时配置（P1）
 
@@ -65,9 +53,9 @@ acp-agent install codex-acp
 acp-agent serve codex-acp --host 0.0.0.0 --port 7689 --path /acp --yolo
 ```
 
-按此部署的 agent 必然失败：deno 依赖年龄策略、缺少鉴权、缺少模型 provider 配置都会在首次连接时把 agent 打挂或拒绝会话（详见 acp-agent 文档 §1–§2 与本文档 §2）。e2e 实测需要额外注入 `deno.json`、`DEFAULT_AUTH_REQUEST`、`CODEX_CONFIG` 三个配置才能跑通。
+初测时按此部署的 agent 必然失败：deno 依赖年龄策略、缺少鉴权、缺少模型 provider 配置都会在首次连接时把 agent 打挂或拒绝会话。旧 `v0.0.2` 镜像的 e2e 需要额外注入 `deno.json`、`DEFAULT_AUTH_REQUEST`、`CODEX_CONFIG` 三个配置才能跑通。
 
-**建议**：`snapshotExtension` 应支持注入 serve 环境的配置（至少支持自定义 env / 配置文件），或把部署要求写进模块文档；当前生成的指令对真实环境不具备可执行性。
+**修复**：`Acp.Options` 现在提供 `serveEnv`。`snapshotExtension` 会将其编码为紧邻 `acp-agent serve` 命令的 Snapshot `ENV` 指令，供 serve 进程及其启动的 agent 继承。真实 codex-acp 部署可通过它传入 `DEFAULT_AUTH_REQUEST`、`CODEX_CONFIG` 等运行时配置；因 Snapshot `ENV` 会写入派生镜像，敏感凭据只能用于受保护的镜像。本地验证使用的 acp-agent `main@c467d25` 安装流程已经传递 `--minimum-dependency-age 0`，因此不再需要旧 `v0.0.2` 镜像部署中的 `deno.json` 绕过配置。
 
 ## 4. 单元测试盲区（P2）
 
@@ -77,7 +65,7 @@ acp-agent serve codex-acp --host 0.0.0.0 --port 7689 --path /acp --yolo
 - agent 进程启动失败（`agent closed before initialize response`）时的错误路径；
 - 传输层与真实镜像的握手差异（§1）。
 
-**建议**：保留 `packages/core/e2e/` 套件（已补充真实链路），并在单测中补充鉴权失败、启动失败的用例。
+**修复**：`service.test.ts` 已覆盖强制鉴权、调用顺序与拒绝路径；`http.test.ts` 覆盖两种已发布传输。`packages/core/e2e/` 直接使用最新本地镜像验证 `Acp.layer()` 的 HTTP/WS 链路、鉴权、真实模型流、多轮会话和轨迹。agent 进程启动失败、stderr 转发和 `/readyz` 由最新版 acp-agent 的 Rust 网络测试覆盖。
 
 ---
 
@@ -105,12 +93,12 @@ acp-agent serve codex-acp --host 0.0.0.0 --port 7689 --path /acp --yolo
 | 5   | CORS 默认策略                                                       | 默认 `CorsOptions::disabled()`：OPTIONS 预检 → 405；带 `Origin` 的 WS 握手 → 403                                               | `serve.rs::ServeOptions::default`                          |
 | 6   | `Upgrade: h2c` 头协商                                               | 返回 200 而非 101，仅 prior-knowledge 有效                                                                                     | 实测（hyper/axum 未启用 h2c upgrade 路径）                 |
 
-**对下一步修复的含义**：
+**客户端实现约束**：
 
 - 帧格式：HTTP 侧只能发 JSON（单条或 batch），响应走 SSE；NDJSON 字节流需要服务端先支持；
 - WS 侧只能发文本帧，且关闭握手不可靠（1006）；
 - 浏览器直连受限：CORS 默认关闭，需服务端 `--cors-allow-any`（或限定 origin）或由 open-insight 侧代理；
-- 与 `packages/acp-agent/docs/e2e-findings.md` §5 互为印证：服务端只有 Streamable HTTP + WebSocket 两种传输。
+- 与本地验证的 acp-agent 源码一致：服务端只有 Streamable HTTP + WebSocket 两种传输。
 
 ## 已确认正常的部分
 
@@ -123,9 +111,9 @@ acp-agent serve codex-acp --host 0.0.0.0 --port 7689 --path /acp --yolo
 ## 复现步骤
 
 ```sh
-# 启动容器（完整命令与各配置项说明见 acp-agent 文档末尾）
+# 先按 e2e 文件头注释构建并启动本地最新 acp-agent 镜像
 cd packages/core
 ./node_modules/.bin/vitest run --config e2e/vitest.e2e.config.ts
 ```
 
-两个用例：① WebSocket 全链路真实对话（含两轮会话 + 轨迹断言）；② 字节流帧格式缺口固定（415 `AcpHttpTransportError`）。
+两个用例：① Streamable HTTP 全链路真实两轮对话（含鉴权 + 轨迹断言）；② WebSocket 全链路真实对话（含 URL scheme 分流 + 鉴权）。

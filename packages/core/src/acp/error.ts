@@ -58,7 +58,38 @@ export class HttpTransportError extends Schema.TaggedErrorClass<HttpTransportErr
   }
 }
 
-export const ErrorReason = Schema.Union([PromptError, HttpTransportError]);
+export const AuthenticationErrorReason = Schema.Literals([
+  "authentication_required",
+  "unsupported_method",
+  "authentication_failed",
+]);
+export type AuthenticationErrorReason = Schema.Schema.Type<typeof AuthenticationErrorReason>;
+
+export class AuthenticationError extends Schema.TaggedErrorClass<AuthenticationError>()(
+  "AcpAuthenticationError",
+  {
+    reason: AuthenticationErrorReason,
+    methodId: Schema.optional(Schema.String),
+    availableMethodIds: Schema.Array(Schema.String),
+    cause: Schema.optional(Schema.Defect()),
+  },
+) {
+  override get message(): string {
+    const available = this.availableMethodIds.join(", ");
+    switch (this.reason) {
+      case "authentication_required":
+        return available.length === 0
+          ? "ACP agent requires authentication"
+          : `ACP agent requires authentication; configure auth with one of: ${available}`;
+      case "unsupported_method":
+        return `ACP authentication method ${this.methodId} is not supported; available methods: ${available}`;
+      case "authentication_failed":
+        return `ACP authentication failed for method ${this.methodId}`;
+    }
+  }
+}
+
+export const ErrorReason = Schema.Union([PromptError, HttpTransportError, AuthenticationError]);
 export type ErrorReason = Schema.Schema.Type<typeof ErrorReason>;
 
 export class Error extends Schema.TaggedErrorClass<Error>()("AcpError", {
@@ -92,4 +123,42 @@ export class Error extends Schema.TaggedErrorClass<Error>()("AcpError", {
     new Error({
       reason: HttpTransportError.make({ url, operation: "response", status, detail }),
     });
+
+  static authenticationRequired = (
+    availableMethodIds: ReadonlyArray<string>,
+    cause?: unknown,
+  ): Error =>
+    new Error({
+      reason: AuthenticationError.make({
+        reason: "authentication_required",
+        availableMethodIds: [...availableMethodIds],
+        ...(cause === undefined ? {} : { cause }),
+      }),
+    });
+
+  static unsupportedAuthenticationMethod = (
+    methodId: string,
+    availableMethodIds: ReadonlyArray<string>,
+  ): Error =>
+    new Error({
+      reason: AuthenticationError.make({
+        reason: "unsupported_method",
+        methodId,
+        availableMethodIds: [...availableMethodIds],
+      }),
+    });
+
+  static authenticationFailed =
+    (methodId: string) =>
+    (cause: unknown): Error =>
+      cause instanceof Error
+        ? cause
+        : new Error({
+            reason: AuthenticationError.make({
+              reason: "authentication_failed",
+              methodId,
+              availableMethodIds: [],
+              cause,
+            }),
+          });
 }

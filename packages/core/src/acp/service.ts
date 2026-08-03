@@ -4,6 +4,7 @@ import {
   client,
   methods,
   type ActiveSession,
+  type AuthenticateRequest,
   type ClientCapabilities,
   type ContentBlock,
   type Implementation,
@@ -18,7 +19,8 @@ import { Prompt, Response } from "effect/unstable/ai";
 import * as Agent from "#/agent/index.ts";
 import * as Snapshot from "#/snapshot/index.ts";
 import { Bash } from "#/utils/index.ts";
-import { type HttpStreamOptions, openHttpStream } from "./http.ts";
+import { type HttpStreamOptions, openStream, type WebSocketStreamOptions } from "./http.ts";
+import { Error as AcpError } from "./error.ts";
 import { toAcpPrompt } from "./prompt.ts";
 import { transform } from "./stream.ts";
 
@@ -27,6 +29,7 @@ const DEFAULT_PORT = 7689;
 const DEFAULT_PATH = "/acp";
 const ACP_AGENT_INSTALL_URL =
   "https://github.com/OpenInsightDev/acp-agent/releases/latest/download/install.sh";
+const AUTH_REQUIRED_CODE = -32_000;
 
 const unsupportedCapabilities = {
   fs: {
@@ -44,8 +47,23 @@ const unsupportedCapabilities = {
   positionEncodings: [],
 } satisfies ClientCapabilities;
 
-export interface Options extends HttpStreamOptions {
+export interface Options extends HttpStreamOptions, WebSocketStreamOptions {
+  /**
+   * Authentication request to send when the agent advertises authentication
+   * methods during initialization. Credentials remain agent-managed per ACP.
+   */
+  readonly auth?: AuthenticateRequest;
   readonly agentArgs?: ReadonlyArray<string>;
+  /**
+   * Environment variables baked into the generated snapshot and inherited by
+   * `acp-agent serve` and the agent process it starts. Use this for the
+   * selected agent's runtime configuration, such as `DEFAULT_AUTH_REQUEST`
+   * or `CODEX_CONFIG`.
+   *
+   * Values become part of the derived snapshot image. Do not use this for
+   * credentials unless that image is kept private.
+   */
+  readonly serveEnv?: Readonly<Record<string, string>>;
   /**
    * Activates the agent's yolo/auto-approve mode by passing `--yolo` to
    * `acp-agent serve`, which injects the agent's mapped startup flag from the
@@ -120,6 +138,20 @@ const validateOptions = Effect.fn("Acp.validateOptions")(function* (
   yield* Effect.forEach(options.additionalDirectories ?? [], (directory, index) =>
     validateAbsolutePath(path, `ACP additional directory ${index}`, directory),
   );
+  for (const [name, value] of Object.entries(options.serveEnv ?? {})) {
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) {
+      return yield* Effect.fail(
+        Agent.Error.stream(new TypeError(`Invalid ACP serve environment variable name: ${name}`)),
+      );
+    }
+    if (typeof value !== "string") {
+      return yield* Effect.fail(
+        Agent.Error.stream(
+          new TypeError(`ACP serve environment variable ${name} must have a string value`),
+        ),
+      );
+    }
+  }
 });
 
 const snapshotExtension = (agentId: string, options: Options): Agent.SnapshotExtension => {
@@ -137,6 +169,7 @@ const snapshotExtension = (agentId: string, options: Options): Agent.SnapshotExt
     ...(options.disableYolo === true ? [] : ["--yolo"]),
     ...(options.agentArgs === undefined ? [] : ["--", ...options.agentArgs]),
   ];
+  const serveEnv = options.serveEnv;
 
   return {
     instructions: [
@@ -145,6 +178,9 @@ const snapshotExtension = (agentId: string, options: Options): Agent.SnapshotExt
       ),
       Snapshot.Inst.run("acp-agent install-env --yes"),
       Snapshot.Inst.run(`acp-agent install ${Bash.quote(agentId)}`),
+      ...(serveEnv === undefined || Object.keys(serveEnv).length === 0
+        ? []
+        : [Snapshot.Inst.env({ ...serveEnv })]),
       Snapshot.Inst.cmd("acp-agent", ...serveArgs),
     ],
   };
@@ -291,6 +327,38 @@ const makeAgent = Effect.fn(function* (options: MakeAgentOptions) {
   } satisfies Agent.Agent;
 });
 
+const authMethodIds = (initialized: InitializeResponse) =>
+  initialized.authMethods?.map((method) => method.id) ?? [];
+
+const authenticate = Effect.fn("Acp.authenticate")(function* (
+  request: (params: AuthenticateRequest) => Promise<unknown>,
+  initialized: InitializeResponse,
+  auth: AuthenticateRequest | undefined,
+) {
+  if (auth === undefined) {
+    return;
+  }
+  const availableMethodIds = authMethodIds(initialized);
+  if (!availableMethodIds.includes(auth.methodId)) {
+    return yield* Effect.fail(
+      AcpError.unsupportedAuthenticationMethod(auth.methodId, availableMethodIds),
+    );
+  }
+  yield* Effect.tryPromise({
+    try: () => request(auth),
+    catch: AcpError.authenticationFailed(auth.methodId),
+  }).pipe(Effect.asVoid);
+});
+
+const sessionStartError =
+  (initialized: InitializeResponse) =>
+  (cause: unknown): Agent.Error => {
+    if (cause instanceof RequestError && cause.code === AUTH_REQUIRED_CODE) {
+      return Agent.Error.stream(AcpError.authenticationRequired(authMethodIds(initialized), cause));
+    }
+    return Agent.Error.stream(cause);
+  };
+
 export const makeProvider = Effect.fn("Acp.makeProvider")(function* (
   transport: AcpStream,
   agentId: string,
@@ -331,17 +399,24 @@ export const makeProvider = Effect.fn("Acp.makeProvider")(function* (
       ),
     );
   }
+  yield* authenticate(
+    (params) => connection.agent.request(methods.agent.authenticate, params),
+    initialized,
+    options.auth,
+  );
 
   const runSession = Effect.fn("Acp.runSession")(function* (_sandbox) {
-    const session = yield* protocolEffect<ActiveSession>(() =>
-      connection.agent
-        .buildSession({
-          cwd: options.cwd ?? DEFAULT_CWD,
-          additionalDirectories: [...(options.additionalDirectories ?? [])],
-          mcpServers: [...(options.mcpServers ?? [])],
-        })
-        .start(),
-    );
+    const session = yield* Effect.tryPromise({
+      try: () =>
+        connection.agent
+          .buildSession({
+            cwd: options.cwd ?? DEFAULT_CWD,
+            additionalDirectories: [...(options.additionalDirectories ?? [])],
+            mcpServers: [...(options.mcpServers ?? [])],
+          })
+          .start(),
+      catch: sessionStartError(initialized),
+    });
 
     return yield* makeAgent({
       session,
@@ -363,9 +438,7 @@ export const makeProvider = Effect.fn("Acp.makeProvider")(function* (
 
 export const layer = (url: string | URL, agentId: string, options: Options = {}) => {
   const provider = Effect.gen(function* () {
-    const transport = yield* openHttpStream(url, { headers: options.headers }).pipe(
-      Effect.mapError(Agent.Error.stream),
-    );
+    const transport = yield* openStream(url, options).pipe(Effect.mapError(Agent.Error.stream));
     return yield* makeProvider(transport, agentId, options);
   });
 

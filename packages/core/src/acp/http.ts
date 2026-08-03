@@ -1,73 +1,39 @@
-import { type AnyMessage, ndJsonStream, type Stream as AcpStream } from "@agentclientprotocol/sdk";
-import * as NodeHttpClient from "@effect/platform-node/NodeHttpClient";
-import * as Undici from "@effect/platform-node/Undici";
-import { Effect, Stream } from "effect";
-import { HttpClientRequest } from "effect/unstable/http";
+import type { Stream as AcpStream } from "@agentclientprotocol/sdk";
+import {
+  createHttpStream,
+  type HttpStreamOptions as SdkHttpStreamOptions,
+} from "@agentclientprotocol/sdk/experimental/http-client";
+import {
+  createWebSocketStream,
+  type WebSocketStreamOptions as SdkWebSocketStreamOptions,
+} from "@agentclientprotocol/sdk/experimental/ws-client";
+import { Effect } from "effect";
 import { Error } from "./error.ts";
 
-const CONTENT_TYPE = "application/octet-stream";
-
-export interface HttpStreamOptions {
-  readonly headers?: Readonly<Record<string, string>>;
-}
+export type HttpStreamOptions = SdkHttpStreamOptions;
+export type WebSocketStreamOptions = SdkWebSocketStreamOptions;
 
 const ignorePromiseFailure = (evaluate: () => Promise<void>) =>
   Effect.tryPromise(evaluate).pipe(Effect.ignore);
 
-const makeDispatcher = (url: URL) =>
+const closeStream = (stream: AcpStream) => ignorePromiseFailure(() => stream.writable.close());
+
+const acquireStream = (url: URL, make: () => AcpStream) =>
   Effect.acquireRelease(
-    Effect.try({
-      try: () =>
-        new Undici.H2CClient(url.origin, {
-          bodyTimeout: 0,
-          maxConcurrentStreams: 1,
-          pipelining: 1,
-        }),
-      catch: Error.http(url.href, "connect"),
-    }),
-    (dispatcher) => ignorePromiseFailure(() => dispatcher.destroy()),
+    Effect.try({ try: make, catch: Error.http(url.href, "connect") }),
+    closeStream,
   );
 
-const makeRequestBody = Effect.acquireRelease(
-  Effect.sync(() => new TransformStream<Uint8Array, Uint8Array>()),
-  (body) => ignorePromiseFailure(() => body.writable.abort()),
-);
-
-const closeableNdJsonStream = (
-  output: WritableStream<Uint8Array>,
-  input: ReadableStream<Uint8Array>,
-): AcpStream => {
-  const stream = ndJsonStream(output, input);
-
-  return {
-    readable: stream.readable,
-    writable: new WritableStream<AnyMessage>({
-      async write(message) {
-        const writer = stream.writable.getWriter();
-        try {
-          await writer.write(message);
-        } finally {
-          writer.releaseLock();
-        }
-      },
-      async close() {
-        await stream.writable.close();
-        await output.close();
-      },
-      async abort(reason) {
-        await Promise.allSettled([stream.writable.abort(reason), output.abort(reason)]);
-      },
-    }),
-  };
-};
-
-const parseUrl = (input: string | URL): Effect.Effect<URL, Error> => {
+const parseUrl = (
+  input: string | URL,
+  protocols: ReadonlyArray<string>,
+): Effect.Effect<URL, Error> => {
   const displayUrl = typeof input === "string" ? input : input.href;
   return Effect.try({
     try: () => {
       const url = new URL(input);
-      if (url.protocol !== "http:") {
-        throw new globalThis.Error("ACP h2c transport requires an http: URL");
+      if (!protocols.includes(url.protocol)) {
+        throw new globalThis.Error(`ACP transport requires a ${protocols.join(" or ")} URL`);
       }
       return url;
     },
@@ -75,57 +41,62 @@ const parseUrl = (input: string | URL): Effect.Effect<URL, Error> => {
   });
 };
 
-const validateResponse = (
-  url: string,
-  status: number,
-  contentType: string | undefined,
-): Effect.Effect<void, Error> => {
-  if (status === 200 && contentType?.toLowerCase() === CONTENT_TYPE) {
-    return Effect.void;
-  }
-
-  const detail =
-    status !== 200
-      ? `expected HTTP status 200, received ${status}`
-      : `expected Content-Type ${CONTENT_TYPE}, received ${contentType ?? "none"}`;
-  return Effect.fail(Error.httpResponse(url, status, detail));
+const responseDetail = async (response: Response): Promise<string> => {
+  const body = await response.text().catch(() => "");
+  const summary = `${response.status} ${response.statusText}`.trim();
+  return body.length === 0 ? summary : `${summary}: ${body}`;
 };
 
-/**
- * Opens the full-duplex HTTP/2 byte stream exposed by `acp-agent serve --transport http`.
- *
- * The returned ACP SDK stream uses NDJSON framing and remains valid until the surrounding
- * Effect scope closes. This is distinct from the SDK's POST + SSE Streamable HTTP transport.
- */
+const checkedFetch =
+  (url: URL, fetch: typeof globalThis.fetch | undefined) =>
+  async (...args: Parameters<typeof globalThis.fetch>): Promise<Response> => {
+    try {
+      const response = await (fetch ?? globalThis.fetch)(...args);
+      if (!response.ok) {
+        throw Error.httpResponse(url.href, response.status, await responseDetail(response));
+      }
+      return response;
+    } catch (cause) {
+      throw Error.http(url.href, "request")(cause);
+    }
+  };
+
+const openSdkHttpStream = (url: URL, options: HttpStreamOptions) =>
+  acquireStream(url, () =>
+    createHttpStream(url.href, {
+      ...options,
+      fetch: checkedFetch(url, options.fetch),
+    }),
+  );
+
+const openSdkWebSocketStream = (url: URL, options: WebSocketStreamOptions) =>
+  acquireStream(url, () => createWebSocketStream(url.href, options));
+
+/** Opens the Streamable HTTP transport: JSON POST requests and an SSE response stream. */
 export const openHttpStream = Effect.fn("Acp.openHttpStream")(function* (
   input: string | URL,
   options: HttpStreamOptions = {},
 ) {
-  const url = yield* parseUrl(input);
-  const dispatcher = yield* makeDispatcher(url);
-  const requestBody = yield* makeRequestBody;
-  const client = yield* NodeHttpClient.makeUndici.pipe(
-    Effect.provideService(NodeHttpClient.Dispatcher, dispatcher),
-  );
-  const body = Stream.fromReadableStream({
-    evaluate: () => requestBody.readable,
-    onError: Error.http(url.href, "request"),
-  });
-  const request = HttpClientRequest.post(url, { headers: options.headers }).pipe(
-    HttpClientRequest.bodyStream(body, { contentType: CONTENT_TYPE }),
-  );
-  const response = yield* client
-    .execute(request)
-    .pipe(
-      Effect.mapError((cause) =>
-        Error.http(url.href, cause.reason._tag === "TransportError" ? "connect" : "request")(cause),
-      ),
-    );
+  const url = yield* parseUrl(input, ["http:", "https:"]);
+  return yield* openSdkHttpStream(url, options);
+});
 
-  yield* validateResponse(url.href, response.status, response.headers["content-type"]);
+/** Opens the ACP WebSocket transport, which sends and receives JSON-RPC text frames. */
+export const openWebSocketStream = Effect.fn("Acp.openWebSocketStream")(function* (
+  input: string | URL,
+  options: WebSocketStreamOptions = {},
+) {
+  const url = yield* parseUrl(input, ["ws:", "wss:"]);
+  return yield* openSdkWebSocketStream(url, options);
+});
 
-  const responseBody = yield* Stream.toReadableStreamEffect(
-    Stream.mapError(response.stream, Error.http(url.href, "response")),
-  );
-  return closeableNdJsonStream(requestBody.writable, responseBody);
+/** Opens the published ACP transport selected by the URL scheme. */
+export const openStream = Effect.fn("Acp.openStream")(function* (
+  input: string | URL,
+  options: HttpStreamOptions & WebSocketStreamOptions = {},
+) {
+  const url = yield* parseUrl(input, ["http:", "https:", "ws:", "wss:"]);
+  return yield* url.protocol === "http:" || url.protocol === "https:"
+    ? openSdkHttpStream(url, options)
+    : openSdkWebSocketStream(url, options);
 });

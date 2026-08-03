@@ -1,71 +1,7 @@
 import { PROTOCOL_VERSION, type AnyMessage } from "@agentclientprotocol/sdk";
 import { assert, it } from "@effect/vitest";
-import {
-  createServer,
-  type Http2Server,
-  type IncomingHttpHeaders,
-  type ServerHttp2Stream,
-} from "node:http2";
 import { Effect } from "effect";
-import { Error, openHttpStream } from "./index.ts";
-
-interface TestServerOptions {
-  readonly status?: number;
-  readonly contentType?: string;
-}
-
-interface RunningServer {
-  readonly server: Http2Server;
-  readonly url: string;
-  readonly requests: Array<IncomingHttpHeaders>;
-  readonly streamClosed: Promise<void>;
-}
-
-const startServer = (options: TestServerOptions = {}) =>
-  Effect.acquireRelease(
-    Effect.callback<RunningServer, globalThis.Error>((resume) => {
-      const requests: Array<IncomingHttpHeaders> = [];
-      let resolveStreamClosed: () => void = () => undefined;
-      const streamClosed = new Promise<void>((resolve) => {
-        resolveStreamClosed = resolve;
-      });
-      const server = createServer();
-
-      server.on("stream", (stream: ServerHttp2Stream, headers: IncomingHttpHeaders) => {
-        requests.push(headers);
-        stream.once("close", resolveStreamClosed);
-        stream.respond({
-          ":status": options.status ?? 200,
-          "content-type": options.contentType ?? "application/octet-stream",
-        });
-
-        if ((options.status ?? 200) === 200) {
-          stream.pipe(stream);
-        } else {
-          stream.end("rejected\n");
-        }
-      });
-      server.once("error", (cause) => resume(Effect.fail(cause)));
-      server.listen(0, "127.0.0.1", () => {
-        const address = server.address();
-        if (address === null || typeof address === "string") {
-          resume(Effect.fail(new globalThis.Error("HTTP/2 test server has no TCP address")));
-          return;
-        }
-        resume(
-          Effect.succeed({
-            server,
-            url: `http://127.0.0.1:${address.port}`,
-            requests,
-            streamClosed,
-          }),
-        );
-      });
-
-      return Effect.sync(() => server.close());
-    }),
-    ({ server }) => Effect.sync(() => server.close()),
-  );
+import { Error, openHttpStream, openWebSocketStream } from "./index.ts";
 
 const initializeRequest = {
   jsonrpc: "2.0",
@@ -85,102 +21,13 @@ const transportError = (error: Error) => {
   return error.reason;
 };
 
-it.effect("bridges ACP SDK messages over the acp-agent HTTP/2 byte stream", () =>
-  Effect.scoped(
-    Effect.gen(function* () {
-      const running = yield* startServer();
-
-      yield* Effect.scoped(
-        Effect.gen(function* () {
-          const stream = yield* openHttpStream(`${running.url}/agent?mode=test`, {
-            headers: { authorization: "Bearer test-token" },
-          });
-          const writer = stream.writable.getWriter();
-          const reader = stream.readable.getReader();
-
-          yield* Effect.promise(() => writer.write(initializeRequest));
-          const received = yield* Effect.promise(() => reader.read());
-
-          assert.isFalse(received.done);
-          assert.deepStrictEqual(received.value, initializeRequest);
-          writer.releaseLock();
-          reader.releaseLock();
-        }),
-      );
-
-      yield* Effect.promise(() => running.streamClosed);
-      assert.strictEqual(running.requests[0]?.[":method"], "POST");
-      assert.strictEqual(running.requests[0]?.[":path"], "/agent?mode=test");
-      assert.strictEqual(running.requests[0]?.["content-type"], "application/octet-stream");
-      assert.strictEqual(running.requests[0]?.authorization, "Bearer test-token");
-    }),
-  ),
-);
-
-it.effect("ends the HTTP request stream when the ACP SDK writable closes", () =>
-  Effect.scoped(
-    Effect.gen(function* () {
-      const running = yield* startServer();
-
-      yield* Effect.scoped(
-        Effect.gen(function* () {
-          const stream = yield* openHttpStream(running.url);
-          const writer = stream.writable.getWriter();
-
-          yield* Effect.promise(() => writer.close());
-          yield* Effect.promise(() => running.streamClosed);
-          writer.releaseLock();
-        }),
-      );
-    }),
-  ),
-);
-
-it.effect("rejects non-success HTTP responses with a typed transport error", () =>
-  Effect.scoped(
-    Effect.gen(function* () {
-      const running = yield* startServer({ status: 415, contentType: "text/plain" });
-      const error = yield* Effect.scoped(openHttpStream(running.url)).pipe(Effect.flip);
-      const reason = transportError(error);
-
-      assert.strictEqual(reason.operation, "response");
-      assert.strictEqual(reason.status, 415);
-      assert.include(reason.message, "expected HTTP status 200");
-    }),
-  ),
-);
-
-it.effect("rejects responses with the wrong stream content type", () =>
-  Effect.scoped(
-    Effect.gen(function* () {
-      const running = yield* startServer({ contentType: "text/plain" });
-      const error = yield* Effect.scoped(openHttpStream(running.url)).pipe(Effect.flip);
-      const reason = transportError(error);
-
-      assert.strictEqual(reason.operation, "response");
-      assert.strictEqual(reason.status, 200);
-      assert.include(reason.message, "expected Content-Type application/octet-stream");
-    }),
-  ),
-);
-
 it.effect("rejects invalid URLs before opening a connection", () =>
   Effect.gen(function* () {
-    const error = yield* Effect.scoped(openHttpStream("not a url")).pipe(Effect.flip);
+    const error = yield* openHttpStream("not a url").pipe(Effect.flip);
     const reason = transportError(error);
 
     assert.strictEqual(reason.operation, "parse-url");
     assert.strictEqual(reason.url, "not a url");
-  }),
-);
-
-it.effect("classifies h2c connection failures as connect errors", () =>
-  Effect.gen(function* () {
-    const url = yield* Effect.scoped(startServer().pipe(Effect.map((running) => running.url)));
-    const error = yield* Effect.scoped(openHttpStream(url)).pipe(Effect.flip);
-    const reason = transportError(error);
-
-    assert.strictEqual(reason.operation, "connect");
   }),
 );
 
@@ -191,3 +38,190 @@ it("preserves non-Error transport causes in typed ACP errors", () => {
   assert.strictEqual(reason.cause, "stopped");
   assert.include(reason.message, "stopped");
 });
+
+it.effect("uses Streamable HTTP JSON, SSE, and DELETE with supplied headers", () =>
+  Effect.gen(function* () {
+    const requests: Array<Request> = [];
+    let notifyDeleted: () => void = () => undefined;
+    const deleted = new Promise<void>((resolve) => {
+      notifyDeleted = resolve;
+    });
+    const fetch: typeof globalThis.fetch = async (input, init) => {
+      const request = new Request(input, init);
+      requests.push(request);
+
+      switch (request.method) {
+        case "POST":
+          return new Response(
+            JSON.stringify({
+              jsonrpc: "2.0",
+              id: 0,
+              result: { protocolVersion: PROTOCOL_VERSION },
+            } satisfies AnyMessage),
+            {
+              status: 200,
+              headers: {
+                "acp-connection-id": "connection-1",
+                "content-type": "application/json",
+              },
+            },
+          );
+        case "GET":
+          return new Response(
+            new ReadableStream<Uint8Array>({
+              start(controller) {
+                init?.signal?.addEventListener("abort", () => controller.close(), { once: true });
+              },
+            }),
+            { status: 200, headers: { "content-type": "text/event-stream" } },
+          );
+        case "DELETE":
+          notifyDeleted();
+          return new Response(null, { status: 204 });
+        default:
+          return new Response("unsupported request", { status: 405 });
+      }
+    };
+
+    yield* Effect.scoped(
+      Effect.gen(function* () {
+        const stream = yield* openHttpStream("http://agent.test/acp?transport=http", {
+          fetch,
+          headers: { authorization: "Bearer test-token" },
+        });
+        const writer = stream.writable.getWriter();
+        const reader = stream.readable.getReader();
+
+        yield* Effect.promise(() => writer.write(initializeRequest));
+        const response = yield* Effect.promise(() => reader.read());
+        assert.isFalse(response.done);
+        assert.deepStrictEqual(response.value, {
+          jsonrpc: "2.0",
+          id: 0,
+          result: { protocolVersion: PROTOCOL_VERSION },
+        });
+        writer.releaseLock();
+        reader.releaseLock();
+      }),
+    );
+
+    yield* Effect.promise(() => deleted);
+    const post = requests.find((request) => request.method === "POST");
+    const sse = requests.find((request) => request.method === "GET");
+    const close = requests.find((request) => request.method === "DELETE");
+    if (post === undefined || sse === undefined || close === undefined) {
+      assert.fail("Streamable HTTP must issue POST, SSE GET, and DELETE requests");
+      return;
+    }
+
+    assert.strictEqual(post.url, "http://agent.test/acp?transport=http");
+    assert.strictEqual(post.headers.get("content-type"), "application/json");
+    assert.strictEqual(post.headers.get("authorization"), "Bearer test-token");
+    assert.strictEqual(sse.headers.get("accept"), "text/event-stream");
+    assert.strictEqual(sse.headers.get("authorization"), "Bearer test-token");
+    assert.strictEqual(close.headers.get("acp-connection-id"), "connection-1");
+  }),
+);
+
+it.effect("surfaces Streamable HTTP response failures as typed transport errors", () =>
+  Effect.scoped(
+    Effect.gen(function* () {
+      const fetch: typeof globalThis.fetch = async () =>
+        new Response("only application/json is supported", {
+          status: 415,
+          statusText: "Unsupported Media Type",
+        });
+      const stream = yield* openHttpStream("http://agent.test/acp", { fetch });
+      const writer = stream.writable.getWriter();
+      const reader = stream.readable.getReader();
+      const mapResponseError = Error.http("http://agent.test/acp", "response");
+      const error = yield* Effect.tryPromise({
+        try: () => writer.write(initializeRequest),
+        catch: mapResponseError,
+      }).pipe(Effect.flip);
+      const readError = yield* Effect.tryPromise({
+        try: () => reader.read(),
+        catch: mapResponseError,
+      }).pipe(Effect.flip);
+      writer.releaseLock();
+      reader.releaseLock();
+      const reason = transportError(error);
+
+      assert.strictEqual(reason.operation, "response");
+      assert.strictEqual(reason.status, 415);
+      assert.include(reason.message, "only application/json is supported");
+      assert.strictEqual(readError, error);
+    }),
+  ),
+);
+
+class TestWebSocket {
+  static latest: TestWebSocket | undefined;
+
+  readonly sent: Array<string> = [];
+  readonly listeners = new Map<string, Set<(event: unknown) => void>>();
+  closed = false;
+
+  constructor(
+    readonly url: string,
+    readonly protocols?: string | Array<string>,
+    readonly options?: { readonly headers?: Record<string, string> },
+  ) {
+    TestWebSocket.latest = this;
+  }
+
+  addEventListener(type: string, listener: (event: unknown) => void): void {
+    const listeners = this.listeners.get(type) ?? new Set<(event: unknown) => void>();
+    listeners.add(listener);
+    this.listeners.set(type, listeners);
+  }
+
+  removeEventListener(type: string, listener: (event: unknown) => void): void {
+    this.listeners.get(type)?.delete(listener);
+  }
+
+  send(data: string): void {
+    this.sent.push(data);
+  }
+
+  close(): void {
+    this.closed = true;
+    for (const listener of this.listeners.get("close") ?? []) {
+      listener({});
+    }
+  }
+}
+
+it.effect("uses the WebSocket SDK transport with text frames and closes it on scope exit", () =>
+  Effect.gen(function* () {
+    TestWebSocket.latest = undefined;
+    let socket: TestWebSocket | undefined;
+
+    yield* Effect.scoped(
+      Effect.gen(function* () {
+        const stream = yield* openWebSocketStream("ws://agent.test/acp", {
+          WebSocket: TestWebSocket,
+          headers: { authorization: "Bearer test-token" },
+        });
+        socket = TestWebSocket.latest;
+        if (socket === undefined) {
+          assert.fail("WebSocket transport did not create a socket");
+          return;
+        }
+        const writer = stream.writable.getWriter();
+        yield* Effect.promise(() => writer.write(initializeRequest));
+        writer.releaseLock();
+
+        assert.strictEqual(socket.url, "ws://agent.test/acp");
+        assert.strictEqual(socket.options?.headers?.authorization, "Bearer test-token");
+        assert.deepStrictEqual(JSON.parse(socket.sent[0] ?? ""), initializeRequest);
+      }),
+    );
+
+    if (socket === undefined) {
+      assert.fail("WebSocket transport did not retain its socket");
+      return;
+    }
+    assert.isTrue(socket.closed);
+  }),
+);
