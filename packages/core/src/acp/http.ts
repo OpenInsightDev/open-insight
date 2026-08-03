@@ -1,17 +1,14 @@
 import type { Stream as AcpStream } from "@agentclientprotocol/sdk";
 import {
   createHttpStream,
-  type HttpStreamOptions as SdkHttpStreamOptions,
+  type HttpStreamOptions,
 } from "@agentclientprotocol/sdk/experimental/http-client";
 import {
   createWebSocketStream,
-  type WebSocketStreamOptions as SdkWebSocketStreamOptions,
+  type WebSocketStreamOptions,
 } from "@agentclientprotocol/sdk/experimental/ws-client";
 import { Effect } from "effect";
 import { Error } from "./error.ts";
-
-export type HttpStreamOptions = SdkHttpStreamOptions;
-export type WebSocketStreamOptions = SdkWebSocketStreamOptions;
 
 const ignorePromiseFailure = (evaluate: () => Promise<void>) =>
   Effect.tryPromise(evaluate).pipe(Effect.ignore);
@@ -100,3 +97,5 @@ export const openStream = Effect.fn("Acp.openStream")(function* (
     ? openSdkHttpStream(url, options)
     : openSdkWebSocketStream(url, options);
 });
+
+export { type HttpStreamOptions, type WebSocketStreamOptions };

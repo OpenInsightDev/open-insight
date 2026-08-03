@@ -56,3 +56,6 @@
 [submodule ".repos/workbuddy-bench"]
 	path = .repos/workbuddy-bench
 	url = https://github.com/OpenInsightDev/workbuddy-bench.git
+[submodule ".repos/effect-uai"]
+	path = .repos/effect-uai
+	url = https://github.com/betalyra/effect-uai.git

@@ -9,15 +9,9 @@ export {
   PromptError,
   PromptErrorReason,
 } from "./error.ts";
-export {
-  type HttpStreamOptions,
-  openHttpStream,
-  openStream,
-  openWebSocketStream,
-  type WebSocketStreamOptions,
-} from "./http.ts";
+export { openHttpStream, openStream, openWebSocketStream } from "./http.ts";
 export { type ToAcpPromptOptions, toAcpPrompt } from "./prompt.ts";
-export { harness, layer, type Options } from "./service.ts";
+export { harnessLayer, layer, type Options } from "./service.ts";
 export { type AcpTools, type StreamPart, transform } from "./stream.ts";
 
 export * as Internal from "./index.ts";

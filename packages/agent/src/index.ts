@@ -1,5 +1,6 @@
 export { make, type Options } from "./agent/export.ts";
 export * as Cli from "./cli/index.ts";
+export * as Context from "./context/export.ts";
 export {
   anthropicLayer,
   makeAnthropic,

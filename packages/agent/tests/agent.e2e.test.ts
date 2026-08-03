@@ -1,9 +1,9 @@
 import { Sandbox } from "@open-insight/core";
-import { assert, it } from "@effect/vitest";
-import { Effect, Stream } from "effect";
+import { assert, it, layer as testLayer } from "@effect/vitest";
+import { Effect, Layer, Stream } from "effect";
 import { LanguageModel, Prompt, Response, Toolkit } from "effect/unstable/ai";
 import { ExitCode } from "effect/unstable/process/ChildProcessSpawner";
-import { make } from "#/index.ts";
+import { Context as AgentContext, make } from "#/index.ts";
 
 const finishPart = (tokens: number): Response.FinishPartEncoded => ({
   type: "finish",
@@ -39,6 +39,49 @@ const makeSandbox = (files: Map<string, string>): Sandbox.Sandbox => ({
   download: () => Effect.die("unused test sandbox method"),
   upload: () => Effect.die("unused test sandbox method"),
   expose: () => Effect.die("unused test sandbox method"),
+});
+
+class CaptureContext extends AgentContext.Service<CaptureContext>()("test/CaptureContext") {}
+
+const capturedParts: Array<Prompt.Part> = [];
+
+const captureContextLayer = Layer.succeed(CaptureContext)(
+  CaptureContext.of((handler, { part }) =>
+    Effect.sync(() => {
+      capturedParts.push(part);
+    }).pipe(Effect.andThen(handler)),
+  ),
+);
+
+testLayer(captureContextLayer)("Context middleware", (it) => {
+  it.effect("runs once after a streamed prompt part closes", () =>
+    Effect.gen(function* () {
+      capturedParts.length = 0;
+      const llm = yield* LanguageModel.make({
+        generateText: () => Effect.succeed([finishPart(0)]),
+        streamText: () =>
+          Stream.fromIterable([
+            { type: "text-start", id: "answer" } as const,
+            { type: "text-delta", id: "answer", delta: "closed answer" } as const,
+            { type: "text-end", id: "answer" } as const,
+            finishPart(1),
+          ]),
+      });
+      const provider = yield* make(Toolkit.empty, { context: [CaptureContext] }).pipe(
+        Effect.provideService(LanguageModel.LanguageModel, llm),
+      );
+      const agent = yield* provider.runSession(makeSandbox(new Map()));
+
+      yield* agent.prompt(Prompt.make("question")).pipe(Stream.runDrain);
+
+      assert.lengthOf(capturedParts, 1);
+      assert.strictEqual(capturedParts[0]?.type, "text");
+      assert.strictEqual(
+        capturedParts[0]?.type === "text" && capturedParts[0].text,
+        "closed answer",
+      );
+    }),
+  );
 });
 
 it.effect("runs a multi-step agent loop against one session sandbox", () =>

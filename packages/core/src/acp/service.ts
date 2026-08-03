@@ -175,9 +175,11 @@ const snapshotExtension = (agentId: string, options: Options): Agent.SnapshotExt
 
   return {
     instructions: [
+      Snapshot.Inst.available("curl"),
       Snapshot.Inst.run(
         `curl -fsSL ${Bash.quote(ACP_AGENT_INSTALL_URL)} | ACP_AGENT_INSTALL_DIR=/usr/local/bin sh`,
       ),
+      Snapshot.Inst.available("acp-agent"),
       Snapshot.Inst.run("acp-agent install-env --yes"),
       Snapshot.Inst.run(`acp-agent install ${Bash.quote(agentId)}`),
       ...(serveEnv === undefined || Object.keys(serveEnv).length === 0
@@ -456,7 +458,7 @@ export const layer = (url: string | URL, agentId: string, options: Options = {})
  * // : Layer.Layer<Harness.HarnessServices, ...>
  * ```
  */
-export const harness = (
+export const harnessLayer = (
   url: string | URL,
   agentId: string,
   options: Options = {},

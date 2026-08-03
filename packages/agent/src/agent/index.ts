@@ -1,7 +1,9 @@
 import { Agent, Sandbox } from "@open-insight/core";
+import { Prompt as CorePrompt } from "@open-insight/core/internal";
 import { Context, Effect, Option, Ref, Result, Stream } from "effect";
 import { LanguageModel, Prompt, Response, Tool, Toolkit } from "effect/unstable/ai";
 import * as Cli from "#/cli/index.ts";
+import * as AgentContext from "#/context/index.ts";
 import * as Mcp from "#/mcp/index.ts";
 import * as Skills from "#/skills/index.ts";
 import * as SandboxToolkit from "#/sandbox/index.ts";
@@ -17,6 +19,7 @@ export type Tools<Custom extends Record<string, Tool.Any>> = Toolkit.MergedTools
 
 export type Options = Readonly<{
   cli?: ReadonlyArray<Cli.Cli>;
+  context?: ReadonlyArray<AgentContext.AnyService>;
   maxSteps?: number;
 }>;
 
@@ -31,6 +34,7 @@ type ProviderOptions = Readonly<{
   snapshot?: Agent.SnapshotExtension;
   instructions?: Option.Option<string>;
   cli?: ReadonlyArray<Cli.Cli>;
+  context?: ReadonlyArray<AgentContext.AnyService>;
   maxSteps?: number;
 }>;
 
@@ -81,12 +85,14 @@ const makeSession = Effect.fn("Agent.makeSession")(function* <
   ctx,
   instructions,
   maxSteps,
+  context,
 }: {
   sandbox: Sandbox.Sandbox;
   toolkit: Toolkit.WithHandler<Tools>;
   ctx: Context.Context<ToolkitServices<Tools>>;
   instructions: Option.Option<string>;
   maxSteps: number;
+  context: ReadonlyArray<AgentContext.ContextService>;
 }): Effect.fn.Return<Agent.Agent<Tools>, Agent.Error, LanguageModel.LanguageModel> {
   const llm = yield* LanguageModel.LanguageModel;
   const initialTrajectory = Option.match(instructions, {
@@ -108,43 +114,62 @@ const makeSession = Effect.fn("Agent.makeSession")(function* <
     | Tool.ResultDecodingServices<Tools[keyof Tools]>
   > =>
     Stream.suspend(() => {
-      const nextTrajectory = Prompt.concat(state.trajectory, prompt);
-      const responseParts: Array<Response.AnyPart> = [];
+      state.trajectory = Prompt.concat(state.trajectory, prompt);
       let finalFinish: Response.FinishPart | undefined;
       let hasToolResult = false;
-      const turn = LanguageModel.streamText({ prompt: nextTrajectory, toolkit }).pipe(
-        Stream.filterMap((part) => {
-          responseParts.push(part);
-          if (
-            part.type === "tool-result" &&
-            part.providerExecuted === false &&
-            part.preliminary === false
-          ) {
-            hasToolResult = true;
-          }
+      const turn = Stream.unwrap(
+        Effect.gen(function* () {
+          const [responses, contextParts] = yield* LanguageModel.streamText({
+            prompt: state.trajectory,
+            toolkit,
+          }).pipe(Stream.broadcastN({ n: 2, capacity: 16 }));
+          const output = responses.pipe(
+            Stream.filterMap((part) => {
+              if (
+                part.type === "tool-result" &&
+                part.providerExecuted === false &&
+                part.preliminary === false
+              ) {
+                hasToolResult = true;
+              }
 
-          if (part.type !== "finish") {
-            return Result.succeed(part);
-          }
+              if (part.type !== "finish") {
+                return Result.succeed(part);
+              }
 
-          state.usage = addUsage(state.usage, part.usage);
-          if (!hasToolResult) {
-            finalFinish = Response.makePart("finish", {
-              reason: part.reason,
-              usage: state.usage,
-              response: part.response,
-              metadata: part.metadata,
-            });
-          }
-          return Result.failVoid;
+              state.usage = addUsage(state.usage, part.usage);
+              if (!hasToolResult) {
+                finalFinish = Response.makePart("finish", {
+                  reason: part.reason,
+                  usage: state.usage,
+                  response: part.response,
+                  metadata: part.metadata,
+                });
+              }
+              return Result.failVoid;
+            }),
+          );
+          const updates = CorePrompt.fromResponsePartStream(contextParts).pipe(
+            Stream.tap((part) =>
+              AgentContext.apply(context, state.trajectory, part).pipe(
+                Effect.tap((trajectory) =>
+                  Effect.sync(() => {
+                    state.trajectory = trajectory;
+                  }),
+                ),
+                Effect.tap((trajectory) => Ref.set(history, trajectory)),
+              ),
+            ),
+          );
+
+          return Stream.merge(
+            output.pipe(Stream.map(Result.succeed)),
+            updates.pipe(Stream.map(() => Result.failVoid)),
+          ).pipe(Stream.filterMap((result) => result));
         }),
       );
       const complete = Stream.fromEffect(
-        Effect.sync(() => {
-          const trajectory = Prompt.concat(nextTrajectory, Prompt.fromResponseParts(responseParts));
-          state.trajectory = trajectory;
-          return trajectory;
-        }).pipe(Effect.tap((trajectory) => Ref.set(history, trajectory))),
+        Effect.suspend(() => Ref.set(history, state.trajectory)),
       ).pipe(
         Stream.flatMap(() => {
           if (finalFinish !== undefined) {
@@ -199,6 +224,7 @@ const makeProvider = Effect.fn("Agent.makeProvider")(function* <
   LanguageModel.LanguageModel | Tool.HandlersFor<Tools> | ToolkitServices<Tools>
 > {
   const llm = yield* LanguageModel.LanguageModel;
+  const context = yield* AgentContext.resolve(options?.context ?? []);
   const ctx = yield* Effect.context<ToolkitServices<Tools>>();
   const tools = yield* toolkit;
   const maxSteps = yield* resolveMaxSteps(options?.maxSteps);
@@ -219,6 +245,7 @@ const makeProvider = Effect.fn("Agent.makeProvider")(function* <
         ctx,
         instructions: joinInstructions(options?.instructions ?? Option.none(), cliInstructions),
         maxSteps,
+        context,
       });
     },
     (effect) => effect.pipe(Effect.provideService(LanguageModel.LanguageModel, llm)),
@@ -253,6 +280,7 @@ export const make = Effect.fn("Agent.make")(function* <Custom extends Record<str
       Option.fromUndefinedOr(mcp.systemInstructions),
     ),
     cli: options?.cli,
+    context: options?.context,
     maxSteps: options?.maxSteps,
   }).pipe(Effect.provide([SandboxToolkit.layer, mcp.handlers]));
 });
