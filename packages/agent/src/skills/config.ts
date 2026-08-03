@@ -1,5 +1,5 @@
-import { Snapshot } from "@open-insight/core";
-import { Effect, Path, Schema } from "effect";
+import { Agent, Snapshot } from "@open-insight/core";
+import { Context, Effect, Layer, Option, Path, Schema } from "effect";
 import { fromDir } from "./from-dir.ts";
 
 const defaultDir = "/opt/open-insight/skills";
@@ -11,13 +11,17 @@ export class Config extends Schema.Class<Config>("SkillsConfig")({
   ),
 }) {}
 
-export class Prepared extends Schema.Class<Prepared>("PreparedSkills")({
-  snapshotExtension: Schema.Struct({
-    instructions: Snapshot.Instructions,
-    context: Schema.optionalKey(Schema.String),
+type Skills = Readonly<{
+  snapshotExtension: Option.Option<Agent.SnapshotExtension>;
+  systemInstructions: Option.Option<string>;
+}>;
+
+export const Service = Context.Reference<Skills>("agent/Skills", {
+  defaultValue: () => ({
+    snapshotExtension: Option.none(),
+    systemInstructions: Option.none(),
   }),
-  systemInstructions: Schema.String,
-}) {}
+});
 
 export const directory = (
   source: string,
@@ -28,7 +32,7 @@ export const directory = (
     sandboxDirectory: options?.sandboxDirectory,
   });
 
-export const prepare = Effect.fn(function* (config: Config) {
+const load = Effect.fn(function* (config: Config) {
   const path = yield* Path.Path;
   const dir = path.resolve(config.directory);
   const metadata = yield* fromDir(dir);
@@ -39,15 +43,19 @@ export const prepare = Effect.fn(function* (config: Config) {
       `- ${name}: ${description} Read ${path.join(config.sandboxDirectory, name, "SKILL.md")} when this skill is relevant.`,
   );
 
-  return Prepared.make({
-    snapshotExtension: {
+  return {
+    snapshotExtension: Option.some({
       context,
       instructions: [Snapshot.copy([source], config.sandboxDirectory)],
-    },
-    systemInstructions: [
-      "Available skills:",
-      ...skillLines,
-      "Read a skill's SKILL.md before following it. Only load skills relevant to the current task.",
-    ].join("\n"),
-  });
+    }),
+    systemInstructions: Option.some(
+      [
+        "Available skills:",
+        ...skillLines,
+        "Read a skill's SKILL.md before following it. Only load skills relevant to the current task.",
+      ].join("\n"),
+    ),
+  };
 });
+
+export const layer = (config: Config) => Layer.effect(Service)(load(config));

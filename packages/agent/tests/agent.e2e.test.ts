@@ -1,7 +1,7 @@
 import { Sandbox } from "@open-insight/core";
 import { assert, it } from "@effect/vitest";
 import { Effect, Stream } from "effect";
-import { LanguageModel, Prompt, Response } from "effect/unstable/ai";
+import { LanguageModel, Prompt, Response, Toolkit } from "effect/unstable/ai";
 import { ExitCode } from "effect/unstable/process/ChildProcessSpawner";
 import { make } from "#/index.ts";
 
@@ -88,7 +88,9 @@ it.effect("runs a multi-step agent loop against one session sandbox", () =>
         ]);
       },
     });
-    const provider = yield* make().pipe(Effect.provideService(LanguageModel.LanguageModel, llm));
+    const provider = yield* make(Toolkit.empty).pipe(
+      Effect.provideService(LanguageModel.LanguageModel, llm),
+    );
     const agent = yield* provider.runSession(makeSandbox(files));
 
     const parts = yield* agent

@@ -1,18 +1,19 @@
 import { Sandbox } from "@open-insight/core";
 import { Spawn } from "@open-insight/core/utils";
-import { Crypto, Duration, Effect, FileSystem } from "effect";
+import { Crypto, Duration, Effect, FileSystem, Layer } from "effect";
 import { ChildProcess as CP } from "effect/unstable/process";
+import { ChildProcessSpawner } from "effect/unstable/process/ChildProcessSpawner";
 import * as Image from "./image.ts";
 import * as AppleSandbox from "./sandbox.ts";
 
-export type MakeOptions = Readonly<{
+export type Options = Readonly<{
   timeout?: Duration.Input;
 }>;
 
 export const make = Effect.fn("sandbox/provider/apple")(
   function* ({
     timeout = "30 seconds",
-  }: MakeOptions): Effect.fn.Return<
+  }: Options): Effect.fn.Return<
     Sandbox.Provider,
     Sandbox.Error,
     Crypto.Crypto | FileSystem.FileSystem | Spawn.Service
@@ -57,3 +58,11 @@ export const make = Effect.fn("sandbox/provider/apple")(
   },
   (effect) => effect.pipe(Effect.provide(Spawn.Service.layer)),
 );
+
+export const layer = (
+  options: Options = {},
+): Layer.Layer<
+  Sandbox.ProviderService,
+  Sandbox.Error,
+  Crypto.Crypto | FileSystem.FileSystem | ChildProcessSpawner
+> => Layer.effect(Sandbox.ProviderService)(make(options));

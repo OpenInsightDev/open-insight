@@ -2,7 +2,7 @@ import { Effect, Option, Queue, Scope, Stream, Crypto } from "effect";
 import * as Event from "#/event/index.ts";
 import { type Config, make as makeConfig } from "./config.ts";
 import * as Bench from "#/bench/index.ts";
-import * as Harness from "#/harness/index.ts";
+import { Harness } from "@open-insight/core/internal";
 import { run as runSchedule } from "./schedule.ts";
 import type { BenchResult } from "./result.ts";
 import { NodeServices } from "@effect/platform-node";
@@ -10,15 +10,15 @@ import { Error } from "./error.ts";
 
 type Options = Readonly<{
   bench: Bench.Bench;
-  harness: Harness.Harness;
+  harnessId: string;
   config?: Partial<Config>;
 }>;
 
 export const run = Effect.fn(function* ({
   bench,
-  harness,
+  harnessId,
   config: configOptions = {},
-}: Options): Effect.fn.Return<BenchResult, Error, Crypto.Crypto> {
+}: Options): Effect.fn.Return<BenchResult, Error, Crypto.Crypto | Harness.HarnessServices> {
   const config = makeConfig(configOptions);
   const transport = yield* Effect.serviceOption(Event.Transport.Service);
   const eventQueue = yield* Event.makeQueue();
@@ -33,7 +33,7 @@ export const run = Effect.fn(function* ({
   );
 
   return yield* Effect.zipWith(
-    runSchedule({ bench, harness, eventQueue }, config).pipe(
+    runSchedule({ bench, harnessId, eventQueue }, config).pipe(
       Effect.ensuring(Queue.end(eventQueue)),
     ),
     consume,

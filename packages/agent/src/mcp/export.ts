@@ -10,4 +10,5 @@ export {
   type StdioOptions,
 } from "./config.ts";
 export { ClientError, Error, ErrorReason, ToolConflict } from "./error.ts";
+export { layer } from "./toolkit.ts";
 export * as Internal from "./index.ts";

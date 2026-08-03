@@ -3,7 +3,6 @@ import * as Grade from "#/grade/index.ts";
 import * as Tasks from "#/tasks/index.ts";
 import * as Task from "../task/index.ts";
 import * as Bench from "#/bench/index.ts";
-import * as Harness from "#/harness/index.ts";
 import * as Event from "#/event/index.ts";
 import { Agent, Snapshot } from "@open-insight/core/internal";
 
@@ -110,7 +109,6 @@ export type ErrorReason = Schema.Schema.Type<typeof ErrorReason>;
 export class Error extends Schema.TaggedErrorClass<Error>()("EvalError", {
   reason: ErrorReason,
   benchmark: Schema.optional(Bench.Metadata),
-  harness: Schema.optional(Harness.Metadata),
 }) {
   override get message(): string {
     return this.reason.message;

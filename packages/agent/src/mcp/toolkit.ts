@@ -1,5 +1,5 @@
 import type { Tool as ToolDefinition } from "@modelcontextprotocol/sdk/types.js";
-import { Effect, Exit, Layer, Schema, Scope } from "effect";
+import { Context, Effect, Layer, Schema } from "effect";
 import { Tool, Toolkit } from "effect/unstable/ai";
 import type { Server } from "./config.ts";
 import { callTool, connectScoped, listTools, type Connection } from "./client.ts";
@@ -18,11 +18,11 @@ export type Tools = Record<
   >
 >;
 
-export type Runtime = Readonly<{
+type Mcp = Readonly<{
   toolkit: Toolkit.Toolkit<Tools>;
-  layer: Layer.Layer<Tool.HandlersFor<Tools>>;
+  handlers: Layer.Layer<Tool.HandlersFor<Tools>>;
   systemInstructions?: string;
-  close: (exit: Exit.Exit<unknown, unknown>) => Effect.Effect<void>;
+  checkNames: (reserved: ReadonlyArray<string>) => Effect.Effect<void, Error>;
 }>;
 
 type Discovered = Readonly<{
@@ -86,42 +86,43 @@ const instructions = (clients: ReadonlyArray<Connection>) => {
   return sections.length === 0 ? undefined : sections.join("\n\n");
 };
 
-export const make = Effect.fn(function* (
-  servers: ReadonlyArray<Server>,
-  options?: { readonly reservedNames?: ReadonlyArray<string> },
-) {
-  const parent = yield* Scope.Scope;
-  const child = yield* Scope.fork(parent);
-
-  return yield* Effect.gen(function* () {
-    const discovered = yield* discover(servers);
-    yield* checkNames(discovered.tools, options?.reservedNames ?? []);
-
-    const tools = discovered.tools.map(({ definition }) => makeTool(definition));
-    const toolkit: Toolkit.Toolkit<Tools> = Toolkit.make(...tools);
-    const handlers = Object.fromEntries(
-      discovered.tools.map(({ client, definition }) => [
-        definition.name,
-        (parameters: unknown) =>
-          decode(parameters).pipe(
-            Effect.mapError((error) => error.message),
-            Effect.flatMap((decoded) =>
-              callTool(client, definition.name, decoded).pipe(
-                Effect.mapError((error) => error.message),
-              ),
+const fromDiscovered = (discovered: {
+  readonly clients: ReadonlyArray<Connection>;
+  readonly tools: ReadonlyArray<Discovered>;
+}): Mcp => {
+  const tools = discovered.tools.map(({ definition }) => makeTool(definition));
+  const toolkit: Toolkit.Toolkit<Tools> = Toolkit.make(...tools);
+  const handlers = Object.fromEntries(
+    discovered.tools.map(({ client, definition }) => [
+      definition.name,
+      (parameters: unknown) =>
+        decode(parameters).pipe(
+          Effect.mapError((error) => error.message),
+          Effect.flatMap((decoded) =>
+            callTool(client, definition.name, decoded).pipe(
+              Effect.mapError((error) => error.message),
             ),
           ),
-      ]),
-    );
-
-    return {
-      toolkit,
-      layer: toolkit.toLayer(handlers),
-      systemInstructions: instructions(discovered.clients),
-      close: (exit) => Scope.close(child, exit),
-    } satisfies Runtime;
-  }).pipe(
-    Effect.provideService(Scope.Scope, child),
-    Effect.onError((cause) => Scope.close(child, Exit.failCause(cause))),
+        ),
+    ]),
   );
+
+  return {
+    toolkit,
+    handlers: toolkit.toLayer(handlers),
+    systemInstructions: instructions(discovered.clients),
+    checkNames: (reserved) => checkNames(discovered.tools, reserved),
+  };
+};
+
+export const Service = Context.Reference<Mcp>("agent/Mcp", {
+  defaultValue: () => fromDiscovered({ clients: [], tools: [] }),
 });
+
+const make = Effect.fn(function* (servers: ReadonlyArray<Server>) {
+  const discovered = yield* discover(servers);
+  yield* checkNames(discovered.tools, []);
+  return fromDiscovered(discovered);
+});
+
+export const layer = (servers: ReadonlyArray<Server>) => Layer.effect(Service)(make(servers));

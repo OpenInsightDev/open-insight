@@ -1,29 +1,28 @@
-import type * as Bench from "#/bench/index.ts";
-import type * as Harness from "#/harness/index.ts";
-import type * as Task from "#/task/index.ts";
 import { Effect } from "effect";
+import type * as Bench from "#/bench/index.ts";
+import type * as Task from "#/task/index.ts";
 
 export type Executor<T extends Task.AnyTask = Task.AnyTask> = Readonly<{
   bench: Bench.Bench;
-  harness: Harness.Harness;
+  harnessId: string;
   trailCount: number;
 }> & { _T?: T };
 
-type Options = Readonly<{
+type Options<T extends Task.AnyTask> = Readonly<{
   bench: Bench.Bench;
-  harness: Harness.Harness;
+  harnessId: string;
   trailCount?: number;
 }>;
 
 export const make = Effect.fn(
   <T extends Task.AnyTask>({
     bench,
-    harness,
+    harnessId,
     trailCount = 1,
-  }: Options): Effect.Effect<Executor<T>> =>
+  }: Options<T>): Effect.Effect<Executor<T>> =>
     Effect.succeed({
       bench,
-      harness,
+      harnessId,
       trailCount,
-    } satisfies Executor<T>),
+    }),
 );

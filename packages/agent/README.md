@@ -37,7 +37,7 @@ const compatProgram = Effect.gen(function* () {
 
 Both constructors use the runtime's global `fetch` implementation. For applications that supply a
 custom Effect HTTP client, compose `openAiLayer(config)` or `openAiCompatLayer(config)` with
-`make()` at the program boundary instead.
+`make(Toolkit.empty)` at the program boundary instead.
 The constructors load the specified `dotenvPath` internally; pass any `Config` implementation for
 `apiKey` and `baseUrl` when configuration should come from another source.
 
@@ -62,43 +62,44 @@ Provider-specific APIs are also grouped under the `Provider` namespace, such as
 
 ## Configuration
 
-All optional capabilities are composed through one `make` call:
+Custom tools are passed directly to `make`. Skills and MCP connections are supplied independently
+through layers:
 
 ```ts
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { Mcp, Skills, make } from "@open-insight/agent";
 import { Effect, Stream } from "effect";
-import { Prompt } from "effect/unstable/ai";
+import { Prompt, Toolkit } from "effect/unstable/ai";
 
-const program = Effect.scoped(
-  Effect.gen(function* () {
-    const provider = yield* make({
-      toolkit: customToolkit,
-      skills: Skills.directory("./skills"),
-      mcp: [
-        Mcp.stdio({
-          name: "local-tools",
-          command: "node",
-          args: ["./mcp-server.mjs"],
-        }),
-        Mcp.http({
-          name: "remote-tools",
-          url: "https://example.com/mcp",
-          headers: { Authorization: "Bearer token" },
-        }),
-      ],
-      maxSteps: 16,
-    });
-    const agent = yield* provider.runSession(sandbox);
-    return yield* agent.prompt(Prompt.make("Inspect the project")).pipe(Stream.runCollect);
-  }),
-).pipe(Effect.provide(NodeServices.layer));
+const program = Effect.gen(function* () {
+  const provider = yield* make(customToolkit, { maxSteps: 16 });
+  const agent = yield* provider.runSession(sandbox);
+  return yield* agent.prompt(Prompt.make("Inspect the project")).pipe(Stream.runCollect);
+}).pipe(
+  Effect.provide(
+    Mcp.layer([
+      Mcp.stdio({
+        name: "local-tools",
+        command: "node",
+        args: ["./mcp-server.mjs"],
+      }),
+      Mcp.http({
+        name: "remote-tools",
+        url: "https://example.com/mcp",
+        headers: { Authorization: "Bearer token" },
+      }),
+    ]),
+  ),
+  Effect.provide(Skills.layer(Skills.directory("./skills"))),
+  Effect.provide(NodeServices.layer),
+);
 ```
 
-MCP connections are scoped resources, so construct and use the provider inside `Effect.scoped`
-or a scoped layer. Configuring a skills directory requires `FileSystem` and `Path`; in Node.js,
-provide `NodeServices.layer`. Skill files are copied into the sandbox snapshot and advertised to
-the model for progressive loading.
+`Mcp.layer` owns the connection scope and must wrap both provider construction and use. Configuring
+a skills directory requires `FileSystem` and `Path`; in Node.js, provide `NodeServices.layer`.
+Skill files are copied into the sandbox snapshot and advertised to the model for progressive
+loading. Without MCP, call `make(customToolkit)`; use `Toolkit.empty` when no custom tools are
+needed.
 
 To teach the model about command-line tools available in the sandbox, list them under `cli`.
 Each entry is either the command string or an options object. On every `runSession`, each CLI's
@@ -107,7 +108,7 @@ help page is fetched in parallel and appended to the system prompt:
 ```ts
 const provider =
   yield *
-  make({
+  make(Toolkit.empty, {
     cli: [
       "git",
       {

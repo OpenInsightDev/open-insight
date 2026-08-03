@@ -1,13 +1,14 @@
 import * as Sandbox from "#/sandbox/export.ts";
 import * as Snapshot from "#/snapshot/export.ts";
 import { Spawn, Bash } from "#/utils/export.ts";
-import { Crypto, Duration, Effect, FileSystem, Match } from "effect";
+import { Crypto, Duration, Effect, FileSystem, Layer, Match } from "effect";
 import { ChildProcess as CP } from "effect/unstable/process";
+import { ChildProcessSpawner } from "effect/unstable/process/ChildProcessSpawner";
 import { formatPorts, formatResources, hasPort } from "./utils.ts";
 import { makeSandboxSpawner } from "./spawn.ts";
 import * as Runtime from "./runtime.ts";
 
-export type MakeOptions = Readonly<{
+export type Options = Readonly<{
   ports?: Array<number>;
   timeout?: Duration.Input;
 }>;
@@ -19,7 +20,7 @@ export const make = Effect.fn("sandbox/provider/docker")(
   function* ({
     ports = [],
     timeout = "30 seconds",
-  }: MakeOptions): Effect.fn.Return<
+  }: Options): Effect.fn.Return<
     Sandbox.Provider,
     Sandbox.Error,
     Crypto.Crypto | FileSystem.FileSystem | Spawn.Service
@@ -405,3 +406,11 @@ export const make = Effect.fn("sandbox/provider/docker")(
   },
   (effect) => effect.pipe(Effect.provide(Spawn.Service.layer)),
 );
+
+export const layer = (
+  options: Options = {},
+): Layer.Layer<
+  Sandbox.ProviderService,
+  Sandbox.Error,
+  Crypto.Crypto | FileSystem.FileSystem | ChildProcessSpawner
+> => Layer.effect(Sandbox.ProviderService)(make(options));

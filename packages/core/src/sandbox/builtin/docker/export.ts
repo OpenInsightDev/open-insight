@@ -1,1 +1,1 @@
-export { make, type MakeOptions } from "./index.ts";
+export { make, layer, type Options } from "./index.ts";

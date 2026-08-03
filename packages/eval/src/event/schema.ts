@@ -1,7 +1,6 @@
 import * as Chart from "#/chart/index.ts";
 import { Schema } from "effect";
 import * as Bench from "#/bench/index.ts";
-import * as Harness from "#/harness/index.ts";
 import { Response } from "effect/unstable/ai";
 
 const EvalFields = {
@@ -22,7 +21,6 @@ const TrailFields = {
 export class InitEvent extends Schema.TaggedClass<InitEvent>()("InitEvent", {
   ...EvalFields,
   benchMetadata: Bench.Metadata,
-  harnessMetadata: Harness.Metadata,
 }) {}
 
 const ScheduleOpSchema = Schema.Union([

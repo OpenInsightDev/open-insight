@@ -14,9 +14,11 @@ import {
   type SessionUpdate,
   type Stream as AcpStream,
 } from "@agentclientprotocol/sdk";
-import { Cause, Effect, FiberSet, Layer, Option, Path, Queue, Ref, Stream } from "effect";
+import { Cause, Context, Effect, FiberSet, Layer, Option, Path, Queue, Ref, Stream } from "effect";
 import { Prompt, Response } from "effect/unstable/ai";
 import * as Agent from "#/agent/index.ts";
+import * as Harness from "#/harness/index.ts";
+import * as Sandbox from "#/sandbox/index.ts";
 import * as Snapshot from "#/snapshot/index.ts";
 import { Bash } from "#/utils/index.ts";
 import { type HttpStreamOptions, openStream, type WebSocketStreamOptions } from "./http.ts";
@@ -444,3 +446,28 @@ export const layer = (url: string | URL, agentId: string, options: Options = {})
 
   return Layer.effect(Agent.ProviderService)(provider).pipe(Layer.provide(Path.layer));
 };
+
+/**
+ * Provides an ACP-backed harness aggregating both provider concepts: the ACP
+ * agent provider and the sandbox provider from the environment.
+ *
+ * ```ts
+ * Layer.provide(Acp.harness(url, agentId, options), Sandbox.Docker.layer())
+ * // : Layer.Layer<Harness.HarnessServices, ...>
+ * ```
+ */
+export const harness = (
+  url: string | URL,
+  agentId: string,
+  options: Options = {},
+): Layer.Layer<Harness.HarnessServices, Agent.Error | AcpError, Sandbox.ProviderService> =>
+  Layer.effectContext(
+    Effect.gen(function* () {
+      const sandbox = yield* Sandbox.ProviderService;
+      const transport = yield* openStream(url, options).pipe(Effect.mapError(Agent.Error.stream));
+      const agent = yield* makeProvider(transport, agentId, options);
+      return Context.make(Agent.ProviderService, agent).pipe(
+        Context.add(Sandbox.ProviderService, sandbox),
+      );
+    }),
+  ).pipe(Layer.provide(Path.layer));

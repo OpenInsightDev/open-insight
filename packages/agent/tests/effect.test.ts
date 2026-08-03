@@ -7,9 +7,7 @@ import { Context, Effect, FileSystem, Option, Path, Schema, Stream } from "effec
 import { LanguageModel, Prompt, Response, Tool, Toolkit } from "effect/unstable/ai";
 import { ExitCode } from "effect/unstable/process/ChildProcessSpawner";
 import { z } from "zod";
-import { make } from "#/agent/index.ts";
-import * as Mcp from "#/mcp/index.ts";
-import * as Skills from "#/skills/index.ts";
+import { Mcp, Skills, make } from "#/index.ts";
 import { layer, toolkit } from "#/sandbox/index.ts";
 
 const makeSandbox = (files: Map<string, string>): Sandbox.Sandbox => ({
@@ -156,7 +154,7 @@ it.effect("injects the session sandbox into custom tools", () =>
         ]);
       },
     });
-    const provider = yield* make({ toolkit: userToolkit }).pipe(
+    const provider = yield* make(userToolkit).pipe(
       Effect.provide(userLayer),
       Effect.provideService(Prefix, "prefix:"),
       Effect.provideService(LanguageModel.LanguageModel, llm),
@@ -182,7 +180,7 @@ it.effect("adds configured CLI help to the session instructions", () =>
         return Stream.fromIterable([finishPart]);
       },
     });
-    const provider = yield* make({ cli: ["git"] }).pipe(
+    const provider = yield* make(Toolkit.empty, { cli: ["git"] }).pipe(
       Effect.provideService(LanguageModel.LanguageModel, llm),
     );
     const agent = yield* provider.runSession(makeSandbox(new Map()));
@@ -213,7 +211,7 @@ it.effect("stops an agent loop that exceeds maxSteps", () =>
         ]);
       },
     });
-    const provider = yield* make({ maxSteps: 2 }).pipe(
+    const provider = yield* make(Toolkit.empty, { maxSteps: 2 }).pipe(
       Effect.provideService(LanguageModel.LanguageModel, llm),
     );
     const agent = yield* provider.runSession(makeSandbox(new Map()));
@@ -265,7 +263,9 @@ it.effect("runs independent sessions concurrently with isolated sandboxes and hi
         ]);
       },
     });
-    const provider = yield* make().pipe(Effect.provideService(LanguageModel.LanguageModel, llm));
+    const provider = yield* make(Toolkit.empty).pipe(
+      Effect.provideService(LanguageModel.LanguageModel, llm),
+    );
     const first = yield* provider.runSession(
       makeSandbox(new Map([["/workspace/message.txt", "first-content"]])),
     );
@@ -325,7 +325,8 @@ testLayer(NodeServices.layer)("configured agent", (it) => {
           return Stream.fromIterable([finishPart]);
         },
       });
-      const provider = yield* make({ skills: Skills.directory(skillsDir) }).pipe(
+      const provider = yield* make(Toolkit.empty).pipe(
+        Effect.provide(Skills.layer(Skills.directory(skillsDir))),
         Effect.provideService(LanguageModel.LanguageModel, llm),
       );
       const agent = yield* provider.runSession(makeSandbox(new Map()));
@@ -415,15 +416,7 @@ testLayer(NodeServices.layer)("configured agent", (it) => {
 
       yield* Effect.scoped(
         Effect.gen(function* () {
-          const provider = yield* make({
-            toolkit: userToolkit,
-            skills: Skills.directory(skillsDir),
-            mcp: [Mcp.fromTransport("test-server", clientTransport)],
-          }).pipe(
-            Effect.provide(userLayer),
-            Effect.provideService(Prefix, "prefix:"),
-            Effect.provideService(LanguageModel.LanguageModel, llm),
-          );
+          const provider = yield* make(userToolkit);
           const snapshot = Option.getOrThrow(provider.snapshotExtension);
           const sandbox = makeSandbox(new Map([["/workspace/message.txt", "hello from sandbox"]]));
           const agent = yield* provider.runSession(sandbox);
@@ -455,8 +448,15 @@ testLayer(NodeServices.layer)("configured agent", (it) => {
               dest: "/opt/open-insight/skills",
             },
           ]);
-        }),
+        }).pipe(
+          Effect.provide(Mcp.layer([Mcp.fromTransport("test-server", clientTransport)])),
+          Effect.provide(Skills.layer(Skills.directory(skillsDir))),
+          Effect.provide(userLayer),
+          Effect.provideService(Prefix, "prefix:"),
+          Effect.provideService(LanguageModel.LanguageModel, llm),
+        ),
       );
+      assert.isFalse(mcpServer.isConnected());
     }),
   );
 
@@ -476,10 +476,8 @@ testLayer(NodeServices.layer)("configured agent", (it) => {
         generateText: () => Effect.succeed([finishPart]),
         streamText: () => Stream.fromIterable([finishPart]),
       });
-      const error = yield* make({
-        toolkit: userToolkit,
-        mcp: [Mcp.fromTransport("conflicting-server", clientTransport)],
-      }).pipe(
+      const error = yield* make(userToolkit).pipe(
+        Effect.provide(Mcp.layer([Mcp.fromTransport("conflicting-server", clientTransport)])),
         Effect.provide(userLayer),
         Effect.provideService(Prefix, "prefix:"),
         Effect.provideService(LanguageModel.LanguageModel, llm),
@@ -490,6 +488,32 @@ testLayer(NodeServices.layer)("configured agent", (it) => {
       assert.instanceOf(error.reason, Mcp.ToolConflict);
       assert.strictEqual(error.reason.toolName, "ReadUppercase");
       assert.deepStrictEqual(error.reason.sources, ["agent", "conflicting-server"]);
+      assert.isFalse(mcpServer.isConnected());
+    }),
+  );
+
+  it.effect("closes MCP connections when provider construction fails", () =>
+    Effect.gen(function* () {
+      const mcpServer = new McpServer({ name: "cleanup-server", version: "1.0.0" });
+      mcpServer.registerTool("Cleanup", {}, () => ({ content: [{ type: "text", text: "ok" }] }));
+      const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+      yield* Effect.acquireRelease(
+        Effect.tryPromise(() => mcpServer.connect(serverTransport)),
+        () => Effect.promise(() => mcpServer.close()),
+      );
+
+      const llm = yield* LanguageModel.make({
+        generateText: () => Effect.succeed([finishPart]),
+        streamText: () => Stream.fromIterable([finishPart]),
+      });
+      const error = yield* make(Toolkit.empty, { maxSteps: 0 }).pipe(
+        Effect.provide(Mcp.layer([Mcp.fromTransport("cleanup-server", clientTransport)])),
+        Effect.provideService(LanguageModel.LanguageModel, llm),
+        Effect.flip,
+      );
+
+      assert.instanceOf(error, Agent.Error);
+      assert.instanceOf(error.reason.cause, RangeError);
       assert.isFalse(mcpServer.isConnected());
     }),
   );

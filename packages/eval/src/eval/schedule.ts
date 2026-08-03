@@ -2,7 +2,7 @@ import { Crypto, DateTime, Effect, FileSystem, Path, Ref, Scope, Stream } from "
 import type { ChildProcessSpawner } from "effect/unstable/process";
 import { castDraft, produce } from "immer";
 import * as Bench from "#/bench/index.ts";
-import * as Harness from "#/harness/index.ts";
+import { Harness } from "@open-insight/core/internal";
 import * as Metric from "#/metric/index.ts";
 import * as Task from "#/task/index.ts";
 import type { Config } from "./config.ts";
@@ -23,13 +23,13 @@ type ScheduledTrail = ScheduledTask &
 
 type Options = Readonly<{
   bench: Bench.Bench;
-  harness: Harness.Harness;
+  harnessId: string;
   eventQueue: Event.EventEnqueue;
 }>;
 
 export const run = Effect.fn("exec/schedule")(
   function* (
-    { bench, harness, eventQueue }: Options,
+    { bench, harnessId, eventQueue }: Options,
     config: Config,
   ): Effect.fn.Return<
     BenchResult,
@@ -39,12 +39,12 @@ export const run = Effect.fn("exec/schedule")(
     | ChildProcessSpawner.ChildProcessSpawner
     | Path.Path
     | Scope.Scope
+    | Harness.HarnessServices
   > {
     const { snapshotConcurrency, trailConcurrency } = config;
     const offer = Event.offerTo(eventQueue);
 
     const benchId = bench.metadata.id;
-    const harnessId = harness.metadata.id;
     const evalEventFields = { bench: benchId, harness: harnessId };
     const taskEventFields = (task: Task.AnyTask) => ({
       ...evalEventFields,
@@ -101,7 +101,7 @@ export const run = Effect.fn("exec/schedule")(
         return { task, runTrail };
       },
       (effect, task) =>
-        effect.pipe(Effect.provide(harness.layer)).pipe(
+        effect.pipe(
           Effect.annotateLogs({
             benchmark: benchId,
             taskName: task.metadata.name,
@@ -169,7 +169,6 @@ export const run = Effect.fn("exec/schedule")(
     yield* Event.InitEvent.makeEffect({
       ...evalEventFields,
       benchMetadata: Bench.metadata(bench),
-      harnessMetadata: Harness.metadata(harness),
     }).pipe(offer);
 
     yield* Effect.acquireRelease(

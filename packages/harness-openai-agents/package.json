@@ -32,10 +32,10 @@
   },
   "dependencies": {
     "@effect/platform-node": "catalog:",
+    "@openai/agents": "catalog:",
     "effect": "catalog:"
   },
   "devDependencies": {
-    "@openai/agents": "catalog:",
     "@types/node": "catalog:",
     "bumpp": "catalog:",
     "typescript": "catalog:",

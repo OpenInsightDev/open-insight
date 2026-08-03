@@ -1,4 +1,4 @@
-export { make, type Config } from "./agent/export.ts";
+export { make, type Options } from "./agent/export.ts";
 export * as Cli from "./cli/index.ts";
 export {
   anthropicLayer,

@@ -1,6 +1,5 @@
 import * as Event from "#/event/index.ts";
 import * as Bench from "#/bench/index.ts";
-import * as Harness from "#/harness/index.ts";
 import { TimestampSchema, type Timestamp } from "#/utils/schema.ts";
 import { Prompt } from "@open-insight/core/internal";
 import { Schema } from "effect";
@@ -48,7 +47,6 @@ export const Result = Schema.Struct({
   finishedAt: TimestampSchema,
   updatedAt: TimestampSchema,
   benchMetadata: Bench.Metadata,
-  harnessMetadata: Harness.Metadata,
   result: BenchResult,
   events: Schema.Array(Event.Event),
 });
@@ -57,7 +55,6 @@ export type Result<G = unknown> = Readonly<{
   updatedAt: Timestamp;
   finishedAt: Timestamp;
   benchMetadata: Bench.Metadata;
-  harnessMetadata: Harness.Metadata;
   result: BenchResult<G>;
   events: ReadonlyArray<Event.Event>;
 }>;
