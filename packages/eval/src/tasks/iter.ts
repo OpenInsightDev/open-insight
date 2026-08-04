@@ -1,7 +1,7 @@
 import * as Task from "#/task/index.ts";
 import { Effect, Stream } from "effect";
 import type { LoadFnReturn } from "./index.ts";
-import { Error } from "./error.ts";
+import { TasksError } from "./error.ts";
 
 export const fromIter = Effect.fn(function* <T extends Task.AnyTask, E, R>(
   iter: Iterable<Effect.Effect<T, E, R>>,
@@ -12,9 +12,9 @@ export const fromIter = Effect.fn(function* <T extends Task.AnyTask, E, R>(
 
 export const fromAsyncIter = Effect.fn(function* <T extends Task.AnyTask, E, R>(
   iter: AsyncIterable<Effect.Effect<T, E, R>>,
-): LoadFnReturn<T, E | Error, R> {
+): LoadFnReturn<T, E | TasksError, R> {
   const array = yield* Effect.tryPromise(() => Array.fromAsync(iter)).pipe(
-    Effect.mapError(Error.invalid),
+    Effect.mapError(TasksError.invalid),
   );
   const tasks = yield* Effect.all(array);
   return tasks;

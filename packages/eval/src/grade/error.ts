@@ -1,44 +1,60 @@
 import { Prompt } from "@open-insight/core";
-import { Data, Schema } from "effect";
+import { Data, Formatter, Schema } from "effect";
 
-const Cause = Schema.Error();
-
+/**
+ * A grader requested another attempt by the agent.
+ *
+ * Not an error: thrown by graders as a control-flow signal to retry with a new prompt.
+ */
 export class Retry extends Data.TaggedError("Retry")<{
   readonly prompt: Prompt.RawInput;
 }> {}
 
 export const retry = (prompt: Prompt.RawInput): Retry => new Retry({ prompt });
 
-export class ExecError extends Schema.TaggedErrorClass<ExecError>()("ExecError", {
-  cause: Cause,
+/** The grader execution failed. */
+export class ExecutionFailed extends Schema.TaggedErrorClass<ExecutionFailed>(
+  "open-insight/eval/GradeError/ExecutionFailed",
+)("ExecutionFailed", {
+  cause: Schema.Defect(),
 }) {
   override get message(): string {
-    return `Grader execution failed: ${this.cause.message}`;
+    return `Grader execution failed: ${Formatter.format(this.cause)}`;
   }
 }
 
-export class VerifyError extends Schema.TaggedErrorClass<VerifyError>()("VerifyError", {
-  cause: Cause,
+/** The grader verification run failed. */
+export class VerificationFailed extends Schema.TaggedErrorClass<VerificationFailed>(
+  "open-insight/eval/GradeError/VerificationFailed",
+)("VerificationFailed", {
+  cause: Schema.Defect(),
 }) {
   override get message(): string {
-    return `Grader verification failed: ${this.cause.message}`;
+    return `Grader verification failed: ${Formatter.format(this.cause)}`;
   }
 }
 
-export class InvalidResult extends Schema.TaggedErrorClass<InvalidResult>()("InvalidResult", {
-  cause: Cause,
+/** The grader produced a result that does not satisfy its declared schema. */
+export class InvalidResult extends Schema.TaggedErrorClass<InvalidResult>(
+  "open-insight/eval/GradeError/InvalidResult",
+)("InvalidResult", {
+  cause: Schema.Defect(),
 }) {
   override get message(): string {
-    return `Invalid grader result: ${this.cause.message}`;
+    return `Invalid grader result: ${Formatter.format(this.cause)}`;
   }
 }
 
-export const ErrorReason = Schema.Union([ExecError, VerifyError, InvalidResult]);
+export const ErrorReason = Schema.Union([ExecutionFailed, VerificationFailed, InvalidResult]);
 export type ErrorReason = Schema.Schema.Type<typeof ErrorReason>;
 
-export class Error extends Schema.TaggedErrorClass<Error>()("GradeError", {
-  reason: ErrorReason,
-}) {
+/** The normalized error exposed by grader execution. */
+export class GradeError extends Schema.TaggedErrorClass<GradeError>("open-insight/eval/GradeError")(
+  "GradeError",
+  {
+    reason: ErrorReason,
+  },
+) {
   override get message(): string {
     return this.reason.message;
   }
@@ -47,14 +63,12 @@ export class Error extends Schema.TaggedErrorClass<Error>()("GradeError", {
     return this.reason;
   }
 
-  static mapUnknownError = (mapper: (cause: globalThis.Error) => ErrorReason) => (cause: unknown) =>
-    cause instanceof Error
-      ? cause
-      : new Error({ reason: mapper(Schema.decodeUnknownSync(Cause)(cause)) });
+  static exec = (cause: unknown): GradeError =>
+    GradeError.make({ reason: ExecutionFailed.make({ cause }) });
 
-  static exec = this.mapUnknownError((cause) => new ExecError({ cause }));
+  static verify = (cause: unknown): GradeError =>
+    GradeError.make({ reason: VerificationFailed.make({ cause }) });
 
-  static verify = this.mapUnknownError((cause) => new VerifyError({ cause }));
-
-  static result = this.mapUnknownError((cause) => new InvalidResult({ cause }));
+  static result = (cause: unknown): GradeError =>
+    GradeError.make({ reason: InvalidResult.make({ cause }) });
 }

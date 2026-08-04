@@ -1,29 +1,34 @@
-import { Schema } from "effect";
+import { Formatter, Schema } from "effect";
 
-const Cause = Schema.Error();
-
-export class PromptError extends Schema.TaggedErrorClass<PromptError>()("PromptError", {
-  cause: Cause,
+export class PromptError extends Schema.TaggedErrorClass<PromptError>(
+  "open-insight/TaskError/PromptError",
+)("PromptError", {
+  cause: Schema.Defect(),
 }) {
   override get message(): string {
-    return `Task prompt failed: ${this.cause.message}`;
+    return `Task prompt failed: ${Formatter.format(this.cause)}`;
   }
 }
 
-export class InvalidMetadata extends Schema.TaggedErrorClass<InvalidMetadata>()("InvalidMetadata", {
-  cause: Cause,
+export class InvalidMetadata extends Schema.TaggedErrorClass<InvalidMetadata>(
+  "open-insight/TaskError/InvalidMetadata",
+)("InvalidMetadata", {
+  cause: Schema.Defect(),
 }) {
   override get message(): string {
-    return `Invalid task metadata: ${this.cause.message}`;
+    return `Invalid task metadata: ${Formatter.format(this.cause)}`;
   }
 }
 
 export const ErrorReason = Schema.Union([PromptError, InvalidMetadata]);
 export type ErrorReason = Schema.Schema.Type<typeof ErrorReason>;
 
-export class Error extends Schema.TaggedErrorClass<Error>()("TaskError", {
-  reason: ErrorReason,
-}) {
+export class TaskError extends Schema.TaggedErrorClass<TaskError>("open-insight/TaskError")(
+  "TaskError",
+  {
+    reason: ErrorReason,
+  },
+) {
   override get message(): string {
     return this.reason.message;
   }
@@ -32,12 +37,9 @@ export class Error extends Schema.TaggedErrorClass<Error>()("TaskError", {
     return this.reason;
   }
 
-  static mapUnknownError = (mapper: (cause: globalThis.Error) => ErrorReason) => (cause: unknown) =>
-    cause instanceof Error
-      ? cause
-      : new Error({ reason: mapper(Schema.decodeUnknownSync(Cause)(cause)) });
+  static prompt = (cause: unknown): TaskError =>
+    TaskError.make({ reason: PromptError.make({ cause }) });
 
-  static prompt = this.mapUnknownError((cause) => new PromptError({ cause }));
-
-  static metadata = this.mapUnknownError((cause) => new InvalidMetadata({ cause }));
+  static metadata = (cause: unknown): TaskError =>
+    TaskError.make({ reason: InvalidMetadata.make({ cause }) });
 }

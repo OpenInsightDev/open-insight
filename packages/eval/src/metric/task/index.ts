@@ -4,7 +4,7 @@ import type { BivariantFn } from "#/utils/variant.ts";
 import { Effect, Ref, Schema } from "effect";
 import { Metadata, type MetadataEncoded } from "../metadata.ts";
 import { Result, type StreamResult } from "../result.ts";
-import { Error } from "../error.ts";
+import { MetricError } from "../error.ts";
 
 /**
  * Computes a task metric whenever a new trail result is available.
@@ -37,7 +37,7 @@ export const make = Effect.fn(function* <
 >(options: Options<G, R>) {
   const { exec, chart = null } = options;
   const metadata = yield* Schema.decodeEffect(Metadata)(options).pipe(
-    Effect.mapError(Error.metadata),
+    Effect.mapError(MetricError.metadata),
   );
   return { exec, chart, metadata } satisfies Metric<G, R>;
 });
@@ -52,22 +52,22 @@ export const run = Effect.fn("metric/task/run")(function* <G, R extends Schema.J
     }>
   >({ results: [], prev: null });
 
-  return Effect.fn(function* (delta: TrailResult<G>): Effect.fn.Return<StreamResult, Error> {
+  return Effect.fn(function* (delta: TrailResult<G>): Effect.fn.Return<StreamResult, MetricError> {
     const current = yield* Ref.get(state);
     const results = [...current.results, delta];
 
     const rawResult = yield* Effect.tryPromise(() =>
       metric.exec(results, delta, current.prev),
-    ).pipe(Effect.mapError(Error.exec(metric.metadata.id)));
+    ).pipe(Effect.mapError(MetricError.exec(metric.metadata.id)));
     const result = yield* Schema.decodeEffect(Result)(rawResult).pipe(
-      Effect.mapError(Error.result(metric.metadata.id)),
+      Effect.mapError(MetricError.result(metric.metadata.id)),
       Effect.as(rawResult),
     );
 
     yield* Ref.set(state, { results, prev: result });
 
     const chart = yield* Effect.try(() => (metric.chart ? metric.chart(result) : null)).pipe(
-      Effect.mapError(Error.chart(metric.metadata.id)),
+      Effect.mapError(MetricError.chart(metric.metadata.id)),
     );
 
     return {

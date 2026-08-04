@@ -36,9 +36,9 @@ export class UseError extends Schema.TaggedErrorClass<UseError>(
   }
 }
 
-export class InstructionUnsupportedError extends Schema.TaggedErrorClass<InstructionUnsupportedError>(
-  "open-insight/SnapshotError/InstructionUnsupportedError",
-)("InstructionUnsupportedError", {
+export class InstructionUnsupported extends Schema.TaggedErrorClass<InstructionUnsupported>(
+  "open-insight/SnapshotError/InstructionUnsupported",
+)("InstructionUnsupported", {
   name: Schema.String,
   snapshot: Schema.suspend(() => Snapshot),
   instruction: Instruction,
@@ -52,7 +52,7 @@ export const ErrorReason = Schema.Union([
   BuildError,
   DeriveError,
   UseError,
-  InstructionUnsupportedError,
+  InstructionUnsupported,
 ]);
 export type ErrorReason = Schema.Schema.Type<typeof ErrorReason>;
 
@@ -90,6 +90,6 @@ export class SnapshotError extends Schema.TaggedErrorClass<SnapshotError>(
     instruction: Instruction,
   ): SnapshotError =>
     SnapshotError.make({
-      reason: InstructionUnsupportedError.make({ name, snapshot, instruction }),
+      reason: InstructionUnsupported.make({ name, snapshot, instruction }),
     });
 }

@@ -1,5 +1,5 @@
 export {
-  Error,
+  EvalError,
   make,
   type Executor,
   type Result,

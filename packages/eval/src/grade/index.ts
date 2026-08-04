@@ -1,7 +1,7 @@
 import { Prompt, type Sandbox } from "@open-insight/core/internal";
 import type { BivariantFn, UnionToIntersection } from "#/utils/variant.ts";
 import { Effect, Schema } from "effect";
-import { Retry, Error } from "./error.ts";
+import { GradeError, Retry } from "./error.ts";
 
 export type Result = Schema.ConstraintCodec<unknown, unknown>;
 export type Results = Record<string, Result["Type"]>;
@@ -45,12 +45,14 @@ export const isVerifiable = (
 export const run = <R extends Result, Rs extends Results>(grader: Grader<R, Rs>) =>
   Effect.fn(function* (
     ctx: Context<Rs>,
-  ): Effect.fn.Return<R["Type"], Error | Retry, R["DecodingServices"]> {
+  ): Effect.fn.Return<R["Type"], GradeError | Retry, R["DecodingServices"]> {
     const result = yield* Effect.tryPromise({
       try: () => grader.grade(ctx),
-      catch: (cause) => (cause instanceof Retry ? cause : Error.exec(cause)),
+      catch: (cause) => (cause instanceof Retry ? cause : GradeError.exec(cause)),
     });
-    return yield* Schema.decodeEffect(grader.schema)(result).pipe(Effect.mapError(Error.result));
+    return yield* Schema.decodeEffect(grader.schema)(result).pipe(
+      Effect.mapError(GradeError.result),
+    );
   });
 
 export * from "./builtin/index.ts";

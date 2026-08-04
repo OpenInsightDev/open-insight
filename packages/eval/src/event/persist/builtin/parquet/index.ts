@@ -1,7 +1,7 @@
 import { parquetReadObjects } from "hyparquet";
 import { parquetWriteBuffer } from "hyparquet-writer";
 import { Effect, FileSystem, Layer, Path, Schema, Semaphore, Stream } from "effect";
-import { Error as EventError } from "#/event/error.ts";
+import { EventError } from "#/event/error.ts";
 import type { EventStream } from "#/event/queue.ts";
 import { Event } from "#/event/schema.ts";
 import { Service as TransportService } from "#/event/transport/service.ts";

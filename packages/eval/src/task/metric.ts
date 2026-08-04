@@ -5,7 +5,7 @@ import type { Invariant } from "#/utils/variant.ts";
 import { Effect, Schema } from "effect";
 import { castDraft, produce } from "immer";
 import type { Stage, Task } from "./build.ts";
-import { Error } from "./error.ts";
+import { TaskError } from "./error.ts";
 
 type TaskMetricOptions<M extends Schema.JsonObject> = Omit<Metric.Task.Options<unknown, M>, "exec">;
 
@@ -46,7 +46,7 @@ const makeMetric =
   ) =>
     Effect.flatMap(task, (task) =>
       Metric.Task.make({ ...options, exec }).pipe(
-        Effect.mapError(Error.metadata),
+        Effect.mapError(TaskError.metadata),
         Effect.map((metric) =>
           produce(task, (draft) => {
             draft.metrics.push(castDraft(metric));
@@ -78,7 +78,7 @@ export const trajMetric =
       Effect.flatMap(
         Effect.fn(function* (task) {
           const metric = yield* Metric.Traj.make({ ...options, exec }).pipe(
-            Effect.mapError(Error.metadata),
+            Effect.mapError(TaskError.metadata),
           );
 
           return produce(task, (draft) => {

@@ -1,7 +1,7 @@
 // import { Resource, Sandbox as CoreSandbox, Snapshot } from "@open-insight/core/internal";
 // import { Effect, FileSystem, FiberSet, Path } from "effect";
 // import type { BivariantFn } from "#/utils/variant.ts";
-// import { Error, Retry } from "../error.ts";
+// import { GradeError, Retry } from "../error.ts";
 // import type { Context as BaseContext, Result, Results } from "../index.ts";
 
 // export type TypeId = "~open-insight/eval/grade/sandbox";
@@ -121,16 +121,16 @@
 // export const run = <R extends Result, Rs extends Results>(
 //   grader: Grader<R, Rs>,
 //   context: BaseContext<Rs>,
-// ): Effect.Effect<R, Error | Retry, Services> =>
+// ): Effect.Effect<R, GradeError | Retry, Services> =>
 //   Effect.scoped(
 //     Effect.gen(function* () {
 //       const provider = yield* CoreSandbox.ProviderService;
 //       const handle = yield* provider
 //         .aquireSnapshot({ snapshot: grader.snapshot, cache: grader.cacheSnapshot })
-//         .pipe(Effect.mapError(Error.exec));
+//         .pipe(Effect.mapError(GradeError.exec));
 //       const sandbox = yield* provider
 //         .runSandbox({ handle, resources: grader.resources })
-//         .pipe(Effect.mapError(Error.exec));
+//         .pipe(Effect.mapError(GradeError.exec));
 //       const gradeSandbox = yield* CoreSandbox.asPromise(sandbox);
 //       const copyFromAgentPath = yield* makeCopy(context, gradeSandbox);
 //       const copyToAgentPath = yield* makeCopy(gradeSandbox, context);
@@ -147,7 +147,7 @@
 //             results: context.prevResults,
 //             trajectory: context.trajectory,
 //           }),
-//         catch: (cause) => (cause instanceof Retry ? cause : Error.exec(cause)),
+//         catch: (cause) => (cause instanceof Retry ? cause : GradeError.exec(cause)),
 //       });
 //     }),
 //   );

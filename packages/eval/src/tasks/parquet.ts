@@ -2,17 +2,17 @@ import { asyncBufferFromFile, parquetReadObjects } from "hyparquet";
 import { Effect, FileSystem, Path, Schema, Stream } from "effect";
 import * as Task from "#/task/index.ts";
 import type { Load } from "./index.ts";
-import { Error } from "./error.ts";
+import { TasksError } from "./error.ts";
 
 const readParquetFile = Effect.fn(function* (
   filePath: string,
-): Effect.fn.Return<ReadonlyArray<unknown>, Error> {
+): Effect.fn.Return<ReadonlyArray<unknown>, TasksError> {
   return yield* Effect.tryPromise({
     try: async (): Promise<ReadonlyArray<unknown>> => {
       const file = await asyncBufferFromFile(filePath);
       return parquetReadObjects({ file });
     },
-    catch: Error.source,
+    catch: TasksError.source,
   });
 });
 
@@ -27,7 +27,7 @@ export const withParquetDir = <S extends Schema.Constraint>({
 }) =>
   Effect.fn(function* <T extends Task.AnyTask, E, R>(
     exec: (options: {
-      items: Stream.Stream<S["Type"], Error, S["DecodingServices"]>;
+      items: Stream.Stream<S["Type"], TasksError, S["DecodingServices"]>;
     }) => Load<T, E, R> | Promise<Load<T, E, R>>,
   ) {
     const fs = yield* FileSystem.FileSystem;
@@ -35,7 +35,7 @@ export const withParquetDir = <S extends Schema.Constraint>({
 
     const entries = yield* fs
       .readDirectory(dirPath, { recursive: true })
-      .pipe(Effect.mapError(Error.source));
+      .pipe(Effect.mapError(TasksError.source));
     const parquetFiles = entries
       .filter((entry) => entry.startsWith(prefix) && entry.endsWith(".parquet"))
       .sort()
@@ -45,13 +45,13 @@ export const withParquetDir = <S extends Schema.Constraint>({
       Stream.mapEffect(readParquetFile),
       Stream.flatMap(Stream.fromArray),
       Stream.mapEffect((encoded) =>
-        Schema.decodeUnknownEffect(schema)(encoded).pipe(Effect.mapError(Error.invalid)),
+        Schema.decodeUnknownEffect(schema)(encoded).pipe(Effect.mapError(TasksError.invalid)),
       ),
     );
 
     const loader = yield* Effect.tryPromise({
       try: () => Promise.resolve(exec({ items })),
-      catch: Error.init,
+      catch: TasksError.init,
     });
     return yield* loader;
   });

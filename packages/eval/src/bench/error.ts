@@ -3,9 +3,9 @@ import type * as Task from "#/task/index.ts";
 
 const Cause = Schema.Error();
 
-export class InitError extends Schema.TaggedErrorClass<InitError>(
-  "open-insight/eval/BenchError/InitError",
-)("InitError", {
+export class InitFailed extends Schema.TaggedErrorClass<InitFailed>(
+  "open-insight/eval/BenchError/InitFailed",
+)("InitFailed", {
   cause: Cause,
 }) {
   override get message(): string {
@@ -13,9 +13,9 @@ export class InitError extends Schema.TaggedErrorClass<InitError>(
   }
 }
 
-export class TaskLoadError extends Schema.TaggedErrorClass<TaskLoadError>(
-  "open-insight/eval/BenchError/TaskLoadError",
-)("TaskLoadError", {
+export class TaskLoadFailed extends Schema.TaggedErrorClass<TaskLoadFailed>(
+  "open-insight/eval/BenchError/TaskLoadFailed",
+)("TaskLoadFailed", {
   cause: Cause,
 }) {
   override get message(): string {
@@ -33,7 +33,7 @@ export class TaskNotFound extends Schema.TaggedErrorClass<TaskNotFound>(
   }
 }
 
-export const ErrorReason = Schema.Union([InitError, TaskLoadError, TaskNotFound]);
+export const ErrorReason = Schema.Union([InitFailed, TaskLoadFailed, TaskNotFound]);
 export type ErrorReason = Schema.Schema.Type<typeof ErrorReason>;
 
 export class BenchError extends Schema.TaggedErrorClass<BenchError>("open-insight/eval/BenchError")(
@@ -50,12 +50,14 @@ export class BenchError extends Schema.TaggedErrorClass<BenchError>("open-insigh
     return this.reason;
   }
 
-  static mapUnknownError = (mapper: (cause: globalThis.Error) => ErrorReason) => (cause: unknown) =>
-    BenchError.make({ reason: mapper(Schema.decodeUnknownSync(Cause)(cause)) });
+  static init = (cause: unknown): BenchError =>
+    BenchError.make({ reason: InitFailed.make({ cause: Schema.decodeUnknownSync(Cause)(cause) }) });
 
-  static init = this.mapUnknownError((cause) => InitError.make({ cause }));
+  static taskLoad = (cause: unknown): BenchError =>
+    BenchError.make({
+      reason: TaskLoadFailed.make({ cause: Schema.decodeUnknownSync(Cause)(cause) }),
+    });
 
-  static taskLoad = this.mapUnknownError((cause) => TaskLoadError.make({ cause }));
-
-  static taskNotFound = (id: Task.ID) => BenchError.make({ reason: TaskNotFound.make({ id }) });
+  static taskNotFound = (id: Task.ID): BenchError =>
+    BenchError.make({ reason: TaskNotFound.make({ id }) });
 }

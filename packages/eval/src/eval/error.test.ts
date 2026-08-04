@@ -1,12 +1,12 @@
 import { Agent } from "@open-insight/core/internal";
 import { assert, it } from "@effect/vitest";
 import { Cause } from "effect";
-import { Error } from "./error.ts";
+import { EvalError } from "./error.ts";
 
 it("renders the complete agent failure chain", () => {
   const root = new globalThis.Error("request failed with status 401");
   const agent = Agent.AgentError.stream(root);
-  const error = Error.agent(agent);
+  const error = EvalError.agent(agent);
 
   assert.strictEqual(error.message, "Agent response stream failed: request failed with status 401");
   assert.strictEqual(error.cause, agent);

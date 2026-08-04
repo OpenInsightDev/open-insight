@@ -1,7 +1,7 @@
 import { Crypto, Effect, FileSystem, Path, Predicate, Stdio, Terminal } from "effect";
 import * as Task from "#/task/index.ts";
 import picomatch from "picomatch";
-import { Error as TasksError } from "./error.ts";
+import { TasksError } from "./error.ts";
 import type { LoadFnReturn } from "./index.ts";
 import type { ChildProcessSpawner } from "effect/unstable/process";
 import type { UnknownError } from "effect/Cause";

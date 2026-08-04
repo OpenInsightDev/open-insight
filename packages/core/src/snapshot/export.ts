@@ -10,14 +10,16 @@ export {
   isInstructions,
   make,
   makeWith,
+  Scratch,
   writeInstructions,
+  type MakeOptions,
 } from "./build.ts";
 export {
   BuildError,
   DeriveError,
   SnapshotError,
   ErrorReason,
-  InstructionUnsupportedError,
+  InstructionUnsupported,
   UseError,
 } from "./error.ts";
 

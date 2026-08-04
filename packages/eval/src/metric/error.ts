@@ -1,51 +1,64 @@
-import { Schema } from "effect";
-
-const Cause = Schema.Error();
+import { Formatter, Schema } from "effect";
 
 /** The metadata describing a metric is invalid. */
-export class InvalidMetadata extends Schema.TaggedErrorClass<InvalidMetadata>()("InvalidMetadata", {
-  cause: Cause,
+export class InvalidMetadata extends Schema.TaggedErrorClass<InvalidMetadata>(
+  "open-insight/eval/MetricError/InvalidMetadata",
+)("InvalidMetadata", {
+  cause: Schema.Defect(),
 }) {
   override get message(): string {
-    return `Invalid metric metadata: ${this.cause.message}`;
+    return `Invalid metric metadata: ${Formatter.format(this.cause)}`;
   }
 }
 
 /** A metric execution could not produce the expected result. */
-export class ExecError extends Schema.TaggedErrorClass<ExecError>()("ExecError", {
+export class ExecutionFailed extends Schema.TaggedErrorClass<ExecutionFailed>(
+  "open-insight/eval/MetricError/ExecutionFailed",
+)("ExecutionFailed", {
   metric: Schema.String,
-  cause: Cause,
+  cause: Schema.Defect(),
 }) {
   override get message(): string {
-    return `Metric "${this.metric}" execution failed: ${this.cause.message}`;
+    return `Metric "${this.metric}" execution failed: ${Formatter.format(this.cause)}`;
   }
 }
 
 /** A calculated value does not satisfy the metric result contract. */
-export class InvalidResult extends Schema.TaggedErrorClass<InvalidResult>()("InvalidResult", {
+export class InvalidResult extends Schema.TaggedErrorClass<InvalidResult>(
+  "open-insight/eval/MetricError/InvalidResult",
+)("InvalidResult", {
   metric: Schema.String,
-  cause: Cause,
+  cause: Schema.Defect(),
 }) {
   override get message(): string {
-    return `Metric "${this.metric}" produced an invalid result: ${this.cause.message}`;
+    return `Metric "${this.metric}" produced an invalid result: ${Formatter.format(this.cause)}`;
   }
 }
 
 /** A metric result could not be projected into chart data. */
-export class ChartError extends Schema.TaggedErrorClass<ChartError>()("ChartError", {
+export class ChartFailed extends Schema.TaggedErrorClass<ChartFailed>(
+  "open-insight/eval/MetricError/ChartFailed",
+)("ChartFailed", {
   metric: Schema.String,
-  cause: Cause,
+  cause: Schema.Defect(),
 }) {
   override get message(): string {
-    return `Metric "${this.metric}" chart generation failed: ${this.cause.message}`;
+    return `Metric "${this.metric}" chart generation failed: ${Formatter.format(this.cause)}`;
   }
 }
 
-export const ErrorReason = Schema.Union([InvalidMetadata, ExecError, InvalidResult, ChartError]);
+export const ErrorReason = Schema.Union([
+  InvalidMetadata,
+  ExecutionFailed,
+  InvalidResult,
+  ChartFailed,
+]);
 export type ErrorReason = Schema.Schema.Type<typeof ErrorReason>;
 
 /** The normalized error exposed by metric construction and evaluation. */
-export class Error extends Schema.TaggedErrorClass<Error>()("MetricError", {
+export class MetricError extends Schema.TaggedErrorClass<MetricError>(
+  "open-insight/eval/MetricError",
+)("MetricError", {
   reason: ErrorReason,
 }) {
   override get message(): string {
@@ -56,19 +69,21 @@ export class Error extends Schema.TaggedErrorClass<Error>()("MetricError", {
     return this.reason;
   }
 
-  static mapUnknownError = (mapper: (cause: globalThis.Error) => ErrorReason) => (cause: unknown) =>
-    cause instanceof Error
-      ? cause
-      : new Error({ reason: mapper(Schema.decodeUnknownSync(Cause)(cause)) });
+  static metadata = (cause: unknown): MetricError =>
+    MetricError.make({ reason: InvalidMetadata.make({ cause }) });
 
-  static metadata = this.mapUnknownError((cause) => new InvalidMetadata({ cause }));
+  static exec =
+    (metric: string) =>
+    (cause: unknown): MetricError =>
+      MetricError.make({ reason: ExecutionFailed.make({ metric, cause }) });
 
-  static exec = (metric: string) =>
-    this.mapUnknownError((cause) => new ExecError({ metric, cause }));
+  static result =
+    (metric: string) =>
+    (cause: unknown): MetricError =>
+      MetricError.make({ reason: InvalidResult.make({ metric, cause }) });
 
-  static result = (metric: string) =>
-    this.mapUnknownError((cause) => new InvalidResult({ metric, cause }));
-
-  static chart = (metric: string) =>
-    this.mapUnknownError((cause) => new ChartError({ metric, cause }));
+  static chart =
+    (metric: string) =>
+    (cause: unknown): MetricError =>
+      MetricError.make({ reason: ChartFailed.make({ metric, cause }) });
 }

@@ -1,5 +1,5 @@
 import { Formatter, Schema } from "effect";
-import { Assertion } from "./assert/schema.ts";
+import { Assertion } from "../assert/index.ts";
 import * as Snapshot from "../snapshot/index.ts";
 
 export class ProviderNotAvailableError extends Schema.TaggedErrorClass<ProviderNotAvailableError>(

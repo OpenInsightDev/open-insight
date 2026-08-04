@@ -1,7 +1,7 @@
 import { Effect, FileSystem, Schema } from "effect";
 import { HttpClient, HttpClientResponse } from "effect/unstable/http";
 import * as Task from "#/task/index.ts";
-import { Error } from "./error.ts";
+import { TasksError } from "./error.ts";
 import type { Load } from "./index.ts";
 import * as tar from "tar";
 
@@ -27,7 +27,7 @@ const extractArchive = Effect.fn(function* (
         unlink: true,
         zstd: format === "tar.zst",
       }),
-    catch: Error.source,
+    catch: TasksError.source,
   });
 });
 
@@ -52,7 +52,7 @@ export const withDist = ({
       Effect.flatMap(HttpClientResponse.filterStatusOk),
       Effect.flatMap((response) => response.arrayBuffer),
       Effect.map((buffer) => new Uint8Array(buffer)),
-      Effect.mapError(Error.source),
+      Effect.mapError(TasksError.source),
     );
     yield* fs.writeFile(archivePath, archive);
 
@@ -60,7 +60,7 @@ export const withDist = ({
 
     const loader = yield* Effect.try({
       try: () => exec({ distPath }),
-      catch: Error.init,
+      catch: TasksError.init,
     });
     return yield* loader;
-  }, Effect.mapError(Error.source));
+  }, Effect.mapError(TasksError.source));

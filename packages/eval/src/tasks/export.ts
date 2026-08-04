@@ -1,5 +1,5 @@
 export {
-  Error,
+  TasksError,
   fromAsyncIter,
   fromIter,
   fromStream,

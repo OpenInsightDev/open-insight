@@ -1,6 +1,6 @@
 import { Prompt, Sandbox } from "@open-insight/core/internal";
 import { Effect } from "effect";
-import { Error } from "./error.ts";
+import { TaskError } from "./error.ts";
 
 export type PromptInit = Prompt.RawInput;
 
@@ -66,7 +66,7 @@ const makeGeneratedPromptFn = (factory: PromptFactory, init?: PromptInit): Promp
         }
         return iterator.next(context);
       },
-      catch: Error.prompt,
+      catch: TaskError.prompt,
     });
 
     return next.done ? null : Prompt.make(next.value);
@@ -78,7 +78,7 @@ export const makePromptFn = (options: PromptOptions): PromptFn => {
     return Effect.fn((context: Context) =>
       Effect.tryPromise({
         try: () => options(context),
-        catch: Error.prompt,
+        catch: TaskError.prompt,
       }).pipe(Effect.map((next) => (next === null ? null : Prompt.make(next)))),
     );
   }

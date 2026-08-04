@@ -1,6 +1,8 @@
 export * as Sandbox from "./sandbox/export.ts";
 export { SandboxError } from "./sandbox/export.ts";
 
+export * as Assert from "./assert/export.ts";
+
 export * as Snapshot from "./snapshot/export.ts";
 export { SnapshotError } from "./snapshot/export.ts";
 

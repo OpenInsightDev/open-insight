@@ -1,15 +1,15 @@
 import { Effect, Schema, Stream } from "effect";
-import type { Transport } from "../../schema.ts";
-import { Error } from "../../../error.ts";
+import type { Transport } from "#/event/transport/schema.ts";
+import { EventError } from "#/event/error.ts";
 import { HttpBody, HttpClient, HttpClientResponse } from "effect/unstable/http";
 import { Sse } from "effect/unstable/encoding";
-import { Event } from "../../../schema.ts";
-import { type EventStream } from "../../../queue.ts";
+import { Event } from "#/event/schema.ts";
+import { type EventStream } from "#/event/queue.ts";
 
 const joinUrl = (baseURL: string, path: string): string =>
   new URL(path, baseURL.endsWith("/") ? baseURL : `${baseURL}/`).toString();
 
-const eventStream = (stream: EventStream): Stream.Stream<Uint8Array, Error> =>
+const eventStream = (stream: EventStream): Stream.Stream<Uint8Array, EventError> =>
   stream.pipe(
     Stream.mapEffect((value) =>
       Schema.encodeEffect(Event)(value).pipe(
@@ -19,7 +19,7 @@ const eventStream = (stream: EventStream): Stream.Stream<Uint8Array, Error> =>
           id: undefined,
           data: JSON.stringify(data),
         })),
-        Effect.mapError(Error.invalid),
+        Effect.mapError(EventError.invalid),
       ),
     ),
     Stream.map((event) => Sse.encoder.write(event)),
@@ -42,7 +42,7 @@ export const make = Effect.fn(function* ({
 
       yield* client
         .post(url, { body })
-        .pipe(Effect.flatMap(HttpClientResponse.filterStatusOk), Effect.mapError(Error.send));
+        .pipe(Effect.flatMap(HttpClientResponse.filterStatusOk), Effect.mapError(EventError.send));
     }),
   } satisfies Transport;
 });

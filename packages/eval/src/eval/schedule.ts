@@ -6,7 +6,7 @@ import { Agent, Sandbox } from "@open-insight/core/internal";
 import * as Metric from "#/metric/index.ts";
 import * as Task from "#/task/index.ts";
 import type { Config } from "./config.ts";
-import { Error } from "./error.ts";
+import { EvalError } from "./error.ts";
 import * as Event from "#/event/index.ts";
 import { createTrail, type RunTrail } from "./trail.ts";
 import { BenchResult, TaskResult } from "./result.ts";
@@ -32,7 +32,7 @@ export const run = Effect.fn("exec/schedule")(
     config: Config,
   ): Effect.fn.Return<
     BenchResult,
-    Error,
+    EvalError,
     | Crypto.Crypto
     | FileSystem.FileSystem
     | ChildProcessSpawner.ChildProcessSpawner
@@ -239,7 +239,7 @@ export const run = Effect.fn("exec/schedule")(
                   ),
                 ),
               { concurrency: "unbounded", discard: true },
-            ).pipe(Effect.mapError(Error.init)),
+            ).pipe(Effect.mapError(EvalError.init)),
           ),
         ),
       ),

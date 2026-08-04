@@ -6,7 +6,7 @@ import type { SchemaError } from "effect/SchemaError";
 import { Metadata, type MetadataEncoded } from "../metadata.ts";
 import { Result, type StreamResult } from "../result.ts";
 import * as When from "../when/index.ts";
-import { Error } from "../error.ts";
+import { MetricError } from "../error.ts";
 
 export type Context = When.SandboxContext &
   Readonly<{ parts: Prompt.Parts; prevTrajectory: Prompt.Trajectory }>;
@@ -41,7 +41,7 @@ export const make = Effect.fn(function* <R extends Schema.JsonObject = Schema.Js
 ) {
   const { exec, when = When.traj(When.part()), chart = null } = options;
   const metadata = yield* Schema.decodeEffect(Metadata)(options).pipe(
-    Effect.mapError(Error.metadata),
+    Effect.mapError(MetricError.metadata),
   );
   return { exec, when, chart, metadata } satisfies Metric<R>;
 });
@@ -51,19 +51,19 @@ const execMetric = Effect.fn("metric/traj/execMetric")(function* (
   context: Context,
   prev: Result | null,
   state: Ref.Ref<ReadonlyMap<Metric, Result>>,
-): Effect.fn.Return<StreamResult, Error> {
+): Effect.fn.Return<StreamResult, MetricError> {
   const rawResult = yield* Effect.tryPromise(() => metric.exec(context, prev)).pipe(
-    Effect.mapError(Error.exec(metric.metadata.id)),
+    Effect.mapError(MetricError.exec(metric.metadata.id)),
   );
   const result = yield* Schema.decodeEffect(Result)(rawResult).pipe(
-    Effect.mapError(Error.result(metric.metadata.id)),
+    Effect.mapError(MetricError.result(metric.metadata.id)),
     Effect.as(rawResult),
   );
 
   yield* Ref.update(state, (state) => new Map(state).set(metric, result));
 
   const chart = yield* Effect.try(() => (metric.chart ? metric.chart(result) : null)).pipe(
-    Effect.mapError(Error.chart(metric.metadata.id)),
+    Effect.mapError(MetricError.chart(metric.metadata.id)),
   );
 
   return {
@@ -78,9 +78,9 @@ const runMetric = Effect.fn("metric/traj/runMetric")(function* (
   pred: When.Pred | undefined,
   context: Context,
   state: Ref.Ref<ReadonlyMap<Metric, Result>>,
-): Effect.fn.Return<Option.Option<StreamResult>, Error> {
+): Effect.fn.Return<Option.Option<StreamResult>, MetricError> {
   const matches = yield* Effect.tryPromise(() => Promise.resolve(pred?.(context) ?? true)).pipe(
-    Effect.mapError(Error.exec(metric.metadata.id)),
+    Effect.mapError(MetricError.exec(metric.metadata.id)),
   );
 
   if (!matches) {
@@ -101,14 +101,14 @@ export const run = ({ metrics, sandbox, prevTrajectory }: RunOptions) =>
   Effect.fn(
     function* <E, R>(
       stream: Prompt.PartEncodedStream<E, R>,
-    ): Effect.fn.Return<Stream.Stream<StreamResult, Error | SchemaError | E, R>> {
+    ): Effect.fn.Return<Stream.Stream<StreamResult, MetricError | SchemaError | E, R>> {
       const partsRef = yield* Ref.make<Prompt.Parts>([]);
       const state = yield* Ref.make<ReadonlyMap<Metric, Result>>(new Map());
       const runPart = (metric: Metric, part: Prompt.Part, parts: Prompt.Parts) =>
         Match.valueTags(metric.when, {
           Traj: (when) =>
             Effect.try(() => when.trajPred(part, parts)).pipe(
-              Effect.mapError(Error.exec(metric.metadata.id)),
+              Effect.mapError(MetricError.exec(metric.metadata.id)),
               Effect.flatMap((matches) =>
                 matches
                   ? runMetric(metric, when.pred, { ...sandbox, parts, prevTrajectory }, state)

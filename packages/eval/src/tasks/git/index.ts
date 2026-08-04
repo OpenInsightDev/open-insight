@@ -3,7 +3,7 @@ import { ChildProcess as CP } from "effect/unstable/process";
 import { Effect, FileSystem } from "effect";
 import { Spawn } from "@open-insight/core/utils";
 import type { Load } from "../index.ts";
-import { Error } from "../error.ts";
+import { TasksError } from "../error.ts";
 
 interface Options {
   /** Target directory. Defaults to a scoped temporary directory. */
@@ -150,21 +150,22 @@ export const withGitRepo = (repoURL: string, options: Options = {}) =>
         repoPath = tempRepoPath;
       }
 
-      yield* loadGitRepo(repoPath, repoURL, options).pipe(Effect.mapError(Error.source));
+      yield* loadGitRepo(repoPath, repoURL, options).pipe(Effect.mapError(TasksError.source));
       if (options.postInit !== undefined) {
         const spawner = yield* Spawn.Service;
         yield* spawner
           .success(CP.make({ cwd: repoPath })`sh -c ${options.postInit}`)
-          .pipe(Effect.mapError(Error.source));
+          .pipe(Effect.mapError(TasksError.source));
       }
 
       const loader = yield* Effect.tryPromise({
         try: () => Promise.resolve(exec(repoPath)),
-        catch: Error.init,
+        catch: TasksError.init,
       });
       return yield* loader;
     },
-    (effect) => effect.pipe(Effect.mapError(Error.source), Effect.provide(Spawn.Service.layer)),
+    (effect) =>
+      effect.pipe(Effect.mapError(TasksError.source), Effect.provide(Spawn.Service.layer)),
   );
 
 export const withGithub = (id: string, options?: Options) =>

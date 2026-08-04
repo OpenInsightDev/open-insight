@@ -1,5 +1,6 @@
-import { Sandbox, SandboxError } from "@open-insight/core";
-import { Spawn } from "@open-insight/core/utils";
+import * as Sandbox from "#/sandbox/export.ts";
+import { SandboxError } from "#/sandbox/export.ts";
+import { Spawn } from "#/utils/export.ts";
 import { Crypto, Duration, Effect, FileSystem, Layer } from "effect";
 import { ChildProcess as CP } from "effect/unstable/process";
 import { ChildProcessSpawner } from "effect/unstable/process/ChildProcessSpawner";

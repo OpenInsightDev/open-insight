@@ -9,7 +9,7 @@ export class BaseMetadata extends Schema.Class<BaseMetadata>("BenchBaseMetadata"
   subset: Schema.Boolean.pipe(
     Schema.withDecodingDefaultType(Effect.succeed(false), { encodingStrategy: "omit" }),
   ),
-  extras: Schema.optional(Schema.Record(Schema.String, Schema.Json)),
+  extras: Schema.optionalKey(Schema.Record(Schema.String, Schema.Json)),
 }) {}
 type BaseMetadataEncoded = Schema.Codec.Encoded<typeof BaseMetadata>;
 

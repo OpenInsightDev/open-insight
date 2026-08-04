@@ -5,7 +5,7 @@ import * as Task from "#/task/index.ts";
 import { Effect, Ref, Schema } from "effect";
 import { Metadata, type MetadataEncoded } from "../metadata.ts";
 import { Result, type StreamResult } from "../result.ts";
-import { Error } from "../error.ts";
+import { MetricError } from "../error.ts";
 
 export type Delta<G = unknown> = TrailResult<G> & Readonly<{ task: Task.ID }>;
 export type Results<G = unknown> = Readonly<Record<Task.ID, ReadonlyArray<TrailResult<G>>>>;
@@ -41,7 +41,7 @@ export const make = Effect.fn(function* <
 >(options: Options<G, R>) {
   const { exec, chart = null } = options;
   const metadata = yield* Schema.decodeEffect(Metadata)(options).pipe(
-    Effect.mapError(Error.metadata),
+    Effect.mapError(MetricError.metadata),
   );
   return { exec, chart, metadata } satisfies Metric<G, R>;
 });
@@ -56,7 +56,7 @@ export const run = Effect.fn("metric/bench/run")(function* <G, R extends Schema.
     }>
   >({ results: {}, prev: null });
 
-  return Effect.fn(function* (delta: Delta<G>): Effect.fn.Return<StreamResult, Error> {
+  return Effect.fn(function* (delta: Delta<G>): Effect.fn.Return<StreamResult, MetricError> {
     const current = yield* Ref.get(state);
     const results = {
       ...current.results,
@@ -65,16 +65,16 @@ export const run = Effect.fn("metric/bench/run")(function* <G, R extends Schema.
 
     const rawResult = yield* Effect.tryPromise(() =>
       metric.exec(results, delta, current.prev),
-    ).pipe(Effect.mapError(Error.exec(metric.metadata.id)));
+    ).pipe(Effect.mapError(MetricError.exec(metric.metadata.id)));
     const result = yield* Schema.decodeEffect(Result)(rawResult).pipe(
-      Effect.mapError(Error.result(metric.metadata.id)),
+      Effect.mapError(MetricError.result(metric.metadata.id)),
       Effect.as(rawResult),
     );
 
     yield* Ref.set(state, { results, prev: result });
 
     const chart = yield* Effect.try(() => (metric.chart ? metric.chart(result) : null)).pipe(
-      Effect.mapError(Error.chart(metric.metadata.id)),
+      Effect.mapError(MetricError.chart(metric.metadata.id)),
     );
 
     return {

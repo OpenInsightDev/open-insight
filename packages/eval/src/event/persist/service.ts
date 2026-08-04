@@ -1,6 +1,6 @@
 import { Crypto, Effect, Option, Ref, Schema, Semaphore, Stream, type Scope } from "effect";
 import { Persistence } from "effect/unstable/persistence";
-import { Error as EventError } from "../error.ts";
+import { EventError } from "../error.ts";
 import type { EventStream } from "../queue.ts";
 import type { Event } from "../schema.ts";
 import type { Transport } from "../transport/schema.ts";

@@ -1,4 +1,4 @@
-export { Error, Metadata } from "./index.ts";
+export { MetricError, Metadata } from "./index.ts";
 export * as Bench from "./bench/export.ts";
 export { make as bench } from "./bench/index.ts";
 export * as Task from "./task/export.ts";

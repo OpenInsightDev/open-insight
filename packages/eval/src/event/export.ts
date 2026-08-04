@@ -1,6 +1,6 @@
 export {
   BenchMetricEvent,
-  Error,
+  EventError,
   EvalScheduleEvent,
   Event,
   InitEvent,
