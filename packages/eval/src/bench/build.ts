@@ -1,5 +1,5 @@
 import { Effect, Schema } from "effect";
-import { Error } from "./error.ts";
+import { BenchError } from "./error.ts";
 import * as Tasks from "#/tasks/index.ts";
 import * as Metric from "#/metric/index.ts";
 import * as Task from "#/task/index.ts";
@@ -36,12 +36,12 @@ export const make = Effect.fn(function* <T extends Task.AnyTask, E, R>(
     Readonly<{
       metrics?: ReadonlyArray<Metric.Bench.Metric>;
     }> = {},
-): Effect.fn.Return<Bench<T>, Error, R> {
+): Effect.fn.Return<Bench<T>, BenchError, R> {
   const { metrics = [] } = options;
   const metadata = yield* Schema.decodeEffect(BaseMetadata)({ id, ...options }).pipe(
-    Effect.mapError(Error.init),
+    Effect.mapError(BenchError.init),
   );
-  const tasks = yield* load.pipe(Error.taskLoad);
+  const tasks = yield* load.pipe(BenchError.taskLoad);
 
   return {
     metadata,

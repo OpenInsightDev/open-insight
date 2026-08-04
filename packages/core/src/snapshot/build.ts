@@ -1,5 +1,5 @@
 import { Crypto, Effect, Encoding, FileSystem, Path, Schema } from "effect";
-import { Error } from "./error.ts";
+import { SnapshotError } from "./error.ts";
 import * as Image from "./image.ts";
 import { cmd, Instruction, Instructions } from "./inst.ts";
 
@@ -88,7 +88,7 @@ export const hash = Effect.fn(
     return Encoding.encodeHex(digest);
   },
   (effect, snapshot): Effect.Effect<string, Error, Crypto.Crypto> =>
-    effect.pipe(Effect.mapError(Error.build(snapshot))),
+    effect.pipe(Effect.mapError(SnapshotError.build(snapshot))),
 );
 
 /** Extend an instruction snapshot without changing its base image. */

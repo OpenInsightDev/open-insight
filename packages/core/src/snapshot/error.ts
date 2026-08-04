@@ -1,45 +1,48 @@
-import { Schema } from "effect";
+import { Formatter, Schema } from "effect";
 import { Snapshot } from "./build.ts";
 import { Instruction, Instructions } from "./inst.ts";
 
-const Cause = Schema.Error();
-
-export class BuildError extends Schema.TaggedErrorClass<BuildError>()("SnapshotBuildError", {
+export class BuildError extends Schema.TaggedErrorClass<BuildError>(
+  "open-insight/SnapshotError/BuildError",
+)("BuildError", {
   snapshot: Schema.suspend(() => Snapshot),
-  cause: Cause,
+  cause: Schema.Defect(),
 }) {
   override get message(): string {
-    return `Failed to build snapshot: ${this.cause.message}`;
+    return `Failed to build snapshot: ${Formatter.format(this.cause)}`;
   }
 }
 
-export class DeriveError extends Schema.TaggedErrorClass<DeriveError>()("SnapshotDeriveError", {
+export class DeriveError extends Schema.TaggedErrorClass<DeriveError>(
+  "open-insight/SnapshotError/DeriveError",
+)("DeriveError", {
   name: Schema.String,
   instructions: Instructions,
-  cause: Cause,
+  cause: Schema.Defect(),
 }) {
   override get message(): string {
-    return `Failed to derive snapshot "${this.name}": ${this.cause.message}`;
+    return `Failed to derive snapshot "${this.name}": ${Formatter.format(this.cause)}`;
   }
 }
 
-export class UseError extends Schema.TaggedErrorClass<UseError>()("SnapshotUseError", {
+export class UseError extends Schema.TaggedErrorClass<UseError>(
+  "open-insight/SnapshotError/UseError",
+)("UseError", {
   name: Schema.String,
-  cause: Cause,
+  cause: Schema.Defect(),
 }) {
   override get message(): string {
-    return `Failed to use snapshot "${this.name}": ${this.cause.message}`;
+    return `Failed to use snapshot "${this.name}": ${Formatter.format(this.cause)}`;
   }
 }
 
-export class InstructionUnsupportedError extends Schema.TaggedErrorClass<InstructionUnsupportedError>()(
-  "InstructionUnsupportedError",
-  {
-    name: Schema.String,
-    snapshot: Schema.suspend(() => Snapshot),
-    instruction: Instruction,
-  },
-) {
+export class InstructionUnsupportedError extends Schema.TaggedErrorClass<InstructionUnsupportedError>(
+  "open-insight/SnapshotError/InstructionUnsupportedError",
+)("InstructionUnsupportedError", {
+  name: Schema.String,
+  snapshot: Schema.suspend(() => Snapshot),
+  instruction: Instruction,
+}) {
   override get message(): string {
     return `Snapshot provider "${this.name}" does not support ${this.instruction._tag} instructions`;
   }
@@ -53,7 +56,9 @@ export const ErrorReason = Schema.Union([
 ]);
 export type ErrorReason = Schema.Schema.Type<typeof ErrorReason>;
 
-export class Error extends Schema.TaggedErrorClass<Error>()("SnapshotError", {
+export class SnapshotError extends Schema.TaggedErrorClass<SnapshotError>(
+  "open-insight/SnapshotError",
+)("SnapshotError", {
   reason: ErrorReason,
 }) {
   override get message(): string {
@@ -64,19 +69,27 @@ export class Error extends Schema.TaggedErrorClass<Error>()("SnapshotError", {
     return this.reason;
   }
 
-  static mapUnknownError = (mapper: (cause: globalThis.Error) => ErrorReason) => (cause: unknown) =>
-    cause instanceof Error
-      ? cause
-      : new Error({ reason: mapper(Schema.decodeUnknownSync(Cause)(cause)) });
+  static build =
+    (snapshot: Snapshot) =>
+    (cause: unknown): SnapshotError =>
+      SnapshotError.make({ reason: BuildError.make({ snapshot, cause }) });
 
-  static build = (snapshot: Snapshot) =>
-    this.mapUnknownError((cause) => BuildError.make({ snapshot, cause }));
+  static derive =
+    (name: string, instructions: Instructions) =>
+    (cause: unknown): SnapshotError =>
+      SnapshotError.make({ reason: DeriveError.make({ name, instructions, cause }) });
 
-  static derive = (name: string, instructions: Instructions) =>
-    this.mapUnknownError((cause) => DeriveError.make({ name, instructions, cause }));
+  static usage =
+    (name: string) =>
+    (cause: unknown): SnapshotError =>
+      SnapshotError.make({ reason: UseError.make({ name, cause }) });
 
-  static usage = (name: string) => this.mapUnknownError((cause) => UseError.make({ name, cause }));
-
-  static instUnsupported = (name: string, snapshot: Snapshot, instruction: Instruction) =>
-    this.mapUnknownError(() => InstructionUnsupportedError.make({ name, snapshot, instruction }));
+  static instUnsupported = (
+    name: string,
+    snapshot: Snapshot,
+    instruction: Instruction,
+  ): SnapshotError =>
+    SnapshotError.make({
+      reason: InstructionUnsupportedError.make({ name, snapshot, instruction }),
+    });
 }

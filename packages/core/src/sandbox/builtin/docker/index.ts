@@ -150,7 +150,7 @@ export const make = Effect.fn("sandbox/provider/docker")(
           Effect.annotateLogs({
             snapshotContext: snapshot.context,
           }),
-          Effect.mapError(SandboxError.snapshot(Snapshot.Error.build(snapshot))),
+          Effect.mapError(SandboxError.snapshot(Snapshot.SnapshotError.build(snapshot))),
         ),
     ) satisfies Sandbox.Provider["aquireSnapshot"];
 
@@ -206,7 +206,9 @@ export const make = Effect.fn("sandbox/provider/docker")(
           Effect.annotateLogs({
             baseDockerImage: handle.name,
           }),
-          Effect.mapError(SandboxError.snapshot(Snapshot.Error.derive(handle.name, instructions))),
+          Effect.mapError(
+            SandboxError.snapshot(Snapshot.SnapshotError.derive(handle.name, instructions)),
+          ),
         ),
     ) satisfies Sandbox.Provider["deriveSnapshot"];
 

@@ -73,7 +73,7 @@ export const aquireSnapshot = Effect.fn(
   (effect, { snapshot }) =>
     effect.pipe(
       Effect.annotateLogs({ snapshotContext: snapshot.context }),
-      Effect.mapError(SandboxError.snapshot(Snapshot.Error.build(snapshot))),
+      Effect.mapError(SandboxError.snapshot(Snapshot.SnapshotError.build(snapshot))),
     ),
 );
 
@@ -124,6 +124,8 @@ export const deriveSnapshot = Effect.fn(
   (effect, { handle, instructions }) =>
     effect.pipe(
       Effect.annotateLogs({ baseAppleContainerImage: handle.name }),
-      Effect.mapError(SandboxError.snapshot(Snapshot.Error.derive(handle.name, instructions))),
+      Effect.mapError(
+        SandboxError.snapshot(Snapshot.SnapshotError.derive(handle.name, instructions)),
+      ),
     ),
 );

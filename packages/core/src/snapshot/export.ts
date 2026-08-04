@@ -15,7 +15,7 @@ export {
 export {
   BuildError,
   DeriveError,
-  Error,
+  SnapshotError,
   ErrorReason,
   InstructionUnsupportedError,
   UseError,

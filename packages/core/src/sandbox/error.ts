@@ -81,7 +81,7 @@ export class AssertionError extends Schema.TaggedErrorClass<AssertionError>(
 }
 
 export const ErrorReason = Schema.Union([
-  Snapshot.Error,
+  Snapshot.SnapshotError,
   ProviderNotAvailableError,
   SandboxStartError,
   SandboxExecError,
@@ -110,7 +110,7 @@ export class SandboxError extends Schema.TaggedErrorClass<SandboxError>(
       SandboxError.make({ reason: ProviderNotAvailableError.make({ name, cause }) });
 
   static snapshot =
-    (mapper: (cause: unknown) => Snapshot.Error) =>
+    (mapper: (cause: unknown) => Snapshot.SnapshotError) =>
     (cause: unknown): SandboxError =>
       SandboxError.make({ reason: mapper(cause) });
 

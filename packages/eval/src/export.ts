@@ -1,4 +1,5 @@
 export * as Bench from "#/bench/export.ts";
+export { BenchError } from "#/bench/export.ts";
 export * as Chart from "#/chart/export.ts";
 export * as Event from "#/event/export.ts";
 export * as Eval from "#/eval/export.ts";

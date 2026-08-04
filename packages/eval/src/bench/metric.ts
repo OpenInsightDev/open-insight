@@ -6,7 +6,7 @@ import type { Invariant } from "#/utils/variant.ts";
 import { Effect, Schema } from "effect";
 import { castDraft, produce } from "immer";
 import type { Bench } from "./build.ts";
-import { Error } from "./error.ts";
+import { BenchError } from "./error.ts";
 
 type MetricOptions<R extends Schema.JsonObject> = Omit<Metric.Bench.Options<unknown, R>, "exec">;
 type TaskMetricOptions<R extends Schema.JsonObject> = Omit<Metric.Task.Options<unknown, R>, "exec">;
@@ -22,11 +22,11 @@ type TaskWithGrade<G, Schema extends GradeSchema<G>, S extends Task.Stage> = Omi
 
 type MetricBuilder<G> = <Schema extends GradeSchema<G>, S extends Task.Stage, E, R>(
   bench: Effect.Effect<Bench<TaskWithGrade<G, Schema, S>>, E, R>,
-) => Effect.Effect<Bench<Task.Task<Schema, S>>, E | Error, R>;
+) => Effect.Effect<Bench<Task.Task<Schema, S>>, E | BenchError, R>;
 
 type AttachedMetricBuilder = <T extends Task.AnyTask, E, R>(
   bench: Effect.Effect<Bench<T>, E, R>,
-) => Effect.Effect<Bench<T>, E | Error, R>;
+) => Effect.Effect<Bench<T>, E | BenchError, R>;
 
 const mapTrail = <Input, Mapped>(
   mapper: (grade: Input) => Mapped,
@@ -75,7 +75,7 @@ const attachMetric =
   ) =>
     Effect.flatMap(bench, (bench) =>
       Metric.Bench.make({ ...options, exec }).pipe(
-        Effect.mapError(Error.init),
+        Effect.mapError(BenchError.init),
         Effect.map((metric) =>
           produce(bench, (draft) => {
             draft.metrics.push(castDraft(metric));
@@ -95,11 +95,11 @@ const attachTaskMetric =
   ) =>
     Effect.flatMap(bench, (bench) => {
       if (!bench.tasks.some((task) => task.metadata.id === taskId)) {
-        return Effect.fail(Error.taskNotFound(taskId));
+        return Effect.fail(BenchError.taskNotFound(taskId));
       }
 
       return Metric.Task.make({ ...options, exec }).pipe(
-        Effect.mapError(Error.init),
+        Effect.mapError(BenchError.init),
         Effect.map((metric) =>
           produce(bench, (draft) => {
             for (const task of draft.tasks) {
@@ -146,11 +146,11 @@ export const trajMetric =
   <T extends Task.AnyTask, E, R>(bench: Effect.Effect<Bench<T>, E, R>) =>
     Effect.flatMap(bench, (bench) => {
       if (!bench.tasks.some((task) => task.metadata.id === taskId)) {
-        return Effect.fail(Error.taskNotFound(taskId));
+        return Effect.fail(BenchError.taskNotFound(taskId));
       }
 
       return Metric.Traj.make({ ...options, exec }).pipe(
-        Effect.mapError(Error.init),
+        Effect.mapError(BenchError.init),
         Effect.map((metric) =>
           produce(bench, (draft) => {
             for (const task of draft.tasks) {
