@@ -51,13 +51,9 @@ const sandbox = {
 } satisfies Sandbox.Sandbox;
 
 const assertTrajectoryIncludes = (agent: Agent.Agent, text: string) =>
-  agent
-    .trajectory()
-    .pipe(
-      Effect.tap((trajectory) =>
-        Effect.sync(() => assert.include(JSON.stringify(trajectory), text)),
-      ),
-    );
+  agent.trajectory.pipe(
+    Effect.tap((trajectory) => Effect.sync(() => assert.include(JSON.stringify(trajectory), text))),
+  );
 
 layer(Path.layer)((it) => {
   it.effect("wraps ACP transport errors exposed by the provider layer", () =>
@@ -178,8 +174,8 @@ layer(Path.layer)((it) => {
       );
       yield* first.prompt(Prompt.make("follow-up")).pipe(Stream.runDrain);
       const secondTurn = yield* second.prompt(Prompt.make("second")).pipe(Stream.runCollect);
-      const firstTrajectory = yield* first.trajectory();
-      const secondTrajectory = yield* second.trajectory();
+      const firstTrajectory = yield* first.trajectory;
+      const secondTrajectory = yield* second.trajectory;
 
       assert.lengthOf(initializeRequests, 1);
       assert.deepStrictEqual(authenticationRequests, [{ methodId: "api-key" }]);
@@ -411,7 +407,7 @@ layer(Path.layer)((it) => {
           .prompt(Prompt.make("cancel me"))
           .pipe(Stream.take(2), Stream.runCollect);
         yield* Deferred.await(promptStopped);
-        const trajectory = yield* session.trajectory();
+        const trajectory = yield* session.trajectory;
 
         assert.include(JSON.stringify(parts), "partial");
         assert.deepStrictEqual(cancelRequests, ["cancel-session"]);

@@ -6,10 +6,10 @@ import * as Snapshot from "#/snapshot/index.ts";
 export class InitError extends Schema.TaggedErrorClass<InitError>(
   "open-insight/HarnessError/InitError",
 )("InitError", {
-  cause: SandboxError,
+  cause: Schema.Defect(),
 }) {
   override get message(): string {
-    return `Failed to initialize harness: ${this.cause.message}`;
+    return `Failed to initialize harness: ${this.cause}`;
   }
 }
 
@@ -75,6 +75,9 @@ export class HarnessError extends Schema.TaggedErrorClass<HarnessError>(
   override get cause(): ErrorReason {
     return this.reason;
   }
+
+  static init = (cause: unknown): HarnessError =>
+    HarnessError.make({ reason: InitError.make({ cause }) });
 
   static snapshotAcquire =
     (snapshot: Snapshot.Snapshot) =>

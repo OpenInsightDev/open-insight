@@ -1,9 +1,6 @@
 import type { ContentBlock, SessionUpdate, ToolKind } from "@agentclientprotocol/sdk";
 import { Encoding, Result, Schema, Stream } from "effect";
-import { Response, Tool } from "effect/unstable/ai";
-
-export type AcpTools = Record<string, Tool.AnyDynamic>;
-export type StreamPart = Response.StreamPart<AcpTools>;
+import { Response } from "effect/unstable/ai";
 
 type SegmentKind = "text" | "reasoning";
 
@@ -42,20 +39,19 @@ const streamCompleteMetadata: Response.ProviderMetadata = {
   },
 };
 
-const emptyUsage = () =>
-  new Response.Usage({
-    inputTokens: {
-      uncached: undefined,
-      total: undefined,
-      cacheRead: undefined,
-      cacheWrite: undefined,
-    },
-    outputTokens: {
-      total: undefined,
-      text: undefined,
-      reasoning: undefined,
-    },
-  });
+const emptyUsage = (): typeof Response.Usage.Encoded => ({
+  inputTokens: {
+    uncached: undefined,
+    total: undefined,
+    cacheRead: undefined,
+    cacheWrite: undefined,
+  },
+  outputTokens: {
+    total: undefined,
+    text: undefined,
+    reasoning: undefined,
+  },
+});
 
 const acpMetadata = (update: SessionUpdate): Response.ProviderMetadata => ({
   acp: decodeJson(update),
@@ -66,65 +62,58 @@ const decodeJson = Schema.decodeUnknownSync(Schema.Json);
 const finishMetadata = (update: UsageUpdate | undefined): Response.ProviderMetadata =>
   update === undefined ? streamCompleteMetadata : acpMetadata(update);
 
-const metadataPart = (metadata: Response.ProviderMetadata): StreamPart =>
-  Response.makePart("response-metadata", {
-    id: undefined,
-    modelId: undefined,
-    timestamp: undefined,
-    request: undefined,
-    metadata,
-  });
+const metadataPart = (metadata: Response.ProviderMetadata): Response.StreamPartEncoded => ({
+  type: "response-metadata",
+  metadata,
+});
 
-const finishPart = (update: UsageUpdate | undefined): StreamPart =>
-  Response.makePart("finish", {
-    reason: "unknown",
-    usage:
-      update === undefined
-        ? emptyUsage()
-        : new Response.Usage({
-            inputTokens: {
-              uncached: undefined,
-              total: update.used,
-              cacheRead: undefined,
-              cacheWrite: undefined,
-            },
-            outputTokens: {
-              total: undefined,
-              text: undefined,
-              reasoning: undefined,
-            },
-          }),
-    response: undefined,
-    metadata: finishMetadata(update),
-  });
+const finishPart = (update: UsageUpdate | undefined): Response.StreamPartEncoded => ({
+  type: "finish",
+  reason: "unknown",
+  usage:
+    update === undefined
+      ? emptyUsage()
+      : {
+          inputTokens: {
+            uncached: undefined,
+            total: update.used,
+            cacheRead: undefined,
+            cacheWrite: undefined,
+          },
+          outputTokens: {
+            total: undefined,
+            text: undefined,
+            reasoning: undefined,
+          },
+        },
+  metadata: finishMetadata(update),
+});
 
 const segmentStartPart = (
   kind: SegmentKind,
   id: string,
   metadata: Response.ProviderMetadata,
-): StreamPart =>
+): Response.StreamPartEncoded =>
   kind === "text"
-    ? Response.makePart("text-start", { id, metadata })
-    : Response.makePart("reasoning-start", { id, metadata });
+    ? { type: "text-start", id, metadata }
+    : { type: "reasoning-start", id, metadata };
 
 const segmentDeltaPart = (
   kind: SegmentKind,
   id: string,
   delta: string,
   metadata: Response.ProviderMetadata,
-): StreamPart =>
+): Response.StreamPartEncoded =>
   kind === "text"
-    ? Response.makePart("text-delta", { id, delta, metadata })
-    : Response.makePart("reasoning-delta", { id, delta, metadata });
+    ? { type: "text-delta", id, delta, metadata }
+    : { type: "reasoning-delta", id, delta, metadata };
 
 const segmentEndPart = (
   kind: SegmentKind,
   id: string,
   metadata: Response.ProviderMetadata,
-): StreamPart =>
-  kind === "text"
-    ? Response.makePart("text-end", { id, metadata })
-    : Response.makePart("reasoning-end", { id, metadata });
+): Response.StreamPartEncoded =>
+  kind === "text" ? { type: "text-end", id, metadata } : { type: "reasoning-end", id, metadata };
 
 const base64ToBytes = (data: string): Uint8Array | undefined =>
   Result.match(Encoding.decodeBase64(data), {
@@ -136,23 +125,24 @@ const filePartFromBase64 = (
   data: string,
   mediaType: string,
   metadata: Response.ProviderMetadata,
-): ReadonlyArray<StreamPart> => {
+): ReadonlyArray<Response.StreamPartEncoded> => {
   const bytes = base64ToBytes(data);
   return bytes === undefined
     ? [metadataPart(metadata)]
     : [
-        Response.makePart("file", {
+        {
+          type: "file",
           mediaType,
-          data: bytes,
+          data,
           metadata,
-        }),
+        },
       ];
 };
 
 const contentBlockToParts = (
   content: ContentBlock,
   metadata: Response.ProviderMetadata,
-): ReadonlyArray<StreamPart> => {
+): ReadonlyArray<Response.StreamPartEncoded> => {
   switch (content.type) {
     case "image":
     case "audio":
@@ -203,43 +193,42 @@ const toolCallPart = (
   update: Extract<SessionUpdate, { sessionUpdate: "tool_call" }>,
   name: string,
   metadata: Response.ProviderMetadata,
-): StreamPart => {
-  return Response.toolCallPart({
-    id: update.toolCallId,
-    name,
-    params:
-      update.rawInput === undefined
-        ? {
-            title: update.title,
-            kind: update.kind ?? null,
-          }
-        : update.rawInput,
-    providerExecuted: true,
-    metadata,
-  });
-};
+): Response.StreamPartEncoded => ({
+  type: "tool-call",
+  id: update.toolCallId,
+  name,
+  params:
+    update.rawInput === undefined
+      ? {
+          title: update.title,
+          kind: update.kind ?? null,
+        }
+      : update.rawInput,
+  providerExecuted: true,
+  metadata,
+});
 
 const toolResultPart = (
   update: Extract<SessionUpdate, { sessionUpdate: "tool_call_update" }>,
   name: string,
   metadata: Response.ProviderMetadata,
-): StreamPart => {
+): Response.StreamPartEncoded => {
   const result = update.rawOutput ??
     update.content ??
     update.locations ?? {
       status: update.status ?? null,
     };
 
-  return Response.toolResultPart({
+  return {
+    type: "tool-result",
     id: update.toolCallId,
     name,
     isFailure: update.status === "failed",
     result,
-    encodedResult: result,
     providerExecuted: true,
     preliminary: update.status !== "completed" && update.status !== "failed",
     metadata,
-  });
+  };
 };
 
 const chunkKind = (update: AgentChunkUpdate): SegmentKind =>
@@ -285,7 +274,7 @@ const closeSegment = (
   state: State,
   kind: SegmentKind,
   metadata: Response.ProviderMetadata,
-): readonly [State, ReadonlyArray<StreamPart>] => {
+): readonly [State, ReadonlyArray<Response.StreamPartEncoded>] => {
   const activeId = state.active[kind];
   if (activeId === undefined) {
     return [state, []];
@@ -298,7 +287,7 @@ const handleAgentChunk = (
   state: State,
   update: AgentChunkUpdate,
   metadata: Response.ProviderMetadata,
-): readonly [State, ReadonlyArray<StreamPart>] => {
+): readonly [State, ReadonlyArray<Response.StreamPartEncoded>] => {
   const kind = chunkKind(update);
   if (update.content.type !== "text") {
     return [state, contentBlockToParts(update.content, metadata)];
@@ -307,7 +296,7 @@ const handleAgentChunk = (
   const [stateWithId, id] = nextChunkId(state, update, kind);
   const activeId = stateWithId.active[kind];
   const startsSegment = activeId !== id;
-  const closedParts: ReadonlyArray<StreamPart> =
+  const closedParts: ReadonlyArray<Response.StreamPartEncoded> =
     activeId !== undefined && startsSegment ? [segmentEndPart(kind, activeId, metadata)] : [];
   const nextState = startsSegment ? setActiveSegment(stateWithId, kind, id) : stateWithId;
 
@@ -325,7 +314,7 @@ const handleToolCall = (
   state: State,
   update: Extract<SessionUpdate, { sessionUpdate: "tool_call" }>,
   metadata: Response.ProviderMetadata,
-): readonly [State, ReadonlyArray<StreamPart>] => {
+): readonly [State, ReadonlyArray<Response.StreamPartEncoded>] => {
   const name =
     programmaticToolName(update.name) ?? inferToolName(update.kind, update.title, "acp_tool");
   const toolNames = new Map(state.toolNames);
@@ -343,7 +332,7 @@ const handleToolCallUpdate = (
   state: State,
   update: Extract<SessionUpdate, { sessionUpdate: "tool_call_update" }>,
   metadata: Response.ProviderMetadata,
-): readonly [State, ReadonlyArray<StreamPart>] => {
+): readonly [State, ReadonlyArray<Response.StreamPartEncoded>] => {
   const existingName = state.toolNames.get(update.toolCallId);
   const name =
     programmaticToolName(update.name) ??
@@ -362,7 +351,7 @@ const handleToolCallUpdate = (
 const handleUpdate = (
   state: State,
   update: SessionUpdate,
-): readonly [State, ReadonlyArray<StreamPart>] => {
+): readonly [State, ReadonlyArray<Response.StreamPartEncoded>] => {
   if (update.sessionUpdate === "usage_update") {
     return [{ ...state, usage: update }, []];
   }
@@ -388,7 +377,7 @@ const handleUpdate = (
   }
 };
 
-const closeStream = (state: State): ReadonlyArray<StreamPart> => {
+const closeStream = (state: State): ReadonlyArray<Response.StreamPartEncoded> => {
   const [stateWithoutText, textParts] = closeSegment(state, "text", streamCompleteMetadata);
   const [_closedState, reasoningParts] = closeSegment(
     stateWithoutText,
@@ -401,12 +390,12 @@ const closeStream = (state: State): ReadonlyArray<StreamPart> => {
 const handleStreamEvent = (
   state: State,
   event: SessionUpdate | typeof streamEnd,
-): readonly [State, ReadonlyArray<StreamPart>] =>
+): readonly [State, ReadonlyArray<Response.StreamPartEncoded>] =>
   event === streamEnd ? [state, closeStream(state)] : handleUpdate(state, event);
 
 export const transform = <E, R>(
   stream: Stream.Stream<SessionUpdate, E, R>,
-): Stream.Stream<StreamPart, E, R> =>
+): Stream.Stream<Response.StreamPartEncoded, E, R> =>
   stream.pipe(
     Stream.concat(Stream.succeed(streamEnd)),
     Stream.mapAccum(initialState, handleStreamEvent),

@@ -97,7 +97,7 @@ it.layer(providerLayer(HTTP_URL), { timeout: TEST_TIMEOUT })("Streamable HTTP", 
         assert.match(firstText.toLowerCase(), /hello/);
 
         // The completed turn is committed to the session trajectory.
-        const trajectory = yield* session.trajectory();
+        const trajectory = yield* session.trajectory;
         assert.isAtLeast(trajectory.content.length, 2, "trajectory keeps user + assistant turns");
         assert.include(JSON.stringify(trajectory), "hello");
 
@@ -109,7 +109,7 @@ it.layer(providerLayer(HTTP_URL), { timeout: TEST_TIMEOUT })("Streamable HTTP", 
         assert.isAtLeast(secondText.length, 1, "second turn must produce assistant text");
         assert.match(secondText.toLowerCase(), /hello/);
 
-        const finalTrajectory = yield* session.trajectory();
+        const finalTrajectory = yield* session.trajectory;
         assert.isAtLeast(finalTrajectory.content.length, 4, "history accumulates across turns");
       }),
     TEST_TIMEOUT,

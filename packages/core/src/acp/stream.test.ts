@@ -1,11 +1,12 @@
 import type { SessionUpdate } from "@agentclientprotocol/sdk";
 import { assert, it } from "@effect/vitest";
 import { Cause, Effect, Option, Stream } from "effect";
-import { type StreamPart, transform } from "./stream.ts";
+import type { StreamPartEncoded } from "effect/unstable/ai/Response";
+import { transform } from "./stream.ts";
 
 const collect = (
   updates: ReadonlyArray<SessionUpdate>,
-): Effect.Effect<Array<StreamPart>, never, never> =>
+): Effect.Effect<Array<StreamPartEncoded>, never, never> =>
   Stream.fromIterable(updates).pipe(
     transform,
     Stream.runCollect,
@@ -267,7 +268,7 @@ it.effect("uses the latest usage update when the stream finishes", () =>
 it.effect("preserves upstream errors without emitting successful completion", () =>
   Effect.gen(function* () {
     const error = "boom";
-    const observed: Array<StreamPart> = [];
+    const observed: Array<StreamPartEncoded> = [];
     const result = yield* Stream.make(textChunk("partial")).pipe(
       Stream.concat(Stream.fail(error)),
       transform,

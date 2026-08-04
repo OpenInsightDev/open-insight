@@ -173,7 +173,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
           );
 
           yield* responseStream.pipe(
-            (stream) => Prompt.fromResponsePartStream(stream),
+            (stream) => Prompt.fromResponsePartEncodedStream(stream),
             Metric.Traj.run({ metrics: trajMetrics, sandbox: ctx, prevTrajectory }),
             Stream.runForEach(({ id, result, chart }) =>
               Event.TrajMetricEvent.makeEffect({

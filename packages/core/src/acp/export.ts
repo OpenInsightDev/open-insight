@@ -13,6 +13,7 @@ export { openHttpStream, openStream, openWebSocketStream } from "./http.ts";
 export { type HttpStreamOptions, type WebSocketStreamOptions } from "./http.ts";
 export { type ToAcpPromptOptions, toAcpPrompt } from "./prompt.ts";
 export { layer, type Options } from "./service.ts";
-export { type AcpTools, type StreamPart, transform } from "./stream.ts";
+export { transform } from "./stream.ts";
+export type { StreamPartEncoded } from "effect/unstable/ai/Response";
 
 export * as Internal from "./index.ts";

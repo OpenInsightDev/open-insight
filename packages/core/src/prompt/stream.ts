@@ -1,5 +1,5 @@
-import { Stream } from "effect";
-import { Prompt, Response, type Tool } from "effect/unstable/ai";
+import { Match, Stream } from "effect";
+import { Prompt, Response } from "effect/unstable/ai";
 
 type State = Readonly<{
   text: Map<string, string>;
@@ -13,91 +13,91 @@ const initialState = (): State => ({
 
 const noParts = (state: State): readonly [State, ReadonlyArray<Prompt.Part>] => [state, []];
 
-/**
- * Converts response stream parts into prompt parts.
- */
-export const fromResponsePartStream = <Tools extends Record<string, Tool.Any>, E, R>(
-  stream: Stream.Stream<Response.StreamPart<Tools>, E, R>,
-): Stream.Stream<Prompt.Part, E, R> =>
-  stream.pipe(
-    Stream.mapAccum(initialState, (state, part) => {
-      switch (part.type) {
-        case "text-start": {
-          state.text.set(part.id, "");
-          return noParts(state);
-        }
-        case "text-delta": {
-          const text = state.text.get(part.id);
-          if (text !== undefined) {
-            state.text.set(part.id, text + part.delta);
-          }
-          return noParts(state);
-        }
-        case "text-end": {
-          const text = state.text.get(part.id);
-          if (text === undefined) {
-            return noParts(state);
-          }
-          state.text.delete(part.id);
-          return [state, [Prompt.textPart({ text })]];
-        }
-        case "reasoning-start": {
-          state.reasoning.set(part.id, "");
-          return noParts(state);
-        }
-        case "reasoning-delta": {
-          const text = state.reasoning.get(part.id);
-          if (text !== undefined) {
-            state.reasoning.set(part.id, text + part.delta);
-          }
-          return noParts(state);
-        }
-        case "reasoning-end": {
-          const text = state.reasoning.get(part.id);
-          if (text === undefined) {
-            return noParts(state);
-          }
-          state.reasoning.delete(part.id);
-          return [state, [Prompt.reasoningPart({ text })]];
-        }
-        case "tool-call":
-          return [
+const accumulate = (
+  state: State,
+  part: Response.StreamPartEncoded,
+): readonly [State, ReadonlyArray<Prompt.Part>] =>
+  Match.value(part).pipe(
+    Match.withReturnType<readonly [State, ReadonlyArray<Prompt.Part>]>(),
+    Match.discriminator("type")("text-start", (part) => {
+      state.text.set(part.id, "");
+      return noParts(state);
+    }),
+    Match.discriminator("type")("text-delta", (part) => {
+      const text = state.text.get(part.id);
+      if (text !== undefined) {
+        state.text.set(part.id, text + part.delta);
+      }
+      return noParts(state);
+    }),
+    Match.discriminator("type")("text-end", (part) => {
+      const text = state.text.get(part.id);
+      if (text === undefined) {
+        return noParts(state);
+      }
+      state.text.delete(part.id);
+      return [state, [Prompt.textPart({ text })]];
+    }),
+    Match.discriminator("type")("reasoning-start", (part) => {
+      state.reasoning.set(part.id, "");
+      return noParts(state);
+    }),
+    Match.discriminator("type")("reasoning-delta", (part) => {
+      const text = state.reasoning.get(part.id);
+      if (text !== undefined) {
+        state.reasoning.set(part.id, text + part.delta);
+      }
+      return noParts(state);
+    }),
+    Match.discriminator("type")("reasoning-end", (part) => {
+      const text = state.reasoning.get(part.id);
+      if (text === undefined) {
+        return noParts(state);
+      }
+      state.reasoning.delete(part.id);
+      return [state, [Prompt.reasoningPart({ text })]];
+    }),
+    Match.discriminator("type")("tool-call", (part) => [
+      state,
+      [
+        Prompt.toolCallPart({
+          id: part.id,
+          name: part.name,
+          params: part.params,
+          providerExecuted: part.providerExecuted ?? false,
+        }),
+      ],
+    ]),
+    Match.discriminator("type")("tool-result", (part) =>
+      (part.preliminary ?? false)
+        ? noParts(state)
+        : [
             state,
             [
-              Prompt.toolCallPart({
+              Prompt.toolResultPart({
                 id: part.id,
                 name: part.name,
-                params: part.params,
-                providerExecuted: part.providerExecuted,
+                isFailure: part.isFailure,
+                result: part.result,
               }),
             ],
-          ];
-        case "tool-result":
-          return part.preliminary
-            ? noParts(state)
-            : [
-                state,
-                [
-                  Prompt.toolResultPart({
-                    id: part.id,
-                    name: part.name,
-                    isFailure: part.isFailure,
-                    result: part.encodedResult,
-                  }),
-                ],
-              ];
-        case "tool-approval-request":
-          return [
-            state,
-            [
-              Prompt.toolApprovalRequestPart({
-                approvalId: part.approvalId,
-                toolCallId: part.toolCallId,
-              }),
-            ],
-          ];
-        default:
-          return noParts(state);
-      }
-    }),
+          ],
+    ),
+    Match.discriminator("type")("tool-approval-request", (part) => [
+      state,
+      [
+        Prompt.toolApprovalRequestPart({
+          approvalId: part.approvalId,
+          toolCallId: part.toolCallId,
+        }),
+      ],
+    ]),
+    Match.orElse(() => noParts(state)),
   );
+
+/**
+ * Converts a stream of encoded response stream parts into prompt parts.
+ */
+export const fromResponsePartEncodedStream = <E, R>(
+  stream: Stream.Stream<Response.StreamPartEncoded, E, R>,
+): Stream.Stream<Prompt.Part, E, R> => stream.pipe(Stream.mapAccum(initialState, accumulate));

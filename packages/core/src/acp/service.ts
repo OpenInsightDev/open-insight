@@ -22,7 +22,10 @@ import { Bash } from "#/utils/index.ts";
 import { type HttpStreamOptions, openStream, type WebSocketStreamOptions } from "./http.ts";
 import { AcpError } from "./error.ts";
 import { toAcpPrompt } from "./prompt.ts";
+import * as Harness from "#/harness/index.ts";
 import { transform } from "./stream.ts";
+import { Sandbox } from "../export.ts";
+import { HarnessError } from "#/harness/index.ts";
 
 const DEFAULT_CWD = "/workspace";
 const DEFAULT_PORT = 7689;
@@ -95,7 +98,7 @@ type MakeAgentOptions = Omit<SessionContext, "history" | "turnActive">;
 
 type ResponseState = Readonly<{
   trajectory: Prompt.Prompt;
-  responseParts: Array<Response.AnyPart>;
+  responseParts: Array<Response.StreamPartEncoded>;
   committed: Ref.Ref<boolean>;
 }>;
 
@@ -280,6 +283,85 @@ const sessionUpdateStream = (
     );
   }).pipe(Stream.unwrap);
 
+const promptFromResponseParts = (
+  parts: ReadonlyArray<Response.StreamPartEncoded>,
+): Prompt.Prompt => {
+  const assistantParts: Array<Prompt.AssistantMessagePart> = [];
+  const toolParts: Array<Prompt.ToolMessagePart> = [];
+  const activeText = new Map<string, string>();
+  const activeReasoning = new Map<string, string>();
+
+  for (const part of parts) {
+    switch (part.type) {
+      case "text-start":
+        activeText.set(part.id, "");
+        break;
+      case "text-delta": {
+        const text = activeText.get(part.id);
+        if (text !== undefined) {
+          activeText.set(part.id, text + part.delta);
+        }
+        break;
+      }
+      case "text-end": {
+        const text = activeText.get(part.id);
+        if (text !== undefined) {
+          assistantParts.push(Prompt.makePart("text", { text }));
+        }
+        activeText.delete(part.id);
+        break;
+      }
+      case "reasoning-start":
+        activeReasoning.set(part.id, "");
+        break;
+      case "reasoning-delta": {
+        const text = activeReasoning.get(part.id);
+        if (text !== undefined) {
+          activeReasoning.set(part.id, text + part.delta);
+        }
+        break;
+      }
+      case "reasoning-end": {
+        const text = activeReasoning.get(part.id);
+        if (text !== undefined) {
+          assistantParts.push(Prompt.makePart("reasoning", { text }));
+        }
+        activeReasoning.delete(part.id);
+        break;
+      }
+      case "tool-call":
+        assistantParts.push(
+          Prompt.makePart("tool-call", {
+            id: part.id,
+            name: part.name,
+            params: part.params,
+            providerExecuted: part.providerExecuted ?? false,
+          }),
+        );
+        break;
+      case "tool-result":
+        if (part.preliminary !== true) {
+          toolParts.push(
+            Prompt.makePart("tool-result", {
+              id: part.id,
+              name: part.name,
+              isFailure: part.isFailure,
+              result: part.result,
+            }),
+          );
+        }
+        break;
+    }
+  }
+
+  return Prompt.make([
+    ...(assistantParts.length > 0
+      ? [Prompt.makeMessage("assistant", { content: assistantParts })]
+      : []),
+    ...(toolParts.length > 0 ? [Prompt.makeMessage("tool", { content: toolParts })] : []),
+  ]);
+};
+
 const commitTrajectory = (context: SessionContext, state: ResponseState) =>
   Ref.getAndSet(state.committed, true).pipe(
     Effect.flatMap((alreadyCommitted) => {
@@ -288,7 +370,7 @@ const commitTrajectory = (context: SessionContext, state: ResponseState) =>
       }
       return Ref.update(context.history, (history) => {
         const withUserMessage = Prompt.concat(history, state.trajectory);
-        return Prompt.concat(withUserMessage, Prompt.fromResponseParts(state.responseParts));
+        return Prompt.concat(withUserMessage, promptFromResponseParts(state.responseParts));
       });
     }),
   );
@@ -312,9 +394,9 @@ const responseStream = (
 const promptStream = (
   context: SessionContext,
   trajectory: Prompt.Prompt,
-): Stream.Stream<Agent.StreamPart, Agent.AgentError> =>
+): Stream.Stream<Response.StreamPartEncoded, Agent.AgentError> =>
   Effect.gen(function* () {
-    const responseParts: Array<Response.AnyPart> = [];
+    const responseParts: Array<Response.StreamPartEncoded> = [];
     const committed = yield* Ref.make(false);
     const state: ResponseState = { trajectory, responseParts, committed };
     const message = yield* userMessage(trajectory);
@@ -334,7 +416,7 @@ const makeAgent = Effect.fn(function* (options: MakeAgentOptions) {
   };
 
   return {
-    trajectory: () => Ref.get(context.history),
+    trajectory: Ref.get(context.history),
     prompt: (trajectory) => promptStream(context, trajectory),
   } satisfies Agent.Agent;
 });
@@ -452,16 +534,19 @@ export const makeProvider = Effect.fn("Acp.makeProvider")(function* (
 });
 
 export const layer = (
-  url: string | URL,
-  agentId: string,
-  options: Options = {},
-): Layer.Layer<Agent.ProviderService, Agent.AgentError, never> => {
-  const provider = Effect.gen(function* () {
-    const transport = yield* openStream(url, options).pipe(
-      Effect.mapError(Agent.AgentError.stream),
-    );
-    return yield* makeProvider(transport, agentId, options);
-  });
-
-  return Layer.effect(Agent.ProviderService)(provider).pipe(Layer.provide(Path.layer));
-};
+  { id, url, agentId }: { id: string; url: string | URL; agentId: string },
+  options: Options & Harness.ConfigOptions = {},
+): Layer.Layer<Harness.Service, HarnessError, Path.Path | Sandbox.ProviderService> =>
+  Harness.Service.layer(id, options).pipe(
+    Layer.provide(
+      Layer.effect(
+        Agent.ProviderService,
+        Effect.gen(function* () {
+          const transport = yield* openStream(url, options).pipe(
+            Effect.mapError(Agent.AgentError.stream),
+          );
+          return yield* makeProvider(transport, agentId, options);
+        }).pipe(Effect.mapError(HarnessError.agent)),
+      ),
+    ),
+  );

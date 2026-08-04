@@ -2,7 +2,7 @@ import { Crypto, DateTime, Effect, FileSystem, Path, Ref, Scope, Stream } from "
 import type { ChildProcessSpawner } from "effect/unstable/process";
 import { castDraft, produce } from "immer";
 import * as Bench from "#/bench/index.ts";
-import { Agent, Sandbox } from "@open-insight/core/internal";
+import { Agent, Harness, Sandbox } from "@open-insight/core/internal";
 import * as Metric from "#/metric/index.ts";
 import * as Task from "#/task/index.ts";
 import type { Config } from "./config.ts";
@@ -38,8 +38,7 @@ export const run = Effect.fn("exec/schedule")(
     | ChildProcessSpawner.ChildProcessSpawner
     | Path.Path
     | Scope.Scope
-    | Agent.ProviderService
-    | Sandbox.ProviderService
+    | Harness.Service
   > {
     const { snapshotConcurrency, trailConcurrency } = config;
     const offer = Event.offerTo(eventQueue);

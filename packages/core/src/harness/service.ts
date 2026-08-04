@@ -52,18 +52,22 @@ export type Harness = Readonly<{
   ): Effect.Effect<Run, HarnessError, Scope.Scope>;
 }>;
 
+export type ConfigOptions = Omit<MetadataEncoded, "id">;
+
 export class Service extends Context.Service<Service, Harness>()("harness/Service") {
   static layer = (
     id: string,
-    config: Omit<MetadataEncoded, "id"> = {},
-  ): Layer.Layer<Service, Schema.SchemaError, Agent.ProviderService | Sandbox.ProviderService> =>
+    config: ConfigOptions = {},
+  ): Layer.Layer<Service, HarnessError, Agent.ProviderService | Sandbox.ProviderService> =>
     Layer.effect(
       this,
       Effect.gen(function* () {
         const agentProvider = yield* Agent.ProviderService;
         const sandboxProvider = yield* Sandbox.ProviderService;
 
-        const metadata = yield* Schema.decodeEffect(Metadata)({ id, ...config });
+        const metadata = yield* Schema.decodeEffect(Metadata)({ id, ...config }).pipe(
+          Effect.mapError(HarnessError.init),
+        );
 
         const run = Effect.fn("HarnessService.run")(function* (
           snapshot,
