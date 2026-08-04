@@ -38,7 +38,30 @@ export class Resources extends Schema.Class<Resources>("Resources")({
   runTimeoutSec: Schema.OptionFromOptionalNullOr(NonNegativeInt),
 }) {}
 
-type ResourcesEncoded = (typeof Resources)["Encoded"];
+/** Parameters accepted by `Resource.make`; simple network modes are passed as a plain string. */
+export type MakeOptions = {
+  numCPUs?: number;
+  numGPUs?: number;
+  memoryMiB?: number;
+  storageMiB?: number;
+  network?:
+    | Exclude<Network.Mode, "allowlist">
+    | Readonly<{ allowlist: ReadonlyArray<Network.AllowedHost> }>;
+  buildTimeoutSec?: number;
+  runTimeoutSec?: number;
+};
 
-export const make = (options: ResourcesEncoded = {}): Resources =>
-  Schema.decodeSync(Resources)(options);
+export const make = (options: MakeOptions = {}): Resources => {
+  const { network, ...rest } = options;
+  return Schema.decodeSync(Resources)({
+    ...rest,
+    ...(network === undefined
+      ? {}
+      : {
+          network:
+            typeof network === "string"
+              ? { mode: network, allowedHosts: [] }
+              : { mode: "allowlist", allowedHosts: network.allowlist },
+        }),
+  });
+};

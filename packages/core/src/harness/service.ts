@@ -51,7 +51,10 @@ export type Harness = Readonly<{
 }>;
 
 export class Service extends Context.Service<Service, Harness>()("harness/Service") {
-  static layer = (id: string, config: Omit<MetadataEncoded, "id"> = {}) =>
+  static layer = (
+    id: string,
+    config: Omit<MetadataEncoded, "id"> = {},
+  ): Layer.Layer<Service, Schema.SchemaError, Agent.ProviderService | Sandbox.ProviderService> =>
     Layer.effect(
       this,
       Effect.gen(function* () {
