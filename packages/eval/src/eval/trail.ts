@@ -2,10 +2,8 @@ import {
   DateTime,
   Effect,
   Equal,
-  FileSystem,
   Match,
   Option,
-  Path,
   Ref,
   Schedule,
   Scope,
@@ -13,16 +11,15 @@ import {
   Stream,
 } from "effect";
 import { Response } from "effect/unstable/ai";
-import { ChildProcessSpawner } from "effect/unstable/process";
 import { Agent, Sandbox } from "@open-insight/core";
 import { Harness, Prompt } from "@open-insight/core/internal";
+import * as Bench from "#/bench/index.ts";
 import * as Grade from "#/grade/index.ts";
 import * as Metric from "#/metric/index.ts";
 import * as Task from "#/task/index.ts";
 import type { Config } from "./config.ts";
 import { EvalError } from "./error.ts";
 import { TrailResult } from "./result.ts";
-import * as Bench from "#/bench/index.ts";
 import * as Event from "#/event/index.ts";
 
 export type RunTrail = (trailIdx: number) => Effect.Effect<TrailResult, EvalError, Scope.Scope>;
@@ -36,13 +33,11 @@ const makeVerifAgent = ({
 }: {
   verifier: Grade.VerifExec;
   sandbox: Sandbox.SandboxPromise;
-}): Agent.Agent => ({
-  trajectory: Effect.gen(function* () {
-    const input = yield* Effect.tryPromise(() =>
-      verifier({ ...sandbox, trajectory: Prompt.empty }),
-    ).pipe(Effect.mapError(Agent.AgentError.trajectory));
-    return input === null ? Prompt.empty : Prompt.make(input);
-  }),
+}): Harness.Session => ({
+  trajectory: Effect.tryPromise(() => verifier({ ...sandbox, trajectory: Prompt.empty })).pipe(
+    Effect.mapError((cause) => Harness.HarnessError.agent(Agent.AgentError.trajectory(cause))),
+    Effect.map((input) => (input === null ? Prompt.empty : Prompt.make(input))),
+  ),
   prompt: () => Stream.empty,
 });
 
@@ -57,15 +52,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
     task: Task.AnyTask;
     config: Config;
     eventQueue: Event.EventEnqueue;
-  }): Effect.fn.Return<
-    RunTrail,
-    EvalError,
-    | Harness.Service
-    | FileSystem.FileSystem
-    | ChildProcessSpawner.ChildProcessSpawner
-    | Path.Path
-    | Scope.Scope
-  > {
+  }): Effect.fn.Return<RunTrail, EvalError, Harness.Service | Scope.Scope> {
     const { snapshot, resources, stages, metrics: taskMetrics, trajMetrics } = task;
     const { verifMode, graderMaxRetries: maxRetries } = config;
 
@@ -85,14 +72,14 @@ export const createTrail = Effect.fn("exec/createTrail")(
 
     yield* Effect.logDebug("Preparing task snapshot");
 
-    const harness = yield* Harness.Service;
-    const fs = yield* FileSystem.FileSystem;
-    const path = yield* Path.Path;
+    const harnessService = yield* Harness.Service;
+    const benchId = bench.metadata.id;
+    const harnessId = harnessService.metadata.id;
 
-    const harnessRun = yield* harness
+    const harnessRun = yield* harnessService
       .run(snapshot, { resources, ...config })
       .pipe(Effect.mapError(EvalError.harness));
-    const sandboxPromise = Sandbox.asPromise(harnessRun.sandbox);
+    const ctx = yield* Sandbox.asPromise(harnessRun.sandbox);
 
     yield* Effect.logDebug("Prepared task snapshot");
 
@@ -107,8 +94,8 @@ export const createTrail = Effect.fn("exec/createTrail")(
           run(trailResult).pipe(
             Effect.flatMap(({ id, result, chart }) =>
               Event.TaskMetricEvent.makeEffect({
-                bench: bench.metadata.id,
-                harness: harness.metadata.id,
+                bench: benchId,
+                harness: harnessId,
                 task: task.metadata.id,
                 id,
                 result,
@@ -144,6 +131,10 @@ export const createTrail = Effect.fn("exec/createTrail")(
           ),
         );
 
+        const getTrajectory = getSession.pipe(
+          Effect.flatMap((session) => session.trajectory.pipe(Effect.mapError(EvalError.harness))),
+        );
+
         const promptSession = Effect.fn("exec/runTrail/promptSession")(function* (
           trajectory: Prompt.Trajectory,
         ): Effect.fn.Return<Usage, EvalError> {
@@ -152,18 +143,23 @@ export const createTrail = Effect.fn("exec/createTrail")(
           const usageRef = yield* Ref.make(Option.none<Response.Usage>());
 
           const responseStream = session.prompt(trajectory).pipe(
-            Stream.mapError(EvalError.agent),
+            Stream.mapError(EvalError.harness),
             Stream.tap((part) =>
               Event.TrailStreamEvent.makeEffect({
-                bench: bench.metadata.id,
-                harness: harness.metadata.id,
+                bench: benchId,
+                harness: harnessId,
                 task: task.metadata.id,
-                part,
+                part: Schema.decodeUnknownSync(Event.StreamPart)(part),
                 trailIdx: idx,
               }).pipe(offer),
             ),
             Stream.tap((part) =>
-              part.type === "finish" ? Ref.set(usageRef, Option.some(part.usage)) : Effect.void,
+              part.type === "finish"
+                ? Ref.set(
+                    usageRef,
+                    Option.some(Schema.decodeUnknownSync(Response.Usage)(part.usage)),
+                  )
+                : Effect.void,
             ),
           );
 
@@ -172,8 +168,8 @@ export const createTrail = Effect.fn("exec/createTrail")(
             Metric.Traj.run({ metrics: trajMetrics, sandbox: ctx, prevTrajectory }),
             Stream.runForEach(({ id, result, chart }) =>
               Event.TrajMetricEvent.makeEffect({
-                bench: bench.metadata.id,
-                harness: harness.metadata.id,
+                bench: benchId,
+                harness: harnessId,
                 task: task.metadata.id,
                 trailIdx: idx,
                 id,
@@ -238,12 +234,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
             ...ctx,
             prevResults: results,
             trajectory,
-          }).pipe(
-            Effect.provideService(Sandbox.ProviderService, sandboxProvider),
-            Effect.provideService(FileSystem.FileSystem, fs),
-            Effect.provideService(Path.Path, path),
-            Effect.catchTag("GradeError", (error) => Effect.fail(EvalError.grade(error))),
-          );
+          }).pipe(Effect.catchTag("GradeError", (error) => Effect.fail(EvalError.grade(error))));
         });
 
         const runGrader = Effect.fn("exec/runTrail/runGrader")(function* <G extends Grade.Result>(
@@ -291,9 +282,9 @@ export const createTrail = Effect.fn("exec/createTrail")(
             const currentSession = yield* Ref.get(sessionRef);
             if (!resume || Option.isNone(currentSession)) {
               yield* Effect.logDebug(`Starting new agent session for stage ${metadata.id}`);
-              const session = yield* agentProvider
-                .runSession(sandbox)
-                .pipe(Effect.mapError(EvalError.agent));
+              const session = yield* harnessRun
+                .runSession()
+                .pipe(Effect.mapError(EvalError.harness));
               yield* Ref.set(sessionRef, Option.some(session));
             }
           }
@@ -369,8 +360,8 @@ export const createTrail = Effect.fn("exec/createTrail")(
           );
 
           yield* Event.TrailStagedEvent.makeEffect({
-            bench: bench.metadata.id,
-            harness: harness.metadata.id,
+            bench: benchId,
+            harness: harnessId,
             task: task.metadata.id,
             trailIdx: idx,
             stage: metadata.id,

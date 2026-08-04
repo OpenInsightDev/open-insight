@@ -12,9 +12,8 @@ import {
   type McpServer,
   type PromptCapabilities,
   type SessionUpdate,
-  type Stream as AcpStream,
 } from "@agentclientprotocol/sdk";
-import { Cause, Effect, FiberSet, Layer, Option, Path, Queue, Ref, Stream } from "effect";
+import { Cause, Effect, FiberSet, Layer, Option, Path, Queue, Ref, Schedule, Stream } from "effect";
 import { Prompt, Response } from "effect/unstable/ai";
 import * as Agent from "#/agent/index.ts";
 import * as Snapshot from "#/snapshot/index.ts";
@@ -456,53 +455,90 @@ const sessionStartError =
     return Agent.AgentError.stream(cause);
   };
 
+// The agent server process inside the sandbox binds its listener a moment
+// after the container starts. Poll its liveness endpoint until it accepts
+// connections so the first transport request is not sent into a closed socket.
+const agentReady = (url: URL, options: Options): Effect.Effect<boolean, Agent.AgentError> =>
+  Effect.tryPromise({
+    try: async () => {
+      const healthUrl = new URL("/health", url);
+      const response = await (options.fetch ?? globalThis.fetch)(healthUrl);
+      if (!response.ok) {
+        throw new globalThis.Error(`ACP agent not ready: ${response.status}`);
+      }
+      return true;
+    },
+    catch: Agent.AgentError.stream,
+  });
+
+const waitForAgentReady = Effect.fn(function* (url: URL, options: Options) {
+  yield* agentReady(url, options).pipe(
+    Effect.retry(Schedule.fixed("500 millis").pipe(Schedule.upTo({ times: 20 }))),
+  );
+});
+
 export const makeProvider = Effect.fn("Acp.makeProvider")(function* (
-  transport: AcpStream,
   agentId: string,
   options: Options,
 ) {
   yield* validateOptions(agentId, options);
 
-  const runTurn = yield* FiberSet.makeRuntime<never, void, never>();
-  const startTurn: StartTurn = (effect) => {
-    runTurn(effect);
-  };
-  const cancellingSessions = new Set<string>();
-  const app = client({ name: "open-insight" }).onRequest(
-    methods.client.session.requestPermission,
-    ({ params }) => {
-      if (cancellingSessions.has(params.sessionId)) {
-        return { outcome: { outcome: "cancelled" } };
-      }
-      throw RequestError.methodNotFound(methods.client.session.requestPermission);
-    },
-  );
-  const connection = app.connect(transport);
-  yield* Effect.addFinalizer(() => Effect.sync(() => connection.close()));
+  const runSession = Effect.fn("Acp.runSession")(function* (sandbox: Sandbox.Sandbox) {
+    const port = options.port ?? DEFAULT_PORT;
+    const path = options.path ?? DEFAULT_PATH;
 
-  const initialized = yield* protocolEffect<InitializeResponse>(() =>
-    connection.agent.request(methods.agent.initialize, {
-      protocolVersion: PROTOCOL_VERSION,
-      clientCapabilities: unsupportedCapabilities,
-      ...(options.clientInfo === undefined ? {} : { clientInfo: options.clientInfo }),
-    }),
-  );
-  if (initialized.protocolVersion !== PROTOCOL_VERSION) {
-    return yield* Effect.fail(
-      Agent.AgentError.stream(
-        new globalThis.Error(
-          `ACP agent selected unsupported protocol version ${initialized.protocolVersion}`,
-        ),
-      ),
+    const { hostUrl } = yield* sandbox
+      .expose({ sandboxPort: port })
+      .pipe(Effect.mapError(Agent.AgentError.stream));
+
+    const url = yield* Effect.try({
+      try: () => new URL(path, hostUrl),
+      catch: Agent.AgentError.stream,
+    });
+    yield* waitForAgentReady(url, options);
+    const transport = yield* openStream(url, options).pipe(
+      Effect.mapError(Agent.AgentError.stream),
     );
-  }
-  yield* authenticate(
-    (params) => connection.agent.request(methods.agent.authenticate, params),
-    initialized,
-    options.auth,
-  ).pipe(Effect.mapError(Agent.AgentError.stream));
 
-  const runSession = Effect.fn("Acp.runSession")(function* (_sandbox) {
+    const runTurn = yield* FiberSet.makeRuntime<never, void, never>();
+    const startTurn: StartTurn = (effect) => {
+      runTurn(effect);
+    };
+    const cancellingSessions = new Set<string>();
+    const app = client({ name: "open-insight" }).onRequest(
+      methods.client.session.requestPermission,
+      ({ params }) => {
+        if (cancellingSessions.has(params.sessionId)) {
+          return { outcome: { outcome: "cancelled" } };
+        }
+        throw RequestError.methodNotFound(methods.client.session.requestPermission);
+      },
+    );
+    const connection = app.connect(transport);
+    yield* Effect.addFinalizer(() => Effect.sync(() => connection.close()));
+
+    const initialized = yield* protocolEffect<InitializeResponse>(() =>
+      connection.agent.request(methods.agent.initialize, {
+        protocolVersion: PROTOCOL_VERSION,
+        clientCapabilities: unsupportedCapabilities,
+        ...(options.clientInfo === undefined ? {} : { clientInfo: options.clientInfo }),
+      }),
+    );
+    if (initialized.protocolVersion !== PROTOCOL_VERSION) {
+      return yield* Effect.fail(
+        Agent.AgentError.stream(
+          new globalThis.Error(
+            `ACP agent selected unsupported protocol version ${initialized.protocolVersion}`,
+          ),
+        ),
+      );
+    }
+    yield* authenticate(
+      (params) => connection.agent.request(methods.agent.authenticate, params),
+      initialized,
+      options.auth,
+    ).pipe(Effect.mapError(Agent.AgentError.stream));
+
     const session = yield* Effect.tryPromise({
       try: () =>
         connection.agent
@@ -534,19 +570,14 @@ export const makeProvider = Effect.fn("Acp.makeProvider")(function* (
 });
 
 export const layer = (
-  { id, url, agentId }: { id: string; url: string | URL; agentId: string },
+  { id, agentId }: { id: string; agentId: string },
   options: Options & Harness.ConfigOptions = {},
 ): Layer.Layer<Harness.Service, HarnessError, Path.Path | Sandbox.ProviderService> =>
   Harness.Service.layer(id, options).pipe(
     Layer.provide(
       Layer.effect(
         Agent.ProviderService,
-        Effect.gen(function* () {
-          const transport = yield* openStream(url, options).pipe(
-            Effect.mapError(Agent.AgentError.stream),
-          );
-          return yield* makeProvider(transport, agentId, options);
-        }).pipe(Effect.mapError(HarnessError.agent)),
+        makeProvider(agentId, options).pipe(Effect.mapError(HarnessError.agent)),
       ),
     ),
   );

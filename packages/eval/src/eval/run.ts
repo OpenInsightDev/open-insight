@@ -10,9 +10,9 @@ import { Harness } from "@open-insight/core/internal";
 import * as Task from "#/task/index.ts";
 
 export const run = (configOptions: Partial<Config> = {}) =>
-  Effect.fn(function* <T extends Task.AnyTask = Task.AnyTask>(
-    bench: Bench.Bench<T>,
-  ): Effect.fn.Return<BenchResult<Task.GradeOf<T>>, EvalError, Harness.Service> {
+  Effect.fn(function* <T extends Task.AnyTask, E, R>(
+    bench: Effect.Effect<Bench.Bench<T>, E, R>,
+  ): Effect.fn.Return<BenchResult<Task.GradeOf<T>>, EvalError | E, Harness.Service | R> {
     const config = makeConfig(configOptions);
     const transport = yield* Effect.serviceOption(Event.Transport.Service);
     const eventQueue = yield* Event.makeQueue();
@@ -28,12 +28,17 @@ export const run = (configOptions: Partial<Config> = {}) =>
       }),
     );
 
-    const result = yield* Effect.zipWith(
-      runSchedule({ bench, eventQueue }, config).pipe(Effect.ensuring(Queue.end(eventQueue))),
-      consume,
-      (result) => result,
-      { concurrent: true },
-    )
+    const result = yield* bench
+      .pipe(
+        Effect.flatMap((bench) =>
+          Effect.zipWith(
+            runSchedule({ bench, eventQueue }, config).pipe(Effect.ensuring(Queue.end(eventQueue))),
+            consume,
+            (result) => result,
+            { concurrent: true },
+          ),
+        ),
+      )
       .pipe(Effect.provide(NodeServices.layer))
       .pipe(Effect.provideService(Harness.Service, harness));
 

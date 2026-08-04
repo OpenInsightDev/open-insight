@@ -12,7 +12,7 @@ export class Metadata extends Schema.Class<Metadata>("HarnessMetadata")({
   name: Schema.OptionFromOptionalNullOr(Schema.String),
   description: Schema.OptionFromOptionalNullOr(Schema.String),
 }) {}
-type MetadataEncoded = Schema.Codec.Encoded<Metadata>;
+type MetadataEncoded = Schema.Codec.Encoded<typeof Metadata>;
 
 export type Session = Readonly<{
   trajectory: Effect.Effect<Prompt.Trajectory, HarnessError>;
@@ -30,7 +30,7 @@ const makeSession = Effect.fn(function* (
 
 export type Run = Readonly<{
   sandbox: Sandbox.Sandbox;
-  runSession(): Effect.Effect<Session, HarnessError>;
+  runSession(): Effect.Effect<Session, HarnessError, Scope.Scope>;
 }>;
 
 export type Config = Readonly<{

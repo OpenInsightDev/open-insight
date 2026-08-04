@@ -41,7 +41,7 @@ export const make = Effect.fn(function* <T extends Task.AnyTask, E, R>(
   const metadata = yield* Schema.decodeEffect(BaseMetadata)({ id, ...options }).pipe(
     Effect.mapError(BenchError.init),
   );
-  const tasks = yield* load.pipe(BenchError.taskLoad);
+  const tasks = yield* load.pipe(Effect.mapError(BenchError.taskLoad));
 
   return {
     metadata,

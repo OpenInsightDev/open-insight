@@ -1,5 +1,5 @@
 import * as Chart from "#/chart/index.ts";
-import { Schema } from "effect";
+import { Effect, identity, Schema, SchemaTransformation } from "effect";
 import * as Bench from "#/bench/index.ts";
 import { Response } from "effect/unstable/ai";
 
@@ -60,15 +60,71 @@ export class TrailStagedEvent extends Schema.TaggedClass<TrailStagedEvent>()("Tr
   usage: Schema.NullOr(Response.Usage),
 }) {}
 
-type ToolPart = Extract<Response.AnyPart, { readonly type: "tool-call" | "tool-result" }>;
+const PartTypeId = "~effect/ai/Content/Part";
 
-const ToolPart = Schema.declare(
-  (input): input is ToolPart =>
-    Response.isPart(input) && (input.type === "tool-call" || input.type === "tool-result"),
-  { identifier: "ToolPart" },
+// HACK Mirrors Effect's internal `Response.BasePart`: the brand key is a
+// decoding-only default (so encoded parts arrive as plain objects) and
+// `metadata` defaults to `{}`.
+const BasePart = Schema.Struct({
+  [PartTypeId]: Schema.tag(PartTypeId).pipe(
+    Schema.withDecodingDefaultKey(Effect.succeed(PartTypeId), { encodingStrategy: "omit" }),
+  ),
+  metadata: Response.ProviderMetadata.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
+});
+
+// HACK `Response.ToolCallPart`/`Response.ToolResultPart` are factories parameterized
+// by tool name and result schemas, so Effect does not export standalone schemas
+// for them. All agents emit `StreamPartEncoded`, so decode the generic encoded
+// shape into the properly branded `Response.AnyPart` variants, mirroring the
+// factories with `name: Schema.String` and `params`/`result` left as
+// `Schema.Unknown`.
+const ToolCallPart = Schema.Struct({
+  ...BasePart.fields,
+  type: Schema.Literal("tool-call"),
+  id: Schema.String,
+  name: Schema.String,
+  params: Schema.Unknown,
+  providerExecuted: Schema.Boolean.pipe(Schema.withDecodingDefaultKey(Effect.succeed(false))),
+});
+
+const ToolResultPart = Schema.Struct({
+  id: Schema.String,
+  type: Schema.Literal("tool-result"),
+  isFailure: Schema.Boolean,
+  name: Schema.String,
+  [PartTypeId]: Schema.Literal(PartTypeId),
+  result: Schema.Unknown,
+  providerExecuted: Schema.Boolean,
+  metadata: Response.ProviderMetadata,
+  encodedResult: Schema.Unknown,
+  preliminary: Schema.Boolean,
+}).pipe(
+  Schema.encodeTo(
+    Schema.Struct({
+      id: Schema.String,
+      type: Schema.Literal("tool-result"),
+      isFailure: Schema.Boolean,
+      name: Schema.String,
+      result: Schema.Unknown,
+      providerExecuted: Schema.optional(Schema.Boolean),
+      metadata: Schema.optional(Response.ProviderMetadata),
+      preliminary: Schema.optional(Schema.Boolean),
+    }),
+    SchemaTransformation.transform({
+      decode: (encoded) => ({
+        ...encoded,
+        [PartTypeId]: PartTypeId,
+        providerExecuted: encoded.providerExecuted ?? false,
+        metadata: encoded.metadata ?? {},
+        encodedResult: encoded.result,
+        preliminary: encoded.preliminary ?? false,
+      }),
+      encode: identity,
+    }),
+  ),
 );
 
-// HACK for some reason Effect does not export an AnyPart schema union.
+// Effect does not export an AnyPart schema union.
 export const AnyPart = Schema.Union([
   Response.TextPart,
   Response.TextStartPart,
@@ -81,7 +137,8 @@ export const AnyPart = Schema.Union([
   Response.ToolParamsStartPart,
   Response.ToolParamsDeltaPart,
   Response.ToolParamsEndPart,
-  ToolPart,
+  ToolCallPart,
+  ToolResultPart,
   Response.ToolApprovalRequestPart,
   Response.FilePart,
   Response.DocumentSourcePart,
