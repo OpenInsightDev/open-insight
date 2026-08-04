@@ -6,11 +6,7 @@ A benchmark (`Bench.Bench`) is the immutable evaluation unit passed to `Eval.run
 - an ordered, materialized array of built `Task.Task` values;
 - metrics that aggregate completed trails across tasks.
 
-This document covers assembling and shaping the benchmark. Define the tasks first with
-[Create a task](create-task.md), define their sandbox environment with [Define a snapshot](create-snapshot.md),
-and define benchmark-wide computations with [Create a bench metric](create-bench-metric.md).
-Task-local metrics belong in [Create a task metric](create-task-metric.md); trajectory metrics belong
-in [Create a task-specific trajectory metric](create-traj-metric.md).
+This document covers assembling and shaping the benchmark. Define the tasks first with [Create a task](create-task.md), define their sandbox environment with [Define a snapshot](create-snapshot.md), and define benchmark-wide computations with [Create a bench metric](create-bench-metric.md). Task-local metrics belong in [Create a task metric](create-task-metric.md); trajectory metrics belong in [Create a task-specific trajectory metric](create-traj-metric.md).
 
 ## Decide the Benchmark Contract
 
@@ -23,10 +19,7 @@ Before writing the loader, establish:
 - the full dataset and the reproducible evaluation subsets;
 - the number of trails required by each metric.
 
-Do not change a task's domain grade merely to satisfy `BenchMetric.avgPassAtK` or
-`BenchMetric.avgPassPowK`. Those built-ins expect `{ pass: boolean }`; adapt a confirmed grade at the
-metric boundary with `BenchMetric.mapGrade(...)`. See [Define grading](create-task-grade.md) when
-the meaning of a grade is not established yet.
+Do not change a task's domain grade merely to satisfy `BenchMetric.avgPassAtK` or `BenchMetric.avgPassPowK`. Those built-ins expect `{ pass: boolean }`; adapt a confirmed grade at the metric boundary with `BenchMetric.mapGrade(...)`. See [Define grading](create-task-grade.md) when the meaning of a grade is not established yet.
 
 Keep benchmark-wide aggregation separate from task construction:
 
@@ -38,9 +31,7 @@ Keep benchmark-wide aggregation separate from task construction:
 
 ## Build the Task Collection
 
-`Bench.make` accepts a `Tasks.Load<T, E, R>`, an Effect that produces the ordered collection of
-already built tasks. The loader may fetch or unpack data, and its errors and service requirements
-remain part of the benchmark construction Effect.
+`Bench.make` accepts a `Tasks.Load<T, E, R>`, an Effect that produces the ordered collection of already built tasks. The loader may fetch or unpack data, and its errors and service requirements remain part of the benchmark construction Effect.
 
 For a small static collection:
 
@@ -58,8 +49,7 @@ const bench = Effect.gen(function*() {
 });
 ```
 
-For a dataset discovered asynchronously, yield one task effect per source record and materialize
-the collection with `Tasks.fromAsyncIter`:
+For a dataset discovered asynchronously, yield one task effect per source record and materialize the collection with `Tasks.fromAsyncIter`:
 
 ```ts
 import { Bench, Effect, Tasks } from "@open-insight/eval";
@@ -78,12 +68,7 @@ export const makeBench = Effect.fn(function* () {
 });
 ```
 
-`Tasks.fromIter`, `Tasks.fromAsyncIter`, and `Tasks.fromStream` resolve task effects and preserve
-their order. Pass the resulting loader Effect directly to `Bench.make`. Use the source-specific
-loaders when appropriate: for example, `Harbor.fromDir` can load Harbor tasks, while
-`Tasks.withGithub` and `Tasks.withDist` can acquire a pinned source before passing its path to a
-loader. Inspect the current `Tasks` exports before choosing a loader; the available integrations
-can grow over time.
+`Tasks.fromIter`, `Tasks.fromAsyncIter`, and `Tasks.fromStream` resolve task effects and preserve their order. Pass the resulting loader Effect directly to `Bench.make`. Use the source-specific loaders when appropriate: for example, `Harbor.fromDir` can load Harbor tasks, while `Tasks.withGithub` and `Tasks.withDist` can acquire a pinned source before passing its path to a loader. Inspect the current `Tasks` exports before choosing a loader; the available integrations can grow over time.
 
 Every task must be built before it enters the benchmark. The usual task pipeline is:
 
@@ -91,10 +76,7 @@ Every task must be built before it enters the benchmark. The usual task pipeline
 2. `Task.stage(name, ...)` for each stage in execution order, the last one being the final stage;
 3. `Task.metric(...)` and `Task.trajMetric(...)` on the completed task.
 
-See [Create a task](create-task.md) for the grade schema, stages, grader, verification mode, and
-task-local metrics. A benchmark loader should not silently catch a task construction failure and
-turn it into a missing task: an invalid dataset or task definition is a benchmark initialization
-failure.
+See [Create a task](create-task.md) for the grade schema, stages, grader, verification mode, and task-local metrics. A benchmark loader should not silently catch a task construction failure and turn it into a missing task: an invalid dataset or task definition is a benchmark initialization failure.
 
 ## Initialize the Benchmark
 
@@ -114,22 +96,14 @@ const bench = Effect.gen(function*() {
 The options are:
 
 - `id: string`: stable identifier used in evaluation results, events, logs, and metric scope;
-- `tasks: Tasks.Load`: an Effect that produces the complete ordered task collection for this
-  benchmark value;
+- `tasks: Tasks.Load`: an Effect that produces the complete ordered task collection for this benchmark value;
 - `subset?: boolean`: defaults to `false`; indicates that the benchmark is a selected subset;
 - `extras?: Record<string, Json>`: optional benchmark-level data;
-- `metrics?: ReadonlyArray<BenchMetric.Metric>`: optional metrics already constructed, normally
-  supplied through the `Bench.metric(...)` builder described below.
+- `metrics?: ReadonlyArray<BenchMetric.Metric>`: optional metrics already constructed, normally supplied through the `Bench.metric(...)` builder described below.
 
-`Bench.make` decodes the base metadata, runs the task loader, and returns an Effect whose error and
-environment include the loader's error and service requirements. Run it inside an `Effect.gen` or
-compose it with `pipe`; do not treat it as a plain object. The constructor does not deduplicate IDs
-or sort tasks, so validate those invariants in the loader when they matter.
+`Bench.make` decodes the base metadata, runs the task loader, and returns an Effect whose error and environment include the loader's error and service requirements. Run it inside an `Effect.gen` or compose it with `pipe`; do not treat it as a plain object. The constructor does not deduplicate IDs or sort tasks, so validate those invariants in the loader when they matter.
 
-The benchmark metadata has a deliberately small base shape. `Bench.metadata(bench)` creates the
-serializable metadata object containing the benchmark base metadata and each task's metadata. This
-is the metadata emitted with evaluation initialization events; it is not a replacement for the
-runtime task definitions.
+The benchmark metadata has a deliberately small base shape. `Bench.metadata(bench)` creates the serializable metadata object containing the benchmark base metadata and each task's metadata. This is the metadata emitted with evaluation initialization events; it is not a replacement for the runtime task definitions.
 
 ## Attach Benchmark Metrics
 
@@ -159,28 +133,19 @@ const bench = yield* Bench.make({
 );
 ```
 
-`Bench.metric(exec, options)` accepts either a raw async executor or an `Effect` that produces the
-executor. It constructs the metric, maps construction failures to `BenchError`, and appends the
-metric to `bench.metrics`. The metric runs whenever a new task trail result is available. Its
-executor receives:
+`Bench.metric(exec, options)` accepts either a raw async executor or an `Effect` that produces the executor. It constructs the metric, maps construction failures to `BenchError`, and appends the metric to `bench.metrics`. The metric runs whenever a new task trail result is available. Its executor receives:
 
 - `results`: all completed trails grouped by task ID;
 - `delta`: the newly completed trail plus its task ID;
 - `prev`: the metric's previous JSON result, or `null` for its first execution.
 
-Use `BenchMetric.exec(...)` for a custom computation, or use a built-in and adapt the grade when
-needed. Read [Create a bench metric](create-bench-metric.md) for executor semantics, incremental
-state, built-ins, and metric-specific checklists.
+Use `BenchMetric.exec(...)` for a custom computation, or use a built-in and adapt the grade when needed. Read [Create a bench metric](create-bench-metric.md) for executor semantics, incremental state, built-ins, and metric-specific checklists.
 
-The metric options use the same metadata conventions as other metrics: keep `id` stable, make
-`name` and `description` explain the result, and add `chart` only for a meaningful synchronous
-visualization. A benchmark metric cannot be attached to an individual task; use `Task.metric` for
-that scope.
+The metric options use the same metadata conventions as other metrics: keep `id` stable, make `name` and `description` explain the result, and add `chart` only for a meaningful synchronous visualization. A benchmark metric cannot be attached to an individual task; use `Task.metric` for that scope.
 
 ## Select a Reproducible Subset
 
-Selection functions are Effect combinators. Start with the full benchmark and apply one when a run
-needs fewer tasks:
+Selection functions are Effect combinators. Start with the full benchmark and apply one when a run needs fewer tasks:
 
 ```ts
 const smokeBench = makeBench().pipe(Bench.head(10));
@@ -194,21 +159,13 @@ const sampledBench = makeBench().pipe(Bench.randomSelect(10));
 - `Bench.select(ids)`: keeps tasks whose `metadata.id` is in `ids`, in source order;
 - `Bench.randomSelect(n)`: shuffles the task array using Effect's random service and keeps `n`.
 
-All four operations return a benchmark with `metadata.subset === true`. They preserve benchmark
-metadata, metrics, and task values while replacing the task array. `randomSelect` is intentionally
-not a stable sampling policy by itself; use a controlled random service or an explicit ID list when
-the selected set must be reproducible across runs.
+All four operations return a benchmark with `metadata.subset === true`. They preserve benchmark metadata, metrics, and task values while replacing the task array. `randomSelect` is intentionally not a stable sampling policy by itself; use a controlled random service or an explicit ID list when the selected set must be reproducible across runs.
 
-Apply selection to the benchmark Effect, not to the raw task array, so the subset marker and all
-attached metrics remain part of the resulting benchmark. For configured IDs, validate that every
-requested ID exists if silently ignoring unknown IDs would hide a configuration error; the built-in
-`Bench.select` simply filters, while `Bench.taskMetric` and `Bench.trajMetric` fail with
-`BenchError` when their task ID does not exist.
+Apply selection to the benchmark Effect, not to the raw task array, so the subset marker and all attached metrics remain part of the resulting benchmark. For configured IDs, validate that every requested ID exists if silently ignoring unknown IDs would hide a configuration error; the built-in `Bench.select` simply filters, while `Bench.taskMetric` and `Bench.trajMetric` fail with `BenchError` when their task ID does not exist.
 
 ## Complete Assembly Pattern
 
-Keep the loader, benchmark construction, optional metrics, and optional selection as separate
-stages. This makes the full dataset reusable by smoke tests and production evaluation:
+Keep the loader, benchmark construction, optional metrics, and optional selection as separate stages. This makes the full dataset reusable by smoke tests and production evaluation:
 
 ```ts
 import { Bench, BenchMetric, Chart, Effect, Tasks } from "@open-insight/eval";
@@ -241,15 +198,11 @@ export const makeBench = (taskIds?: ReadonlyArray<string>) =>
     : makeFullBench().pipe(Bench.select(taskIds));
 ```
 
-The identity mapping in this example assumes the task grade already has `{ pass: boolean }`. If
-the real grade is `{ simPass: boolean }`, use the explicit mapping from the previous example.
-Keep the selection decision outside `makeFullBench` so the full benchmark remains the canonical
-source and subset metadata is set by the library.
+The identity mapping in this example assumes the task grade already has `{ pass: boolean }`. If the real grade is `{ simPass: boolean }`, use the explicit mapping from the previous example. Keep the selection decision outside `makeFullBench` so the full benchmark remains the canonical source and subset metadata is set by the library.
 
 ## Validate Before Running
 
-Before passing the value to `Eval.run`, check the benchmark-level invariants that the library does
-not infer:
+Before passing the value to `Eval.run`, check the benchmark-level invariants that the library does not infer:
 
 ```ts
 const bench = yield* makeBench();
@@ -276,28 +229,20 @@ Also verify that:
 - benchmark metric grade mappings reflect the confirmed task grade semantics;
 - subset selection is intentional and recorded through `metadata.subset`.
 
-Then construct a harness and run the evaluation. See [Running evaluation](run-eval.md) for harness,
-trail count, verification mode, result handling, and event transport. For dataset loading details,
-keep the benchmark document focused on composition and consult the relevant `Tasks` loader or
-Harbor reference instead of adding source-specific logic here.
+Then construct a harness and run the evaluation. See [Running evaluation](run-eval.md) for harness, trail count, verification mode, result handling, and event transport. For dataset loading details, keep the benchmark document focused on composition and consult the relevant `Tasks` loader or Harbor reference instead of adding source-specific logic here.
 
 ## Error Boundaries
 
-Benchmark construction can fail with `BenchError` for initialization failures or for a metric
-attached to an unknown task ID. Preserve this typed failure in the Effect error channel until the
-application boundary. Do not catch it inside a loader and return an empty benchmark: that would
-produce a valid-looking evaluation with no meaningful task coverage.
+Benchmark construction can fail with `BenchError` for initialization failures or for a metric attached to an unknown task ID. Preserve this typed failure in the Effect error channel until the application boundary. Do not catch it inside a loader and return an empty benchmark: that would produce a valid-looking evaluation with no meaningful task coverage.
 
 ## Review Checklist
 
 - The benchmark ID is stable and the dataset source is pinned.
-- Tasks are fully built (all stages and metrics attached) before the loader passed to `Bench.make`
-  yields them.
+- Tasks are fully built (all stages and metrics attached) before the loader passed to `Bench.make` yields them.
 - Task IDs are unique and task order is intentional.
 - Task, trajectory, and benchmark metrics are attached at their correct scopes.
 - Benchmark metrics use explicit grade mappings when their input shape differs from the task grade.
-- The full benchmark is reusable; subsets are derived with `head`, `skip`, `select`, or
-  `randomSelect` and are marked as subsets.
+- The full benchmark is reusable; subsets are derived with `head`, `skip`, `select`, or `randomSelect` and are marked as subsets.
 - Metric trail requirements fit the configured `trailCount`.
 - Construction and loader failures remain typed Effect failures.
 - The resulting benchmark is validated before `Eval.run`.

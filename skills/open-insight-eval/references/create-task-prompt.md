@@ -1,7 +1,6 @@
 # Define Task Prompts
 
-Read this document when a task stage needs anything beyond a static prompt. The `prompt` value on
-each `Task.stage` is evaluated separately for each stage execution.
+Read this document when a task stage needs anything beyond a static prompt. The `prompt` value on each `Task.stage` is evaluated separately for each stage execution.
 
 ## Static Prompts
 
@@ -31,16 +30,11 @@ prompt: [
 ],
 ```
 
-Keep the success criteria consistent with the confirmed grade contract, but do not expose hidden
-reference answers or private grader implementation details.
+Keep the success criteria consistent with the confirmed grade contract, but do not expose hidden reference answers or private grader implementation details.
 
 ## Prompt Functions
 
-Use an async function to supply multiple inputs to the same agent session. This is useful for
-replaying a multi-turn dataset or for asking another model to act as the user. After every agent
-response, the function receives a context containing the full `trajectory` and the read-only sandbox
-operations `$`, `cmd`, `readFile`, and `download`. Return the next raw prompt to continue or `null`
-to stop prompting. Direct mutation APIs such as `writeFile`, `upload`, and `expose` are unavailable.
+Use an async function to supply multiple inputs to the same agent session. This is useful for replaying a multi-turn dataset or for asking another model to act as the user. After every agent response, the function receives a context containing the full `trajectory` and the read-only sandbox operations `$`, `cmd`, `readFile`, and `download`. Return the next raw prompt to continue or `null` to stop prompting. Direct mutation APIs such as `writeFile`, `upload`, and `expose` are unavailable.
 
 For example, replay the user turns from a conversation datapoint:
 
@@ -54,8 +48,7 @@ prompt: async ({ trajectory }) => {
 },
 ```
 
-The first call returns `userTurns[0]`. Each agent response advances the conversation to the next
-dataset turn, and exhausting the dataset ends the stage.
+The first call returns `userTurns[0]`. Each agent response advances the conversation to the next dataset turn, and exhausting the dataset ends the stage.
 
 A prompt function can also call an external LLM and use it as a simulated user:
 
@@ -104,13 +97,11 @@ prompt: async ({ trajectory, readFile }) => {
 },
 ```
 
-The function may be called repeatedly, so every dynamic conversation needs an explicit stop
-condition such as dataset exhaustion, a turn limit, or a terminal state in the trajectory.
+The function may be called repeatedly, so every dynamic conversation needs an explicit stop condition such as dataset exhaustion, a turn limit, or a terminal state in the trajectory.
 
 ## Stateful Follow-ups
 
-Use `{ init, followUp }` for a prompt with an optional initial message and multiple follow-ups. The
-factory receives the current prompt context and returns a fresh async iterable for that stage run:
+Use `{ init, followUp }` for a prompt with an optional initial message and multiple follow-ups. The factory receives the current prompt context and returns a fresh async iterable for that stage run:
 
 ```ts
 prompt: {
@@ -143,17 +134,10 @@ prompt: {
 },
 ```
 
-Each value yielded is converted into prompt messages. The context passed back into the iterator
-contains the latest agent trajectory and sandbox access; assigning the result of `yield` lets later
-follow-ups react to both. Let the iterator finish when no further instruction is needed.
+Each value yielded is converted into prompt messages. The context passed back into the iterator contains the latest agent trajectory and sandbox access; assigning the result of `yield` lets later follow-ups react to both. Let the iterator finish when no further instruction is needed.
 
 ## Stage Boundaries
 
-Prefer separate `Task.stage` calls when phases have different grade schemas, verifier behavior, or
-metrics. Prefer follow-up prompts when the work remains one graded phase and only the instruction
-needs to react to the trajectory.
+Prefer separate `Task.stage` calls when phases have different grade schemas, verifier behavior, or metrics. Prefer follow-up prompts when the work remains one graded phase and only the instruction needs to react to the trajectory.
 
-Set a stage's `resume` option only when session continuity is intentional. Its default is `false`,
-so each stage starts a fresh session unless you opt in.
-Use `init` on the stage for sandbox setup that must run once before verifier checks or agent
-interaction; do not use a prompt callback for filesystem initialization.
+Set a stage's `resume` option only when session continuity is intentional. Its default is `false`, so each stage starts a fresh session unless you opt in. Use `init` on the stage for sandbox setup that must run once before verifier checks or agent interaction; do not use a prompt callback for filesystem initialization.

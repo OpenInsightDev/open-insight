@@ -1,37 +1,16 @@
 import * as Grade from "#/grade/index.ts";
 import * as Metric from "#/metric/index.ts";
 import type { TrailResult } from "#/eval/result.ts";
-import type { Invariant } from "#/utils/variant.ts";
 import { Effect, Schema } from "effect";
 import { castDraft, produce } from "immer";
 import type { Stage, Task } from "./build.ts";
 import { TaskError } from "./error.ts";
 
-type TaskMetricOptions<M extends Schema.JsonObject> = Omit<Metric.Task.Options<unknown, M>, "exec">;
-
-type TrajMetricOptions<M extends Schema.JsonObject> = Omit<Metric.Traj.Options<M>, "exec">;
-
-type GradeSchema<G> = Grade.Result & Readonly<{ Type: G }>;
-
-type TaskWithGrade<G, Schema extends GradeSchema<G>, S extends Stage> = Omit<
-  Task<Schema, S>,
-  "_G"
-> &
-  Readonly<{ _G?: Invariant<G> }>;
-
-type TaskMetric<G> = <Schema extends GradeSchema<G>, S extends Stage, E, R>(
-  task: Effect.Effect<TaskWithGrade<G, Schema, S>, E, R>,
-) => Effect.Effect<Task<Schema, S>, E | Error, R>;
-
-type GradeMapper<G, Mapped> = (grade: NoInfer<G>) => Mapped;
-
-type TaskExec<G, M extends Schema.JsonObject> = Metric.Task.Exec<G, M>;
-
-const mapExec = <Input, Mapped, M extends Schema.JsonObject>(
-  mapper: (grade: Input) => Mapped,
-  exec: Metric.Task.Exec<Mapped, M>,
-): Metric.Task.Exec<Input, M> => {
-  const mapTrail = (trail: TrailResult<Input>): TrailResult<Mapped> => ({
+const mapExec = <G extends Grade.Result, M, R extends Schema.JsonObject>(
+  mapper: (grade: G["Type"]) => M,
+  exec: Metric.Task.Exec<M, R>,
+): Metric.Task.Exec<G, R> => {
+  const mapTrail = (trail: TrailResult<G>): TrailResult<M> => ({
     ...trail,
     grade: mapper(trail.grade),
   });
@@ -39,11 +18,12 @@ const mapExec = <Input, Mapped, M extends Schema.JsonObject>(
   return (results, delta, prev) => exec(results.map(mapTrail), mapTrail(delta), prev);
 };
 
-const makeMetric =
-  <G, M extends Schema.JsonObject>(exec: TaskExec<G, M>, options: TaskMetricOptions<M>) =>
-  <Grade extends GradeSchema<G>, S extends Stage, E, R>(
-    task: Effect.Effect<TaskWithGrade<G, Grade, S>, E, R>,
+export const metric =
+  <G extends Grade.Result, MR extends Schema.JsonObject>(
+    exec: Metric.Task.Exec<G, MR>,
+    options: Omit<Metric.Task.Options<G, MR>, "exec"> = {},
   ) =>
+  <S extends Stage, E, R>(task: Effect.Effect<Task<G, S>, E, R>) =>
     Effect.flatMap(task, (task) =>
       Metric.Task.make({ ...options, exec }).pipe(
         Effect.mapError(TaskError.metadata),
@@ -55,21 +35,30 @@ const makeMetric =
       ),
     );
 
-export const metric = <G, M extends Schema.JsonObject = Schema.JsonObject>(
-  exec: TaskExec<G, M>,
-  options: TaskMetricOptions<M> = {},
-): TaskMetric<G> => makeMetric(exec, options);
-
-export const mapMetric = <G, Mapped, M extends Schema.JsonObject = Schema.JsonObject>(
-  mapper: GradeMapper<G, Mapped>,
-  exec: TaskExec<Mapped, M>,
-  options: TaskMetricOptions<M> = {},
-): TaskMetric<G> => makeMetric(mapExec(mapper, exec), options);
+export const mapMetric =
+  <G extends Grade.Result, M, MR extends Schema.JsonObject>(
+    mapper: (grade: G["Type"]) => M,
+    exec: Metric.Task.Exec<M, MR>,
+    options: Omit<Metric.Task.Options<G, MR>, "exec"> = {},
+  ) =>
+  <S extends Stage, E, R>(task: Effect.Effect<Task<G, S>, E, R>) =>
+    task.pipe(
+      Effect.flatMap((task) =>
+        Metric.Task.make({ ...options, exec: mapExec(mapper, exec) }).pipe(
+          Effect.mapError(TaskError.metadata),
+          Effect.map((metric) =>
+            produce(task, (draft) => {
+              draft.metrics.push(castDraft(metric));
+            }),
+          ),
+        ),
+      ),
+    );
 
 export const trajMetric =
-  <M extends Schema.JsonObject = Schema.JsonObject>(
-    exec: Metric.Traj.Exec<M>,
-    options: TrajMetricOptions<M> = {},
+  <R extends Schema.JsonObject = Schema.JsonObject>(
+    exec: Metric.Traj.Exec<R>,
+    options: Omit<Metric.Traj.Options<R>, "exec"> = {},
   ) =>
   <G extends Grade.Result, S extends Stage, E, R>(
     task: Effect.Effect<Task<G, S>, E, R>,

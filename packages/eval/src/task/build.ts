@@ -3,10 +3,11 @@ import * as Metric from "#/metric/index.ts";
 import * as Grade from "#/grade/index.ts";
 import { Resource, Sandbox, type Snapshot } from "@open-insight/core/internal";
 import { IDSchema } from "#/utils/schema.ts";
-import type { BivariantFn, Invariant, UnionToIntersection } from "#/utils/variant.ts";
+import type { BivariantFn, UnionToIntersection } from "#/utils/variant.ts";
 import { makePromptFn, type PromptFn, type PromptOptions } from "./prompt.ts";
 import { castDraft, produce } from "immer";
 import type { SchemaError } from "effect/SchemaError";
+import { TaskError } from "./error.ts";
 
 export type TypeId = "~open-insight/eval/task";
 export const TypeId: TypeId = "~open-insight/eval/task";
@@ -16,7 +17,7 @@ export type ID = Schema.Schema.Type<typeof ID>;
 
 export class BaseMetadata extends Schema.Class<BaseMetadata>("BaseMetadata")({
   id: Schema.String,
-  name: Schema.String,
+  name: Schema.OptionFromOptionalNullOr(Schema.String),
   description: Schema.OptionFromOptionalNullOr(Schema.String),
   keywords: Schema.OptionFromOptionalNullOr(Schema.Array(Schema.String)),
   authors: Schema.OptionFromOptionalNullOr(Schema.Array(Schema.String)),
@@ -36,7 +37,7 @@ export class Metadata extends Schema.Class<Metadata>("Metadata")({
   extras: Schema.Record(Schema.String, Schema.Json),
 }) {}
 
-export type AnyTask = Readonly<{
+export type Task<G extends Grade.Result = never, S extends Stage = never> = Readonly<{
   metadata: BaseMetadata;
   snapshot: Snapshot.Snapshot;
   resources: Resource.Resources;
@@ -46,24 +47,22 @@ export type AnyTask = Readonly<{
   stages: ReadonlyArray<Stage>;
 
   [TypeId]: TypeId;
-}>;
+}> & { _G?: G; _S?: S };
 
-export type Task<G extends Grade.Result = never, S extends Stage = never> = AnyTask & {
-  _G?: Invariant<G["Type"]>;
-  _S?: Invariant<S>;
-};
+export type AnyTask = Task<any, any>;
 
 export const make = Effect.fn(function* (
-  id: string,
-  snapshot: Snapshot.Snapshot,
-  options: Omit<BaseMetadataEncoded, "id"> &
+  options: BaseMetadataEncoded &
     Readonly<{
+      snapshot: Snapshot.Snapshot;
       resources?: Resource.Resources;
       trajMetrics?: ReadonlyArray<Metric.Traj.Metric>;
     }>,
-) {
-  const { resources = Resource.make({}), trajMetrics = [] } = options;
-  const metadata = yield* Schema.decodeEffect(BaseMetadata)({ id, ...options });
+): Effect.fn.Return<Task, TaskError> {
+  const { snapshot, resources = Resource.make({}), trajMetrics = [] } = options;
+  const metadata = yield* Schema.decodeEffect(BaseMetadata)(options).pipe(
+    Effect.mapError(TaskError.metadata),
+  );
 
   return {
     metadata,
@@ -73,7 +72,7 @@ export const make = Effect.fn(function* (
     metrics: [],
     stages: [],
     [TypeId]: TypeId,
-  } as Task<never, never>;
+  } satisfies Task;
 });
 
 export type Init = BivariantFn<(sandbox: Sandbox.SandboxPromise) => PromiseLike<void>>;
@@ -103,7 +102,7 @@ type Options<G extends Grade.Result, S extends Stage> = Readonly<{
 
 export const stage =
   <N extends string, G extends Grade.Result, S extends Stage>(name: N, options: Options<G, S>) =>
-  <PrevG extends Grade.Result, E, R>(task: Effect.Effect<Task<PrevG, S>, E, R>) =>
+  <TG extends Grade.Result, E, R>(task: Effect.Effect<Task<TG, S>, E, R>) =>
     task.pipe(
       Effect.flatMap(
         Effect.fn(function* (task): Effect.fn.Return<

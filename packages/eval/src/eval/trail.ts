@@ -37,7 +37,7 @@ const makeVerifAgent = ({
   verifier: Grade.VerifExec;
   sandbox: Sandbox.SandboxPromise;
 }): Agent.Agent => ({
-  trajectory: Effect.fn(function* () {
+  trajectory: Effect.gen(function* () {
     const input = yield* Effect.tryPromise(() =>
       verifier({ ...sandbox, trajectory: Prompt.empty }),
     ).pipe(Effect.mapError(Agent.AgentError.trajectory));
@@ -67,12 +67,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
     | Scope.Scope
   > {
     const { snapshot, resources, stages, metrics: taskMetrics, trajMetrics } = task;
-    const {
-      verifMode,
-      graderMaxRetries: maxRetries,
-      cacheAgentSnapshot: agentCache,
-      cacheTaskSnapshot: taskCache,
-    } = config;
+    const { verifMode, graderMaxRetries: maxRetries } = config;
 
     const offer = Event.offerTo(eventQueue);
 
@@ -95,7 +90,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
     const path = yield* Path.Path;
 
     const harnessRun = yield* harness
-      .run(snapshot, { resources })
+      .run(snapshot, { resources, ...config })
       .pipe(Effect.mapError(EvalError.harness));
     const sandboxPromise = Sandbox.asPromise(harnessRun.sandbox);
 

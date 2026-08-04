@@ -1,78 +1,49 @@
-import type { TrailResult } from "#/eval/result.ts";
 import * as Grade from "#/grade/index.ts";
 import * as Metric from "#/metric/index.ts";
 import type * as Task from "#/task/index.ts";
-import type { Invariant } from "#/utils/variant.ts";
+import type { TrailResult } from "#/eval/result.ts";
 import { Effect, Schema } from "effect";
 import { castDraft, produce } from "immer";
 import type { Bench } from "./build.ts";
 import { BenchError } from "./error.ts";
 
-type MetricOptions<R extends Schema.JsonObject> = Omit<Metric.Bench.Options<unknown, R>, "exec">;
-type TaskMetricOptions<R extends Schema.JsonObject> = Omit<Metric.Task.Options<unknown, R>, "exec">;
-type TrajMetricOptions<R extends Schema.JsonObject> = Omit<Metric.Traj.Options<R>, "exec">;
+const mapBenchExec = <G extends Grade.Result, M, R extends Schema.JsonObject>(
+  mapper: (grade: G["Type"]) => M,
+  exec: Metric.Bench.Exec<M, R>,
+): Metric.Bench.Exec<G, R> => {
+  const mapTrail = (trail: TrailResult<G>): TrailResult<M> => ({
+    ...trail,
+    grade: mapper(trail.grade),
+  });
 
-type GradeSchema<G> = Grade.Result & Readonly<{ Type: G }>;
-
-type TaskWithGrade<G, Schema extends GradeSchema<G>, S extends Task.Stage> = Omit<
-  Task.Task<Schema, S>,
-  "_G"
-> &
-  Readonly<{ _G?: Invariant<G> }>;
-
-type MetricBuilder<G> = <Schema extends GradeSchema<G>, S extends Task.Stage, E, R>(
-  bench: Effect.Effect<Bench<TaskWithGrade<G, Schema, S>>, E, R>,
-) => Effect.Effect<Bench<Task.Task<Schema, S>>, E | BenchError, R>;
-
-type AttachedMetricBuilder = <T extends Task.AnyTask, E, R>(
-  bench: Effect.Effect<Bench<T>, E, R>,
-) => Effect.Effect<Bench<T>, E | BenchError, R>;
-
-const mapTrail = <Input, Mapped>(
-  mapper: (grade: Input) => Mapped,
-  trail: TrailResult<Input>,
-): TrailResult<Mapped> => ({
-  ...trail,
-  grade: mapper(trail.grade),
-});
-
-const mapBenchExec =
-  <Input, Mapped, R extends Schema.JsonObject>(
-    mapper: (grade: Input) => Mapped,
-    exec: Metric.Bench.Exec<Mapped, R>,
-  ): Metric.Bench.Exec<Input, R> =>
-  (results, delta, prev) =>
+  return (results, delta, prev) =>
     exec(
       Object.fromEntries(
-        Object.entries(results).map(([task, trails]) => [
-          task,
-          trails.map((trail) => mapTrail(mapper, trail)),
-        ]),
+        Object.entries(results).map(([task, trails]) => [task, trails.map(mapTrail)]),
       ),
-      { ...mapTrail(mapper, delta), task: delta.task },
+      { ...mapTrail(delta), task: delta.task },
       prev,
     );
+};
 
-const mapTaskExec =
-  <Input, Mapped, R extends Schema.JsonObject>(
-    mapper: (grade: Input) => Mapped,
-    exec: Metric.Task.Exec<Mapped, R>,
-  ): Metric.Task.Exec<Input, R> =>
-  (results, delta, prev) =>
-    exec(
-      results.map((trail) => mapTrail(mapper, trail)),
-      mapTrail(mapper, delta),
-      prev,
-    );
+const mapTaskExec = <G extends Grade.Result, M, R extends Schema.JsonObject>(
+  mapper: (grade: G["Type"]) => M,
+  exec: Metric.Task.Exec<M, R>,
+): Metric.Task.Exec<G, R> => {
+  const mapTrail = (trail: TrailResult<G>): TrailResult<M> => ({
+    ...trail,
+    grade: mapper(trail.grade),
+  });
 
-const attachMetric =
-  <G, M extends Schema.JsonObject>(
-    exec: Metric.Bench.Exec<G, M>,
-    options: MetricOptions<M>,
-  ): MetricBuilder<G> =>
-  <Grade extends GradeSchema<G>, S extends Task.Stage, E, R>(
-    bench: Effect.Effect<Bench<TaskWithGrade<G, Grade, S>>, E, R>,
+  return (results, delta, prev) => exec(results.map(mapTrail), mapTrail(delta), prev);
+};
+
+export const metric =
+  <G extends Grade.Result, MR extends Schema.JsonObject>(
+    exec: Metric.Bench.Exec<G, MR>,
+    options: Omit<Metric.Bench.Options<G, MR>, "exec"> = {},
   ) =>
+  <S extends Task.Stage, E, R>(bench: Effect.Effect<Bench<Task.Task<G, S>>, E, R>) =>
     Effect.flatMap(bench, (bench) =>
       Metric.Bench.make({ ...options, exec }).pipe(
         Effect.mapError(BenchError.init),
@@ -84,15 +55,31 @@ const attachMetric =
       ),
     );
 
-const attachTaskMetric =
-  <G, M extends Schema.JsonObject>(
-    taskId: Task.ID,
-    exec: Metric.Task.Exec<G, M>,
-    options: TaskMetricOptions<M>,
-  ): MetricBuilder<G> =>
-  <Grade extends GradeSchema<G>, S extends Task.Stage, E, R>(
-    bench: Effect.Effect<Bench<TaskWithGrade<G, Grade, S>>, E, R>,
+export const mapMetric =
+  <G extends Grade.Result, M, MR extends Schema.JsonObject>(
+    mapper: (grade: G["Type"]) => M,
+    exec: Metric.Bench.Exec<M, MR>,
+    options: Omit<Metric.Bench.Options<G, MR>, "exec"> = {},
   ) =>
+  <S extends Task.Stage, E, R>(bench: Effect.Effect<Bench<Task.Task<G, S>>, E, R>) =>
+    Effect.flatMap(bench, (bench) =>
+      Metric.Bench.make({ ...options, exec: mapBenchExec(mapper, exec) }).pipe(
+        Effect.mapError(BenchError.init),
+        Effect.map((metric) =>
+          produce(bench, (draft) => {
+            draft.metrics.push(castDraft(metric));
+          }),
+        ),
+      ),
+    );
+
+export const taskMetric =
+  <G extends Grade.Result, MR extends Schema.JsonObject>(
+    taskId: Task.ID,
+    exec: Metric.Task.Exec<G, MR>,
+    options: Omit<Metric.Task.Options<G, MR>, "exec"> = {},
+  ) =>
+  <S extends Task.Stage, E, R>(bench: Effect.Effect<Bench<Task.Task<G, S>>, E, R>) =>
     Effect.flatMap(bench, (bench) => {
       if (!bench.tasks.some((task) => task.metadata.id === taskId)) {
         return Effect.fail(BenchError.taskNotFound(taskId));
@@ -113,49 +100,26 @@ const attachTaskMetric =
       );
     });
 
-export const metric = <G, M extends Schema.JsonObject = Schema.JsonObject>(
-  exec: Metric.Bench.Exec<G, M>,
-  options: MetricOptions<M> = {},
-): MetricBuilder<G> => attachMetric(exec, options);
-
-export const mapMetric = <G, Mapped, M extends Schema.JsonObject = Schema.JsonObject>(
-  mapper: (grade: NoInfer<G>) => Mapped,
-  exec: Metric.Bench.Exec<Mapped, M>,
-  options: MetricOptions<M> = {},
-): MetricBuilder<G> => attachMetric(mapBenchExec(mapper, exec), options);
-
-export const taskMetric = <G, M extends Schema.JsonObject = Schema.JsonObject>(
-  taskId: Task.ID,
-  exec: Metric.Task.Exec<G, M>,
-  options: TaskMetricOptions<M> = {},
-): MetricBuilder<G> => attachTaskMetric(taskId, exec, options);
-
-export const mapTaskMetric = <G, Mapped, M extends Schema.JsonObject = Schema.JsonObject>(
-  taskId: Task.ID,
-  mapper: (grade: NoInfer<G>) => Mapped,
-  exec: Metric.Task.Exec<Mapped, M>,
-  options: TaskMetricOptions<M> = {},
-): MetricBuilder<G> => attachTaskMetric(taskId, mapTaskExec(mapper, exec), options);
-
-export const trajMetric =
-  <M extends Schema.JsonObject = Schema.JsonObject>(
+export const mapTaskMetric =
+  <G extends Grade.Result, M, MR extends Schema.JsonObject>(
     taskId: Task.ID,
-    exec: Metric.Traj.Exec<M>,
-    options: TrajMetricOptions<M> = {},
-  ): AttachedMetricBuilder =>
-  <T extends Task.AnyTask, E, R>(bench: Effect.Effect<Bench<T>, E, R>) =>
+    mapper: (grade: G["Type"]) => M,
+    exec: Metric.Task.Exec<M, MR>,
+    options: Omit<Metric.Task.Options<G, MR>, "exec"> = {},
+  ) =>
+  <S extends Task.Stage, E, R>(bench: Effect.Effect<Bench<Task.Task<G, S>>, E, R>) =>
     Effect.flatMap(bench, (bench) => {
       if (!bench.tasks.some((task) => task.metadata.id === taskId)) {
         return Effect.fail(BenchError.taskNotFound(taskId));
       }
 
-      return Metric.Traj.make({ ...options, exec }).pipe(
+      return Metric.Task.make({ ...options, exec: mapTaskExec(mapper, exec) }).pipe(
         Effect.mapError(BenchError.init),
         Effect.map((metric) =>
           produce(bench, (draft) => {
             for (const task of draft.tasks) {
               if (task.metadata.id === taskId) {
-                task.trajMetrics.push(castDraft(metric));
+                task.metrics.push(castDraft(metric));
                 break;
               }
             }
@@ -163,3 +127,35 @@ export const trajMetric =
         ),
       );
     });
+
+export const trajMetric =
+  <R extends Schema.JsonObject = Schema.JsonObject>(
+    taskId: Task.ID,
+    exec: Metric.Traj.Exec<R>,
+    options: Omit<Metric.Traj.Options<R>, "exec"> = {},
+  ) =>
+  <T extends Task.AnyTask, E, R>(
+    bench: Effect.Effect<Bench<T>, E, R>,
+  ): Effect.Effect<Bench<T>, E | BenchError, R> =>
+    bench.pipe(
+      Effect.flatMap(
+        Effect.fn(function* (bench) {
+          if (!bench.tasks.some((task) => task.metadata.id === taskId)) {
+            return yield* Effect.fail(BenchError.taskNotFound(taskId));
+          }
+
+          const metric = yield* Metric.Traj.make({ ...options, exec }).pipe(
+            Effect.mapError(BenchError.init),
+          );
+
+          return produce(bench, (draft) => {
+            for (const task of draft.tasks) {
+              if (task.metadata.id === taskId) {
+                task.trajMetrics.push(castDraft(metric));
+                break;
+              }
+            }
+          });
+        }),
+      ),
+    );

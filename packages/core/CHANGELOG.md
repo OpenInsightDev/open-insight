@@ -1,5 +1,11 @@
 # @open-insight/core
 
+## 1.0.1
+
+### Patch Changes
+
+- patch
+
 ## 1.0.0
 
 ### Patch Changes

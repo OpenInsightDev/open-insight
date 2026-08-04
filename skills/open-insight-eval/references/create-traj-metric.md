@@ -1,15 +1,12 @@
 # Create a Task-Specific Trajectory Metric
 
-A trajectory metric observes one trail while the agent is responding. Use it for process-level
-measurements such as validation attempts, intermediate artifact state, or tool outcomes.
+A trajectory metric observes one trail while the agent is responding. Use it for process-level measurements such as validation attempts, intermediate artifact state, or tool outcomes.
 
-Use `Task.metric(...)` for metrics over completed grades and `Bench.metric(...)` for aggregation
-across tasks. A trajectory metric is not the task grade.
+Use `Task.metric(...)` for metrics over completed grades and `Bench.metric(...)` for aggregation across tasks. A trajectory metric is not the task grade.
 
 ## Executor
 
-Pass the executor directly to `Task.trajMetric(...)`. Its parameter and result types are inferred;
-do not annotate them manually.
+Pass the executor directly to `Task.trajMetric(...)`. Its parameter and result types are inferred; do not annotate them manually.
 
 The executor receives:
 
@@ -18,12 +15,9 @@ The executor receives:
 - `$`, `cmd`, `readFile`, and `download`: read-only sandbox operations;
 - `prev`: this metric's previous result, or `null` on its first execution.
 
-Use `prev` for incremental results. Recompute from `parts` when each result should be a current
-snapshot. Do not store metric state in module-level variables because trails may run concurrently.
+Use `prev` for incremental results. Recompute from `parts` when each result should be a current snapshot. Do not store metric state in module-level variables because trails may run concurrently.
 
-Return a JSON object; TypeScript infers its shape from the executor. The framework validates only
-the general JSON-object shape at runtime, so decode untrusted command or file output inside the
-executor when stricter validation is required.
+Return a JSON object; TypeScript infers its shape from the executor. The framework validates only the general JSON-object shape at runtime, so decode untrusted command or file output inside the executor when stricter validation is required.
 
 ## Choose Between Part-Based and Schedule-Based Metrics
 
@@ -31,8 +25,7 @@ Choose by asking what produces the evidence for the metric.
 
 ### Part-Based: Measure What the Agent Just Did
 
-Use `When.traj(...)` when a new message part is the evidence. The metric means: when the agent
-produces this kind of event, measure it.
+Use `When.traj(...)` when a new message part is the evidence. The metric means: when the agent produces this kind of event, measure it.
 
 Typical requirements:
 
@@ -63,17 +56,13 @@ When.traj(
 );
 ```
 
-`When.toolCall(...)` represents a completed tool interaction: it provides the matching call and
-result together.
+`When.toolCall(...)` represents a completed tool interaction: it provides the matching call and result together.
 
-Without `when`, a trajectory metric defaults to `When.traj(When.part())`, so it measures every
-part.
+Without `when`, a trajectory metric defaults to `When.traj(When.part())`, so it measures every part.
 
 ### Schedule-Based: Observe State Independently of Agent Messages
 
-Use `When.schedule(...)` when the sandbox is the evidence and it may change without the agent
-producing another message part. The metric means: check this state according to this polling
-policy, regardless of whether the agent says anything.
+Use `When.schedule(...)` when the sandbox is the evidence and it may change without the agent producing another message part. The metric means: check this state according to this polling policy, regardless of whether the agent says anything.
 
 Typical requirements:
 
@@ -88,19 +77,13 @@ When.schedule(When.spaced("2 seconds"), {
 });
 ```
 
-The schedule defines **when to check**. The optional `pred` defines **which checks should emit a
-metric result**. Use `When.success(command)`, `When.fails(command)`, and `When.content(...)` for
-common sandbox conditions.
+The schedule defines **when to check**. The optional `pred` defines **which checks should emit a metric result**. Use `When.success(command)`, `When.fails(command)`, and `When.content(...)` for common sandbox conditions.
 
 ### Decision Rule
 
-Use `When.traj(...)` if removing the triggering message part would remove the meaning of the
-measurement. Use `When.schedule(...)` if the measurement must still happen while no new message
-part arrives.
+Use `When.traj(...)` if removing the triggering message part would remove the meaning of the measurement. Use `When.schedule(...)` if the measurement must still happen while no new message part arrives.
 
-Do not use a schedule merely to throttle a message-based metric. Do not rely on a part-based
-trigger to notice a later sandbox change: its sandbox predicate is reconsidered only when another
-matching part arrives.
+Do not use a schedule merely to throttle a message-based metric. Do not rely on a part-based trigger to notice a later sandbox change: its sandbox predicate is reconsidered only when another matching part arrives.
 
 ## Attach the Metric
 
@@ -139,13 +122,11 @@ Task.make(taskOptions).pipe(
 );
 ```
 
-The trigger runs after the matching part has been added to `parts`. Keep explicit narrowing in the
-executor so its assumptions remain visible if the trigger changes.
+The trigger runs after the matching part has been added to `parts`. Keep explicit narrowing in the executor so its assumptions remain visible if the trigger changes.
 
 ## Capture Task Values
 
-The executor does not receive task extras or grades. Capture immutable per-task values directly
-from the task loader's scope:
+The executor does not receive task extras or grades. Capture immutable per-task values directly from the task loader's scope:
 
 ```ts
 Task.trajMetric(
@@ -161,8 +142,7 @@ Task.trajMetric(
 );
 ```
 
-Let unexpected sandbox failures fail the metric. Handle an absent file only when absence is an
-expected, meaningful state.
+Let unexpected sandbox failures fail the metric. Handle an absent file only when absence is an expected, meaningful state.
 
 ## Charts and Metadata
 
@@ -176,8 +156,7 @@ chart: ({ attempts }) => [
 
 Import `Chart` from `@open-insight/eval`. Keep measurement in `exec`, not in `chart`.
 
-Set a stable, task-unique `id` whenever results are stored or compared. Without an explicit ID,
-metric construction generates one. Add trajectory metrics after all stages.
+Set a stable, task-unique `id` whenever results are stored or compared. Without an explicit ID, metric construction generates one. Add trajectory metrics after all stages.
 
 ## Checklist
 

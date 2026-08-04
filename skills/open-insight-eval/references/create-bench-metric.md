@@ -1,10 +1,8 @@
 # Create a Bench Metric
 
-A bench metric is a computation over completed trails across the tasks in one benchmark. It
-produces a JSON object whenever another task trail result becomes available.
+A bench metric is a computation over completed trails across the tasks in one benchmark. It produces a JSON object whenever another task trail result becomes available.
 
-This document covers `BenchMetric`: defining and composing that computation. Attaching metrics to
-a benchmark with `Bench.metric(...)` is a separate benchmark-building concern.
+This document covers `BenchMetric`: defining and composing that computation. Attaching metrics to a benchmark with `Bench.metric(...)` is a separate benchmark-building concern.
 
 ## Reduce-Like Executor
 
@@ -29,11 +27,9 @@ async (results, delta, prev) => result
 - `delta` is the newly completed trail together with its `task` ID;
 - `prev` is this metric's previous result, or `null` on its first execution.
 
-Each trail contains its final `grade`, `trajectory`, token `usage`, and start and finish times. The
-metric must return a JSON object.
+Each trail contains its final `grade`, `trajectory`, token `usage`, and start and finish times. The metric must return a JSON object.
 
-The three arguments support two styles. Use only `results` to analyze the full current benchmark
-state:
+The three arguments support two styles. Use only `results` to analyze the full current benchmark state:
 
 ```ts
 const usageSummary = BenchMetric.exec(async (results) => ({
@@ -63,15 +59,11 @@ const usageSummary = BenchMetric.exec(async (_results, delta, prev) => {
 });
 ```
 
-The framework supplies each returned object as `prev` on the next execution. Choose the full or
-incremental form according to the calculation. Keep incremental state in `prev`, not in
-module-level variables.
+The framework supplies each returned object as `prev` on the next execution. Choose the full or incremental form according to the calculation. Keep incremental state in `prev`, not in module-level variables.
 
 ## Adapt the Grade
 
-`BenchMetric.mapGrade(...)` adapts an executor to a different domain grade without changing task
-grade schemas. It maps the grade in every trail in `results` and in `delta`; `prev` remains the
-metric's previous output.
+`BenchMetric.mapGrade(...)` adapts an executor to a different domain grade without changing task grade schemas. It maps the grade in every trail in `results` and in `delta`; `prev` remains the metric's previous output.
 
 ```ts
 const averagePassAt5 = BenchMetric.avgPassAtK(5).pipe(
@@ -79,23 +71,18 @@ const averagePassAt5 = BenchMetric.avgPassAtK(5).pipe(
 );
 ```
 
-The mapping must express an already-defined interpretation. Do not invent a threshold merely to
-satisfy another metric's input.
+The mapping must express an already-defined interpretation. Do not invent a threshold merely to satisfy another metric's input.
 
 ## Built-In Metrics
 
 The current built-ins are:
 
-- `BenchMetric.avgPassAtK(k)`: mean task-level probability that at least one of `k` sampled trails
-  passes;
+- `BenchMetric.avgPassAtK(k)`: mean task-level probability that at least one of `k` sampled trails passes;
 - `BenchMetric.avgPassPowK(k)`: mean task-level probability that all `k` sampled trails pass.
 
-Both compute the estimator separately for each observed task and then take the unweighted mean
-across tasks. They consume grades shaped as `{ pass: boolean }` and work with
-`BenchMetric.mapGrade(...)`.
+Both compute the estimator separately for each observed task and then take the unweighted mean across tasks. They consume grades shaped as `{ pass: boolean }` and work with `BenchMetric.mapGrade(...)`.
 
-Configure at least `k` trails per task. The final estimate is meaningful after every evaluated task
-has at least `k` results.
+Configure at least `k` trails per task. The final estimate is meaningful after every evaluated task has at least `k` results.
 
 ## Checklist
 
