@@ -1,79 +1,76 @@
-import { Schema } from "effect";
+import { Formatter, Schema } from "effect";
 import { Assertion } from "./assert/schema.ts";
 import * as Snapshot from "../snapshot/index.ts";
 
-const Cause = Schema.Error();
-
-export class ProviderNotAvailable extends Schema.TaggedErrorClass<ProviderNotAvailable>()(
-  "ProviderNotAvailable",
-  {
-    name: Schema.String,
-    cause: Cause,
-  },
-) {
+export class ProviderNotAvailableError extends Schema.TaggedErrorClass<ProviderNotAvailableError>(
+  "open-insight/SandboxError/ProviderNotAvailableError",
+)("ProviderNotAvailableError", {
+  name: Schema.String,
+  cause: Schema.Defect(),
+}) {
   override get message(): string {
-    return `Sandbox provider "${this.name}" is not available: ${this.cause.message}`;
+    return `Sandbox provider "${this.name}" is not available: ${Formatter.format(this.cause)}`;
   }
 }
 
-export class SandboxStartError extends Schema.TaggedErrorClass<SandboxStartError>()(
-  "SandboxStartError",
-  {
-    name: Schema.String,
-    cause: Cause,
-  },
-) {
+export class SandboxStartError extends Schema.TaggedErrorClass<SandboxStartError>(
+  "open-insight/SandboxError/SandboxStartError",
+)("SandboxStartError", {
+  name: Schema.String,
+  cause: Schema.Defect(),
+}) {
   override get message(): string {
-    return `Failed to start sandbox "${this.name}": ${this.cause.message}`;
+    return `Failed to start sandbox "${this.name}": ${Formatter.format(this.cause)}`;
   }
 }
 
-export class SandboxExecError extends Schema.TaggedErrorClass<SandboxExecError>()(
-  "SandboxExecError",
-  {
-    name: Schema.String,
-    operation: Schema.String,
-    cause: Cause,
-  },
-) {
+export class SandboxExecError extends Schema.TaggedErrorClass<SandboxExecError>(
+  "open-insight/SandboxError/SandboxExecError",
+)("SandboxExecError", {
+  name: Schema.String,
+  operation: Schema.String,
+  cause: Schema.Defect(),
+}) {
   override get message(): string {
-    return `Sandbox "${this.name}" failed during ${this.operation}: ${this.cause.message}`;
+    return `Sandbox "${this.name}" failed during ${this.operation}: ${Formatter.format(this.cause)}`;
   }
 }
 
-export class SandboxExposeError extends Schema.TaggedErrorClass<SandboxExposeError>()(
-  "SandboxExposeError",
-  {
-    name: Schema.String,
-    sandboxPort: Schema.Number,
-    cause: Cause,
-  },
-) {
+export class SandboxExposeError extends Schema.TaggedErrorClass<SandboxExposeError>(
+  "open-insight/SandboxError/SandboxExposeError",
+)("SandboxExposeError", {
+  name: Schema.String,
+  sandboxPort: Schema.Number,
+  cause: Schema.Defect(),
+}) {
   override get message(): string {
-    return `Failed to expose port ${this.sandboxPort} from sandbox "${this.name}": ${this.cause.message}`;
+    return `Failed to expose port ${this.sandboxPort} from sandbox "${this.name}": ${Formatter.format(this.cause)}`;
   }
 }
 
-export class SnapshotBuildUnsupported extends Schema.TaggedErrorClass<SnapshotBuildUnsupported>()(
-  "SnapshotBuildUnsupported",
-  {
-    name: Schema.String,
-    snapshot: Snapshot.ContainerfileSnapshot,
-  },
-) {
+export class SnapshotBuildUnsupported extends Schema.TaggedErrorClass<SnapshotBuildUnsupported>(
+  "open-insight/SandboxError/SnapshotBuildUnsupported",
+)("SnapshotBuildUnsupported", {
+  name: Schema.String,
+  snapshot: Snapshot.ContainerfileSnapshot,
+}) {
   override get message(): string {
     return `Sandbox provider "${this.name}" does not support Containerfile snapshots`;
   }
 }
 
-export class AssertionFailure extends Schema.Class<AssertionFailure>("AssertionFailure")({
+export class AssertionFailure extends Schema.Class<AssertionFailure>(
+  "open-insight/SandboxError/AssertionFailure",
+)({
   assertion: Assertion,
   message: Schema.String,
-  expected: Schema.optional(Schema.String),
-  actual: Schema.optional(Schema.String),
+  expected: Schema.optionalKey(Schema.String),
+  actual: Schema.optionalKey(Schema.String),
 }) {}
 
-export class AssertionError extends Schema.TaggedErrorClass<AssertionError>()("AssertionError", {
+export class AssertionError extends Schema.TaggedErrorClass<AssertionError>(
+  "open-insight/SandboxError/AssertionError",
+)("AssertionError", {
   failures: Schema.Array(AssertionFailure),
 }) {
   override get message(): string {
@@ -85,7 +82,7 @@ export class AssertionError extends Schema.TaggedErrorClass<AssertionError>()("A
 
 export const ErrorReason = Schema.Union([
   Snapshot.Error,
-  ProviderNotAvailable,
+  ProviderNotAvailableError,
   SandboxStartError,
   SandboxExecError,
   SandboxExposeError,
@@ -94,7 +91,9 @@ export const ErrorReason = Schema.Union([
 ]);
 export type ErrorReason = Schema.Schema.Type<typeof ErrorReason>;
 
-export class Error extends Schema.TaggedErrorClass<Error>()("SandboxError", {
+export class SandboxError extends Schema.TaggedErrorClass<SandboxError>(
+  "open-insight/SandboxError",
+)("SandboxError", {
   reason: ErrorReason,
 }) {
   override get message(): string {
@@ -105,26 +104,34 @@ export class Error extends Schema.TaggedErrorClass<Error>()("SandboxError", {
     return this.reason;
   }
 
-  static mapUnknownError = (mapper: (cause: globalThis.Error) => ErrorReason) => (cause: unknown) =>
-    cause instanceof Error
-      ? cause
-      : new Error({ reason: mapper(Schema.decodeUnknownSync(Cause)(cause)) });
+  static provider =
+    (name: string) =>
+    (cause: unknown): SandboxError =>
+      SandboxError.make({ reason: ProviderNotAvailableError.make({ name, cause }) });
 
-  static provider = (name: string) =>
-    this.mapUnknownError((cause) => ProviderNotAvailable.make({ name, cause }));
+  static snapshot =
+    (mapper: (cause: unknown) => Snapshot.Error) =>
+    (cause: unknown): SandboxError =>
+      SandboxError.make({ reason: mapper(cause) });
 
-  static snapshot = (mapper: (cause: globalThis.Error) => Snapshot.Error) =>
-    this.mapUnknownError((cause) => (cause instanceof Snapshot.Error ? cause : mapper(cause)));
+  static buildUnsupported = (
+    name: string,
+    snapshot: Snapshot.ContainerfileSnapshot,
+  ): SandboxError =>
+    SandboxError.make({ reason: SnapshotBuildUnsupported.make({ name, snapshot }) });
 
-  static buildUnsupported = (name: string, snapshot: Snapshot.ContainerfileSnapshot) =>
-    new Error({ reason: SnapshotBuildUnsupported.make({ name, snapshot }) });
+  static sandboxStart =
+    (name: string) =>
+    (cause: unknown): SandboxError =>
+      SandboxError.make({ reason: SandboxStartError.make({ name, cause }) });
 
-  static sandboxStart = (name: string) =>
-    this.mapUnknownError((cause) => SandboxStartError.make({ name, cause }));
+  static sandboxExec =
+    (name: string, operation: string) =>
+    (cause: unknown): SandboxError =>
+      SandboxError.make({ reason: SandboxExecError.make({ name, operation, cause }) });
 
-  static sandboxExec = (name: string, operation: string) =>
-    this.mapUnknownError((cause) => SandboxExecError.make({ name, operation, cause }));
-
-  static sandboxExpose = (name: string, sandboxPort: number) =>
-    this.mapUnknownError((cause) => SandboxExposeError.make({ name, sandboxPort, cause }));
+  static sandboxExpose =
+    (name: string, sandboxPort: number) =>
+    (cause: unknown): SandboxError =>
+      SandboxError.make({ reason: SandboxExposeError.make({ name, sandboxPort, cause }) });
 }

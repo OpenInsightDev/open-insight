@@ -1,5 +1,5 @@
 import { assert, it } from "@effect/vitest";
-import { Sandbox } from "@open-insight/core";
+import { Sandbox, SandboxError } from "@open-insight/core";
 import { Effect, Schema, Stream } from "effect";
 import { OpenAiStructuredOutput, Tool } from "effect/unstable/ai";
 import { Execute, layer, toolkit } from "#/sandbox/index.ts";
@@ -100,7 +100,7 @@ it.effect("returns actionable failure details to the model", () =>
       readFile: unused,
       writeFile: () =>
         Effect.fail(
-          Sandbox.Error.sandboxExec(
+          SandboxError.sandboxExec(
             "test-sandbox",
             "write /missing/top.v",
           )(new globalThis.Error("parent directory does not exist")),

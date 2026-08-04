@@ -1,7 +1,7 @@
 import type { ContentBlock, PromptCapabilities, PromptRequest } from "@agentclientprotocol/sdk";
 import { Effect, Encoding, Option, Result } from "effect";
 import { Prompt } from "effect/unstable/ai";
-import { Error, type PromptCapability, PromptError, PromptErrorReason } from "./error.ts";
+import { AcpError, type PromptCapability, PromptError, PromptErrorReason } from "./error.ts";
 
 export interface ToAcpPromptOptions {
   readonly promptCapabilities?: PromptCapabilities;
@@ -170,7 +170,7 @@ export const toAcpPrompt = Effect.fn("Acp.toAcpPrompt")(
   (
     message: Prompt.UserMessage,
     options: ToAcpPromptOptions = {},
-  ): Effect.Effect<PromptRequest["prompt"], Error> =>
+  ): Effect.Effect<PromptRequest["prompt"], AcpError> =>
     Effect.mapError(
       Effect.forEach(message.content, (part, partIndex) =>
         part.type === "text"
@@ -180,6 +180,6 @@ export const toAcpPrompt = Effect.fn("Acp.toAcpPrompt")(
             })
           : fileToContentBlock(part, partIndex, options.promptCapabilities),
       ),
-      Error.prompt,
+      AcpError.prompt,
     ),
 );

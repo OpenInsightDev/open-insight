@@ -1,4 +1,4 @@
-import { Sandbox } from "@open-insight/core";
+import { Sandbox, SandboxError } from "@open-insight/core";
 import { Spawn } from "@open-insight/core/utils";
 import { Crypto, Duration, Effect, FileSystem, Layer } from "effect";
 import { ChildProcess as CP } from "effect/unstable/process";
@@ -15,7 +15,7 @@ export const make = Effect.fn("sandbox/provider/apple")(
     timeout = "30 seconds",
   }: Options): Effect.fn.Return<
     Sandbox.Provider,
-    Sandbox.Error,
+    SandboxError,
     Crypto.Crypto | FileSystem.FileSystem | Spawn.Service
   > {
     const crypto = yield* Crypto.Crypto;
@@ -24,7 +24,7 @@ export const make = Effect.fn("sandbox/provider/apple")(
 
     yield* spawner
       .success(CP.make`container builder start`)
-      .pipe(Effect.mapError(Sandbox.Error.provider("apple")));
+      .pipe(Effect.mapError(SandboxError.provider("apple")));
 
     const aquireSnapshot = Effect.fn(function* (options) {
       return yield* Image.aquireSnapshot(options).pipe(
@@ -63,6 +63,6 @@ export const layer = (
   options: Options = {},
 ): Layer.Layer<
   Sandbox.ProviderService,
-  Sandbox.Error,
+  SandboxError,
   Crypto.Crypto | FileSystem.FileSystem | ChildProcessSpawner
 > => Layer.effect(Sandbox.ProviderService)(make(options));

@@ -20,7 +20,7 @@ export type OpenAiEndpoint = Endpoint;
 
 type OpenAiAgent = Effect.Effect<
   Agent.Provider<AgentTools<{}>>,
-  Agent.Error | Mcp.Error | Config.ConfigError | PlatformError.PlatformError
+  Agent.AgentError | Mcp.Error | Config.ConfigError | PlatformError.PlatformError
 >;
 
 const modelLayer = ({

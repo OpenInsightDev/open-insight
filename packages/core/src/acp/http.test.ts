@@ -1,7 +1,7 @@
 import { PROTOCOL_VERSION, type AnyMessage } from "@agentclientprotocol/sdk";
 import { assert, it } from "@effect/vitest";
 import { Effect } from "effect";
-import { Error, openHttpStream, openWebSocketStream } from "./index.ts";
+import { AcpError, openHttpStream, openWebSocketStream } from "./index.ts";
 
 const initializeRequest = {
   jsonrpc: "2.0",
@@ -13,10 +13,10 @@ const initializeRequest = {
   },
 } satisfies AnyMessage;
 
-const transportError = (error: Error) => {
-  assert.strictEqual(error.reason._tag, "AcpHttpTransportError");
-  if (error.reason._tag !== "AcpHttpTransportError") {
-    assert.fail(`Expected AcpHttpTransportError, received ${error.reason._tag}`);
+const transportError = (error: AcpError) => {
+  assert.strictEqual(error.reason._tag, "HttpTransportError");
+  if (error.reason._tag !== "HttpTransportError") {
+    assert.fail(`Expected HttpTransportError, received ${error.reason._tag}`);
   }
   return error.reason;
 };
@@ -32,7 +32,7 @@ it.effect("rejects invalid URLs before opening a connection", () =>
 );
 
 it("preserves non-Error transport causes in typed ACP errors", () => {
-  const error = Error.http("http://agent.test/", "request")("stopped");
+  const error = AcpError.http("http://agent.test/", "request")("stopped");
   const reason = transportError(error);
 
   assert.strictEqual(reason.cause, "stopped");
@@ -134,7 +134,10 @@ it.effect("surfaces Streamable HTTP response failures as typed transport errors"
       const stream = yield* openHttpStream("http://agent.test/acp", { fetch });
       const writer = stream.writable.getWriter();
       const reader = stream.readable.getReader();
-      const mapResponseError = Error.http("http://agent.test/acp", "response");
+      const mapResponseError = (cause: unknown) =>
+        cause instanceof AcpError
+          ? cause
+          : AcpError.http("http://agent.test/acp", "response")(cause);
       const error = yield* Effect.tryPromise({
         try: () => writer.write(initializeRequest),
         catch: mapResponseError,

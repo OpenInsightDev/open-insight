@@ -1,5 +1,5 @@
 import { Context, Effect, type Scope } from "effect";
-import type { Error } from "./error.ts";
+import type { SandboxError } from "./error.ts";
 import type { Resources } from "#/resource/index.ts";
 import type { Sandbox } from "./sandbox/index.ts";
 import * as Snapshot from "#/snapshot/index.ts";
@@ -11,7 +11,7 @@ export type Provider = Readonly<{
    * The handle refers to a snapshot that is guaranteed to exist in the provider's storage during the scope.
    *
    * Providers that cannot build an image from a local Dockerfile or Containerfile must fail a
-   * `Containerfile` snapshot with `Error.buildUnsupported`.
+   * `Containerfile` snapshot with `SandboxError.buildUnsupported`.
    *
    * @argument cache - If false, the provider will not cache the snapshot and will remove it from storage when the scope ends.
    */
@@ -20,7 +20,7 @@ export type Provider = Readonly<{
       snapshot: Snapshot.Snapshot;
       cache?: boolean;
     }>,
-  ): Effect.Effect<Snapshot.Handle.Handle, Error, Scope.Scope>;
+  ): Effect.Effect<Snapshot.Handle.Handle, SandboxError, Scope.Scope>;
 
   /**
    * Derive a new snapshot handle from an existing handle with a set of instructions.
@@ -34,7 +34,7 @@ export type Provider = Readonly<{
       context: string;
       cache?: boolean;
     }>,
-  ): Effect.Effect<Snapshot.Handle.Handle, Error, Scope.Scope>;
+  ): Effect.Effect<Snapshot.Handle.Handle, SandboxError, Scope.Scope>;
 
   /**
    * Run a sandbox with the given snapshot handle.
@@ -44,7 +44,7 @@ export type Provider = Readonly<{
       handle: Snapshot.Handle.Handle;
       resources: Resources;
     }>,
-  ): Effect.Effect<Sandbox, Error, Scope.Scope>;
+  ): Effect.Effect<Sandbox, SandboxError, Scope.Scope>;
 }>;
 
 export class ProviderService extends Context.Service<ProviderService, Provider>()(

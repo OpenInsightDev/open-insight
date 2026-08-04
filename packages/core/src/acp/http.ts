@@ -8,7 +8,7 @@ import {
   type WebSocketStreamOptions,
 } from "@agentclientprotocol/sdk/experimental/ws-client";
 import { Effect } from "effect";
-import { Error } from "./error.ts";
+import { AcpError } from "./error.ts";
 
 const ignorePromiseFailure = (evaluate: () => Promise<void>) =>
   Effect.tryPromise(evaluate).pipe(Effect.ignore);
@@ -17,14 +17,14 @@ const closeStream = (stream: AcpStream) => ignorePromiseFailure(() => stream.wri
 
 const acquireStream = (url: URL, make: () => AcpStream) =>
   Effect.acquireRelease(
-    Effect.try({ try: make, catch: Error.http(url.href, "connect") }),
+    Effect.try({ try: make, catch: AcpError.http(url.href, "connect") }),
     closeStream,
   );
 
 const parseUrl = (
   input: string | URL,
   protocols: ReadonlyArray<string>,
-): Effect.Effect<URL, Error> => {
+): Effect.Effect<URL, AcpError> => {
   const displayUrl = typeof input === "string" ? input : input.href;
   return Effect.try({
     try: () => {
@@ -34,7 +34,7 @@ const parseUrl = (
       }
       return url;
     },
-    catch: Error.http(displayUrl, "parse-url"),
+    catch: AcpError.http(displayUrl, "parse-url"),
   });
 };
 
@@ -47,15 +47,16 @@ const responseDetail = async (response: Response): Promise<string> => {
 const checkedFetch =
   (url: URL, fetch: typeof globalThis.fetch | undefined) =>
   async (...args: Parameters<typeof globalThis.fetch>): Promise<Response> => {
+    let response: Response;
     try {
-      const response = await (fetch ?? globalThis.fetch)(...args);
-      if (!response.ok) {
-        throw Error.httpResponse(url.href, response.status, await responseDetail(response));
-      }
-      return response;
+      response = await (fetch ?? globalThis.fetch)(...args);
     } catch (cause) {
-      throw Error.http(url.href, "request")(cause);
+      throw AcpError.http(url.href, "request")(cause);
     }
+    if (!response.ok) {
+      throw AcpError.httpResponse(url.href, response.status, await responseDetail(response));
+    }
+    return response;
   };
 
 const openSdkHttpStream = (url: URL, options: HttpStreamOptions) =>

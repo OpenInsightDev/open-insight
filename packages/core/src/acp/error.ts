@@ -11,12 +11,14 @@ export type PromptErrorReason = Schema.Schema.Type<typeof PromptErrorReason>;
 export const PromptCapability = Schema.Literals(["image", "audio", "embeddedContext"]);
 export type PromptCapability = Schema.Schema.Type<typeof PromptCapability>;
 
-export class PromptError extends Schema.TaggedErrorClass<PromptError>()("AcpPromptError", {
+export class PromptError extends Schema.TaggedErrorClass<PromptError>(
+  "open-insight/AcpError/PromptError",
+)("PromptError", {
   reason: PromptErrorReason,
   partIndex: Schema.Number,
   partType: Schema.Literals(["text", "file"]),
-  mediaType: Schema.optional(Schema.String),
-  capability: Schema.optional(PromptCapability),
+  mediaType: Schema.optionalKey(Schema.String),
+  capability: Schema.optionalKey(PromptCapability),
 }) {
   override get message(): string {
     switch (this.reason) {
@@ -40,16 +42,15 @@ export const HttpTransportOperation = Schema.Literals([
 ]);
 export type HttpTransportOperation = Schema.Schema.Type<typeof HttpTransportOperation>;
 
-export class HttpTransportError extends Schema.TaggedErrorClass<HttpTransportError>()(
-  "AcpHttpTransportError",
-  {
-    url: Schema.String,
-    operation: HttpTransportOperation,
-    status: Schema.optional(Schema.Number),
-    detail: Schema.optional(Schema.String),
-    cause: Schema.optional(Schema.Defect()),
-  },
-) {
+export class HttpTransportError extends Schema.TaggedErrorClass<HttpTransportError>(
+  "open-insight/AcpError/HttpTransportError",
+)("HttpTransportError", {
+  url: Schema.String,
+  operation: HttpTransportOperation,
+  status: Schema.optionalKey(Schema.Number),
+  detail: Schema.optionalKey(Schema.String),
+  cause: Schema.optionalKey(Schema.Defect()),
+}) {
   override get message(): string {
     const status = this.status === undefined ? "" : ` with HTTP status ${this.status}`;
     const detail =
@@ -65,15 +66,14 @@ export const AuthenticationErrorReason = Schema.Literals([
 ]);
 export type AuthenticationErrorReason = Schema.Schema.Type<typeof AuthenticationErrorReason>;
 
-export class AuthenticationError extends Schema.TaggedErrorClass<AuthenticationError>()(
-  "AcpAuthenticationError",
-  {
-    reason: AuthenticationErrorReason,
-    methodId: Schema.optional(Schema.String),
-    availableMethodIds: Schema.Array(Schema.String),
-    cause: Schema.optional(Schema.Defect()),
-  },
-) {
+export class AuthenticationError extends Schema.TaggedErrorClass<AuthenticationError>(
+  "open-insight/AcpError/AuthenticationError",
+)("AuthenticationError", {
+  reason: AuthenticationErrorReason,
+  methodId: Schema.optionalKey(Schema.String),
+  availableMethodIds: Schema.Array(Schema.String),
+  cause: Schema.optionalKey(Schema.Defect()),
+}) {
   override get message(): string {
     const available = this.availableMethodIds.join(", ");
     switch (this.reason) {
@@ -92,9 +92,12 @@ export class AuthenticationError extends Schema.TaggedErrorClass<AuthenticationE
 export const ErrorReason = Schema.Union([PromptError, HttpTransportError, AuthenticationError]);
 export type ErrorReason = Schema.Schema.Type<typeof ErrorReason>;
 
-export class Error extends Schema.TaggedErrorClass<Error>()("AcpError", {
-  reason: ErrorReason,
-}) {
+export class AcpError extends Schema.TaggedErrorClass<AcpError>("open-insight/AcpError")(
+  "AcpError",
+  {
+    reason: ErrorReason,
+  },
+) {
   override get message(): string {
     return this.reason.message;
   }
@@ -103,32 +106,30 @@ export class Error extends Schema.TaggedErrorClass<Error>()("AcpError", {
     return this.reason;
   }
 
-  static prompt = (reason: PromptError): Error => new Error({ reason });
+  static prompt = (reason: PromptError): AcpError => AcpError.make({ reason });
 
   static http =
     (url: string, operation: HttpTransportOperation, status?: number) =>
-    (cause: unknown): Error =>
-      cause instanceof Error
-        ? cause
-        : new Error({
-            reason: HttpTransportError.make({
-              url,
-              operation,
-              cause,
-              ...(status === undefined ? {} : { status }),
-            }),
-          });
+    (cause: unknown): AcpError =>
+      AcpError.make({
+        reason: HttpTransportError.make({
+          url,
+          operation,
+          cause,
+          ...(status === undefined ? {} : { status }),
+        }),
+      });
 
-  static httpResponse = (url: string, status: number, detail: string): Error =>
-    new Error({
+  static httpResponse = (url: string, status: number, detail: string): AcpError =>
+    AcpError.make({
       reason: HttpTransportError.make({ url, operation: "response", status, detail }),
     });
 
   static authenticationRequired = (
     availableMethodIds: ReadonlyArray<string>,
     cause?: unknown,
-  ): Error =>
-    new Error({
+  ): AcpError =>
+    AcpError.make({
       reason: AuthenticationError.make({
         reason: "authentication_required",
         availableMethodIds: [...availableMethodIds],
@@ -139,8 +140,8 @@ export class Error extends Schema.TaggedErrorClass<Error>()("AcpError", {
   static unsupportedAuthenticationMethod = (
     methodId: string,
     availableMethodIds: ReadonlyArray<string>,
-  ): Error =>
-    new Error({
+  ): AcpError =>
+    AcpError.make({
       reason: AuthenticationError.make({
         reason: "unsupported_method",
         methodId,
@@ -150,15 +151,13 @@ export class Error extends Schema.TaggedErrorClass<Error>()("AcpError", {
 
   static authenticationFailed =
     (methodId: string) =>
-    (cause: unknown): Error =>
-      cause instanceof Error
-        ? cause
-        : new Error({
-            reason: AuthenticationError.make({
-              reason: "authentication_failed",
-              methodId,
-              availableMethodIds: [],
-              cause,
-            }),
-          });
+    (cause: unknown): AcpError =>
+      AcpError.make({
+        reason: AuthenticationError.make({
+          reason: "authentication_failed",
+          methodId,
+          availableMethodIds: [],
+          cause,
+        }),
+      });
 }

@@ -1,5 +1,5 @@
 import * as Resource from "#/resource/index.ts";
-import * as Sandbox from "#/sandbox/export.ts";
+import { SandboxError } from "#/sandbox/export.ts";
 import { Effect, Option, Schema } from "effect";
 import { ChildProcess as CP } from "effect/unstable/process";
 import ipaddr from "ipaddr.js";
@@ -46,7 +46,7 @@ export const formatResources = Effect.fn(function* (
 
   if (Option.isSome(numGPUs)) {
     return yield* Effect.fail(
-      Sandbox.Error.sandboxStart(name)(
+      SandboxError.sandboxStart(name)(
         new Error(
           `Apple container does not support GPU allocation, ` + `received: ${numGPUs.value}`,
         ),
@@ -56,7 +56,7 @@ export const formatResources = Effect.fn(function* (
 
   if (Option.isSome(storageMiB)) {
     return yield* Effect.fail(
-      Sandbox.Error.sandboxStart(name)(
+      SandboxError.sandboxStart(name)(
         new Error(
           `Apple container does not support storage size limits on the root filesystem, ` +
             `received: ${storageMiB.value}`,

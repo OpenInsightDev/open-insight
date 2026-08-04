@@ -1,3 +1,4 @@
+import { SandboxError } from "#/sandbox/export.ts";
 import * as Sandbox from "#/sandbox/export.ts";
 import * as Resource from "#/resource/index.ts";
 import * as Snapshot from "#/snapshot/export.ts";
@@ -30,7 +31,7 @@ const ensureSupportedResources = Effect.fn(function* (
   }
 
   return yield* Effect.fail(
-    Sandbox.Error.sandboxStart(handle.name)(
+    SandboxError.sandboxStart(handle.name)(
       new Error(
         `Apple container requires at least ${minimumMemoryMiB} MiB of memory, received ${resources.memoryMiB.value} MiB`,
       ),
@@ -43,7 +44,7 @@ export const runSandbox = Effect.fn(
     const fs = yield* FileSystem.FileSystem;
     const spawner = yield* Spawn.Service;
     const name = yield* Sandbox.makeName().pipe(
-      Effect.mapError(Sandbox.Error.sandboxStart(handle.name)),
+      Effect.mapError(SandboxError.sandboxStart(handle.name)),
     );
     const networkName = `oi-network-${name.slice(-36)}`;
     yield* Effect.annotateCurrentSpan({
@@ -61,7 +62,7 @@ export const runSandbox = Effect.fn(
     const start = Effect.fn(function* (command: CP.Command) {
       yield* spawner
         .success(command)
-        .pipe(Effect.timeout(timeout), Effect.mapError(Sandbox.Error.sandboxStart(name)));
+        .pipe(Effect.timeout(timeout), Effect.mapError(SandboxError.sandboxStart(name)));
     });
 
     const removeContainer = Effect.fn(function* () {
@@ -103,10 +104,10 @@ export const runSandbox = Effect.fn(
         .string(CP.make`container inspect ${name}`)
         .pipe(
           Effect.timeout(timeout),
-          Effect.mapError(Sandbox.Error.sandboxExpose(name, sandboxPort)),
+          Effect.mapError(SandboxError.sandboxExpose(name, sandboxPort)),
         );
       const host = yield* parseContainerHost(output).pipe(
-        Effect.mapError(Sandbox.Error.sandboxExpose(name, sandboxPort)),
+        Effect.mapError(SandboxError.sandboxExpose(name, sandboxPort)),
       );
 
       yield* Effect.logDebug("Resolved Apple sandbox host", {
@@ -159,7 +160,7 @@ export const runSandbox = Effect.fn(
       cmd: Effect.fn(function* (command) {
         return yield* sandboxSpawner
           .spawn(command)
-          .pipe(Effect.mapError(Sandbox.Error.sandboxExec(name, formatSandboxCommand(command))));
+          .pipe(Effect.mapError(SandboxError.sandboxExec(name, formatSandboxCommand(command))));
       }),
       expose: Effect.fn(function* ({ sandboxPort }) {
         yield* Effect.logDebug("Exposing Apple container sandbox port", {
@@ -186,7 +187,7 @@ export const runSandbox = Effect.fn(
         yield* spawner
           .success(command)
           .pipe(Effect.timeout(timeout))
-          .pipe(Effect.mapError(Sandbox.Error.sandboxExec(handle.name, Bash.format(command))));
+          .pipe(Effect.mapError(SandboxError.sandboxExec(handle.name, Bash.format(command))));
         yield* Effect.logDebug("Downloaded file from Apple sandbox", {
           containerName: name,
           sandboxPath,
@@ -203,7 +204,7 @@ export const runSandbox = Effect.fn(
         yield* spawner
           .success(command)
           .pipe(Effect.timeout(timeout))
-          .pipe(Effect.mapError(Sandbox.Error.sandboxExec(handle.name, Bash.format(command))));
+          .pipe(Effect.mapError(SandboxError.sandboxExec(handle.name, Bash.format(command))));
         yield* Effect.logDebug("Uploaded file to Apple sandbox", {
           containerName: name,
           hostPath,
@@ -215,7 +216,7 @@ export const runSandbox = Effect.fn(
         return yield* sandboxSpawner
           .stdout(command)
           .pipe(
-            Effect.mapError(Sandbox.Error.sandboxExec(handle.name, formatSandboxCommand(command))),
+            Effect.mapError(SandboxError.sandboxExec(handle.name, formatSandboxCommand(command))),
           );
       }),
       writeFile: Effect.fn(
@@ -232,9 +233,7 @@ export const runSandbox = Effect.fn(
               spawner
                 .success(command)
                 .pipe(Effect.timeout(timeout))
-                .pipe(
-                  Effect.mapError(Sandbox.Error.sandboxExec(handle.name, Bash.format(command))),
-                ),
+                .pipe(Effect.mapError(SandboxError.sandboxExec(handle.name, Bash.format(command)))),
             ),
             Effect.ensuring(fs.remove(hostPath, { force: true }).pipe(Effect.ignore)),
           );
@@ -246,7 +245,7 @@ export const runSandbox = Effect.fn(
         (effect, { sandboxPath }) =>
           effect.pipe(
             Effect.mapError(
-              Sandbox.Error.sandboxExec(handle.name, `write ${Bash.quote(sandboxPath)}`),
+              SandboxError.sandboxExec(handle.name, `write ${Bash.quote(sandboxPath)}`),
             ),
           ),
       ),

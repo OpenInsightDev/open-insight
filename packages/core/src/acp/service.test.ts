@@ -14,7 +14,7 @@ import { Deferred, Effect, Layer, Option, Path, Stream } from "effect";
 import { Prompt } from "effect/unstable/ai";
 import * as Agent from "#/agent/index.ts";
 import * as Sandbox from "#/sandbox/index.ts";
-import { Error as AcpError } from "./error.ts";
+import { AcpError } from "./error.ts";
 import { layer as acpLayer, makeProvider } from "./service.ts";
 
 const streamPair = (): readonly [AcpStream, AcpStream] => {
@@ -67,14 +67,14 @@ layer(Path.layer)((it) => {
         Effect.flip,
       );
 
-      assert.instanceOf(error, Agent.Error);
+      assert.instanceOf(error, Agent.AgentError);
       assert.strictEqual(error.reason._tag, "StreamError");
       assert.instanceOf(error.reason.cause, AcpError);
       const cause = error.reason.cause;
       if (!(cause instanceof AcpError)) {
-        return assert.fail("Expected Agent.Error to wrap Acp.Error");
+        return assert.fail("Expected Agent.AgentError to wrap AcpError");
       }
-      assert.strictEqual(cause.reason._tag, "AcpHttpTransportError");
+      assert.strictEqual(cause.reason._tag, "HttpTransportError");
     }),
   );
 
@@ -269,7 +269,7 @@ layer(Path.layer)((it) => {
       });
       const error = yield* provider.runSession(sandbox).pipe(Effect.flip);
 
-      assert.instanceOf(error, Agent.Error);
+      assert.instanceOf(error, Agent.AgentError);
       assert.strictEqual(error.reason._tag, "StreamError");
       if (error.reason._tag !== "StreamError") {
         return;
@@ -279,8 +279,8 @@ layer(Path.layer)((it) => {
       if (!(cause instanceof AcpError)) {
         return;
       }
-      assert.strictEqual(cause.reason._tag, "AcpAuthenticationError");
-      if (cause.reason._tag === "AcpAuthenticationError") {
+      assert.strictEqual(cause.reason._tag, "AuthenticationError");
+      if (cause.reason._tag === "AuthenticationError") {
         assert.strictEqual(cause.reason.reason, "authentication_required");
         assert.deepStrictEqual(cause.reason.availableMethodIds, ["api-key"]);
         assert.instanceOf(cause.reason.cause, RequestError);
@@ -309,15 +309,15 @@ layer(Path.layer)((it) => {
         auth: { methodId: "chat-gpt" },
       }).pipe(Effect.flip);
 
-      assert.instanceOf(error, Agent.Error);
+      assert.instanceOf(error, Agent.AgentError);
       assert.strictEqual(error.reason._tag, "StreamError");
       assert.instanceOf(error.reason.cause, AcpError);
       const cause = error.reason.cause;
       if (!(cause instanceof AcpError)) {
-        return assert.fail("Expected Agent.Error to wrap Acp.Error");
+        return assert.fail("Expected Agent.AgentError to wrap AcpError");
       }
-      assert.strictEqual(cause.reason._tag, "AcpAuthenticationError");
-      if (cause.reason._tag === "AcpAuthenticationError") {
+      assert.strictEqual(cause.reason._tag, "AuthenticationError");
+      if (cause.reason._tag === "AuthenticationError") {
         assert.strictEqual(cause.reason.reason, "unsupported_method");
         assert.strictEqual(cause.reason.methodId, "chat-gpt");
         assert.deepStrictEqual(cause.reason.availableMethodIds, ["api-key"]);
@@ -345,15 +345,15 @@ layer(Path.layer)((it) => {
         auth: { methodId: "api-key" },
       }).pipe(Effect.flip);
 
-      assert.instanceOf(error, Agent.Error);
+      assert.instanceOf(error, Agent.AgentError);
       assert.strictEqual(error.reason._tag, "StreamError");
       assert.instanceOf(error.reason.cause, AcpError);
       const cause = error.reason.cause;
       if (!(cause instanceof AcpError)) {
-        return assert.fail("Expected Agent.Error to wrap Acp.Error");
+        return assert.fail("Expected Agent.AgentError to wrap AcpError");
       }
-      assert.strictEqual(cause.reason._tag, "AcpAuthenticationError");
-      if (cause.reason._tag === "AcpAuthenticationError") {
+      assert.strictEqual(cause.reason._tag, "AuthenticationError");
+      if (cause.reason._tag === "AuthenticationError") {
         assert.strictEqual(cause.reason.reason, "authentication_failed");
         assert.strictEqual(cause.reason.methodId, "api-key");
         assert.instanceOf(cause.reason.cause, RequestError);
@@ -448,7 +448,7 @@ layer(Path.layer)((it) => {
 
       const error = yield* session.prompt(invalid).pipe(Stream.runDrain, Effect.flip);
 
-      assert.instanceOf(error, Agent.Error);
+      assert.instanceOf(error, Agent.AgentError);
       assert.include(error.message, "exactly one user message");
       assert.strictEqual(promptCount, 0);
     }),

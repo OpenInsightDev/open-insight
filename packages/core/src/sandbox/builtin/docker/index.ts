@@ -1,3 +1,4 @@
+import { SandboxError } from "#/sandbox/export.ts";
 import * as Sandbox from "#/sandbox/export.ts";
 import * as Snapshot from "#/snapshot/export.ts";
 import { Spawn, Bash } from "#/utils/export.ts";
@@ -22,10 +23,10 @@ export const make = Effect.fn("sandbox/provider/docker")(
     timeout = "30 seconds",
   }: Options): Effect.fn.Return<
     Sandbox.Provider,
-    Sandbox.Error,
+    SandboxError,
     Crypto.Crypto | FileSystem.FileSystem | Spawn.Service
   > {
-    const runtime = yield* Runtime.make().pipe(Effect.mapError(Sandbox.Error.provider("docker")));
+    const runtime = yield* Runtime.make().pipe(Effect.mapError(SandboxError.provider("docker")));
 
     const crypto = yield* Crypto.Crypto;
     const spawner = yield* Spawn.Service;
@@ -59,12 +60,12 @@ export const make = Effect.fn("sandbox/provider/docker")(
       const command = CP.make`port ${name} ${sandboxPort}`.pipe(runtime);
       const output = yield* spawner
         .string(command)
-        .pipe(Effect.mapError(Sandbox.Error.sandboxExpose(name, sandboxPort)));
+        .pipe(Effect.mapError(SandboxError.sandboxExpose(name, sandboxPort)));
 
       const port = Number(output.trim().split(":").at(-1));
       if (!Number.isInteger(port)) {
         return yield* Effect.fail(
-          Sandbox.Error.sandboxExpose(
+          SandboxError.sandboxExpose(
             name,
             sandboxPort,
           )(new Error(`Docker did not report a host port for sandbox port ${sandboxPort}`)),
@@ -149,7 +150,7 @@ export const make = Effect.fn("sandbox/provider/docker")(
           Effect.annotateLogs({
             snapshotContext: snapshot.context,
           }),
-          Effect.mapError(Sandbox.Error.snapshot(Snapshot.Error.build(snapshot))),
+          Effect.mapError(SandboxError.snapshot(Snapshot.Error.build(snapshot))),
         ),
     ) satisfies Sandbox.Provider["aquireSnapshot"];
 
@@ -205,14 +206,14 @@ export const make = Effect.fn("sandbox/provider/docker")(
           Effect.annotateLogs({
             baseDockerImage: handle.name,
           }),
-          Effect.mapError(Sandbox.Error.snapshot(Snapshot.Error.derive(handle.name, instructions))),
+          Effect.mapError(SandboxError.snapshot(Snapshot.Error.derive(handle.name, instructions))),
         ),
     ) satisfies Sandbox.Provider["deriveSnapshot"];
 
     const runSandbox = Effect.fn(
       function* ({ handle, resources }) {
         const name = yield* Sandbox.makeName().pipe(
-          Effect.mapError(Sandbox.Error.sandboxStart(handle.name)),
+          Effect.mapError(SandboxError.sandboxStart(handle.name)),
         );
         yield* Effect.annotateCurrentSpan({
           dockerImage: handle.name,
@@ -237,7 +238,7 @@ export const make = Effect.fn("sandbox/provider/docker")(
           spawner.success(run).pipe(
             Effect.timeout(timeout),
             Effect.onError(() => removeContainer(name)),
-            Effect.mapError(Sandbox.Error.sandboxStart(name)),
+            Effect.mapError(SandboxError.sandboxStart(name)),
           ),
           () => removeContainer(name),
         );
@@ -250,11 +251,11 @@ export const make = Effect.fn("sandbox/provider/docker")(
           .string(CP.make`inspect --format {{.State.Running}} ${name}`.pipe(runtime))
           .pipe(Effect.timeout(timeout))
           .pipe(Effect.map((output) => output.trim() === "true"))
-          .pipe(Effect.mapError(Sandbox.Error.sandboxStart(name)));
+          .pipe(Effect.mapError(SandboxError.sandboxStart(name)));
 
         if (!isRunning) {
           return yield* Effect.fail(
-            Sandbox.Error.sandboxStart(name)(
+            SandboxError.sandboxStart(name)(
               new Error("Docker container was created but did not reach running state"),
             ),
           );
@@ -276,9 +277,7 @@ export const make = Effect.fn("sandbox/provider/docker")(
           cmd: (command) =>
             sandboxSpawner
               .spawn(command)
-              .pipe(
-                Effect.mapError(Sandbox.Error.sandboxExec(name, formatSandboxCommand(command))),
-              ),
+              .pipe(Effect.mapError(SandboxError.sandboxExec(name, formatSandboxCommand(command)))),
           expose: Effect.fn(function* ({ sandboxPort }) {
             yield* Effect.logDebug("Exposing Docker sandbox port", {
               containerName: name,
@@ -287,7 +286,7 @@ export const make = Effect.fn("sandbox/provider/docker")(
 
             if (!hasPort(ports, sandboxPort)) {
               return yield* Effect.fail(
-                Sandbox.Error.sandboxExpose(
+                SandboxError.sandboxExpose(
                   handle.name,
                   sandboxPort,
                 )(
@@ -318,7 +317,7 @@ export const make = Effect.fn("sandbox/provider/docker")(
             yield* spawner
               .success(command.pipe(runtime))
               .pipe(Effect.timeout(timeout))
-              .pipe(Effect.mapError(Sandbox.Error.sandboxExec(handle.name, Bash.format(command))));
+              .pipe(Effect.mapError(SandboxError.sandboxExec(handle.name, Bash.format(command))));
             yield* Effect.logDebug("Downloaded file from Docker sandbox", {
               containerName: name,
               sandboxPath,
@@ -335,7 +334,7 @@ export const make = Effect.fn("sandbox/provider/docker")(
             yield* spawner
               .success(command.pipe(runtime))
               .pipe(Effect.timeout(timeout))
-              .pipe(Effect.mapError(Sandbox.Error.sandboxExec(handle.name, Bash.format(command))));
+              .pipe(Effect.mapError(SandboxError.sandboxExec(handle.name, Bash.format(command))));
             yield* Effect.logDebug("Uploaded file to Docker sandbox", {
               containerName: name,
               hostPath,
@@ -348,7 +347,7 @@ export const make = Effect.fn("sandbox/provider/docker")(
               .stdout(command)
               .pipe(
                 Effect.mapError(
-                  Sandbox.Error.sandboxExec(handle.name, formatSandboxCommand(command)),
+                  SandboxError.sandboxExec(handle.name, formatSandboxCommand(command)),
                 ),
               );
           }),
@@ -369,7 +368,7 @@ export const make = Effect.fn("sandbox/provider/docker")(
                     .success(command.pipe(runtime))
                     .pipe(Effect.timeout(timeout))
                     .pipe(
-                      Effect.mapError(Sandbox.Error.sandboxExec(handle.name, Bash.format(command))),
+                      Effect.mapError(SandboxError.sandboxExec(handle.name, Bash.format(command))),
                     ),
                 ),
                 Effect.ensuring(fs.remove(hostPath, { force: true }).pipe(Effect.ignore)),
@@ -382,7 +381,7 @@ export const make = Effect.fn("sandbox/provider/docker")(
             (effect, { sandboxPath }) =>
               effect.pipe(
                 Effect.mapError(
-                  Sandbox.Error.sandboxExec(handle.name, `write ${Bash.quote(sandboxPath)}`),
+                  SandboxError.sandboxExec(handle.name, `write ${Bash.quote(sandboxPath)}`),
                 ),
               ),
           ),
@@ -411,6 +410,6 @@ export const layer = (
   options: Options = {},
 ): Layer.Layer<
   Sandbox.ProviderService,
-  Sandbox.Error,
+  SandboxError,
   Crypto.Crypto | FileSystem.FileSystem | ChildProcessSpawner
 > => Layer.effect(Sandbox.ProviderService)(make(options));

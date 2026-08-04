@@ -1,7 +1,7 @@
 import { NodeServices } from "@effect/platform-node";
 import { assert, describe, layer } from "@effect/vitest";
 import { Effect, FileSystem, Path } from "effect";
-import * as Sandbox from "../sandbox/index.ts";
+import { SandboxError } from "../sandbox/index.ts";
 import * as Snapshot from "./index.ts";
 
 describe("Snapshot", () => {
@@ -67,7 +67,7 @@ describe("Snapshot", () => {
             '# syntax=docker/dockerfile:1\nFROM alpine\nRUN --mount=type=cache,target=/var/cache echo ready\nCMD ["sleep","infinity"]\n',
           );
 
-          const error = Sandbox.Error.buildUnsupported("remote", snapshot);
+          const error = SandboxError.buildUnsupported("remote", snapshot);
           const reason = error.reason;
           if (reason._tag !== "SnapshotBuildUnsupported") {
             return assert.fail(`Unexpected error reason: ${reason._tag}`);

@@ -40,7 +40,7 @@ const makeVerifAgent = ({
   trajectory: Effect.fn(function* () {
     const input = yield* Effect.tryPromise(() =>
       verifier({ ...sandbox, trajectory: Prompt.empty }),
-    ).pipe(Effect.mapError(Agent.Error.trajectory));
+    ).pipe(Effect.mapError(Agent.AgentError.trajectory));
     return input === null ? Prompt.empty : Prompt.make(input);
   }),
   prompt: () => Stream.empty,

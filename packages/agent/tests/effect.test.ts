@@ -219,7 +219,7 @@ it.effect("stops an agent loop that exceeds maxSteps", () =>
       .prompt(Prompt.make("keep reading"))
       .pipe(Stream.runCollect, Effect.flip);
 
-    assert.instanceOf(error, Agent.Error);
+    assert.instanceOf(error, Agent.AgentError);
     assert.strictEqual(modelSteps, 2);
   }),
 );
@@ -512,7 +512,7 @@ testLayer(NodeServices.layer)("configured agent", (it) => {
         Effect.flip,
       );
 
-      assert.instanceOf(error, Agent.Error);
+      assert.instanceOf(error, Agent.AgentError);
       assert.instanceOf(error.reason.cause, RangeError);
       assert.isFalse(mcpServer.isConnected());
     }),

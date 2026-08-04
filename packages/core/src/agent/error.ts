@@ -2,7 +2,9 @@ import { Schema } from "effect";
 
 const Cause = Schema.Error();
 
-export class StreamError extends Schema.TaggedErrorClass<StreamError>()("StreamError", {
+export class StreamError extends Schema.TaggedErrorClass<StreamError>(
+  "open-insight/AgentError/StreamError",
+)("StreamError", {
   cause: Cause,
 }) {
   override get message(): string {
@@ -10,7 +12,9 @@ export class StreamError extends Schema.TaggedErrorClass<StreamError>()("StreamE
   }
 }
 
-export class TrajectoryError extends Schema.TaggedErrorClass<TrajectoryError>()("TrajectoryError", {
+export class TrajectoryError extends Schema.TaggedErrorClass<TrajectoryError>(
+  "open-insight/AgentError/TrajectoryError",
+)("TrajectoryError", {
   cause: Cause,
 }) {
   override get message(): string {
@@ -21,9 +25,12 @@ export class TrajectoryError extends Schema.TaggedErrorClass<TrajectoryError>()(
 export const ErrorReason = Schema.Union([StreamError, TrajectoryError]);
 export type ErrorReason = Schema.Schema.Type<typeof ErrorReason>;
 
-export class Error extends Schema.TaggedErrorClass<Error>()("AgentError", {
-  reason: ErrorReason,
-}) {
+export class AgentError extends Schema.TaggedErrorClass<AgentError>("open-insight/AgentError")(
+  "AgentError",
+  {
+    reason: ErrorReason,
+  },
+) {
   override get message(): string {
     return this.reason.message;
   }
@@ -32,12 +39,13 @@ export class Error extends Schema.TaggedErrorClass<Error>()("AgentError", {
     return this.reason;
   }
 
-  static mapUnknownError = (mapper: (cause: globalThis.Error) => ErrorReason) => (cause: unknown) =>
-    cause instanceof Error
-      ? cause
-      : new Error({ reason: mapper(Schema.decodeUnknownSync(Cause)(cause)) });
+  static stream = (cause: unknown): AgentError =>
+    AgentError.make({
+      reason: StreamError.make({ cause: Schema.decodeUnknownSync(Cause)(cause) }),
+    });
 
-  static stream = this.mapUnknownError((cause) => new StreamError({ cause }));
-
-  static trajectory = this.mapUnknownError((cause) => new TrajectoryError({ cause }));
+  static trajectory = (cause: unknown): AgentError =>
+    AgentError.make({
+      reason: TrajectoryError.make({ cause: Schema.decodeUnknownSync(Cause)(cause) }),
+    });
 }

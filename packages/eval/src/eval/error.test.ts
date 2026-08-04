@@ -5,7 +5,7 @@ import { Error } from "./error.ts";
 
 it("renders the complete agent failure chain", () => {
   const root = new globalThis.Error("request failed with status 401");
-  const agent = Agent.Error.stream(root);
+  const agent = Agent.AgentError.stream(root);
   const error = Error.agent(agent);
 
   assert.strictEqual(error.message, "Agent response stream failed: request failed with status 401");

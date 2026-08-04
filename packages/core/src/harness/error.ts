@@ -1,55 +1,53 @@
 import { Schema } from "effect";
 import * as Agent from "#/agent/index.ts";
-import * as Sandbox from "#/sandbox/index.ts";
+import { SandboxError } from "#/sandbox/index.ts";
 import * as Snapshot from "#/snapshot/index.ts";
 
-export class InitError extends Schema.TaggedErrorClass<InitError>()("HarnessInitError", {
-  cause: Sandbox.Error,
+export class InitError extends Schema.TaggedErrorClass<InitError>(
+  "open-insight/HarnessError/InitError",
+)("InitError", {
+  cause: SandboxError,
 }) {
   override get message(): string {
     return `Failed to initialize harness: ${this.cause.message}`;
   }
 }
 
-export class SnapshotAcquireError extends Schema.TaggedErrorClass<SnapshotAcquireError>()(
-  "HarnessSnapshotAcquireError",
-  {
-    snapshot: Snapshot.Snapshot,
-    cause: Sandbox.Error,
-  },
-) {
+export class SnapshotAcquireError extends Schema.TaggedErrorClass<SnapshotAcquireError>(
+  "open-insight/HarnessError/SnapshotAcquireError",
+)("SnapshotAcquireError", {
+  snapshot: Snapshot.Snapshot,
+  cause: SandboxError,
+}) {
   override get message(): string {
     return `Failed to acquire harness snapshot: ${this.cause.message}`;
   }
 }
 
-export class SnapshotDeriveError extends Schema.TaggedErrorClass<SnapshotDeriveError>()(
-  "HarnessSnapshotDeriveError",
-  {
-    instructions: Snapshot.Instructions,
-    cause: Sandbox.Error,
-  },
-) {
+export class SnapshotDeriveError extends Schema.TaggedErrorClass<SnapshotDeriveError>(
+  "open-insight/HarnessError/SnapshotDeriveError",
+)("SnapshotDeriveError", {
+  instructions: Snapshot.Instructions,
+  cause: SandboxError,
+}) {
   override get message(): string {
     return `Failed to derive harness snapshot: ${this.cause.message}`;
   }
 }
 
-export class SandboxRunError extends Schema.TaggedErrorClass<SandboxRunError>()(
-  "HarnessSandboxRunError",
-  {
-    cause: Sandbox.Error,
-  },
-) {
+export class SandboxRunError extends Schema.TaggedErrorClass<SandboxRunError>(
+  "open-insight/HarnessError/SandboxRunError",
+)("SandboxRunError", {
+  cause: SandboxError,
+}) {
   override get message(): string {
     return `Failed to run harness sandbox: ${this.cause.message}`;
   }
 }
 
-export class SessionNotStartedError extends Schema.TaggedErrorClass<SessionNotStartedError>()(
-  "HarnessSessionNotStartedError",
-  {},
-) {
+export class SessionNotStartedError extends Schema.TaggedErrorClass<SessionNotStartedError>(
+  "open-insight/HarnessError/SessionNotStartedError",
+)("SessionNotStartedError", {}) {
   override get message(): string {
     return "Agent session has not been started";
   }
@@ -61,11 +59,13 @@ export const ErrorReason = Schema.Union([
   SnapshotDeriveError,
   SandboxRunError,
   SessionNotStartedError,
-  Agent.Error,
+  Agent.AgentError,
 ]);
 export type ErrorReason = Schema.Schema.Type<typeof ErrorReason>;
 
-export class Error extends Schema.TaggedErrorClass<Error>()("HarnessError", {
+export class HarnessError extends Schema.TaggedErrorClass<HarnessError>(
+  "open-insight/HarnessError",
+)("HarnessError", {
   reason: ErrorReason,
 }) {
   override get message(): string {
@@ -76,15 +76,21 @@ export class Error extends Schema.TaggedErrorClass<Error>()("HarnessError", {
     return this.reason;
   }
 
-  static snapshotAcquire = (snapshot: Snapshot.Snapshot) => (cause: Sandbox.Error) =>
-    new Error({ reason: new SnapshotAcquireError({ snapshot, cause }) });
+  static snapshotAcquire =
+    (snapshot: Snapshot.Snapshot) =>
+    (cause: SandboxError): HarnessError =>
+      HarnessError.make({ reason: SnapshotAcquireError.make({ snapshot, cause }) });
 
-  static snapshotDerive = (instructions: Snapshot.Instructions) => (cause: Sandbox.Error) =>
-    new Error({ reason: new SnapshotDeriveError({ instructions, cause }) });
+  static snapshotDerive =
+    (instructions: Snapshot.Instructions) =>
+    (cause: SandboxError): HarnessError =>
+      HarnessError.make({ reason: SnapshotDeriveError.make({ instructions, cause }) });
 
-  static sandbox = (cause: Sandbox.Error) => new Error({ reason: new SandboxRunError({ cause }) });
+  static sandbox = (cause: SandboxError): HarnessError =>
+    HarnessError.make({ reason: SandboxRunError.make({ cause }) });
 
-  static agent = (cause: Agent.Error) => new Error({ reason: cause });
+  static agent = (cause: Agent.AgentError): HarnessError => HarnessError.make({ reason: cause });
 
-  static sessionNotStarted = () => new Error({ reason: new SessionNotStartedError() });
+  static sessionNotStarted = (): HarnessError =>
+    HarnessError.make({ reason: SessionNotStartedError.make() });
 }

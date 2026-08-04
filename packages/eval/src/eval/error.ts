@@ -95,7 +95,7 @@ export const ErrorReason = Schema.Union([
   Tasks.Error,
   Event.Error,
   Grade.Error,
-  Harness.Error,
+  Harness.HarnessError,
   SnapshotError,
   TaskInitError,
   TaskExecError,
@@ -156,5 +156,5 @@ export class Error extends Schema.TaggedErrorClass<Error>()("EvalError", {
   static verifExec = (task: ExecTask) =>
     this.mapUnknownError((cause) => new TaskVerifExecError({ task: task.metadata.id, cause }));
 
-  static harness = (cause: Harness.Error) => new Error({ reason: cause });
+  static harness = (cause: Harness.HarnessError) => new Error({ reason: cause });
 }

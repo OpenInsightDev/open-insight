@@ -3,7 +3,7 @@ import * as Agent from "#/agent/index.ts";
 import * as Resource from "#/resource/index.ts";
 import * as Sandbox from "#/sandbox/index.ts";
 import * as Snapshot from "#/snapshot/index.ts";
-import { Error } from "./error.ts";
+import { HarnessError } from "./error.ts";
 import type * as Prompt from "#/prompt/index.ts";
 import type { StreamPartEncoded } from "effect/unstable/ai/Response";
 
@@ -15,20 +15,22 @@ export class Metadata extends Schema.Class<Metadata>("HarnessMetadata")({
 type MetadataEncoded = Schema.Codec.Encoded<Metadata>;
 
 export type Session = Readonly<{
-  trajectory: Effect.Effect<Prompt.Trajectory, Error>;
-  prompt(prompt: Prompt.Prompt): Stream.Stream<StreamPartEncoded, Error>;
+  trajectory: Effect.Effect<Prompt.Trajectory, HarnessError>;
+  prompt(prompt: Prompt.Prompt): Stream.Stream<StreamPartEncoded, HarnessError>;
 }>;
 
-const makeSession = Effect.fn(function* (agent: Agent.Agent): Effect.fn.Return<Session, Error> {
+const makeSession = Effect.fn(function* (
+  agent: Agent.Agent,
+): Effect.fn.Return<Session, HarnessError> {
   return {
-    trajectory: agent.trajectory.pipe(Effect.mapError(Error.agent)),
-    prompt: (prompt) => agent.prompt(prompt).pipe(Stream.mapError(Error.agent)),
+    trajectory: agent.trajectory.pipe(Effect.mapError(HarnessError.agent)),
+    prompt: (prompt) => agent.prompt(prompt).pipe(Stream.mapError(HarnessError.agent)),
   } satisfies Session;
 });
 
 export type Run = Readonly<{
   sandbox: Sandbox.Sandbox;
-  runSession(): Effect.Effect<Session, Error>;
+  runSession(): Effect.Effect<Session, HarnessError>;
 }>;
 
 export type Config = Readonly<{
@@ -47,7 +49,7 @@ export type Harness = Readonly<{
       Readonly<{
         resources?: Resource.Resources;
       }>,
-  ): Effect.Effect<Run, Error, Scope.Scope>;
+  ): Effect.Effect<Run, HarnessError, Scope.Scope>;
 }>;
 
 export class Service extends Context.Service<Service, Harness>()("harness/Service") {
@@ -69,7 +71,7 @@ export class Service extends Context.Service<Service, Harness>()("harness/Servic
         ) {
           const taskSnapshot = yield* sandboxProvider
             .aquireSnapshot({ snapshot, cache: cacheTaskSnapshot })
-            .pipe(Effect.mapError(Error.snapshotAcquire(snapshot)));
+            .pipe(Effect.mapError(HarnessError.snapshotAcquire(snapshot)));
 
           const runSnapshot = yield* agentProvider.snapshotExtension.pipe(
             Option.match({
@@ -82,20 +84,20 @@ export class Service extends Context.Service<Service, Harness>()("harness/Servic
                     context: context ?? snapshot.context,
                     cache: cacheAgentSnapshot,
                   })
-                  .pipe(Effect.mapError(Error.snapshotDerive(instructions))),
+                  .pipe(Effect.mapError(HarnessError.snapshotDerive(instructions))),
             }),
           );
 
           const sandbox = yield* sandboxProvider
             .runSandbox({ handle: runSnapshot, resources })
-            .pipe(Effect.mapError(Error.sandbox));
+            .pipe(Effect.mapError(HarnessError.sandbox));
 
           return {
             sandbox,
             runSession: Effect.fn(function* () {
               const agentSession = yield* agentProvider
                 .runSession(sandbox)
-                .pipe(Effect.mapError(Error.agent));
+                .pipe(Effect.mapError(HarnessError.agent));
               return yield* makeSession(agentSession);
             }),
           };

@@ -1,5 +1,5 @@
 export {
-  Error,
+  AcpError,
   ErrorReason,
   AuthenticationError,
   AuthenticationErrorReason,
@@ -11,7 +11,7 @@ export {
 } from "./error.ts";
 export { openHttpStream, openStream, openWebSocketStream } from "./http.ts";
 export { type ToAcpPromptOptions, toAcpPrompt } from "./prompt.ts";
-export { harnessLayer, layer, type Options } from "./service.ts";
+export { layer, type Options } from "./service.ts";
 export { type AcpTools, type StreamPart, transform } from "./stream.ts";
 
 export * as Internal from "./index.ts";

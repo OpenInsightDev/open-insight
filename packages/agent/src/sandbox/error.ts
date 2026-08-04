@@ -1,4 +1,4 @@
-import { Sandbox } from "@open-insight/core";
+import { SandboxError } from "@open-insight/core";
 import { Inspectable } from "effect";
 
 const formatUnknownCause = (cause: unknown): string =>
@@ -7,7 +7,7 @@ const formatUnknownCause = (cause: unknown): string =>
     : Inspectable.toStringUnknown(cause);
 
 export const formatError = (error: unknown): string => {
-  if (error instanceof Sandbox.Error) {
+  if (error instanceof SandboxError) {
     const reason = error.reason;
     if (reason._tag === "SandboxExecError") {
       return `Failed to ${reason.operation}: ${formatUnknownCause(reason.cause)}`;

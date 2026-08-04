@@ -2,7 +2,7 @@ import type { PromptCapabilities, PromptRequest } from "@agentclientprotocol/sdk
 import { assert, it } from "@effect/vitest";
 import { Effect } from "effect";
 import { Prompt } from "effect/unstable/ai";
-import { type Error, type PromptError, toAcpPrompt } from "./index.ts";
+import { type AcpError, type PromptError, toAcpPrompt } from "./index.ts";
 
 const userMessage = (content: ReadonlyArray<Prompt.UserMessagePart>): Prompt.UserMessage =>
   Prompt.userMessage({ content });
@@ -10,13 +10,13 @@ const userMessage = (content: ReadonlyArray<Prompt.UserMessagePart>): Prompt.Use
 const conversionError = (
   message: Prompt.UserMessage,
   promptCapabilities?: PromptCapabilities,
-): Effect.Effect<Error, PromptRequest["prompt"]> =>
+): Effect.Effect<AcpError, PromptRequest["prompt"]> =>
   toAcpPrompt(message, { promptCapabilities }).pipe(Effect.flip);
 
-const promptError = (error: Error): PromptError => {
-  assert.strictEqual(error.reason._tag, "AcpPromptError");
-  if (error.reason._tag !== "AcpPromptError") {
-    assert.fail(`Expected AcpPromptError, received ${error.reason._tag}`);
+const promptError = (error: AcpError): PromptError => {
+  assert.strictEqual(error.reason._tag, "PromptError");
+  if (error.reason._tag !== "PromptError") {
+    assert.fail(`Expected PromptError, received ${error.reason._tag}`);
   }
   return error.reason;
 };

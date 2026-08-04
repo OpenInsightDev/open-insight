@@ -123,7 +123,7 @@ const provider =
 `helpArgs` controls how the help page is fetched (default `--help`), and `runArgs` are documented
 in the prompt as the runtime invocation prefix so the agent knows how to call the tool. CLI help
 is fetched per session inside the sandbox, so the tools must be available there; a failed fetch
-fails the session with a typed `Agent.Error` whose cause is `Cli.HelpError`.
+fails the session with a typed `Agent.AgentError` whose cause is `Cli.HelpError`.
 
 Each `agent.prompt` call runs an agent loop: it streams a model step, executes emitted tools, adds
 their results to the session history, and calls the model again until it produces a step without

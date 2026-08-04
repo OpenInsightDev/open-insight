@@ -1,4 +1,4 @@
-import * as Sandbox from "#/sandbox/export.ts";
+import { SandboxError } from "#/sandbox/export.ts";
 import * as Snapshot from "#/snapshot/export.ts";
 import { Spawn } from "#/utils/export.ts";
 import { Effect } from "effect";
@@ -73,7 +73,7 @@ export const aquireSnapshot = Effect.fn(
   (effect, { snapshot }) =>
     effect.pipe(
       Effect.annotateLogs({ snapshotContext: snapshot.context }),
-      Effect.mapError(Sandbox.Error.snapshot(Snapshot.Error.build(snapshot))),
+      Effect.mapError(SandboxError.snapshot(Snapshot.Error.build(snapshot))),
     ),
 );
 
@@ -124,6 +124,6 @@ export const deriveSnapshot = Effect.fn(
   (effect, { handle, instructions }) =>
     effect.pipe(
       Effect.annotateLogs({ baseAppleContainerImage: handle.name }),
-      Effect.mapError(Sandbox.Error.snapshot(Snapshot.Error.derive(handle.name, instructions))),
+      Effect.mapError(SandboxError.snapshot(Snapshot.Error.derive(handle.name, instructions))),
     ),
 );

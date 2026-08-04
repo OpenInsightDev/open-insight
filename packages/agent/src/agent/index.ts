@@ -69,7 +69,7 @@ const resolveMaxSteps = Effect.fn("Agent.resolveMaxSteps")(function* (maxSteps?:
   }
   if (!Number.isSafeInteger(maxSteps) || maxSteps < 1) {
     return yield* Effect.fail(
-      Agent.Error.stream(
+      Agent.AgentError.stream(
         new RangeError(`maxSteps must be a positive safe integer, received ${maxSteps}`),
       ),
     );
@@ -93,7 +93,7 @@ const makeSession = Effect.fn("Agent.makeSession")(function* <
   instructions: Option.Option<string>;
   maxSteps: number;
   context: ReadonlyArray<AgentContext.ContextService>;
-}): Effect.fn.Return<Agent.Agent<Tools>, Agent.Error, LanguageModel.LanguageModel> {
+}): Effect.fn.Return<Agent.Agent<Tools>, Agent.AgentError, LanguageModel.LanguageModel> {
   const llm = yield* LanguageModel.LanguageModel;
   const initialTrajectory = Option.match(instructions, {
     onNone: () => Prompt.empty,
@@ -180,7 +180,7 @@ const makeSession = Effect.fn("Agent.makeSession")(function* <
           }
           if (step >= maxSteps) {
             return Stream.fail(
-              Agent.Error.stream(
+              Agent.AgentError.stream(
                 new Error(`Agent exceeded maxSteps (${maxSteps}) while resolving tool calls`),
               ),
             );
@@ -205,7 +205,7 @@ const makeSession = Effect.fn("Agent.makeSession")(function* <
           ),
         ),
       ).pipe(
-        Stream.mapError(Agent.Error.stream),
+        Stream.mapError(Agent.AgentError.stream),
         Stream.provideService(LanguageModel.LanguageModel, llm),
         Stream.provideService(Sandbox.Current, sandbox),
         Stream.provideContext(ctx),
@@ -220,7 +220,7 @@ const makeProvider = Effect.fn("Agent.makeProvider")(function* <
   options?: ProviderOptions,
 ): Effect.fn.Return<
   Agent.Provider<Tools>,
-  Agent.Error,
+  Agent.AgentError,
   LanguageModel.LanguageModel | Tool.HandlersFor<Tools> | ToolkitServices<Tools>
 > {
   const llm = yield* LanguageModel.LanguageModel;
@@ -234,7 +234,7 @@ const makeProvider = Effect.fn("Agent.makeProvider")(function* <
       const cliInstructions = yield* Effect.transposeOption(
         Option.fromUndefinedOr(options?.cli).pipe(
           Option.map((cli) =>
-            Cli.instructions(cli, sandbox).pipe(Effect.mapError(Agent.Error.stream)),
+            Cli.instructions(cli, sandbox).pipe(Effect.mapError(Agent.AgentError.stream)),
           ),
         ),
       ).pipe(Effect.map(Option.flatMap(Option.fromUndefinedOr)));
@@ -262,7 +262,7 @@ export const make = Effect.fn("Agent.make")(function* <Custom extends Record<str
   options?: Options,
 ): Effect.fn.Return<
   Agent.Provider<Tools<Custom>>,
-  Agent.Error | Mcp.Error,
+  Agent.AgentError | Mcp.Error,
   LanguageModel.LanguageModel | Tool.HandlersFor<Custom> | ToolkitServices<Tools<Custom>>
 > {
   const mcp = yield* Mcp.Service;

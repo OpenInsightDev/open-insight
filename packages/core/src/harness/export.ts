@@ -1,6 +1,7 @@
 export {
-  Error,
+  HarnessError,
   ErrorReason,
+  InitError,
   SandboxRunError,
   SessionNotStartedError,
   SnapshotAcquireError,
