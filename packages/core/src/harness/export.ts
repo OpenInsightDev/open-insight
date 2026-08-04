@@ -6,4 +6,5 @@ export {
   SnapshotAcquireError,
   SnapshotDeriveError,
 } from "./error.ts";
-export { Service, type Config, type Harness, type Run } from "./service.ts";
+
+export { Service, type Config, type Harness, type Session, type Run } from "./service.ts";

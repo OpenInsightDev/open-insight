@@ -3,6 +3,14 @@ import * as Agent from "#/agent/index.ts";
 import * as Sandbox from "#/sandbox/index.ts";
 import * as Snapshot from "#/snapshot/index.ts";
 
+export class InitError extends Schema.TaggedErrorClass<InitError>()("HarnessInitError", {
+  cause: Sandbox.Error,
+}) {
+  override get message(): string {
+    return `Failed to initialize harness: ${this.cause.message}`;
+  }
+}
+
 export class SnapshotAcquireError extends Schema.TaggedErrorClass<SnapshotAcquireError>()(
   "HarnessSnapshotAcquireError",
   {
@@ -48,6 +56,7 @@ export class SessionNotStartedError extends Schema.TaggedErrorClass<SessionNotSt
 }
 
 export const ErrorReason = Schema.Union([
+  InitError,
   SnapshotAcquireError,
   SnapshotDeriveError,
   SandboxRunError,

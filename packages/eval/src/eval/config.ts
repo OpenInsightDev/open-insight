@@ -1,34 +1,30 @@
 import type { NodeSdk } from "@effect/opentelemetry";
+import { Harness } from "@open-insight/core/internal";
 
 /** Runtime configuration for an evaluation run. */
-export type Config = Readonly<{
-  /** Whether task sandbox snapshots may be reused from the snapshot cache. Defaults to `true`. */
-  cacheTaskSnapshot: boolean;
+export type Config = Harness.Config &
+  Readonly<{
+    /** Configuration for the OpenTelemetry Node SDK. Defaults to an empty configuration. */
+    otel: NodeSdk.Configuration;
 
-  /** Whether agent-derived snapshots may be reused from the snapshot cache. Defaults to `true`. */
-  cacheAgentSnapshot: boolean;
+    /** Maximum number of task snapshots prepared concurrently. Defaults to `8`. */
+    snapshotConcurrency: number;
 
-  /** Configuration for the OpenTelemetry Node SDK. Defaults to an empty configuration. */
-  otel: NodeSdk.Configuration;
+    /** Maximum number of tasks processed concurrently. Defaults to `8`. */
+    taskConcurrency: number;
 
-  /** Maximum number of task snapshots prepared concurrently. Defaults to `8`. */
-  snapshotConcurrency: number;
+    /** Maximum number of evaluation trails executed concurrently. Defaults to `8`. */
+    trailConcurrency: number;
 
-  /** Maximum number of tasks processed concurrently. Defaults to `8`. */
-  taskConcurrency: number;
+    /** Number of independent evaluation trails run for each task. Defaults to `1`. */
+    trailCount: number;
 
-  /** Maximum number of evaluation trails executed concurrently. Defaults to `8`. */
-  trailConcurrency: number;
+    /** Maximum additional agent turns requested by a grader. Defaults to 3. */
+    graderMaxRetries: number;
 
-  /** Number of independent evaluation trails run for each task. Defaults to `1`. */
-  trailCount: number;
-
-  /** Maximum additional agent turns requested by a grader. Defaults to 3. */
-  graderMaxRetries: number;
-
-  /** Whether to run stages with verifier agents and validate their expected grades. Defaults to `false`. */
-  verifMode: boolean;
-}>;
+    /** Whether to run stages with verifier agents and validate their expected grades. Defaults to `false`. */
+    verifMode: boolean;
+  }>;
 
 /** Default runtime configuration used when no evaluation overrides are provided. */
 export const DefaultConfig: Required<Config> = {

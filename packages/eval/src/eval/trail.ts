@@ -15,13 +15,14 @@ import {
 import { Response } from "effect/unstable/ai";
 import { ChildProcessSpawner } from "effect/unstable/process";
 import { Agent, Sandbox } from "@open-insight/core";
-import { Prompt } from "@open-insight/core/internal";
+import { Harness, Prompt } from "@open-insight/core/internal";
 import * as Grade from "#/grade/index.ts";
 import * as Metric from "#/metric/index.ts";
 import * as Task from "#/task/index.ts";
 import type { Config } from "./config.ts";
 import { Error } from "./error.ts";
 import { TrailResult } from "./result.ts";
+import * as Bench from "#/bench/index.ts";
 import * as Event from "#/event/index.ts";
 
 export type RunTrail = (trailIdx: number) => Effect.Effect<TrailResult, Error, Scope.Scope>;
@@ -47,22 +48,19 @@ const makeVerifAgent = ({
 
 export const createTrail = Effect.fn("exec/createTrail")(
   function* ({
-    task,
     bench,
-    harness,
+    task,
     config,
     eventQueue,
   }: {
+    bench: Bench.Bench;
     task: Task.AnyTask;
-    bench: string;
-    harness: string;
     config: Config;
     eventQueue: Event.EventEnqueue;
   }): Effect.fn.Return<
     RunTrail,
     Error,
-    | Sandbox.ProviderService
-    | Agent.ProviderService
+    | Harness.Service
     | FileSystem.FileSystem
     | ChildProcessSpawner.ChildProcessSpawner
     | Path.Path
@@ -92,31 +90,14 @@ export const createTrail = Effect.fn("exec/createTrail")(
 
     yield* Effect.logDebug("Preparing task snapshot");
 
-    const sandboxProvider = yield* Sandbox.ProviderService;
-    const agentProvider = yield* Agent.ProviderService;
+    const harness = yield* Harness.Service;
     const fs = yield* FileSystem.FileSystem;
     const path = yield* Path.Path;
 
-    const taskSnapshot = yield* sandboxProvider
-      .aquireSnapshot({ snapshot, cache: taskCache })
-      .pipe(Effect.mapError(Error.taskInit(task)));
-
-    const trailSnapshot = !verifMode
-      ? yield* agentProvider.snapshotExtension.pipe(
-          Option.match({
-            onSome: ({ instructions, context }) =>
-              sandboxProvider
-                .deriveSnapshot({
-                  handle: taskSnapshot,
-                  instructions,
-                  context: context ?? snapshot.context,
-                  cache: agentCache,
-                })
-                .pipe(Effect.mapError(Error.taskInit(task))),
-            onNone: () => Effect.succeed(taskSnapshot),
-          }),
-        )
-      : taskSnapshot;
+    const harnessRun = yield* harness
+      .run(snapshot, { resources })
+      .pipe(Effect.mapError(Error.harness));
+    const sandboxPromise = Sandbox.asPromise(harnessRun.sandbox);
 
     yield* Effect.logDebug("Prepared task snapshot");
 
@@ -131,8 +112,8 @@ export const createTrail = Effect.fn("exec/createTrail")(
           run(trailResult).pipe(
             Effect.flatMap(({ id, result, chart }) =>
               Event.TaskMetricEvent.makeEffect({
-                bench,
-                harness,
+                bench: bench.metadata.id,
+                harness: harness.metadata.id,
                 task: task.metadata.id,
                 id,
                 result,
@@ -150,14 +131,9 @@ export const createTrail = Effect.fn("exec/createTrail")(
         yield* Effect.annotateCurrentSpan({ taskName: task.metadata.name, trailIdx: idx });
         yield* Effect.logDebug("Starting sandbox for trail");
 
-        const sandbox = yield* sandboxProvider
-          .runSandbox({ handle: trailSnapshot, resources })
-          .pipe(Effect.mapError(Error.taskExec(task, idx)));
-        const ctx = yield* Sandbox.asPromise(sandbox);
-
         const stageStream = Stream.fromIterable(stages);
 
-        const sessionRef = yield* Ref.make(Option.none<Agent.Agent>());
+        const sessionRef = yield* Ref.make(Option.none<Harness.Session>());
         const getSession = Ref.get(sessionRef).pipe(
           Effect.flatMap(
             Option.match({
@@ -172,9 +148,6 @@ export const createTrail = Effect.fn("exec/createTrail")(
             }),
           ),
         );
-        const getTrajectory = getSession.pipe(
-          Effect.flatMap((session) => session.trajectory().pipe(Effect.mapError(Error.agent))),
-        );
 
         const promptSession = Effect.fn("exec/runTrail/promptSession")(function* (
           trajectory: Prompt.Trajectory,
@@ -187,8 +160,8 @@ export const createTrail = Effect.fn("exec/createTrail")(
             Stream.mapError(Error.agent),
             Stream.tap((part) =>
               Event.TrailStreamEvent.makeEffect({
-                bench,
-                harness,
+                bench: bench.metadata.id,
+                harness: harness.metadata.id,
                 task: task.metadata.id,
                 part,
                 trailIdx: idx,
@@ -204,8 +177,8 @@ export const createTrail = Effect.fn("exec/createTrail")(
             Metric.Traj.run({ metrics: trajMetrics, sandbox: ctx, prevTrajectory }),
             Stream.runForEach(({ id, result, chart }) =>
               Event.TrajMetricEvent.makeEffect({
-                bench,
-                harness,
+                bench: bench.metadata.id,
+                harness: harness.metadata.id,
                 task: task.metadata.id,
                 trailIdx: idx,
                 id,
@@ -261,13 +234,11 @@ export const createTrail = Effect.fn("exec/createTrail")(
           );
         });
 
-        const executeGrader = Effect.fn("exec/runTrail/executeGrader")(function* <
-          G extends Grade.Result,
-        >(
-          grader: Grade.Grader<G, StageResults>,
+        const execGrader = Effect.fn("exec/runTrail/executeGrader")(function* (
+          grader: Grade.Grader,
           results: StageResults,
           trajectory: Prompt.Trajectory,
-        ): Effect.fn.Return<G["Type"], Error | Grade.Retry, Scope.Scope> {
+        ): Effect.fn.Return<unknown, Error | Grade.Retry, Scope.Scope> {
           return yield* Grade.run(grader)({
             ...ctx,
             prevResults: results,
@@ -285,7 +256,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
           results: StageResults,
         ): Effect.fn.Return<G["Type"], Error | Grade.Retry, Scope.Scope> {
           const trajectory = yield* getTrajectory;
-          return yield* executeGrader(grader, results, trajectory);
+          return yield* execGrader(grader, results, trajectory);
         });
 
         const runStage = Effect.fn("exec/runTrail/runStage")(function* (
@@ -311,7 +282,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
               verif.expect,
             ).pipe(Effect.mapError((error) => Error.grade(Grade.Error.result(error))));
 
-            const initialGrade = yield* executeGrader(grader, results, Prompt.empty).pipe(
+            const initialGrade = yield* execGrader(grader, results, Prompt.empty).pipe(
               Effect.map(Option.some),
               Effect.catchTag("Retry", () => Effect.succeed(Option.none())),
             );
@@ -403,8 +374,8 @@ export const createTrail = Effect.fn("exec/createTrail")(
           );
 
           yield* Event.TrailStagedEvent.makeEffect({
-            bench,
-            harness,
+            bench: bench.metadata.id,
+            harness: harness.metadata.id,
             task: task.metadata.id,
             trailIdx: idx,
             stage: metadata.id,

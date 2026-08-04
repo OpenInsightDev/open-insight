@@ -4,7 +4,7 @@ import * as Tasks from "#/tasks/index.ts";
 import * as Task from "../task/index.ts";
 import * as Bench from "#/bench/index.ts";
 import * as Event from "#/event/index.ts";
-import { Agent, Snapshot } from "@open-insight/core/internal";
+import { Agent, Snapshot, Harness } from "@open-insight/core/internal";
 
 const Cause = Schema.Error();
 const NonNegativeInt = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0));
@@ -94,8 +94,8 @@ export const ErrorReason = Schema.Union([
   InitError,
   Tasks.Error,
   Event.Error,
-  Agent.Error,
   Grade.Error,
+  Harness.Error,
   SnapshotError,
   TaskInitError,
   TaskExecError,
@@ -156,5 +156,5 @@ export class Error extends Schema.TaggedErrorClass<Error>()("EvalError", {
   static verifExec = (task: ExecTask) =>
     this.mapUnknownError((cause) => new TaskVerifExecError({ task: task.metadata.id, cause }));
 
-  static agent = (error: Agent.Error) => new Error({ reason: error });
+  static harness = (cause: Harness.Error) => new Error({ reason: cause });
 }
