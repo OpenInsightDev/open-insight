@@ -2,7 +2,7 @@ import { Crypto, DateTime, Effect, FileSystem, Path, Ref, Scope, Stream } from "
 import type { ChildProcessSpawner } from "effect/unstable/process";
 import { castDraft, produce } from "immer";
 import * as Bench from "#/bench/index.ts";
-import { Harness } from "@open-insight/core/internal";
+import { Agent, Sandbox } from "@open-insight/core/internal";
 import * as Metric from "#/metric/index.ts";
 import * as Task from "#/task/index.ts";
 import type { Config } from "./config.ts";
@@ -23,13 +23,12 @@ type ScheduledTrail = ScheduledTask &
 
 type Options = Readonly<{
   bench: Bench.Bench;
-  harnessId: string;
   eventQueue: Event.EventEnqueue;
 }>;
 
 export const run = Effect.fn("exec/schedule")(
   function* (
-    { bench, harnessId, eventQueue }: Options,
+    { bench, eventQueue }: Options,
     config: Config,
   ): Effect.fn.Return<
     BenchResult,
@@ -39,7 +38,8 @@ export const run = Effect.fn("exec/schedule")(
     | ChildProcessSpawner.ChildProcessSpawner
     | Path.Path
     | Scope.Scope
-    | Harness.HarnessServices
+    | Agent.ProviderService
+    | Sandbox.ProviderService
   > {
     const { snapshotConcurrency, trailConcurrency } = config;
     const offer = Event.offerTo(eventQueue);

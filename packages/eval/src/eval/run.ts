@@ -2,23 +2,17 @@ import { Effect, Option, Queue, Scope, Stream, Crypto } from "effect";
 import * as Event from "#/event/index.ts";
 import { type Config, make as makeConfig } from "./config.ts";
 import * as Bench from "#/bench/index.ts";
-import { Harness } from "@open-insight/core/internal";
 import { run as runSchedule } from "./schedule.ts";
 import type { BenchResult } from "./result.ts";
 import { NodeServices } from "@effect/platform-node";
 import { Error } from "./error.ts";
+import { Harness } from "@open-insight/core/internal";
+import * as Task from "#/task/index.ts";
 
-type Options = Readonly<{
-  bench: Bench.Bench;
-  harnessId: string;
-  config?: Partial<Config>;
-}>;
-
-export const run = Effect.fn(function* ({
-  bench,
-  harnessId,
-  config: configOptions = {},
-}: Options): Effect.fn.Return<BenchResult, Error, Crypto.Crypto | Harness.HarnessServices> {
+export const run = Effect.fn(function* <T extends Task.AnyTask = Task.AnyTask>(
+  bench: Bench.Bench<T>,
+  configOptions: Partial<Config> = {},
+): Effect.fn.Return<BenchResult<Task.GradeOf<T>>, Error, Crypto.Crypto | Harness.Service> {
   const config = makeConfig(configOptions);
   const transport = yield* Effect.serviceOption(Event.Transport.Service);
   const eventQueue = yield* Event.makeQueue();
@@ -33,9 +27,7 @@ export const run = Effect.fn(function* ({
   );
 
   return yield* Effect.zipWith(
-    runSchedule({ bench, harnessId, eventQueue }, config).pipe(
-      Effect.ensuring(Queue.end(eventQueue)),
-    ),
+    runSchedule({ bench, eventQueue }, config).pipe(Effect.ensuring(Queue.end(eventQueue))),
     consume,
     (result) => result,
     { concurrent: true },

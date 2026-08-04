@@ -30,6 +30,14 @@ const thoughtChunk = (text: string, messageId = "thought-1"): SessionUpdate => (
   },
 });
 
+const anonymousTextChunk = (text: string): SessionUpdate => ({
+  sessionUpdate: "agent_message_chunk",
+  content: {
+    type: "text",
+    text,
+  },
+});
+
 it.effect("maps agent text chunks to text stream parts and finish", () =>
   Effect.gen(function* () {
     const parts = yield* collect([textChunk("hello "), textChunk("world")]);
@@ -56,6 +64,20 @@ it.effect("maps thought chunks to reasoning stream parts", () =>
   }),
 );
 
+it.effect("keeps consecutive chunks without message ids in one segment", () =>
+  Effect.gen(function* () {
+    const parts = yield* collect([anonymousTextChunk("hello "), anonymousTextChunk("world")]);
+
+    assert.deepStrictEqual(
+      parts.map((part) => part.type),
+      ["text-start", "text-delta", "text-delta", "text-end", "finish"],
+    );
+    assert.strictEqual(parts[0]?.type === "text-start" && parts[0].id, "acp-agent-message-1");
+    assert.strictEqual(parts[1]?.type === "text-delta" && parts[1].id, "acp-agent-message-1");
+    assert.strictEqual(parts[2]?.type === "text-delta" && parts[2].id, "acp-agent-message-1");
+  }),
+);
+
 it.effect("closes the active message when message id changes", () =>
   Effect.gen(function* () {
     const parts = yield* collect([textChunk("one", "one"), textChunk("two", "two")]);
@@ -69,6 +91,36 @@ it.effect("closes the active message when message id changes", () =>
   }),
 );
 
+it.effect("starts a new segment when a previous message id reappears", () =>
+  Effect.gen(function* () {
+    const parts = yield* collect([
+      textChunk("first", "one"),
+      textChunk("second", "two"),
+      textChunk("third", "one"),
+    ]);
+
+    assert.deepStrictEqual(
+      parts.map((part) => part.type),
+      [
+        "text-start",
+        "text-delta",
+        "text-end",
+        "text-start",
+        "text-delta",
+        "text-end",
+        "text-start",
+        "text-delta",
+        "text-end",
+        "finish",
+      ],
+    );
+    assert.deepStrictEqual(
+      parts.flatMap((part) => (part.type === "text-start" ? [part.id] : [])),
+      ["one", "two", "one"],
+    );
+  }),
+);
+
 it.effect("maps tool events to real tool-call and tool-result parts", () =>
   Effect.gen(function* () {
     const updates: ReadonlyArray<SessionUpdate> = [
@@ -76,6 +128,7 @@ it.effect("maps tool events to real tool-call and tool-result parts", () =>
         sessionUpdate: "tool_call",
         toolCallId: "tool-1",
         title: "Read file",
+        name: "filesystem_read",
         kind: "read",
         status: "in_progress",
         rawInput: {
@@ -99,10 +152,34 @@ it.effect("maps tool events to real tool-call and tool-result parts", () =>
       ["tool-call", "tool-result", "finish"],
     );
     assert.strictEqual(parts[0]?.type === "tool-call" && parts[0].id, "tool-1");
-    assert.strictEqual(parts[0]?.type === "tool-call" && parts[0].name, "read");
+    assert.strictEqual(parts[0]?.type === "tool-call" && parts[0].name, "filesystem_read");
     assert.strictEqual(parts[1]?.type === "tool-result" && parts[1].id, "tool-1");
+    assert.strictEqual(parts[1]?.type === "tool-result" && parts[1].name, "filesystem_read");
     assert.strictEqual(parts[1]?.type === "tool-result" && parts[1].isFailure, false);
     assert.strictEqual(parts[1]?.type === "tool-result" && parts[1].preliminary, false);
+  }),
+);
+
+it.effect("tracks a programmatic name first seen in a tool update", () =>
+  Effect.gen(function* () {
+    const parts = yield* collect([
+      {
+        sessionUpdate: "tool_call_update",
+        toolCallId: "tool-rename",
+        name: "shell_execute",
+        status: "in_progress",
+      },
+      {
+        sessionUpdate: "tool_call_update",
+        toolCallId: "tool-rename",
+        status: "completed",
+      },
+    ]);
+
+    assert.deepStrictEqual(
+      parts.flatMap((part) => (part.type === "tool-result" ? [part.name] : [])),
+      ["shell_execute", "shell_execute"],
+    );
   }),
 );
 
@@ -166,31 +243,47 @@ it.effect("keeps plan and session state events as metadata", () =>
   }),
 );
 
-it.effect("uses usage update as finish without adding another finish", () =>
+it.effect("uses the latest usage update when the stream finishes", () =>
   Effect.gen(function* () {
     const parts = yield* collect([
-      textChunk("done"),
+      textChunk("before "),
       {
         sessionUpdate: "usage_update",
         used: 42,
         size: 100,
       },
+      textChunk("after"),
     ]);
 
     assert.deepStrictEqual(
       parts.map((part) => part.type),
-      ["text-start", "text-delta", "finish", "text-end"],
+      ["text-start", "text-delta", "text-delta", "text-end", "finish"],
     );
     const finish = parts.find((part) => part.type === "finish");
     assert.strictEqual(finish?.type === "finish" && finish.usage.inputTokens.total, 42);
   }),
 );
 
-it.effect("preserves upstream errors in the stream error channel", () =>
+it.effect("preserves upstream errors without emitting successful completion", () =>
   Effect.gen(function* () {
     const error = "boom";
-    const result = yield* Stream.fail(error).pipe(transform, Stream.runCollect, Effect.exit);
+    const observed: Array<StreamPart> = [];
+    const result = yield* Stream.make(textChunk("partial")).pipe(
+      Stream.concat(Stream.fail(error)),
+      transform,
+      Stream.tap((part) =>
+        Effect.sync(() => {
+          observed.push(part);
+        }),
+      ),
+      Stream.runDrain,
+      Effect.exit,
+    );
 
+    assert.deepStrictEqual(
+      observed.map((part) => part.type),
+      ["text-start", "text-delta"],
+    );
     assert.strictEqual(result._tag, "Failure");
     if (result._tag === "Failure") {
       assert.deepStrictEqual(Cause.findErrorOption(result.cause), Option.some(error));

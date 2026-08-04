@@ -39,4 +39,6 @@ export class Resources extends Schema.Class<Resources>("Resources")({
 }) {}
 
 type ResourcesEncoded = (typeof Resources)["Encoded"];
-export const make = (options: ResourcesEncoded): Resources => Schema.decodeSync(Resources)(options);
+
+export const make = (options: ResourcesEncoded = {}): Resources =>
+  Schema.decodeSync(Resources)(options);

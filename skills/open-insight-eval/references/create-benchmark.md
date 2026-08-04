@@ -126,6 +126,20 @@ environment include the loader's error and service requirements. Run it inside a
 compose it with `pipe`; do not treat it as a plain object. The constructor does not deduplicate IDs
 or sort tasks, so validate those invariants in the loader when they matter.
 
+When the task constructor should be supplied through the environment, build the benchmark with
+`Bench.Service.layerFrom(...)`. The layer depends on `Tasks.Service`, so provide the task loader at
+the application boundary:
+
+```ts
+const benchLayer = Bench.Service.layerFrom({ id: "example-bench" }).pipe(
+  Layer.provide(Tasks.Service.layerFrom(Tasks.fromDir({ dir: "./tasks" }))),
+);
+```
+
+Yield `Bench.Service` from an Effect inside that layer to access the current benchmark. This keeps
+task loading and benchmark construction as separate dependencies while preserving the existing
+`Bench.make` API for direct loader-based construction.
+
 The benchmark metadata has a deliberately small base shape. `Bench.metadata(bench)` creates the
 serializable metadata object containing the benchmark base metadata and each task's metadata. This
 is the metadata emitted with evaluation initialization events; it is not a replacement for the

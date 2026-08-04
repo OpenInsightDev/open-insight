@@ -54,21 +54,23 @@ export type Task<G extends Grade.Result = never, S extends Stage = never> = AnyT
 };
 
 export const make = Effect.fn(function* (
-  options: Readonly<{
-    snapshot: Snapshot.Snapshot;
-    resources?: Resource.Resources;
-  }> &
-    BaseMetadataEncoded,
+  id: string,
+  snapshot: Snapshot.Snapshot,
+  options: Omit<BaseMetadataEncoded, "id"> &
+    Readonly<{
+      resources?: Resource.Resources;
+      trajMetrics?: ReadonlyArray<Metric.Traj.Metric>;
+    }>,
 ) {
-  const { snapshot, resources = Resource.make({}) } = options;
-  const metadata = yield* Schema.decodeEffect(BaseMetadata)(options);
+  const { resources = Resource.make({}), trajMetrics = [] } = options;
+  const metadata = yield* Schema.decodeEffect(BaseMetadata)({ id, ...options });
 
   return {
     metadata,
     snapshot,
     resources,
+    trajMetrics,
     metrics: [],
-    trajMetrics: [],
     stages: [],
     [TypeId]: TypeId,
   } as Task<never, never>;
@@ -138,4 +140,4 @@ export const satisfies =
   <S extends Stage, E, R>(task: Effect.Effect<Task<G, S | Stage<N, G, S>>, E, R>) =>
     task;
 
-export type ResultOf<T> = T extends Task<infer G, infer _> ? G["Type"] : never;
+export type GradeOf<T> = T extends Task<infer G, infer _> ? G["Type"] : never;

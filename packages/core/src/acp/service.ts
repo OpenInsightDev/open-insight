@@ -14,15 +14,13 @@ import {
   type SessionUpdate,
   type Stream as AcpStream,
 } from "@agentclientprotocol/sdk";
-import { Cause, Context, Effect, FiberSet, Layer, Option, Path, Queue, Ref, Stream } from "effect";
+import { Cause, Effect, FiberSet, Layer, Option, Path, Queue, Ref, Stream } from "effect";
 import { Prompt, Response } from "effect/unstable/ai";
 import * as Agent from "#/agent/index.ts";
-import * as Harness from "#/harness/index.ts";
-import * as Sandbox from "#/sandbox/index.ts";
 import * as Snapshot from "#/snapshot/index.ts";
 import { Bash } from "#/utils/index.ts";
 import { type HttpStreamOptions, openStream, type WebSocketStreamOptions } from "./http.ts";
-import { Error as AcpError } from "./error.ts";
+import { Error } from "./error.ts";
 import { toAcpPrompt } from "./prompt.ts";
 import { transform } from "./stream.ts";
 
@@ -345,12 +343,12 @@ const authenticate = Effect.fn("Acp.authenticate")(function* (
   const availableMethodIds = authMethodIds(initialized);
   if (!availableMethodIds.includes(auth.methodId)) {
     return yield* Effect.fail(
-      AcpError.unsupportedAuthenticationMethod(auth.methodId, availableMethodIds),
+      Error.unsupportedAuthenticationMethod(auth.methodId, availableMethodIds),
     );
   }
   yield* Effect.tryPromise({
     try: () => request(auth),
-    catch: AcpError.authenticationFailed(auth.methodId),
+    catch: Error.authenticationFailed(auth.methodId),
   }).pipe(Effect.asVoid);
 });
 
@@ -358,7 +356,7 @@ const sessionStartError =
   (initialized: InitializeResponse) =>
   (cause: unknown): Agent.Error => {
     if (cause instanceof RequestError && cause.code === AUTH_REQUIRED_CODE) {
-      return Agent.Error.stream(AcpError.authenticationRequired(authMethodIds(initialized), cause));
+      return Agent.Error.stream(Error.authenticationRequired(authMethodIds(initialized), cause));
     }
     return Agent.Error.stream(cause);
   };
@@ -407,7 +405,7 @@ export const makeProvider = Effect.fn("Acp.makeProvider")(function* (
     (params) => connection.agent.request(methods.agent.authenticate, params),
     initialized,
     options.auth,
-  );
+  ).pipe(Effect.mapError(Agent.Error.stream));
 
   const runSession = Effect.fn("Acp.runSession")(function* (_sandbox) {
     const session = yield* Effect.tryPromise({
@@ -432,7 +430,7 @@ export const makeProvider = Effect.fn("Acp.makeProvider")(function* (
           sessionId: session.sessionId,
         }),
     });
-  });
+  }) satisfies Agent.Provider["runSession"];
 
   return {
     snapshotExtension: Option.some(snapshotExtension(agentId, options)),
@@ -440,7 +438,11 @@ export const makeProvider = Effect.fn("Acp.makeProvider")(function* (
   } satisfies Agent.Provider;
 });
 
-export const layer = (url: string | URL, agentId: string, options: Options = {}) => {
+export const layer = (
+  url: string | URL,
+  agentId: string,
+  options: Options = {},
+): Layer.Layer<Agent.ProviderService, Agent.Error, never> => {
   const provider = Effect.gen(function* () {
     const transport = yield* openStream(url, options).pipe(Effect.mapError(Agent.Error.stream));
     return yield* makeProvider(transport, agentId, options);
@@ -448,28 +450,3 @@ export const layer = (url: string | URL, agentId: string, options: Options = {})
 
   return Layer.effect(Agent.ProviderService)(provider).pipe(Layer.provide(Path.layer));
 };
-
-/**
- * Provides an ACP-backed harness aggregating both provider concepts: the ACP
- * agent provider and the sandbox provider from the environment.
- *
- * ```ts
- * Layer.provide(Acp.harness(url, agentId, options), Sandbox.Docker.layer())
- * // : Layer.Layer<Harness.HarnessServices, ...>
- * ```
- */
-export const harnessLayer = (
-  url: string | URL,
-  agentId: string,
-  options: Options = {},
-): Layer.Layer<Harness.HarnessServices, Agent.Error | AcpError, Sandbox.ProviderService> =>
-  Layer.effectContext(
-    Effect.gen(function* () {
-      const sandbox = yield* Sandbox.ProviderService;
-      const transport = yield* openStream(url, options).pipe(Effect.mapError(Agent.Error.stream));
-      const agent = yield* makeProvider(transport, agentId, options);
-      return Context.make(Agent.ProviderService, agent).pipe(
-        Context.add(Sandbox.ProviderService, sandbox),
-      );
-    }),
-  ).pipe(Layer.provide(Path.layer));

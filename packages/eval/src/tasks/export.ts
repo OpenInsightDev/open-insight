@@ -6,6 +6,7 @@ export {
   withDist,
   withParquetDir,
   type Load,
+  type Tasks,
 } from "./index.ts";
 
 export * from "./git/export.ts";

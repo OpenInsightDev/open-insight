@@ -11,7 +11,7 @@ export {
   stage,
   trajMetric,
   type Init,
-  type ResultOf,
+  type GradeOf as ResultOf,
   type Stage,
   type Task,
 } from "./index.ts";

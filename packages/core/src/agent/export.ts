@@ -5,5 +5,4 @@ export {
   ProviderService,
   type SnapshotExtension,
   type StreamPart,
-  type Toolset,
 } from "./service.ts";

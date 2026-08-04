@@ -1,7 +1,8 @@
 import { Effect, Schema } from "effect";
+import { Error } from "./error.ts";
+import * as Tasks from "#/tasks/index.ts";
 import * as Metric from "#/metric/index.ts";
 import * as Task from "#/task/index.ts";
-import * as Tasks from "#/tasks/index.ts";
 
 export class BaseMetadata extends Schema.Class<BaseMetadata>("BenchBaseMetadata")({
   id: Schema.String,
@@ -23,19 +24,28 @@ export type Bench<T extends Task.AnyTask = Task.AnyTask> = Readonly<{
   metrics: ReadonlyArray<Metric.Bench.Metric>;
 }> & { _T?: T };
 
-type Options<T extends Task.AnyTask, E, R> = BaseMetadataEncoded &
+export type Options = BaseMetadataEncoded &
   Readonly<{
-    tasks: Tasks.Load<T, E, R>;
     metrics?: ReadonlyArray<Metric.Bench.Metric>;
   }>;
 
-export const make = Effect.fn(function* <T extends Task.AnyTask, E, R>(options: Options<T, E, R>) {
-  const { tasks: load, metrics = [] } = options;
-  const metadata = yield* Schema.decodeEffect(BaseMetadata)(options).pipe();
+export const make = Effect.fn(function* <T extends Task.AnyTask, E, R>(
+  id: string,
+  load: Tasks.Load<T, E, R>,
+  options: Omit<BaseMetadataEncoded, "id"> &
+    Readonly<{
+      metrics?: ReadonlyArray<Metric.Bench.Metric>;
+    }> = {},
+): Effect.fn.Return<Bench<T>, Error, R> {
+  const { metrics = [] } = options;
+  const metadata = yield* Schema.decodeEffect(BaseMetadata)({ id, ...options }).pipe(
+    Effect.mapError(Error.init),
+  );
+  const tasks = yield* load.pipe(Error.taskLoad);
 
   return {
     metadata,
-    tasks: yield* load,
+    tasks,
     metrics,
   } satisfies Bench<T>;
 });

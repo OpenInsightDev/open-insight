@@ -154,7 +154,7 @@ export const withGitRepo = (repoURL: string, options: Options = {}) =>
       if (options.postInit !== undefined) {
         const spawner = yield* Spawn.Service;
         yield* spawner
-          .success(CP.make("sh", ["-c", options.postInit], { cwd: repoPath }))
+          .success(CP.make({ cwd: repoPath })`sh -c ${options.postInit}`)
           .pipe(Effect.mapError(Error.source));
       }
 

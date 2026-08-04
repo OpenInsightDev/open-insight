@@ -10,12 +10,12 @@ import {
   type Stream as AcpStream,
 } from "@agentclientprotocol/sdk";
 import { assert, layer } from "@effect/vitest";
-import { Deferred, Effect, Option, Path, Stream } from "effect";
+import { Deferred, Effect, Layer, Option, Path, Stream } from "effect";
 import { Prompt } from "effect/unstable/ai";
 import * as Agent from "#/agent/index.ts";
 import * as Sandbox from "#/sandbox/index.ts";
 import { Error as AcpError } from "./error.ts";
-import { makeProvider } from "./service.ts";
+import { layer as acpLayer, makeProvider } from "./service.ts";
 
 const streamPair = (): readonly [AcpStream, AcpStream] => {
   const leftToRight = new TransformStream<AnyMessage>();
@@ -60,6 +60,24 @@ const assertTrajectoryIncludes = (agent: Agent.Agent, text: string) =>
     );
 
 layer(Path.layer)((it) => {
+  it.effect("wraps ACP transport errors exposed by the provider layer", () =>
+    Effect.gen(function* () {
+      const error = yield* Layer.build(acpLayer("ftp://agent.test/acp", "test-agent")).pipe(
+        Effect.scoped,
+        Effect.flip,
+      );
+
+      assert.instanceOf(error, Agent.Error);
+      assert.strictEqual(error.reason._tag, "StreamError");
+      assert.instanceOf(error.reason.cause, AcpError);
+      const cause = error.reason.cause;
+      if (!(cause instanceof AcpError)) {
+        return assert.fail("Expected Agent.Error to wrap Acp.Error");
+      }
+      assert.strictEqual(cause.reason._tag, "AcpHttpTransportError");
+    }),
+  );
+
   it.effect("initializes once and keeps ACP sessions isolated across turns", () =>
     Effect.gen(function* () {
       const initializeRequests: Array<InitializeRequest> = [];
@@ -291,12 +309,18 @@ layer(Path.layer)((it) => {
         auth: { methodId: "chat-gpt" },
       }).pipe(Effect.flip);
 
-      assert.instanceOf(error, AcpError);
-      assert.strictEqual(error.reason._tag, "AcpAuthenticationError");
-      if (error.reason._tag === "AcpAuthenticationError") {
-        assert.strictEqual(error.reason.reason, "unsupported_method");
-        assert.strictEqual(error.reason.methodId, "chat-gpt");
-        assert.deepStrictEqual(error.reason.availableMethodIds, ["api-key"]);
+      assert.instanceOf(error, Agent.Error);
+      assert.strictEqual(error.reason._tag, "StreamError");
+      assert.instanceOf(error.reason.cause, AcpError);
+      const cause = error.reason.cause;
+      if (!(cause instanceof AcpError)) {
+        return assert.fail("Expected Agent.Error to wrap Acp.Error");
+      }
+      assert.strictEqual(cause.reason._tag, "AcpAuthenticationError");
+      if (cause.reason._tag === "AcpAuthenticationError") {
+        assert.strictEqual(cause.reason.reason, "unsupported_method");
+        assert.strictEqual(cause.reason.methodId, "chat-gpt");
+        assert.deepStrictEqual(cause.reason.availableMethodIds, ["api-key"]);
       }
       assert.strictEqual(authenticationCount, 0);
     }),
@@ -321,12 +345,18 @@ layer(Path.layer)((it) => {
         auth: { methodId: "api-key" },
       }).pipe(Effect.flip);
 
-      assert.instanceOf(error, AcpError);
-      assert.strictEqual(error.reason._tag, "AcpAuthenticationError");
-      if (error.reason._tag === "AcpAuthenticationError") {
-        assert.strictEqual(error.reason.reason, "authentication_failed");
-        assert.strictEqual(error.reason.methodId, "api-key");
-        assert.instanceOf(error.reason.cause, RequestError);
+      assert.instanceOf(error, Agent.Error);
+      assert.strictEqual(error.reason._tag, "StreamError");
+      assert.instanceOf(error.reason.cause, AcpError);
+      const cause = error.reason.cause;
+      if (!(cause instanceof AcpError)) {
+        return assert.fail("Expected Agent.Error to wrap Acp.Error");
+      }
+      assert.strictEqual(cause.reason._tag, "AcpAuthenticationError");
+      if (cause.reason._tag === "AcpAuthenticationError") {
+        assert.strictEqual(cause.reason.reason, "authentication_failed");
+        assert.strictEqual(cause.reason.methodId, "api-key");
+        assert.instanceOf(cause.reason.cause, RequestError);
       }
     }),
   );

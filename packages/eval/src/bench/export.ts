@@ -10,6 +10,8 @@ export {
   select,
   skip,
   head,
+  Service,
+  type LayerOptions,
   type Bench,
 } from "./index.ts";
 

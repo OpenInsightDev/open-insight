@@ -127,8 +127,8 @@ export const createTrail = Effect.fn("exec/createTrail")(
     ): Effect.fn.Return<void, Error> {
       yield* Effect.forEach(
         taskMetricRunners,
-        (runTaskMetric) =>
-          runTaskMetric(trailResult).pipe(
+        (run) =>
+          run(trailResult).pipe(
             Effect.flatMap(({ id, result, chart }) =>
               Event.TaskMetricEvent.makeEffect({
                 bench,

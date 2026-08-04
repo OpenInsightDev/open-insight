@@ -2,16 +2,14 @@ import * as Sandbox from "#/sandbox/index.ts";
 import * as Snapshot from "#/snapshot/index.ts";
 import type * as Prompt from "#/prompt/index.ts";
 import { Context, Effect, Option, Stream } from "effect";
-import { Response, Tool } from "effect/unstable/ai";
 import type { Error } from "./error.ts";
+import type { AnyPart } from "effect/unstable/ai/Response";
 
-export type Toolset = Record<string, Tool.Any>;
+export type StreamPart = AnyPart;
 
-export type StreamPart<Tools extends Toolset = Toolset> = Response.StreamPart<Tools>;
-
-export type Agent<Tools extends Toolset = Toolset> = Readonly<{
+export type Agent = Readonly<{
   trajectory(): Effect.Effect<Prompt.Trajectory, Error>;
-  prompt(trajectory: Prompt.Trajectory): Stream.Stream<StreamPart<Tools>, Error>;
+  prompt(prompt: Prompt.Prompt): Stream.Stream<StreamPart, Error>;
 }>;
 
 export type SnapshotExtension = Readonly<{
@@ -19,9 +17,9 @@ export type SnapshotExtension = Readonly<{
   context?: string;
 }>;
 
-export type Provider<Tools extends Toolset = Toolset> = Readonly<{
+export type Provider = Readonly<{
   snapshotExtension: Option.Option<SnapshotExtension>;
-  runSession(sandbox: Sandbox.Sandbox): Effect.Effect<Agent<Tools>, Error>;
+  runSession(sandbox: Sandbox.Sandbox): Effect.Effect<Agent, Error>;
 }>;
 
 export class ProviderService extends Context.Service<ProviderService, Provider>()(
