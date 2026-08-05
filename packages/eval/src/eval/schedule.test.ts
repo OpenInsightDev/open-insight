@@ -77,6 +77,18 @@ const fakeHarness = {
 
 it.effect("emits task and eval stop events at completion", () =>
   Effect.gen(function* () {
+    let harnessRunCount = 0;
+    const harness = {
+      ...fakeHarness,
+      run: () =>
+        Effect.sync(() => {
+          harnessRunCount += 1;
+          return {
+            sandbox: fakeSandbox,
+            runSession: () => Effect.sync(makeFakeSession),
+          };
+        }),
+    } satisfies Harness.Harness;
     const events: Array<Event.Event> = [];
     const transport: Event.Transport.Transport = {
       send: (stream: Event.EventStream) =>
@@ -96,7 +108,7 @@ it.effect("emits task and eval stop events at completion", () =>
     }).pipe(
       Task.stage("grade", {
         id: "grade",
-        prompt: async ({ trajectory }) => (trajectory.content.length === 0 ? "test" : null),
+        prompt: "test",
         grader: Grade.make(GradeResult)(async () => ({ passed: true })),
       }),
     );
@@ -104,11 +116,12 @@ it.effect("emits task and eval stop events at completion", () =>
 
     const result = yield* Effect.succeed(bench).pipe(
       Eval.run({ snapshotConcurrency: 1, trailConcurrency: 2, trailCount: 2 }),
-      Effect.provideService(Harness.Service, fakeHarness),
+      Effect.provideService(Harness.Service, harness),
       Effect.provideService(Event.Transport.Service, transport),
     );
 
     assert.strictEqual(result.tasks.task?.trails.length, 2);
+    assert.strictEqual(harnessRunCount, 2);
     const trailStopIndices = events.flatMap((event, index) =>
       event._tag === "TrailScheduleEvent" && event.task === "task" && event.op === "stop"
         ? [index]

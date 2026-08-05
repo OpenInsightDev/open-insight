@@ -59,18 +59,10 @@ export const createTrail = Effect.fn("exec/createTrail")(
       }
     }
 
-    yield* Effect.logDebug("Preparing task snapshot");
-
     const harnessService = yield* Harness.Service;
     const benchId = bench.metadata.id;
     const harnessId = harnessService.metadata.id;
-
-    const harnessRun = yield* harnessService
-      .run(snapshot, { resources, ...config })
-      .pipe(Effect.mapError(EvalError.harness));
-    const ctx = yield* Sandbox.asPromise(harnessRun.sandbox);
-
-    yield* Effect.logDebug("Prepared task snapshot");
+    yield* Effect.logDebug("Prepared task definition");
 
     const taskMetricRunners = yield* Effect.forEach(taskMetrics, Metric.Task.run);
     const runTaskMetrics = Effect.fn("exec/runTaskMetrics")(function* (
@@ -101,6 +93,13 @@ export const createTrail = Effect.fn("exec/createTrail")(
         const startedAt = yield* DateTime.now;
         yield* Effect.annotateCurrentSpan({ taskName: task.metadata.name, trailIdx: idx });
         yield* Effect.logDebug("Starting sandbox for trail");
+
+        const harnessRun = yield* harnessService
+          .run(snapshot, { resources, ...config })
+          .pipe(Effect.mapError(EvalError.harness));
+        const ctx = yield* Sandbox.asPromise(harnessRun.sandbox);
+
+        yield* Effect.logDebug("Prepared sandbox for trail");
 
         const stageStream = Stream.fromIterable(stages);
 
@@ -242,7 +241,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
         });
 
         const runStage = Effect.fn("exec/runTrail/runStage")(function* (
-          { metadata, prompt, grader, init, resume }: Task.Stage,
+          { metadata, makePrompt, grader, init, resume }: Task.Stage,
           results: StageResults,
         ): Effect.fn.Return<
           Readonly<{ grade: Grade.Result["Type"]; usage: Usage }>,
@@ -286,6 +285,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
             }
           }
 
+          const prompt = makePrompt();
           const initialUsage = yield* runPromptFn(prompt);
           const usageRef = yield* Ref.make(initialUsage);
 

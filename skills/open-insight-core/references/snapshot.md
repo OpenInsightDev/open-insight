@@ -51,7 +51,7 @@ const makeSnapshot = Effect.fn(function* () {
 ```
 
 The context defaults to the Containerfile directory when omitted, and sources in `COPY` or `ADD` are relative to that context.
-A snapshot used as a sandbox environment must not set its own `ENTRYPOINT` or `CMD`: before applying a snapshot, Open Insight always appends `CMD ["sleep","infinity"]` as the default command — to the Containerfile and to every instruction snapshot — so the sandbox stays alive instead of exiting immediately after it starts.
+A snapshot used as a sandbox environment normally receives `CMD ["sleep","infinity"]` as its default command — to the Containerfile and to every instruction snapshot — so the sandbox stays alive instead of exiting immediately after it starts. A snapshot extension is applied after that default command, so an extension may intentionally provide a later `CMD` for a specialized sandbox such as an ACP agent.
 The rest of the Containerfile is passed to the sandbox provider without otherwise parsing or reducing it.
 
 Not every sandbox provider can build images.
@@ -61,6 +61,8 @@ On those providers, a Containerfile snapshot fails with an error when the sandbo
 ## Define Instructions in Code
 
 `Snapshot.makeWith` accepts a base OCI image, an absolute host build context, and an ordered list of instructions.
+
+Use `Snapshot.extend(instructions)(snapshot)` to append instructions after an existing instruction snapshot. Since constructed snapshots already contain the default sleep command, a later `Cmd` instruction becomes the container's effective command.
 
 - `Snapshot.run(command, options?)` runs a shell command during the build; its optional `network` mode can be `default`, `none`, or `host`.
 - `Snapshot.env(values)` sets environment variables.

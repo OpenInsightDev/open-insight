@@ -45,6 +45,19 @@ describe("Snapshot", () => {
       }),
     );
 
+    it.effect("appends extensions after the default command", () =>
+      Effect.sync(() => {
+        const snapshot = Snapshot.extend([Snapshot.Inst.cmd("acp-agent", "serve", "codex-acp")])(
+          Snapshot.make("alpine:3.22"),
+        );
+
+        assert.deepStrictEqual(snapshot.instructions, [
+          Snapshot.Inst.cmd("sleep", "infinity"),
+          Snapshot.Inst.cmd("acp-agent", "serve", "codex-acp"),
+        ]);
+      }),
+    );
+
     it.effect("encodes COPY metadata options", () =>
       Effect.sync(() => {
         const snapshot = Snapshot.makeWith({

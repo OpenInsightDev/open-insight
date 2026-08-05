@@ -34,7 +34,7 @@ In `allowlist` mode, `allowedHosts` must contain exact hostnames, leading-wildca
 A `Snapshot.Snapshot` is either an `InstructionsSnapshot` or a `ContainerfileSnapshot`.
 
 - `Snapshot.make(image)` or `Snapshot.makeWith({ instructions })` — build a snapshot; `Snapshot.Scratch` is the empty scratch snapshot.
-- `Snapshot.extend(snapshot, instructions)` — append instructions.
+- `Snapshot.extend(instructions)(snapshot)` — append instructions after the snapshot's default command; a later `Cmd` instruction can override that command.
 - `Snapshot.build`, `Snapshot.encode`, `Snapshot.hash` — build, encode, and hash snapshots.
 - `Snapshot.writeInstructions` — write an instruction snapshot to a directory.
 - `Snapshot.Image` and `Snapshot.Handle` — image helpers and provider handles.

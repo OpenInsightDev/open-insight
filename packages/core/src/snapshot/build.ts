@@ -102,13 +102,13 @@ export const hash = Effect.fn(
     effect.pipe(Effect.mapError(SnapshotError.build(snapshot))),
 );
 
-/** Extend an instruction snapshot without changing its base image. */
+/** Extend an instruction snapshot after its existing instructions. */
 export const extend =
   (instructions: Instructions) =>
   (snapshot: InstructionsSnapshot): InstructionsSnapshot =>
     new InstructionsSnapshot({
       image: snapshot.image,
-      instructions: [...snapshot.instructions, ...instructions, defaultCommand],
+      instructions: [...snapshot.instructions, ...instructions],
       context: snapshot.context,
     });
 

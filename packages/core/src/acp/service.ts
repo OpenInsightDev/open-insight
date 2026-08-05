@@ -166,7 +166,6 @@ const snapshotExtension = (agentId: string, options: Options): Agent.SnapshotExt
   const port = String(options.port ?? DEFAULT_PORT);
   const path = options.path ?? DEFAULT_PATH;
   const serveArgs = [
-    "serve",
     agentId,
     "--host",
     "0.0.0.0",
@@ -184,12 +183,14 @@ const snapshotExtension = (agentId: string, options: Options): Agent.SnapshotExt
       Snapshot.Inst.copy(["/deno"], "/usr/local/bin/deno", {
         from: "ghcr.io/denoland/deno:bin",
       }),
+      Snapshot.Inst.available("deno"),
       Snapshot.Inst.copy(["/uv", "/uvx"], "/usr/local/bin/", {
         from: "ghcr.io/astral-sh/uv:latest",
       }),
+      Snapshot.Inst.available("uv"),
       Snapshot.Inst.available("curl"),
       Snapshot.Inst.run(
-        `curl -fsSL ${Bash.quote(ACP_AGENT_INSTALL_URL)} | ACP_AGENT_INSTALL_DIR=/usr/local/bin sh`,
+        `curl -fsSL ${ACP_AGENT_INSTALL_URL} | ACP_AGENT_INSTALL_DIR=/usr/local/bin sh`,
       ),
       Snapshot.Inst.available("acp-agent"),
       Snapshot.Inst.run("acp-agent install-env --yes"),
@@ -197,7 +198,7 @@ const snapshotExtension = (agentId: string, options: Options): Agent.SnapshotExt
       ...(serveEnv === undefined || Object.keys(serveEnv).length === 0
         ? []
         : [Snapshot.Inst.env({ ...serveEnv })]),
-      Snapshot.Inst.cmd("acp-agent", ...serveArgs),
+      Snapshot.Inst.cmd("acp-agent", "serve", ...serveArgs),
     ],
   };
 };

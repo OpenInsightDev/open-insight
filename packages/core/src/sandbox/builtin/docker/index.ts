@@ -180,7 +180,9 @@ export const make = Effect.fn("sandbox/provider/docker")(
         });
 
         const containerfilePath = yield* Snapshot.writeInstructions(
-          Snapshot.makeWith({ image: handle.name, instructions, context }),
+          Snapshot.extend(instructions)(
+            Snapshot.makeWith({ image: handle.name, instructions: [], context }),
+          ),
         );
 
         const build = CP.make`build -f ${containerfilePath} -t ${derived.name} ${context}`.pipe(

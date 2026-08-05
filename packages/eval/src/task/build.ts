@@ -85,6 +85,7 @@ export type Stage<
   name: N;
   metadata: StageMetadata;
   prompt: PromptFn;
+  makePrompt: () => PromptFn;
   grader: Grade.Grader<G, StageResults<S>>;
   init: Init | null;
   resume: boolean;
@@ -116,12 +117,13 @@ export const stage =
             name,
           });
 
-          const prompt = makePromptFn(promptOptions);
+          const makePrompt = () => makePromptFn(promptOptions);
 
           const stage = {
             name,
             metadata,
-            prompt,
+            prompt: makePrompt(),
+            makePrompt,
             grader,
             init,
             resume,

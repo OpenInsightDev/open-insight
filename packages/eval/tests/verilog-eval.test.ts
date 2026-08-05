@@ -15,9 +15,10 @@ import {
   envify,
   envExists,
 } from "@open-insight/eval";
+import { it } from "@effect/vitest";
 import { readdir, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { NodeRuntime, NodeServices } from "@effect/platform-node";
+import { NodeServices } from "@effect/platform-node";
 import { Effect, Schema } from "effect";
 import { Acp, Sandbox } from "@open-insight/core";
 
@@ -280,14 +281,9 @@ const serveEnv = envify({
 });
 
 const main = Effect.gen(function* () {
-  const singleTask = envExists("VERILOG_EVAL_SINGLE");
-  const streamEvents = envExists("VERILOG_EVAL_EVENTS");
-
-  // VERILOG_EVAL_SINGLE=1 evaluates a single task (Bench.head(1)) instead of
-  // the default 10% random sample, for focused inspection.
-  const evalRun = makeBench()
-    .pipe(singleTask ? Bench.head(1) : Bench.sample("10%"))
-    .pipe(Eval.run({ cacheTaskSnapshot: true }))
+  const result = yield* makeBench()
+    .pipe(Bench.sample("5%"))
+    .pipe(Eval.run({ cacheTaskSnapshot: true, trailCount: 2 }))
     .pipe(
       Effect.provide(
         Acp.layerFrom(
@@ -299,16 +295,11 @@ const main = Effect.gen(function* () {
         ),
       ),
     )
-    .pipe(Effect.provide(Sandbox.Docker.layerFrom({ ports: [7689] })));
+    .pipe(Effect.provide(Sandbox.Docker.layerFrom({ ports: [7689] })))
+    .pipe(Effect.provide(Event.Transport.Console.layer));
 
-  // VERILOG_EVAL_EVENTS=1 delivers the evaluation event stream to the console
-  // via Event.Transport.Console (init/schedule/metric events plus every
-  // streamed agent part), e.g. for inspecting run ordering:
-  //   VERILOG_EVAL_EVENTS=1 VERILOG_EVAL_SINGLE=1 node tests/verilog-eval.test.ts
-  const result = yield* streamEvents
-    ? evalRun.pipe(Effect.provide(Event.Transport.Console.layer))
-    : evalRun;
   console.log(result);
+
   for (const [taskId, taskResult] of Object.entries(result.tasks)) {
     for (const trail of taskResult.trails) {
       console.log(
@@ -324,4 +315,4 @@ const main = Effect.gen(function* () {
   .pipe(Effect.scoped)
   .pipe(Effect.provide(NodeServices.layer));
 
-NodeRuntime.runMain(main);
+it.live("runs the VerilogEval benchmark", () => main, 15 * 60 * 1000);
