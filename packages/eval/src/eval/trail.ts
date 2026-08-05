@@ -1,15 +1,4 @@
-import {
-  DateTime,
-  Effect,
-  Equal,
-  Match,
-  Option,
-  Ref,
-  Schedule,
-  Scope,
-  Schema,
-  Stream,
-} from "effect";
+import { DateTime, Effect, Match, Option, Ref, Schedule, Scope, Schema, Stream } from "effect";
 import { Response } from "effect/unstable/ai";
 import { Agent, Sandbox } from "@open-insight/core";
 import { Harness, Prompt } from "@open-insight/core/internal";
@@ -225,22 +214,29 @@ export const createTrail = Effect.fn("exec/createTrail")(
           );
         });
 
-        const execGrader = Effect.fn("exec/runTrail/executeGrader")(function* (
-          grader: Grade.Grader,
+        const execGrader = Effect.fn("exec/runTrail/executeGrader")(function* <
+          G extends Grade.Result,
+        >(
+          grader: Grade.Grader<G, StageResults>,
           results: StageResults,
           trajectory: Prompt.Trajectory,
-        ): Effect.fn.Return<unknown, EvalError | Grade.Retry, Scope.Scope> {
-          return yield* Grade.run(grader)({
-            ...ctx,
-            prevResults: results,
-            trajectory,
-          }).pipe(Effect.catchTag("GradeError", (error) => Effect.fail(EvalError.grade(error))));
+        ): Effect.fn.Return<G["Encoded"], EvalError | Grade.Retry, Scope.Scope> {
+          return yield* Effect.tryPromise({
+            try: () =>
+              grader.grade({
+                ...ctx,
+                prevResults: results,
+                trajectory,
+              }),
+            catch: (cause) =>
+              cause instanceof Grade.Retry ? cause : EvalError.grade(Grade.GradeError.exec(cause)),
+          });
         });
 
         const runGrader = Effect.fn("exec/runTrail/runGrader")(function* <G extends Grade.Result>(
           grader: Grade.Grader<G, StageResults>,
           results: StageResults,
-        ): Effect.fn.Return<G["Type"], EvalError | Grade.Retry, Scope.Scope> {
+        ): Effect.fn.Return<G["Encoded"], EvalError | Grade.Retry, Scope.Scope> {
           const trajectory = yield* getTrajectory;
           return yield* execGrader(grader, results, trajectory);
         });
@@ -264,15 +260,16 @@ export const createTrail = Effect.fn("exec/createTrail")(
           }
 
           if (verif !== undefined) {
-            const expectedGrade = yield* Schema.decodeUnknownEffect(grader.schema)(
-              verif.expect,
-            ).pipe(Effect.mapError((error) => EvalError.grade(Grade.GradeError.result(error))));
-
             const initialGrade = yield* execGrader(grader, results, Prompt.empty).pipe(
               Effect.map(Option.some),
               Effect.catchTag("Retry", () => Effect.succeed(Option.none())),
             );
-            if (Option.isSome(initialGrade) && Equal.equals(initialGrade.value, expectedGrade)) {
+            const initialMatches = Option.isSome(initialGrade)
+              ? yield* Grade.matches(grader.schema, initialGrade.value, verif.expect).pipe(
+                  Effect.mapError(EvalError.grade),
+                )
+              : false;
+            if (initialMatches) {
               return yield* Effect.fail(EvalError.verifInitialMatch(task, verif.expect));
             }
 
@@ -341,21 +338,21 @@ export const createTrail = Effect.fn("exec/createTrail")(
             },
           );
 
-          const grade = yield* runGrader(grader, results).pipe(
+          const encodedGrade = yield* runGrader(grader, results).pipe(
             Effect.retry(gradeRetrySchedule),
             Effect.catchTag("Retry", retryLimitExceeded),
           );
           const usage = yield* Ref.get(usageRef);
           if (verif !== undefined) {
-            const expectedGrade = yield* Schema.decodeUnknownEffect(grader.schema)(
-              verif.expect,
-            ).pipe(Effect.mapError((error) => EvalError.grade(Grade.GradeError.result(error))));
-            if (!Equal.equals(grade, expectedGrade)) {
-              return yield* Effect.fail(EvalError.verifMismatch(task, verif.expect, grade));
+            const matches = yield* Grade.matches(grader.schema, encodedGrade, verif.expect).pipe(
+              Effect.mapError(EvalError.grade),
+            );
+            if (!matches) {
+              return yield* Effect.fail(EvalError.verifMismatch(task, verif.expect, encodedGrade));
             }
           }
 
-          const encodedGrade = yield* Schema.encodeUnknownEffect(grader.schema)(grade).pipe(
+          const grade = yield* Schema.decodeEffect(grader.schema)(encodedGrade).pipe(
             Effect.mapError((error) => EvalError.grade(Grade.GradeError.result(error))),
           );
 

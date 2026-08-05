@@ -139,6 +139,8 @@ const bench = yield* Bench.make({
 - `delta`: the newly completed trail plus its task ID;
 - `prev`: the metric's previous JSON result, or `null` for its first execution.
 
+The trails expose the task grader's decoded grade. For a `Schema.Class` grader, metric code accesses instance fields directly from `trail.grade`.
+
 Use `BenchMetric.exec(...)` for a custom computation, or use a built-in and adapt the grade when needed. Read [Create a bench metric](create-bench-metric.md) for executor semantics, incremental state, built-ins, and metric-specific checklists.
 
 The metric options use the same metadata conventions as other metrics: keep `id` stable, make `name` and `description` explain the result, and add `chart` only for a meaningful synchronous visualization. A benchmark metric cannot be attached to an individual task; use `Task.metric` for that scope.

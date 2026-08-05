@@ -181,7 +181,7 @@ const snapshotExtension = (agentId: string, options: Options): Agent.SnapshotExt
 
   return {
     instructions: [
-      Snapshot.Inst.available("curl"),
+      Snapshot.Inst.available("curl", "unzip"),
       Snapshot.Inst.run(
         `curl -fsSL ${Bash.quote(ACP_AGENT_INSTALL_URL)} | ACP_AGENT_INSTALL_DIR=/usr/local/bin sh`,
       ),
@@ -567,7 +567,7 @@ export const makeProvider = Effect.fn("Acp.makeProvider")(function* (
   } satisfies Agent.Provider;
 });
 
-export const layer = (
+export const layerFrom = (
   { id, agentId }: { id: string; agentId: string },
   options: Options & Harness.ConfigOptions = {},
 ): Layer.Layer<Harness.Service, HarnessError, Path.Path | Sandbox.ProviderService> =>

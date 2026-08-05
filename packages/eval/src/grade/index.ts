@@ -1,9 +1,9 @@
 import { Prompt, type Sandbox } from "@open-insight/core/internal";
 import type { BivariantFn, UnionToIntersection } from "#/utils/variant.ts";
-import { Effect, Schema } from "effect";
+import { Effect, Equal, Schema } from "effect";
 import { GradeError, Retry } from "./error.ts";
 
-export type Result = Schema.ConstraintCodec<unknown, unknown>;
+export type Result = Schema.ConstraintCodec<unknown, object>;
 export type Results = Record<string, Result["Type"]>;
 
 export type Context<Rs extends Results = never> = Sandbox.SandboxPromise &
@@ -22,20 +22,20 @@ export type VerifExec = (
   }> &
     Sandbox.SandboxPromise,
 ) => PromiseLike<Prompt.RawInput | null>;
-export type Verif = Readonly<{
+export type Verif<R extends Result = Result> = Readonly<{
   verif: VerifExec;
-  expect: Result["Encoded"];
+  expect: Partial<R["Encoded"]>;
 }>;
 
 export type Grader<R extends Result = Result, Rs extends Results = never> = Readonly<{
   schema: R;
   grade: Exec<R, Rs>;
-  verif?: Verif;
+  verif?: Verif<R>;
 }>;
 
 export const make =
   <R extends Result>(schema: R) =>
-  <Rs extends Results>(grade: Exec<R, Rs>, verif?: Verif) => ({ schema, grade, verif });
+  <Rs extends Results>(grade: Exec<R, Rs>, verif?: Verif<R>) => ({ schema, grade, verif });
 
 export const isVerifiable = (
   grader: Grader,
@@ -54,6 +54,20 @@ export const run = <R extends Result, Rs extends Results>(grader: Grader<R, Rs>)
       Effect.mapError(GradeError.result),
     );
   });
+
+export const matches = <R extends Result>(
+  schema: R,
+  result: R["Encoded"],
+  expect: Partial<R["Encoded"]>,
+): Effect.Effect<boolean, GradeError, R["DecodingServices"]> =>
+  Effect.all([
+    Schema.decodeEffect(schema)(result),
+    // Preserve dynamic result fields while overriding the stable fields declared by expect.
+    Schema.decodeEffect(schema)({ ...result, ...expect }),
+  ]).pipe(
+    Effect.map(([actual, expected]) => Equal.equals(actual, expected)),
+    Effect.mapError(GradeError.result),
+  );
 
 export * from "./builtin/index.ts";
 export * from "./error.ts";

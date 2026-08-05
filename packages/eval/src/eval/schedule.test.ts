@@ -131,3 +131,54 @@ it.effect("emits task and eval stop events at completion", () =>
     assert.isTrue(Math.max(...taskStopIndices) < evalStopIndices[0]);
   }),
 );
+
+it.effect("verifies stable encoded fields while allowing dynamic grade fields", () =>
+  Effect.gen(function* () {
+    const DynamicGradeResult = Schema.Struct({
+      passed: Schema.Boolean,
+      summary: Schema.String,
+    });
+    const transport: Event.Transport.Transport = {
+      send: (stream: Event.EventStream) => Stream.runDrain(stream),
+    };
+
+    const task = yield* Task.make({
+      id: "verif-task",
+      name: "verif task",
+      snapshot: Snapshot.make("test-image"),
+    }).pipe(
+      Task.stage("grade", {
+        id: "grade",
+        prompt: "test",
+        grader: Grade.make(DynamicGradeResult)(
+          async ({ trajectory }) =>
+            trajectory.content.length === 0
+              ? { passed: false, summary: "initial" }
+              : { passed: true, summary: "1 passed in 0.25s" },
+          {
+            verif: async () => "verified",
+            expect: { passed: true },
+          },
+        ),
+      }),
+    );
+    const bench = yield* Bench.make("verif-bench", Tasks.fromIter([Effect.succeed(task)]));
+
+    const result = yield* Effect.succeed(bench).pipe(
+      Eval.run({
+        snapshotConcurrency: 1,
+        taskConcurrency: 1,
+        trailConcurrency: 1,
+        trailCount: 1,
+        verifMode: true,
+      }),
+      Effect.provideService(Harness.Service, fakeHarness),
+      Effect.provideService(Event.Transport.Service, transport),
+    );
+
+    assert.deepStrictEqual(result.tasks["verif-task"]?.trails[0]?.grade, {
+      passed: true,
+      summary: "1 passed in 0.25s",
+    });
+  }),
+);

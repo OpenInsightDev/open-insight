@@ -408,10 +408,12 @@ export const make = Effect.fn("sandbox/provider/docker")(
   (effect) => effect.pipe(Effect.provide(Spawn.Service.layer)),
 );
 
-export const layer = (
-  options: Options = {},
+export const layerFrom = (
+  options: Options,
 ): Layer.Layer<
   Sandbox.ProviderService,
   SandboxError,
   Crypto.Crypto | FileSystem.FileSystem | ChildProcessSpawner
 > => Layer.effect(Sandbox.ProviderService)(make(options));
+
+export const layer = layerFrom({});

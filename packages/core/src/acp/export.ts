@@ -12,7 +12,7 @@ export {
 export { openHttpStream, openStream, openWebSocketStream } from "./http.ts";
 export { type HttpStreamOptions, type WebSocketStreamOptions } from "./http.ts";
 export { type ToAcpPromptOptions, toAcpPrompt } from "./prompt.ts";
-export { layer, type Options } from "./service.ts";
+export { layerFrom, type Options } from "./service.ts";
 export { transform } from "./stream.ts";
 export type { StreamPartEncoded } from "effect/unstable/ai/Response";
 

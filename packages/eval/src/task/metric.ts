@@ -9,8 +9,8 @@ import { TaskError } from "./error.ts";
 const mapExec = <G extends Grade.Result, M, R extends Schema.JsonObject>(
   mapper: (grade: G["Type"]) => M,
   exec: Metric.Task.Exec<M, R>,
-): Metric.Task.Exec<G, R> => {
-  const mapTrail = (trail: TrailResult<G>): TrailResult<M> => ({
+): Metric.Task.Exec<G["Type"], R> => {
+  const mapTrail = (trail: TrailResult<G["Type"]>): TrailResult<M> => ({
     ...trail,
     grade: mapper(trail.grade),
   });
@@ -20,8 +20,8 @@ const mapExec = <G extends Grade.Result, M, R extends Schema.JsonObject>(
 
 export const metric =
   <G extends Grade.Result, MR extends Schema.JsonObject>(
-    exec: Metric.Task.Exec<G, MR>,
-    options: Omit<Metric.Task.Options<G, MR>, "exec"> = {},
+    exec: Metric.Task.Exec<G["Type"], MR>,
+    options: Omit<Metric.Task.Options<G["Type"], MR>, "exec"> = {},
   ) =>
   <S extends Stage, E, R>(task: Effect.Effect<Task<G, S>, E, R>) =>
     Effect.flatMap(task, (task) =>
@@ -39,7 +39,7 @@ export const mapMetric =
   <G extends Grade.Result, M, MR extends Schema.JsonObject>(
     mapper: (grade: G["Type"]) => M,
     exec: Metric.Task.Exec<M, MR>,
-    options: Omit<Metric.Task.Options<G, MR>, "exec"> = {},
+    options: Omit<Metric.Task.Options<G["Type"], MR>, "exec"> = {},
   ) =>
   <S extends Stage, E, R>(task: Effect.Effect<Task<G, S>, E, R>) =>
     task.pipe(

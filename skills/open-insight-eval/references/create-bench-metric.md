@@ -27,7 +27,7 @@ async (results, delta, prev) => result
 - `delta` is the newly completed trail together with its `task` ID;
 - `prev` is this metric's previous result, or `null` on its first execution.
 
-Each trail contains its final `grade`, `trajectory`, token `usage`, and start and finish times. The metric must return a JSON object.
+Each trail contains its final decoded `grade`, `trajectory`, token `usage`, and start and finish times. When a grader uses a `Schema.Class`, `trail.grade` is the class instance rather than the schema constructor. The metric must return a JSON object.
 
 The three arguments support two styles. Use only `results` to analyze the full current benchmark state:
 

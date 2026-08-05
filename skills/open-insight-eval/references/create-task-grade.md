@@ -63,7 +63,7 @@ Keep parsing deterministic. Prefer structured test output when the runner suppor
 
 ## Verification
 
-Pass `verif` and `expect` together as the second argument to `Grade.make` to prove that the grader recognizes a known-good state without running the real agent. `verif` prepares that state and may return a follow-up prompt or `null`. The resulting grade is deep-compared with `expect`.
+Pass `verif` and `expect` together as the second argument to `Grade.make` to prove that the grader recognizes a known-good state without running the real agent. `verif` prepares that state and may return a follow-up prompt or `null`. `expect` is a partial, top-level encoded grade: its fields overwrite the grader's encoded result, then both complete results are decoded and compared. Omitted fields do not participate in verification, which allows observational fields such as logs and durations to remain dynamic.
 
 ```ts
 grader: Grade.make(GradeResult)(
@@ -77,13 +77,13 @@ grader: Grade.make(GradeResult)(
       return null;
     },
     expect: {
-      // Write the exact expected encoded grade fields here.
+      // Include the stable encoded grade fields that verification must prove.
     },
   },
 ),
 ```
 
-Use exact expected values for every grade field. Do not add verifier-only fields to the grade.
+Use exact expected values for every stable grade field. Omit dynamic observational fields; `expect` performs a shallow top-level override, not a recursive partial match. Do not add verifier-only fields to the grade.
 
 ## Retries
 

@@ -10,8 +10,8 @@ import { BenchError } from "./error.ts";
 const mapBenchExec = <G extends Grade.Result, M, R extends Schema.JsonObject>(
   mapper: (grade: G["Type"]) => M,
   exec: Metric.Bench.Exec<M, R>,
-): Metric.Bench.Exec<G, R> => {
-  const mapTrail = (trail: TrailResult<G>): TrailResult<M> => ({
+): Metric.Bench.Exec<G["Type"], R> => {
+  const mapTrail = (trail: TrailResult<G["Type"]>): TrailResult<M> => ({
     ...trail,
     grade: mapper(trail.grade),
   });
@@ -29,8 +29,8 @@ const mapBenchExec = <G extends Grade.Result, M, R extends Schema.JsonObject>(
 const mapTaskExec = <G extends Grade.Result, M, R extends Schema.JsonObject>(
   mapper: (grade: G["Type"]) => M,
   exec: Metric.Task.Exec<M, R>,
-): Metric.Task.Exec<G, R> => {
-  const mapTrail = (trail: TrailResult<G>): TrailResult<M> => ({
+): Metric.Task.Exec<G["Type"], R> => {
+  const mapTrail = (trail: TrailResult<G["Type"]>): TrailResult<M> => ({
     ...trail,
     grade: mapper(trail.grade),
   });
@@ -40,8 +40,8 @@ const mapTaskExec = <G extends Grade.Result, M, R extends Schema.JsonObject>(
 
 export const metric =
   <G extends Grade.Result, MR extends Schema.JsonObject>(
-    exec: Metric.Bench.Exec<G, MR>,
-    options: Omit<Metric.Bench.Options<G, MR>, "exec"> = {},
+    exec: Metric.Bench.Exec<G["Type"], MR>,
+    options: Omit<Metric.Bench.Options<G["Type"], MR>, "exec"> = {},
   ) =>
   <S extends Task.Stage, E, R>(bench: Effect.Effect<Bench<Task.Task<G, S>>, E, R>) =>
     Effect.flatMap(bench, (bench) =>
@@ -59,7 +59,7 @@ export const mapMetric =
   <G extends Grade.Result, M, MR extends Schema.JsonObject>(
     mapper: (grade: G["Type"]) => M,
     exec: Metric.Bench.Exec<M, MR>,
-    options: Omit<Metric.Bench.Options<G, MR>, "exec"> = {},
+    options: Omit<Metric.Bench.Options<G["Type"], MR>, "exec"> = {},
   ) =>
   <S extends Task.Stage, E, R>(bench: Effect.Effect<Bench<Task.Task<G, S>>, E, R>) =>
     Effect.flatMap(bench, (bench) =>
@@ -76,8 +76,8 @@ export const mapMetric =
 export const taskMetric =
   <G extends Grade.Result, MR extends Schema.JsonObject>(
     taskId: Task.ID,
-    exec: Metric.Task.Exec<G, MR>,
-    options: Omit<Metric.Task.Options<G, MR>, "exec"> = {},
+    exec: Metric.Task.Exec<G["Type"], MR>,
+    options: Omit<Metric.Task.Options<G["Type"], MR>, "exec"> = {},
   ) =>
   <S extends Task.Stage, E, R>(bench: Effect.Effect<Bench<Task.Task<G, S>>, E, R>) =>
     Effect.flatMap(bench, (bench) => {
@@ -105,7 +105,7 @@ export const mapTaskMetric =
     taskId: Task.ID,
     mapper: (grade: G["Type"]) => M,
     exec: Metric.Task.Exec<M, MR>,
-    options: Omit<Metric.Task.Options<G, MR>, "exec"> = {},
+    options: Omit<Metric.Task.Options<G["Type"], MR>, "exec"> = {},
   ) =>
   <S extends Task.Stage, E, R>(bench: Effect.Effect<Bench<Task.Task<G, S>>, E, R>) =>
     Effect.flatMap(bench, (bench) => {

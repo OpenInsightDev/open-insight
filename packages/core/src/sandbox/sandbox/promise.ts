@@ -36,6 +36,12 @@ const makeShellCommand = (
 };
 
 export type SandboxPromise = Readonly<{
+  /**
+   * Shell template tag: runs the template via `sh -c`, returning its stdout.
+   * Each interpolation is quoted as a standalone argument — don't embed them
+   * inside quoted expressions (e.g. sed programs); interpolate the whole
+   * expression as one value instead.
+   */
   $: {
     (strings: TemplateStringsArray, ...values: any[]): Promise<string>;
     (options: ShellOptions): (strings: TemplateStringsArray, ...values: any[]) => Promise<string>;

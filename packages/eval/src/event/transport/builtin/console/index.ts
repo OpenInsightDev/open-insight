@@ -38,5 +38,7 @@ export const make = (options: Options = {}): Transport => {
 };
 
 /** Provides the evaluator's event transport with a console sink. */
-export const layer = (options: Options = {}): Layer.Layer<TransportService> =>
+export const layerFrom = (options: Options): Layer.Layer<TransportService> =>
   Layer.succeed(TransportService)(make(options));
+
+export const layer = layerFrom({});

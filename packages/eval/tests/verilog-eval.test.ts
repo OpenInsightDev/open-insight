@@ -11,36 +11,15 @@ import {
   When,
   Eval,
   Event,
+  env,
+  envify,
+  envExists,
 } from "@open-insight/eval";
 import { readdir, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { NodeRuntime, NodeServices } from "@effect/platform-node";
 import { Effect, Schema } from "effect";
 import { Acp, Sandbox } from "@open-insight/core";
-
-const envPath = new URL("../../../.env", import.meta.url);
-process.loadEnvFile(envPath);
-
-const serveEnv = {
-  OPENAI_API_KEY: process.env.OPENAI_API_KEY,
-  OPENAI_BASE_URL: process.env.OPENAI_BASE_URL,
-  OPENAI_MODEL: process.env.OPENAI_MODEL,
-  DEFAULT_AUTH_REQUEST: JSON.stringify({ methodId: "api-key" }),
-  NO_BROWSER: "1",
-  INITIAL_AGENT_MODE: "agent-full-access",
-  CODEX_CONFIG: JSON.stringify({
-    model: process.env.OPENAI_MODEL,
-    model_provider: "deepseek",
-    model_providers: {
-      deepseek: {
-        name: "DeepSeek",
-        base_url: process.env.OPENAI_BASE_URL,
-        wire_api: "responses",
-        env_key: "OPENAI_API_KEY",
-      },
-    },
-  }),
-};
 
 export class GradeResult extends Schema.Class<GradeResult>("GradeResult")({
   /**
@@ -272,9 +251,37 @@ export const makeBench = Effect.fn("verilog-eval/makeBench")(function* () {
   );
 });
 
+const envPath = new URL("../../../.env", import.meta.url);
+process.loadEnvFile(envPath);
+
+const openAiApiKey = env("OPENAI_API_KEY");
+const openAiBaseUrl = env("OPENAI_BASE_URL");
+const openAiModel = env("OPENAI_MODEL");
+
+const serveEnv = envify({
+  OPENAI_API_KEY: openAiApiKey,
+  OPENAI_BASE_URL: openAiBaseUrl,
+  OPENAI_MODEL: openAiModel,
+  DEFAULT_AUTH_REQUEST: { methodId: "api-key" },
+  NO_BROWSER: "1",
+  INITIAL_AGENT_MODE: "agent-full-access",
+  CODEX_CONFIG: {
+    model: openAiModel,
+    model_provider: "deepseek",
+    model_providers: {
+      deepseek: {
+        name: "DeepSeek",
+        base_url: openAiBaseUrl,
+        wire_api: "responses",
+        env_key: "OPENAI_API_KEY",
+      },
+    },
+  },
+});
+
 const main = Effect.gen(function* () {
-  const singleTask = process.env.VERILOG_EVAL_SINGLE === "1";
-  const streamEvents = process.env.VERILOG_EVAL_EVENTS === "1";
+  const singleTask = envExists("VERILOG_EVAL_SINGLE");
+  const streamEvents = envExists("VERILOG_EVAL_EVENTS");
 
   // VERILOG_EVAL_SINGLE=1 evaluates a single task (Bench.head(1)) instead of
   // the default 10% random sample, for focused inspection.
@@ -283,7 +290,7 @@ const main = Effect.gen(function* () {
     .pipe(Eval.run({ cacheTaskSnapshot: true }))
     .pipe(
       Effect.provide(
-        Acp.layer(
+        Acp.layerFrom(
           { id: "deepseek", agentId: "codex-acp" },
           // Bake the DeepSeek-compatible endpoint into the derived agent
           // snapshot so `acp-agent serve codex-acp` and the codex process it
@@ -292,14 +299,14 @@ const main = Effect.gen(function* () {
         ),
       ),
     )
-    .pipe(Effect.provide(Sandbox.Docker.layer({ ports: [7689] })));
+    .pipe(Effect.provide(Sandbox.Docker.layerFrom({ ports: [7689] })));
 
   // VERILOG_EVAL_EVENTS=1 delivers the evaluation event stream to the console
   // via Event.Transport.Console (init/schedule/metric events plus every
   // streamed agent part), e.g. for inspecting run ordering:
   //   VERILOG_EVAL_EVENTS=1 VERILOG_EVAL_SINGLE=1 node tests/verilog-eval.test.ts
   const result = yield* streamEvents
-    ? evalRun.pipe(Effect.provide(Event.Transport.Console.layer()))
+    ? evalRun.pipe(Effect.provide(Event.Transport.Console.layer))
     : evalRun;
   console.log(result);
   for (const [taskId, taskResult] of Object.entries(result.tasks)) {
@@ -307,7 +314,7 @@ const main = Effect.gen(function* () {
       console.log(
         `TASK ${taskId}: grade=${JSON.stringify(trail.grade)} usage=${JSON.stringify(trail.usage)}`,
       );
-      if (process.env.VERILOG_EVAL_DEBUG === "1") {
+      if (envExists("VERILOG_EVAL_DEBUG")) {
         console.log(`TASK ${taskId} trajectory:`);
         console.dir(trail.trajectory, { depth: 6 });
       }
