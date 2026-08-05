@@ -45,13 +45,24 @@ const encodeInstruction = (instruction: Instruction): string =>
   Instruction.match(instruction, {
     Workdir: ({ path }) => `WORKDIR ${path}`,
     User: ({ user }) => `USER ${user}`,
-    Run: ({ cmd }) => `RUN ${cmd}`,
+    Run: ({ cmd, network }) => `RUN${network === undefined ? "" : ` --network=${network}`} ${cmd}`,
     Cmd: ({ cmd }) => `CMD ${JSON.stringify(cmd)}`,
     Env: ({ env }) => {
       const keys = Object.keys(env).sort();
       return `ENV ${keys.map((key) => `${key}=${JSON.stringify(env[key])}`).join(" ")}`;
     },
-    Copy: ({ src, dest }) => `COPY ${JSON.stringify([...src, dest])}`,
+    Copy: ({ src, dest, from, chmod, chown, link, parents, exclude }) => {
+      const options = [
+        from === undefined ? undefined : `--from=${from}`,
+        chmod === undefined ? undefined : `--chmod=${chmod}`,
+        chown === undefined ? undefined : `--chown=${chown}`,
+        link === undefined ? undefined : `--link${link ? "" : "=false"}`,
+        parents === undefined ? undefined : `--parents${parents ? "" : "=false"}`,
+        ...(exclude ?? []).map((pattern) => `--exclude=${pattern}`),
+      ].filter((option): option is string => option !== undefined);
+      const prefix = options.length === 0 ? "" : `${options.join(" ")} `;
+      return `COPY ${prefix}${JSON.stringify([...src, dest])}`;
+    },
   });
 
 /** Encode provider-independent instructions as a Containerfile. */

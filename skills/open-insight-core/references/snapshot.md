@@ -62,16 +62,16 @@ On those providers, a Containerfile snapshot fails with an error when the sandbo
 
 `Snapshot.makeWith` accepts a base OCI image, an absolute host build context, and an ordered list of instructions.
 
-- `Snapshot.run(command)` runs a shell command during the build.
+- `Snapshot.run(command, options?)` runs a shell command during the build; its optional `network` mode can be `default`, `none`, or `host`.
 - `Snapshot.env(values)` sets environment variables.
-- `Snapshot.copy(sources, destination)` copies files or directories from the build context.
+- `Snapshot.copy(sources, destination, options?)` copies files or directories and can pass Docker `COPY` options: `from`, `chmod`, `chown`, `link`, `parents`, and `exclude`.
 - `Snapshot.workdir(path)` sets the working directory for later build steps and the sandbox.
 - `Snapshot.user(user)` sets the user for later build steps and the sandbox, using either `user` or `user:group`.
 - `Snapshot.available(...programs)` fails the build if any of the listed programs are not found in the `PATH`.
 - `Snapshot.assert(...commands)` fails the build if any of the listed commands return a non-zero exit code.
 
 Instruction order matters, so create a user before switching to it and install tools before checking them.
-Every `copy` source must be inside `context`.
+Unless `from` is set, every `copy` source must be inside `context`. When `from` is set, Docker may resolve the source from a build stage, named context, or image.
 The context is only a build input and is not mounted into the sandbox, so copy every file the task needs explicitly.
 
 The following general example follows the patterns used in `packages/eval/tests/` and attaches the snapshot directly to a task.

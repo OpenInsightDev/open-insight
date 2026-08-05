@@ -181,7 +181,13 @@ const snapshotExtension = (agentId: string, options: Options): Agent.SnapshotExt
 
   return {
     instructions: [
-      Snapshot.Inst.available("curl", "unzip"),
+      Snapshot.Inst.copy(["/deno"], "/usr/local/bin/deno", {
+        from: "ghcr.io/denoland/deno:bin",
+      }),
+      Snapshot.Inst.copy(["/uv", "/uvx"], "/usr/local/bin/", {
+        from: "ghcr.io/astral-sh/uv:latest",
+      }),
+      Snapshot.Inst.available("curl"),
       Snapshot.Inst.run(
         `curl -fsSL ${Bash.quote(ACP_AGENT_INSTALL_URL)} | ACP_AGENT_INSTALL_DIR=/usr/local/bin sh`,
       ),

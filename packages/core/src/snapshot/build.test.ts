@@ -24,7 +24,7 @@ describe("Snapshot", () => {
           context: "/workspace",
           instructions: [
             Snapshot.Inst.env({ B: "second", A: "first" }),
-            Snapshot.Inst.run("echo ready"),
+            Snapshot.Inst.run("echo ready", { network: "none" }),
             Snapshot.Inst.cmd(
               "acp-agent",
               "serve",
@@ -40,7 +40,30 @@ describe("Snapshot", () => {
         assert.strictEqual(snapshot._tag, "Instructions");
         assert.strictEqual(
           Snapshot.encode(snapshot),
-          'FROM alpine:3.22\nENV A="first" B="second"\nRUN echo ready\nCMD ["acp-agent","serve","codex-acp","--host","0.0.0.0","--port","8010"]\nCMD ["sleep","infinity"]\n',
+          'FROM alpine:3.22\nENV A="first" B="second"\nRUN --network=none echo ready\nCMD ["acp-agent","serve","codex-acp","--host","0.0.0.0","--port","8010"]\nCMD ["sleep","infinity"]\n',
+        );
+      }),
+    );
+
+    it.effect("encodes COPY metadata options", () =>
+      Effect.sync(() => {
+        const snapshot = Snapshot.makeWith({
+          image: "alpine:3.22",
+          instructions: [
+            Snapshot.Inst.copy(["src", "README.md"], "/workspace/", {
+              from: "builder",
+              chmod: "755",
+              chown: "1000:1000",
+              link: true,
+              parents: false,
+              exclude: ["*.tmp", "node_modules/"],
+            }),
+          ],
+        });
+
+        assert.strictEqual(
+          Snapshot.encode(snapshot),
+          'FROM alpine:3.22\nCOPY --from=builder --chmod=755 --chown=1000:1000 --link --parents=false --exclude=*.tmp --exclude=node_modules/ ["src","README.md","/workspace/"]\nCMD ["sleep","infinity"]\n',
         );
       }),
     );
