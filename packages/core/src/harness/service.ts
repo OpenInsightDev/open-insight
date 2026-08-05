@@ -43,6 +43,7 @@ export type Config = Readonly<{
 
 export type Harness = Readonly<{
   metadata: Metadata;
+  snapshotExtension: Option.Option<Agent.SnapshotExtension>;
   run(
     snapshot: Snapshot.Snapshot,
     options?: Partial<Config> &
@@ -58,8 +59,13 @@ export class Service extends Context.Service<Service, Harness>()("harness/Servic
   static layer = (
     id: string,
     config: ConfigOptions = {},
-  ): Layer.Layer<Service, HarnessError, Agent.ProviderService | Sandbox.ProviderService> =>
-    Layer.effect(
+  ): Layer.Layer<
+    Service | Sandbox.ProviderService,
+    HarnessError,
+    Agent.ProviderService | Sandbox.ProviderService
+  > => {
+    const sandboxLayer = Layer.effect(Sandbox.ProviderService, Sandbox.ProviderService);
+    return Layer.effect(
       this,
       Effect.gen(function* () {
         const agentProvider = yield* Agent.ProviderService;
@@ -107,7 +113,8 @@ export class Service extends Context.Service<Service, Harness>()("harness/Servic
           };
         }) satisfies Harness["run"];
 
-        return { metadata, run };
+        return { metadata, snapshotExtension: agentProvider.snapshotExtension, run };
       }),
-    );
+    ).pipe(Layer.provideMerge(sandboxLayer));
+  };
 }

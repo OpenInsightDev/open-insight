@@ -1,8 +1,8 @@
-import { Crypto, DateTime, Effect, FileSystem, Path, Ref, Scope, Stream } from "effect";
+import { Crypto, DateTime, Effect, FileSystem, Option, Path, Ref, Scope, Stream } from "effect";
 import type { ChildProcessSpawner } from "effect/unstable/process";
 import { castDraft, produce } from "immer";
 import * as Bench from "#/bench/index.ts";
-import { Harness } from "@open-insight/core/internal";
+import { Harness, Sandbox, Snapshot } from "@open-insight/core/internal";
 import * as Metric from "#/metric/index.ts";
 import * as Task from "#/task/index.ts";
 import type { Config } from "./config.ts";
@@ -39,12 +39,14 @@ export const run = Effect.fn("exec/schedule")(
     | Path.Path
     | Scope.Scope
     | Harness.Service
+    | Sandbox.ProviderService
   > {
-    const { snapshotConcurrency, trailConcurrency } = config;
+    const { snapshotConcurrency, taskConcurrency, trailConcurrency } = config;
     const offer = Event.offerTo(eventQueue);
 
     const benchId = bench.metadata.id;
     const harness = yield* Harness.Service;
+    const sandboxProvider = yield* Sandbox.ProviderService;
     const evalEventFields = { bench: benchId, harness: harness.metadata.id };
     const taskEventFields = (task: Task.AnyTask) => ({
       ...evalEventFields,
@@ -168,8 +170,47 @@ export const run = Effect.fn("exec/schedule")(
     }).pipe(offer);
 
     const result = yield* Effect.gen(function* () {
+      const snapshots = yield* Effect.forEach(
+        tasks,
+        Effect.fn(function* (task) {
+          const handle = yield* Snapshot.Handle.make(task.snapshot).pipe(
+            Effect.mapError(EvalError.snapshot(task)),
+          );
+          return [handle.name, task] satisfies readonly [string, Task.AnyTask];
+        }),
+        { concurrency: "unbounded" },
+      );
+      const uniqueSnapshotTasks = [...new Map(snapshots).values()];
+
+      yield* Effect.forEach(
+        uniqueSnapshotTasks,
+        Effect.fn(
+          function* (task) {
+            const taskSnapshot = yield* sandboxProvider.aquireSnapshot({
+              snapshot: task.snapshot,
+              cache: config.cacheTaskSnapshot,
+            });
+            yield* harness.snapshotExtension.pipe(
+              Option.match({
+                onNone: () => Effect.void,
+                onSome: ({ instructions, context }) =>
+                  sandboxProvider.deriveSnapshot({
+                    handle: taskSnapshot,
+                    instructions,
+                    context: context ?? task.snapshot.context,
+                    cache: config.cacheAgentSnapshot,
+                  }),
+              }),
+            );
+          },
+          (effect, task) => effect.pipe(Effect.mapError(EvalError.snapshot(task))),
+        ),
+        { concurrency: snapshotConcurrency, discard: true },
+      );
+      yield* Effect.logDebug("Prepared all snapshots");
+
       const scheduledTasks = yield* Effect.all(tasks.map(prepareTask), {
-        concurrency: snapshotConcurrency,
+        concurrency: taskConcurrency,
       });
       yield* Effect.logDebug("Prepared all tasks");
 

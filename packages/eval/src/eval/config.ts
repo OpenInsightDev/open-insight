@@ -7,13 +7,13 @@ export type Config = Harness.Config &
     /** Configuration for the OpenTelemetry Node SDK. Defaults to an empty configuration. */
     otel: NodeSdk.Configuration;
 
-    /** Maximum number of task snapshots prepared concurrently. Defaults to `8`. */
+    /** Maximum number of task snapshots prepared concurrently. Defaults to `32`. */
     snapshotConcurrency: number;
 
-    /** Maximum number of tasks processed concurrently. Defaults to `8`. */
+    /** Maximum number of tasks processed concurrently. Defaults to `32`. */
     taskConcurrency: number;
 
-    /** Maximum number of evaluation trails executed concurrently. Defaults to `8`. */
+    /** Maximum number of evaluation trails executed concurrently. Defaults to `32`. */
     trailConcurrency: number;
 
     /** Number of independent evaluation trails run for each task. Defaults to `1`. */
