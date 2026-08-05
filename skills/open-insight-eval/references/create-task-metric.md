@@ -11,7 +11,7 @@ Pass the executor to `Task.metric(exec, options)` to attach it to a task, or to 
 ```ts
 import { Task } from "@open-insight/eval";
 
-Task.metric(async (results) => ({
+Task.metric((results) => ({
   completed: results.length,
 }), {
   id: "completed-trails",
@@ -22,8 +22,10 @@ Task.metric(async (results) => ({
 The executor has this shape:
 
 ```ts
-async (results, delta, prev) => result
+(results, delta, prev) => result
 ```
+
+It may return the result directly or as a Promise.
 
 - `results` contains every completed trail so far, including `delta`;
 - `delta` is the newly completed trail;
@@ -34,7 +36,7 @@ Each trail contains its final decoded `grade`, `trajectory`, token `usage` (or `
 The three arguments support two styles. Use only `results` to analyze the full current set:
 
 ```ts
-Task.metric(async (results) => ({
+Task.metric((results) => ({
   completed: results.length,
   outputTokens: results.reduce(
     (total, { usage }) => total + (usage?.outputTokens.total ?? 0),
@@ -49,7 +51,7 @@ Task.metric(async (results) => ({
 Or treat `prev` as the accumulator and `delta` as the next input:
 
 ```ts
-Task.metric(async (_results, delta, prev) => {
+Task.metric((_results, delta, prev) => {
   const completed = typeof prev?.completed === "number" ? prev.completed : 0;
   const outputTokens = typeof prev?.outputTokens === "number" ? prev.outputTokens : 0;
 

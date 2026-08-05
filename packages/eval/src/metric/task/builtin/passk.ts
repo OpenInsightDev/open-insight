@@ -11,7 +11,7 @@ type PassPowK = Readonly<{ "pass^k": number }>;
 
 export const passAtK =
   <G extends Pass>(k: number): Exec<G, PassAtK> =>
-  async (results) => {
+  (results) => {
     const total = results.length;
     const correct = countCorrect(results);
     return { "pass@k": estimatePassAtK(total, correct, k) };
@@ -19,7 +19,7 @@ export const passAtK =
 
 export const passPowK =
   <G extends Pass>(k: number): Exec<G, PassPowK> =>
-  async (results) => {
+  (results) => {
     const total = results.length;
     const correct = countCorrect(results);
     return { "pass^k": estimatePassPowK(total, correct, k) };

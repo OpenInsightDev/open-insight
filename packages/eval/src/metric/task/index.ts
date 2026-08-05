@@ -17,7 +17,7 @@ export type Exec<G = unknown, R extends Schema.JsonObject = Schema.JsonObject> =
   results: ReadonlyArray<TrailResult<G>>,
   delta: TrailResult<G>,
   prev: R | null,
-) => Promise<R>;
+) => R | Promise<R>;
 
 export type Metric<G = unknown, R extends Schema.JsonObject = Schema.JsonObject> = Readonly<{
   exec: BivariantFn<Exec<G, R>>;
@@ -57,7 +57,7 @@ export const run = Effect.fn("metric/task/run")(function* <G, R extends Schema.J
     const results = [...current.results, delta];
 
     const rawResult = yield* Effect.tryPromise(() =>
-      metric.exec(results, delta, current.prev),
+      Promise.resolve(metric.exec(results, delta, current.prev)),
     ).pipe(Effect.mapError(MetricError.exec(metric.metadata.id)));
     const result = yield* Schema.decodeEffect(Result)(rawResult).pipe(
       Effect.mapError(MetricError.result(metric.metadata.id)),

@@ -17,7 +17,7 @@ The executor receives:
 
 Use `prev` for incremental results. Recompute from `parts` when each result should be a current snapshot. Do not store metric state in module-level variables because trails may run concurrently.
 
-Return a JSON object; TypeScript infers its shape from the executor. The framework validates only the general JSON-object shape at runtime, so decode untrusted command or file output inside the executor when stricter validation is required.
+Return a JSON object; TypeScript infers its shape from the executor. The executor may return the result directly or as a Promise. The framework validates only the general JSON-object shape at runtime, so decode untrusted command or file output inside the executor when stricter validation is required.
 
 ## Choose Between Part-Based and Schedule-Based Metrics
 
@@ -98,7 +98,7 @@ Task.make(taskOptions).pipe(
     grader: Grade.make(GradeResult)(async () => ({})),
   }),
   Task.trajMetric(
-    async ({ parts }, prev) => {
+    ({ parts }, prev) => {
       const attempts = typeof prev?.attempts === "number" ? prev.attempts : 0;
       const rejected = typeof prev?.rejected === "number" ? prev.rejected : 0;
       const latest = parts.at(-1);

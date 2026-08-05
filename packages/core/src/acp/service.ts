@@ -188,6 +188,7 @@ const snapshotExtension = (agentId: string, options: Options): Agent.SnapshotExt
         from: "ghcr.io/astral-sh/uv:latest",
       }),
       Snapshot.Inst.available("uv"),
+      // TODO maybe we can use some kind of static curl here
       Snapshot.Inst.available("curl"),
       Snapshot.Inst.run(
         `curl -fsSL ${ACP_AGENT_INSTALL_URL} | ACP_AGENT_INSTALL_DIR=/usr/local/bin sh`,
@@ -476,9 +477,9 @@ const agentReady = (url: URL, options: Options): Effect.Effect<boolean, Agent.Ag
     catch: Agent.AgentError.stream,
   });
 
-const waitForAgentReady = Effect.fn(function* (url: URL, options: Options) {
+export const waitForAgentReady = Effect.fn(function* (url: URL, options: Options) {
   yield* agentReady(url, options).pipe(
-    Effect.retry(Schedule.fixed("500 millis").pipe(Schedule.upTo({ times: 20 }))),
+    Effect.retry(Schedule.fixed("500 millis").pipe(Schedule.upTo({ duration: "1 minute" }))),
   );
 });
 

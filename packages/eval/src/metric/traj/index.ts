@@ -20,7 +20,7 @@ export type Context = When.SandboxContext &
 export type Exec<R extends Schema.JsonObject = Schema.JsonObject> = (
   context: Context,
   prev: R | null,
-) => Promise<R>;
+) => R | Promise<R>;
 
 export type Metric<R extends Schema.JsonObject = Schema.JsonObject> = Readonly<{
   when: When.When;
@@ -52,7 +52,7 @@ const execMetric = Effect.fn("metric/traj/execMetric")(function* (
   prev: Result | null,
   state: Ref.Ref<ReadonlyMap<Metric, Result>>,
 ): Effect.fn.Return<StreamResult, MetricError> {
-  const rawResult = yield* Effect.tryPromise(() => metric.exec(context, prev)).pipe(
+  const rawResult = yield* Effect.tryPromise(() => Promise.resolve(metric.exec(context, prev))).pipe(
     Effect.mapError(MetricError.exec(metric.metadata.id)),
   );
   const result = yield* Schema.decodeEffect(Result)(rawResult).pipe(

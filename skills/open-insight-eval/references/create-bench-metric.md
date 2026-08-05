@@ -11,7 +11,7 @@ Create a custom metric with `BenchMetric.exec(...)`:
 ```ts
 import { BenchMetric } from "@open-insight/eval";
 
-const completionSummary = BenchMetric.exec(async (results) => ({
+const completionSummary = BenchMetric.exec((results) => ({
   tasks: Object.keys(results).length,
   trails: Object.values(results).reduce((total, trails) => total + trails.length, 0),
 }));
@@ -20,8 +20,10 @@ const completionSummary = BenchMetric.exec(async (results) => ({
 The executor has this shape:
 
 ```ts
-async (results, delta, prev) => result
+(results, delta, prev) => result
 ```
+
+It may return the result directly or as a Promise.
 
 - `results` contains completed trails grouped by task ID, including `delta`;
 - `delta` is the newly completed trail together with its `task` ID;
@@ -32,7 +34,7 @@ Each trail contains its final decoded `grade`, `trajectory`, token `usage`, and 
 The three arguments support two styles. Use only `results` to analyze the full current benchmark state:
 
 ```ts
-const usageSummary = BenchMetric.exec(async (results) => ({
+const usageSummary = BenchMetric.exec((results) => ({
   outputTokens: Object.values(results).reduce(
     (benchTotal, trails) =>
       benchTotal +
@@ -48,7 +50,7 @@ const usageSummary = BenchMetric.exec(async (results) => ({
 Or treat `prev` as the accumulator and `delta` as the next input:
 
 ```ts
-const usageSummary = BenchMetric.exec(async (_results, delta, prev) => {
+const usageSummary = BenchMetric.exec((_results, delta, prev) => {
   const completed = typeof prev?.completed === "number" ? prev.completed : 0;
   const outputTokens = typeof prev?.outputTokens === "number" ? prev.outputTokens : 0;
 

@@ -35,14 +35,14 @@ const hasName = (name: string | undefined) => (part: ToolCallPart | ToolResultPa
 /** Counts trajectory parts observed so far, optionally filtered by part type. */
 export const partCount =
   (type?: PartType) =>
-  async (context: Context): Promise<Count> => ({
+  (context: Context): Count => ({
     count: allParts(context).filter((part) => type === undefined || part.type === type).length,
   });
 
 /** Counts tool calls observed so far, optionally filtered by tool name. */
 export const toolCallCount =
   (name?: string) =>
-  async (context: Context): Promise<Count> => ({
+  (context: Context): Count => ({
     count: allParts(context).filter(isToolCall).filter(hasName(name)).length,
   });
 
@@ -54,7 +54,7 @@ export const toolCallCount =
  */
 export const toolCallSuccessRate =
   (name?: string) =>
-  async (context: Context): Promise<Rate> => {
+  (context: Context): Rate => {
     const results = allParts(context).filter(isToolResult).filter(hasName(name));
     const successes = results.filter((result) => !result.isFailure).length;
 

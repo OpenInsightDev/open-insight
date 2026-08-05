@@ -18,12 +18,12 @@ const averageEstimate = (results: Results<Pass>, k: number, estimate: Estimate) 
 
 export const avgPassAtK =
   <G extends Pass>(k: number): Exec<G, AvgPassAtK> =>
-  async (results) => ({
+  (results) => ({
     "pass@k": averageEstimate(results, k, estimatePassAtK),
   });
 
 export const avgPassPowK =
   <G extends Pass>(k: number): Exec<G, AvgPassPowK> =>
-  async (results) => ({
+  (results) => ({
     "pass^k": averageEstimate(results, k, estimatePassPowK),
   });
