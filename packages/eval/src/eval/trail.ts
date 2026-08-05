@@ -16,18 +16,25 @@ export type RunTrail = (trailIdx: number) => Effect.Effect<TrailResult, EvalErro
 type StageResults = Readonly<Grade.Results>;
 type Usage = Response.Usage | null;
 
-const makeVerifAgent = ({
+const makeVerifAgent = Effect.fn("exec/makeVerifAgent")(function* ({
   verifier,
   sandbox,
 }: {
   verifier: Grade.VerifExec;
   sandbox: Sandbox.SandboxPromise;
-}): Harness.Session => ({
-  trajectory: Effect.tryPromise(() => verifier({ ...sandbox, trajectory: Prompt.empty })).pipe(
+}): Effect.fn.Return<Harness.Session> {
+  const trajectory = yield* Effect.tryPromise(() =>
+    verifier({ ...sandbox, trajectory: Prompt.empty }),
+  ).pipe(
     Effect.mapError((cause) => Harness.HarnessError.agent(Agent.AgentError.trajectory(cause))),
     Effect.map((input) => (input === null ? Prompt.empty : Prompt.make(input))),
-  ),
-  prompt: () => Stream.empty,
+    Effect.cached,
+  );
+
+  return {
+    trajectory,
+    prompt: () => Stream.empty,
+  } satisfies Harness.Session;
 });
 
 export const createTrail = Effect.fn("exec/createTrail")(
@@ -272,7 +279,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
               return yield* Effect.fail(EvalError.verifInitialMatch(task, verif.expect));
             }
 
-            const session = makeVerifAgent({ verifier: verif.verif, sandbox: ctx });
+            const session = yield* makeVerifAgent({ verifier: verif.verif, sandbox: ctx });
             yield* Ref.set(sessionRef, Option.some(session));
           } else {
             const currentSession = yield* Ref.get(sessionRef);

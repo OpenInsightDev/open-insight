@@ -222,6 +222,7 @@ it.effect("prepares a shared snapshot once before running trails", () =>
 
 it.effect("verifies stable encoded fields while allowing dynamic grade fields", () =>
   Effect.gen(function* () {
+    let verifierRunCount = 0;
     const DynamicGradeResult = Schema.Struct({
       passed: Schema.Boolean,
       summary: Schema.String,
@@ -244,7 +245,13 @@ it.effect("verifies stable encoded fields while allowing dynamic grade fields", 
               ? { passed: false, summary: "initial" }
               : { passed: true, summary: "1 passed in 0.25s" },
           {
-            verif: async () => "verified",
+            verif: async () => {
+              verifierRunCount += 1;
+              if (verifierRunCount > 1) {
+                throw new globalThis.Error("Verifier must run once per stage");
+              }
+              return "verified";
+            },
             expect: { passed: true },
           },
         ),
@@ -269,5 +276,6 @@ it.effect("verifies stable encoded fields while allowing dynamic grade fields", 
       passed: true,
       summary: "1 passed in 0.25s",
     });
+    assert.strictEqual(verifierRunCount, 1);
   }),
 );

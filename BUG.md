@@ -81,8 +81,8 @@ exited successfully. A separate golden-verifier run also reached `pass=2/2`.
 
 ## Verifier executes multiple times in one stage
 
-Status: worked around in `benchmarks/cvdp_benchmark/mod.ts`; upstream fix still
-needed.
+Status: fixed in `packages/eval/src/eval/trail.ts`; the benchmark workaround can
+remain until it consumes a release containing the fix.
 
 Observed on 2026-08-06 while running the commercial agentic golden task:
 
@@ -109,7 +109,7 @@ each application happened to mask it in the earlier no-commercial task.
 
 ### Source path to the issue
 
-In `references/open-insight/packages/eval/src/eval/trail.ts`:
+Before the fix, in `references/open-insight/packages/eval/src/eval/trail.ts`:
 
 - Lines 19-31 implement `makeVerifAgent`. Its `trajectory` field is a cold
   `Effect.tryPromise(() => verifier(...))`; the effect is not memoized.
@@ -127,14 +127,18 @@ failure is reported through nested agent/harness trajectory errors, which
 also obscures that the failing operation is verifier setup rather than an
 agent trajectory.
 
-### Workaround and expected upstream fix
+### Workaround and upstream fix
 
 The CVDP verifier restores every patched path to its task baseline before
 applying the golden patch. Existing paths are rewritten from `task.context`;
 new paths are removed. This makes repeated verifier evaluation idempotent
 without modifying the installed `@open-insight/eval` package.
 
-Upstream should execute `VerifExec` exactly once per stage and memoize the
-resulting trajectory, or otherwise make the verifier session's trajectory a
-stable value. Requiring every benchmark verifier to anticipate repeated
-mutation is error-prone and is not apparent from the `VerifExec` API.
+`packages/eval/src/eval/trail.ts` now memoizes the verifier session's trajectory
+effect when the session is created. All trajectory readers in a stage therefore
+observe the same success or failure, and `VerifExec` mutates its trail sandbox
+exactly once per stage. A regression test makes a second invocation fail and
+asserts that the verifier ran once.
+
+Requiring every benchmark verifier to anticipate repeated mutation was
+error-prone and was not apparent from the `VerifExec` API.
