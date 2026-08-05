@@ -1,0 +1,64 @@
+{
+  "name": "@open-insight/harbor",
+  "version": "0.0.24",
+  "description": "Harbor task authoring for Open Insight — scaffold, design, and verify agent evaluation tasks.",
+  "homepage": "https://github.com/OpenInsightDev/open-insight#readme",
+  "bugs": {
+    "url": "https://github.com/OpenInsightDev/open-insight/issues"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/OpenInsightDev/open-insight.git",
+    "directory": "packages/harbor"
+  },
+  "files": [
+    "dist/**/*.mjs",
+    "dist/**/*.mjs.map",
+    "src/**/*.ts"
+  ],
+  "type": "module",
+  "imports": {
+    "#/*": "./src/*"
+  },
+  "exports": {
+    ".": "./src/export.ts",
+    "./internal": "./src/index.ts",
+    "./package.json": "./package.json"
+  },
+  "publishConfig": {
+    "exports": {
+      ".": {
+        "types": "./src/export.ts",
+        "import": "./dist/index.mjs"
+      },
+      "./internal": {
+        "types": "./src/index.ts",
+        "import": "./dist/internal.mjs"
+      },
+      "./package.json": "./package.json"
+    },
+    "access": "public"
+  },
+  "scripts": {
+    "build": "vp pack",
+    "dev": "vp pack --watch",
+    "test": "vp test",
+    "check": "vp check",
+    "prepublishOnly": "vp run build"
+  },
+  "dependencies": {
+    "@open-insight/core": "workspace:*",
+    "@open-insight/eval": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "bumpp": "catalog:",
+    "typescript": "catalog:",
+    "vite-plus": "catalog:",
+    "vitest": "catalog:"
+  },
+  "peerDependencies": {
+    "effect": "catalog:"
+  }
+}
