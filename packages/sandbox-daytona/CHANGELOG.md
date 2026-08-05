@@ -1,5 +1,13 @@
 # @open-insight/sandbox-daytona
 
+## 1.0.3
+
+### Patch Changes
+
+- patch
+- Updated dependencies
+  - @open-insight/core@1.0.3
+
 ## 1.0.2
 
 ### Patch Changes
