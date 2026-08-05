@@ -52,25 +52,23 @@ const unsupportedCapabilities = {
 export interface Options extends HttpStreamOptions, WebSocketStreamOptions {
   /**
    * Authentication request to send when the agent advertises authentication
-   * methods during initialization. Credentials remain agent-managed per ACP.
+   * methods during initialization.
+   * Credentials remain agent-managed per ACP.
    */
   readonly auth?: AuthenticateRequest;
   readonly agentArgs?: ReadonlyArray<string>;
   /**
-   * Environment variables baked into the generated snapshot and inherited by
-   * `acp-agent serve` and the agent process it starts. Use this for the
-   * selected agent's runtime configuration, such as `DEFAULT_AUTH_REQUEST`
+   * Environment variables baked into the generated snapshot and inherited by `acp-agent serve` and the agent process it starts.
+   * Use this for the selected agent's runtime configuration, such as `DEFAULT_AUTH_REQUEST`
    * or `CODEX_CONFIG`.
    *
-   * Values become part of the derived snapshot image. Do not use this for
-   * credentials unless that image is kept private.
+   * Values become part of the derived snapshot image.
+   * Do not use this for credentials unless that image is kept private.
    */
   readonly serveEnv?: Readonly<Record<string, string>>;
   /**
-   * Activates the agent's yolo/auto-approve mode by passing `--yolo` to
-   * `acp-agent serve`, which injects the agent's mapped startup flag from the
-   * published yolo-mode catalog. Enabled by default; set `disableYolo` to
-   * `true` to opt out.
+   * Activates the agent's yolo/auto-approve mode by passing `--yolo` to `acp-agent serve`, which injects the agent's mapped startup flag from the published yolo-mode catalog.
+   * Enabled by default; set `disableYolo` to `true` to opt out.
    */
   readonly disableYolo?: boolean;
   readonly port?: number;

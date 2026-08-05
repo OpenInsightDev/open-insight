@@ -49,6 +49,7 @@
     "@effect/platform-node": "catalog:",
     "@modelcontextprotocol/sdk": "catalog:",
     "@open-insight/core": "workspace:*",
+    "memfs": "catalog:",
     "yaml": "catalog:"
   },
   "devDependencies": {
