@@ -1,6 +1,6 @@
 ---
 name: open-insight-eval
-description: Use when working with the @open-insight/eval package — creating evaluation harnesses, benchmarks, tasks, metrics, and grades for Open Insight agents, and integrating them with Harbor and CI.
+description: Use when working with the @open-insight/eval package — creating evaluation harnesses, benchmarks, tasks, metrics, and grades for Open Insight agents, and integrating them with Harbor.
 ---
 
 # @open-insight/eval guidelines

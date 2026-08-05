@@ -150,18 +150,26 @@ Selection functions are Effect combinators. Start with the full benchmark and ap
 ```ts
 const smokeBench = makeBench().pipe(Bench.head(10));
 const afterWarmup = makeBench().pipe(Bench.skip(10));
+const tailBench = makeBench().pipe(Bench.tail(10));
+const middleBench = makeBench().pipe(Bench.slice(5, 15));
 const configuredBench = makeBench().pipe(Bench.select(["task-a", "task-c"]));
+const keywordBench = makeBench().pipe(Bench.selectWhere((task) => task.metadata.id.startsWith("math-")));
 const sampledBench = makeBench().pipe(Bench.randomSelect(10));
+const ratioBench = makeBench().pipe(Bench.sample("20%"));
 ```
 
 - `Bench.head(n)`: keeps the first `n` tasks in source order;
 - `Bench.skip(n)`: removes the first `n` tasks;
+- `Bench.tail(n)`: keeps the last `n` tasks in source order;
+- `Bench.slice(start, end?)`: keeps the tasks in the half-open range `[start, end)`, following `Array.slice` semantics including negative indexes;
 - `Bench.select(ids)`: keeps tasks whose `metadata.id` is in `ids`, in source order;
-- `Bench.randomSelect(n)`: shuffles the task array using Effect's random service and keeps `n`.
+- `Bench.selectWhere(predicate)`: keeps tasks for which the predicate on the task value (commonly its metadata) returns `true`, in source order;
+- `Bench.randomSelect(n)`: shuffles the task array using Effect's random service and keeps `n`;
+- `Bench.sample(percentage)`: shuffles the task array and keeps `Math.floor(total * ratio)` tasks, where `percentage` is a string such as `"20%"` and `ratio` is the parsed value divided by 100.
 
-All four operations return a benchmark with `metadata.subset === true`. They preserve benchmark metadata, metrics, and task values while replacing the task array. `randomSelect` is intentionally not a stable sampling policy by itself; use a controlled random service or an explicit ID list when the selected set must be reproducible across runs.
+All nine operations return a benchmark with `metadata.subset === true`. They preserve benchmark metadata, metrics, and task values while replacing the task array. `randomSelect` and `sample` are intentionally not stable sampling policies by themselves; use a controlled random service or an explicit ID list when the selected set must be reproducible across runs.
 
-Apply selection to the benchmark Effect, not to the raw task array, so the subset marker and all attached metrics remain part of the resulting benchmark. For configured IDs, validate that every requested ID exists if silently ignoring unknown IDs would hide a configuration error; the built-in `Bench.select` simply filters, while `Bench.taskMetric` and `Bench.trajMetric` fail with `BenchError` when their task ID does not exist.
+Apply selection to the benchmark Effect, not to the raw task array, so the subset marker and all attached metrics remain part of the resulting benchmark. For configured IDs, validate that every requested ID exists if silently ignoring unknown IDs would hide a configuration error; the built-in `Bench.select` and `Bench.selectWhere` simply filter, while `Bench.taskMetric` and `Bench.trajMetric` fail with `BenchError` when their task ID does not exist.
 
 ## Complete Assembly Pattern
 
@@ -242,7 +250,7 @@ Benchmark construction can fail with `BenchError` for initialization failures or
 - Task IDs are unique and task order is intentional.
 - Task, trajectory, and benchmark metrics are attached at their correct scopes.
 - Benchmark metrics use explicit grade mappings when their input shape differs from the task grade.
-- The full benchmark is reusable; subsets are derived with `head`, `skip`, `select`, or `randomSelect` and are marked as subsets.
+- The full benchmark is reusable; subsets are derived with `head`, `skip`, `tail`, `slice`, `select`, `selectAt`, `selectWhere`, `randomSelect`, or `sample` and are marked as subsets.
 - Metric trail requirements fit the configured `trailCount`.
 - Construction and loader failures remain typed Effect failures.
 - The resulting benchmark is validated before `Eval.run`.

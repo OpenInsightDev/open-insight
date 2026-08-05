@@ -16,6 +16,8 @@ export type Results<G = unknown> = Readonly<Record<Task.ID, ReadonlyArray<TrailR
  * @param results All benchmark results collected so far, including the current `delta`.
  * @param delta The task trail result that triggered this computation.
  * @param prev The previous output of this metric, or `null` on its first execution.
+ *
+ * Note that the function needs to be explicitly return-type annotated.
  */
 export type Exec<G = unknown, R extends Schema.JsonObject = Schema.JsonObject> = (
   results: Results<G>,

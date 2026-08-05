@@ -76,18 +76,10 @@ export const run = Effect.fn("exec/schedule")(
         });
         yield* Effect.logDebug("Preparing task");
 
-        yield* Effect.acquireRelease(
-          Event.TaskScheduleEvent.makeEffect({
-            ...taskEventFields(task),
-            op: "start",
-          }).pipe(offer),
-
-          () =>
-            Event.TaskScheduleEvent.makeEffect({
-              ...taskEventFields(task),
-              op: "stop",
-            }).pipe(offer),
-        );
+        yield* Event.TaskScheduleEvent.makeEffect({
+          ...taskEventFields(task),
+          op: "start",
+        }).pipe(offer);
 
         const runTrail = yield* createTrail({
           task,
@@ -170,87 +162,105 @@ export const run = Effect.fn("exec/schedule")(
       benchMetadata: Bench.metadata(bench),
     }).pipe(offer);
 
-    yield* Effect.acquireRelease(
-      Event.EvalScheduleEvent.makeEffect({
-        ...evalEventFields,
-        op: "start",
-      }).pipe(offer),
+    yield* Event.EvalScheduleEvent.makeEffect({
+      ...evalEventFields,
+      op: "start",
+    }).pipe(offer);
 
-      () =>
+    const result = yield* Effect.gen(function* () {
+      const scheduledTasks = yield* Effect.all(tasks.map(prepareTask), {
+        concurrency: snapshotConcurrency,
+      });
+      yield* Effect.logDebug("Prepared all tasks");
+
+      const completedTrails = makeTrailStream(scheduledTasks).pipe(
+        Stream.mapEffect(runScheduledTrail, {
+          concurrency: trailConcurrency,
+          unordered: true,
+        }),
+      );
+
+      const benchMetrics = yield* Effect.forEach(bench.metrics, Metric.Bench.run);
+      yield* completedTrails.pipe(
+        Stream.runForEach(({ task, result }) =>
+          Ref.modify(resultRef, (benchResult) => {
+            const taskResult = benchResult.tasks[task.metadata.id];
+            const completedTrailCount = (taskResult?.trails.length ?? 0) + 1;
+            const updatedBenchResult = produce(benchResult, (draft) => {
+              const taskResult = draft.tasks[task.metadata.id];
+              if (taskResult) {
+                taskResult.startedAt = castDraft(
+                  DateTime.min(taskResult.startedAt, result.startedAt),
+                );
+                taskResult.finishedAt = castDraft(
+                  DateTime.max(taskResult.finishedAt, result.finishedAt),
+                );
+                taskResult.trails.push(castDraft(result));
+              } else {
+                draft.tasks[task.metadata.id] = castDraft(
+                  TaskResult.make({
+                    startedAt: result.startedAt,
+                    finishedAt: result.finishedAt,
+                    trails: [castDraft(result)],
+                  }),
+                );
+              }
+            });
+
+            return [
+              completedTrailCount === config.trailCount,
+              updatedBenchResult,
+            ] satisfies readonly [boolean, BenchResult];
+          }).pipe(
+            Effect.flatMap((taskFinished) =>
+              taskFinished
+                ? Event.TaskScheduleEvent.makeEffect({
+                    ...taskEventFields(task),
+                    op: "stop",
+                  }).pipe(offer)
+                : Effect.void,
+            ),
+            Effect.andThen(
+              Effect.forEach(
+                benchMetrics,
+                (run) =>
+                  run({
+                    task: task.metadata.id,
+                    ...result,
+                  }).pipe(
+                    Effect.flatMap(({ id, result, chart }) =>
+                      Event.BenchMetricEvent.makeEffect({
+                        ...evalEventFields,
+                        id,
+                        result,
+                        chart,
+                      }).pipe(offer),
+                    ),
+                  ),
+                { concurrency: "unbounded", discard: true },
+              ).pipe(Effect.mapError(EvalError.init)),
+            ),
+          ),
+        ),
+      );
+
+      const finishedAt = yield* DateTime.now;
+      yield* Ref.update(resultRef, (result) => ({
+        ...result,
+        finishedAt,
+      }));
+      yield* Effect.logDebug("Completed evaluation schedule");
+      return yield* Ref.get(resultRef);
+    }).pipe(
+      Effect.ensuring(
         Event.EvalScheduleEvent.makeEffect({
           ...evalEventFields,
           op: "stop",
         }).pipe(offer),
-    );
-
-    const scheduledTasks = yield* Effect.all(tasks.map(prepareTask), {
-      concurrency: snapshotConcurrency,
-    });
-    yield* Effect.logDebug("Prepared all tasks");
-
-    const completedTrails = makeTrailStream(scheduledTasks).pipe(
-      Stream.mapEffect(runScheduledTrail, {
-        concurrency: trailConcurrency,
-        unordered: true,
-      }),
-    );
-
-    const benchMetrics = yield* Effect.forEach(bench.metrics, Metric.Bench.run);
-    yield* completedTrails.pipe(
-      Stream.runForEach(({ task, result }) =>
-        Ref.update(resultRef, (benchResult) =>
-          produce(benchResult, (draft) => {
-            const taskResult = draft.tasks[task.metadata.id];
-            if (taskResult) {
-              taskResult.startedAt = castDraft(
-                DateTime.min(taskResult.startedAt, result.startedAt),
-              );
-              taskResult.finishedAt = castDraft(
-                DateTime.max(taskResult.finishedAt, result.finishedAt),
-              );
-              taskResult.trails.push(castDraft(result));
-            } else {
-              draft.tasks[task.metadata.id] = castDraft(
-                TaskResult.make({
-                  startedAt: result.startedAt,
-                  finishedAt: result.finishedAt,
-                  trails: [castDraft(result)],
-                }),
-              );
-            }
-          }),
-        ).pipe(
-          Effect.andThen(
-            Effect.forEach(
-              benchMetrics,
-              (run) =>
-                run({
-                  task: task.metadata.id,
-                  ...result,
-                }).pipe(
-                  Effect.flatMap(({ id, result, chart }) =>
-                    Event.BenchMetricEvent.makeEffect({
-                      ...evalEventFields,
-                      id,
-                      result,
-                      chart,
-                    }).pipe(offer),
-                  ),
-                ),
-              { concurrency: "unbounded", discard: true },
-            ).pipe(Effect.mapError(EvalError.init)),
-          ),
-        ),
       ),
     );
 
-    const finishedAt = yield* DateTime.now;
-    yield* Ref.update(resultRef, (result) => ({
-      ...result,
-      finishedAt,
-    }));
-    yield* Effect.logDebug("Completed evaluation schedule");
-    return yield* Ref.get(resultRef);
+    return result;
   },
   (effect, { bench }) =>
     effect.pipe(Effect.scoped, Effect.annotateLogs({ benchmark: bench.metadata.id })),

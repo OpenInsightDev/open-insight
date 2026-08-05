@@ -10,6 +10,7 @@ import {
   TrajMetric,
   When,
   Eval,
+  Event,
 } from "@open-insight/eval";
 import { readdir, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
@@ -17,34 +18,23 @@ import { NodeRuntime, NodeServices } from "@effect/platform-node";
 import { Effect, Schema } from "effect";
 import { Acp, Sandbox } from "@open-insight/core";
 
-// Load the repository .env (OPENAI_API_KEY / OPENAI_BASE_URL / OPENAI_MODEL)
-// so the codex-acp agent started inside each sandbox can reach the
-// DeepSeek-compatible endpoint. loadEnvFile only fills variables that are
-// not already set in the environment.
 const envPath = new URL("../../../.env", import.meta.url);
 process.loadEnvFile(envPath);
 
 const serveEnv = {
-  OPENAI_API_KEY: process.env.OPENAI_API_KEY ?? "",
-  OPENAI_BASE_URL: process.env.OPENAI_BASE_URL ?? "",
-  OPENAI_MODEL: process.env.OPENAI_MODEL ?? "deepseek-v4-flash",
-  // Runtime configuration for the codex-acp agent (@agentclientprotocol/codex-acp):
-  // auto-authenticate with the API key from OPENAI_API_KEY, hide the browser
-  // ChatGPT method, and point the bundled Codex CLI at the OpenAI-compatible
-  // endpoint from .env.
+  OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+  OPENAI_BASE_URL: process.env.OPENAI_BASE_URL,
+  OPENAI_MODEL: process.env.OPENAI_MODEL,
   DEFAULT_AUTH_REQUEST: JSON.stringify({ methodId: "api-key" }),
   NO_BROWSER: "1",
-  // Default agent mode is `workspaceWrite`, whose sandboxed exec-server cannot
-  // create namespaces inside the container ("namespace issue"). Full access
-  // runs commands without the sandbox, which is what yolo mode implies.
   INITIAL_AGENT_MODE: "agent-full-access",
   CODEX_CONFIG: JSON.stringify({
-    model: process.env.OPENAI_MODEL ?? "deepseek-v4-flash",
+    model: process.env.OPENAI_MODEL,
     model_provider: "deepseek",
     model_providers: {
       deepseek: {
         name: "DeepSeek",
-        base_url: process.env.OPENAI_BASE_URL ?? "https://api.deepseek.com/v1",
+        base_url: process.env.OPENAI_BASE_URL,
         wire_api: "responses",
         env_key: "OPENAI_API_KEY",
       },
@@ -283,7 +273,13 @@ export const makeBench = Effect.fn("verilog-eval/makeBench")(function* () {
 });
 
 const main = Effect.gen(function* () {
-  const result = yield* makeBench()
+  const singleTask = process.env.VERILOG_EVAL_SINGLE === "1";
+  const streamEvents = process.env.VERILOG_EVAL_EVENTS === "1";
+
+  // VERILOG_EVAL_SINGLE=1 evaluates a single task (Bench.head(1)) instead of
+  // the default 10% random sample, for focused inspection.
+  const evalRun = makeBench()
+    .pipe(singleTask ? Bench.head(1) : Bench.sample("10%"))
     .pipe(Eval.run({ cacheTaskSnapshot: true }))
     .pipe(
       Effect.provide(
@@ -297,6 +293,14 @@ const main = Effect.gen(function* () {
       ),
     )
     .pipe(Effect.provide(Sandbox.Docker.layer({ ports: [7689] })));
+
+  // VERILOG_EVAL_EVENTS=1 delivers the evaluation event stream to the console
+  // via Event.Transport.Console (init/schedule/metric events plus every
+  // streamed agent part), e.g. for inspecting run ordering:
+  //   VERILOG_EVAL_EVENTS=1 VERILOG_EVAL_SINGLE=1 node tests/verilog-eval.test.ts
+  const result = yield* streamEvents
+    ? evalRun.pipe(Effect.provide(Event.Transport.Console.layer()))
+    : evalRun;
   console.log(result);
   for (const [taskId, taskResult] of Object.entries(result.tasks)) {
     for (const trail of taskResult.trails) {
