@@ -1,16 +1,7 @@
-import { Effect, pipe, Schema } from "effect";
-import { MetricConfig } from "../common/config.ts";
-import { GitTaskId, LocalTaskId, TaskId } from "../common/result.ts";
-
-const withDefault = <S extends Schema.Constraint & Schema.WithoutConstructorDefault>(
-  schema: S,
-  value: () => Schema.Schema.Type<S>,
-) =>
-  pipe(
-    schema,
-    Schema.withConstructorDefault(Effect.sync(value)),
-    Schema.withDecodingDefaultTypeKey(Effect.sync(value)),
-  );
+import { Schema } from "effect";
+import { MetricConfig } from "#/common/config.ts";
+import { withDefault } from "#/common/schema.ts";
+import { GitTaskId, LocalTaskId, TaskId } from "#/common/result.ts";
 
 const defaultRegistryUrl =
   "https://raw.githubusercontent.com/laude-institute/harbor/main/registry.json";

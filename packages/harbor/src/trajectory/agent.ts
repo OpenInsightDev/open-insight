@@ -1,5 +1,5 @@
 import { Schema } from "effect";
-import { JsonRecord } from "../common/config.ts";
+import { JsonRecord } from "#/common/config.ts";
 
 export class Agent extends Schema.Class<Agent>("Agent")({
   name: Schema.String,

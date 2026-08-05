@@ -1,5 +1,5 @@
 import { Schema } from "effect";
-import { JsonRecord } from "../common/config.ts";
+import { JsonRecord } from "#/common/config.ts";
 import { ContentPart } from "./content.ts";
 import { SubagentTrajectoryRef } from "./subagent-trajectory-ref.ts";
 

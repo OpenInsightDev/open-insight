@@ -1,14 +1,5 @@
-import { Effect, pipe, Schema } from "effect";
-
-const withDefault = <S extends Schema.Constraint & Schema.WithoutConstructorDefault>(
-  schema: S,
-  value: () => Schema.Schema.Type<S>,
-) =>
-  pipe(
-    schema,
-    Schema.withConstructorDefault(Effect.sync(value)),
-    Schema.withDecodingDefaultTypeKey(Effect.sync(value)),
-  );
+import { Schema } from "effect";
+import { withDefault } from "./schema.ts";
 
 export class LocalTaskId extends Schema.Class<LocalTaskId>("LocalTaskId")({
   path: Schema.String,

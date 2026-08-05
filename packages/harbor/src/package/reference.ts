@@ -1,16 +1,7 @@
-import { Effect, pipe, Schema } from "effect";
+import { Schema } from "effect";
+import { withDefault } from "#/common/schema.ts";
 import { PackageName } from "./schema.ts";
 import { parseVersionRef, VersionRef } from "./version-ref.ts";
-
-const withDefault = <S extends Schema.Constraint & Schema.WithoutConstructorDefault>(
-  schema: S,
-  value: () => Schema.Schema.Type<S>,
-) =>
-  pipe(
-    schema,
-    Schema.withConstructorDefault(Effect.sync(value)),
-    Schema.withDecodingDefaultTypeKey(Effect.sync(value)),
-  );
 
 const defaultPackageRef = "latest";
 

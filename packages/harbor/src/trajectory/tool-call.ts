@@ -1,5 +1,5 @@
 import { Schema } from "effect";
-import { JsonRecord } from "../common/config.ts";
+import { JsonRecord } from "#/common/config.ts";
 
 export class ToolCall extends Schema.Class<ToolCall>("ToolCall")({
   tool_call_id: Schema.String,

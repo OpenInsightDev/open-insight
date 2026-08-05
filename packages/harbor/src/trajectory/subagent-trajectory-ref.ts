@@ -1,5 +1,5 @@
 import { Schema } from "effect";
-import { JsonRecord } from "../common/config.ts";
+import { JsonRecord } from "#/common/config.ts";
 
 const SubagentTrajectoryRefFields = Schema.Struct({
   trajectory_id: Schema.optionalKey(Schema.NullOr(Schema.String)),

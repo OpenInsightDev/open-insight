@@ -1,5 +1,5 @@
 import { Schema } from "effect";
-import { JsonRecord } from "../common/config.ts";
+import { JsonRecord } from "#/common/config.ts";
 
 export class FinalMetrics extends Schema.Class<FinalMetrics>("FinalMetrics")({
   total_prompt_tokens: Schema.optionalKey(Schema.NullOr(Schema.Int)),

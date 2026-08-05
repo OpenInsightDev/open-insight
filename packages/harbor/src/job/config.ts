@@ -1,4 +1,4 @@
-import { Effect, pipe, Schema } from "effect";
+import { Schema } from "effect";
 import {
   AgentConfig,
   ArtifactConfig,
@@ -6,18 +6,9 @@ import {
   EnvironmentConfig,
   TrialTaskConfig,
   VerifierConfig,
-} from "../trial/config.ts";
-import { MetricConfig, UUID } from "../common/config.ts";
-
-const withDefault = <S extends Schema.Constraint & Schema.WithoutConstructorDefault>(
-  schema: S,
-  value: () => Schema.Schema.Type<S>,
-) =>
-  pipe(
-    schema,
-    Schema.withConstructorDefault(Effect.sync(value)),
-    Schema.withDecodingDefaultTypeKey(Effect.sync(value)),
-  );
+} from "#/trial/config.ts";
+import { MetricConfig, UUID } from "#/common/config.ts";
+import { withDefault } from "#/common/schema.ts";
 
 export {
   AgentConfig,

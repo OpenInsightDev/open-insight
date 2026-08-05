@@ -1,5 +1,6 @@
-import { Effect, pipe, Schema } from "effect";
-import { JsonRecord } from "../common/config.ts";
+import { Schema } from "effect";
+import { JsonRecord } from "#/common/config.ts";
+import { withDefault } from "#/common/schema.ts";
 import { Agent } from "./agent.ts";
 import { FinalMetrics } from "./final-metrics.ts";
 import { Step } from "./step.ts";
@@ -16,16 +17,6 @@ export const TrajectorySchemaVersion = Schema.Literals([
 ]);
 export type TrajectorySchemaVersion = Schema.Schema.Type<typeof TrajectorySchemaVersion>;
 const defaultTrajectorySchemaVersion: TrajectorySchemaVersion = "ATIF-v1.7";
-
-const withDefault = <S extends Schema.Constraint & Schema.WithoutConstructorDefault>(
-  schema: S,
-  value: () => Schema.Schema.Type<S>,
-) =>
-  pipe(
-    schema,
-    Schema.withConstructorDefault(Effect.sync(value)),
-    Schema.withDecodingDefaultTypeKey(Effect.sync(value)),
-  );
 
 export interface Trajectory {
   readonly schema_version?: TrajectorySchemaVersion;

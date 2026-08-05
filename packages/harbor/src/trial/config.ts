@@ -1,4 +1,4 @@
-import { Effect, pipe, Schema } from "effect";
+import { Schema } from "effect";
 import {
   ArtifactConfig,
   ArtifactSpec,
@@ -11,17 +11,8 @@ import {
   TpuSpec,
   UUID,
   VerifierEnvironmentMode,
-} from "../common/config.ts";
-
-const withDefault = <S extends Schema.Constraint & Schema.WithoutConstructorDefault>(
-  schema: S,
-  value: () => Schema.Schema.Type<S>,
-) =>
-  pipe(
-    schema,
-    Schema.withConstructorDefault(Effect.sync(value)),
-    Schema.withDecodingDefaultTypeKey(Effect.sync(value)),
-  );
+} from "#/common/config.ts";
+import { withDefault } from "#/common/schema.ts";
 
 export { ArtifactConfig, ArtifactSpec, ResourceMode, TaskOS, TpuSpec, VerifierEnvironmentMode };
 

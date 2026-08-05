@@ -1,17 +1,8 @@
-import { Effect, pipe, Schema } from "effect";
-import { UUID } from "../common/config.ts";
-import { AgentContext, VerifierResult } from "../common/result.ts";
-import { TrialResult } from "../trial/result.ts";
-
-const withDefault = <S extends Schema.Constraint & Schema.WithoutConstructorDefault>(
-  schema: S,
-  value: () => Schema.Schema.Type<S>,
-) =>
-  pipe(
-    schema,
-    Schema.withConstructorDefault(Effect.sync(value)),
-    Schema.withDecodingDefaultTypeKey(Effect.sync(value)),
-  );
+import { Schema } from "effect";
+import { UUID } from "#/common/config.ts";
+import { withDefault } from "#/common/schema.ts";
+import { AgentContext, VerifierResult } from "#/common/result.ts";
+import { TrialResult } from "#/trial/result.ts";
 
 const JsonObject = Schema.Record(Schema.String, Schema.Json);
 const StringNumberMap = Schema.Record(Schema.String, Schema.Number);
