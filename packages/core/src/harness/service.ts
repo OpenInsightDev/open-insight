@@ -44,6 +44,9 @@ export type SandboxSessionConfig = Readonly<{
   /** The resources to provide to the sandbox. */
   resources: Resource.Resources;
 }>;
+export const DefaultSandboxSessionConfig: SandboxSessionConfig = {
+  resources: Resource.make(),
+};
 
 export type SnapshotSession = Readonly<{
   /** The snapshot handle built from the task snapshot, used to run a sandbox. */
@@ -62,6 +65,10 @@ export type SnapshotSessionConfig = Readonly<{
   /** Whether agent-derived snapshots may be reused from the snapshot cache. Defaults to `true`. */
   cacheAgentSnapshot: boolean;
 }>;
+export const DefaultSnapshotSessionConfig: SnapshotSessionConfig = {
+  cacheTaskSnapshot: true,
+  cacheAgentSnapshot: true,
+};
 
 export type Harness = Readonly<{
   metadata: Metadata;

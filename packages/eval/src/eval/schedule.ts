@@ -67,7 +67,7 @@ export const run = Effect.fn("exec/schedule")(
     );
 
     const prepareTask = Effect.fn("exec/prepareTask")(
-      function* (task: Task.AnyTask, session: Harness.SnapshotSession) {
+      function* (task: Task.AnyTask, snapshotSession: Harness.SnapshotSession) {
         yield* Effect.annotateCurrentSpan({
           benchmark: benchId,
           taskName: task.metadata.name,
@@ -85,7 +85,7 @@ export const run = Effect.fn("exec/schedule")(
           bench,
           eventQueue,
           config,
-          session,
+          snapshotSession,
           harnessId,
         });
 

@@ -43,17 +43,17 @@ export const createTrail = Effect.fn("exec/createTrail")(
     task,
     config,
     eventQueue,
-    session,
+    snapshotSession,
     harnessId,
   }: {
     bench: Bench.Bench;
     task: Task.AnyTask;
     config: Config;
     eventQueue: Event.EventEnqueue;
-    session: Harness.SnapshotSession;
     harnessId: string;
+    snapshotSession: Harness.SnapshotSession;
   }): Effect.fn.Return<RunTrail, EvalError, Scope.Scope> {
-    const { resources, stages, metrics: taskMetrics, trajMetrics } = task;
+    const { stages, metrics: taskMetrics, trajMetrics } = task;
     const { verifMode, graderMaxRetries: maxRetries } = config;
 
     const offer = Event.offerTo(eventQueue);
@@ -99,21 +99,21 @@ export const createTrail = Effect.fn("exec/createTrail")(
 
     const runTrail = Effect.fn(
       function* (
-        session: Harness.SandboxSession,
+        sandboxSession: Harness.SandboxSession,
         idx: number,
       ): Effect.fn.Return<TrailResult, EvalError, Scope.Scope> {
         const startedAt = yield* DateTime.now;
         yield* Effect.annotateCurrentSpan({ taskName: task.metadata.name, trailIdx: idx });
         yield* Effect.logDebug("Starting sandbox for trail");
 
-        const ctx = yield* Sandbox.asPromise(session.sandbox);
+        const ctx = yield* Sandbox.asPromise(sandboxSession.sandbox);
 
         yield* Effect.logDebug("Prepared sandbox for trail");
 
         const stageStream = Stream.fromIterable(stages);
 
-        const sessionRef = yield* Ref.make(Option.none<Harness.AgentSession>());
-        const getSession = Ref.get(sessionRef).pipe(
+        const agentSessionRef = yield* Ref.make(Option.none<Harness.AgentSession>());
+        const getSession = Ref.get(agentSessionRef).pipe(
           Effect.flatMap(
             Option.match({
               onNone: () =>
@@ -281,14 +281,16 @@ export const createTrail = Effect.fn("exec/createTrail")(
               return yield* Effect.fail(EvalError.verifInitialMatch(task, verif.expect));
             }
 
-            const session = yield* makeVerifAgent({ verifier: verif.verif, sandbox: ctx });
-            yield* Ref.set(sessionRef, Option.some(session));
+            const agentSession = yield* makeVerifAgent({ verifier: verif.verif, sandbox: ctx });
+            yield* Ref.set(agentSessionRef, Option.some(agentSession));
           } else {
-            const currentSession = yield* Ref.get(sessionRef);
-            if (!resume || Option.isNone(currentSession)) {
+            const current = yield* Ref.get(agentSessionRef);
+            if (!resume || Option.isNone(current)) {
               yield* Effect.logDebug(`Starting new agent session for stage ${metadata.id}`);
-              const agent = yield* session.runAgent().pipe(Effect.mapError(EvalError.harness));
-              yield* Ref.set(sessionRef, Option.some(agent));
+              const agentSession = yield* sandboxSession
+                .runAgent()
+                .pipe(Effect.mapError(EvalError.harness));
+              yield* Ref.set(agentSessionRef, Option.some(agentSession));
             }
           }
 
@@ -434,9 +436,9 @@ export const createTrail = Effect.fn("exec/createTrail")(
     return (trailIdx) =>
       Effect.logDebug(`Starting trail ${trailIdx}`).pipe(
         Effect.andThen(
-          session.runSandbox({ resources }).pipe(
+          snapshotSession.runSandbox(task).pipe(
             Effect.mapError(EvalError.harness),
-            Effect.flatMap((session) => runTrail(session, trailIdx)),
+            Effect.flatMap((sandboxSession) => runTrail(sandboxSession, trailIdx)),
             Effect.scoped,
           ),
         ),

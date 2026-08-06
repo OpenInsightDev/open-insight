@@ -1,7 +1,7 @@
 import { Effect, Schema } from "effect";
 import * as Metric from "#/metric/index.ts";
 import * as Grade from "#/grade/index.ts";
-import { Resource, Sandbox, type Snapshot } from "@open-insight/core/internal";
+import { Harness, Resource, Sandbox, type Snapshot } from "@open-insight/core/internal";
 import { IDSchema } from "#/utils/schema.ts";
 import type { BivariantFn, UnionToIntersection } from "#/utils/variant.ts";
 import { makePromptFn, type PromptFn, type PromptOptions } from "./prompt.ts";
@@ -37,17 +37,20 @@ export class Metadata extends Schema.Class<Metadata>("Metadata")({
   extras: Schema.Record(Schema.String, Schema.Json),
 }) {}
 
-export type Task<G extends Grade.Result = never, S extends Stage = never> = Readonly<{
-  metadata: BaseMetadata;
-  snapshot: Snapshot.Snapshot;
-  resources: Resource.Resources;
+export type Task<
+  G extends Grade.Result = never,
+  S extends Stage = never,
+> = Harness.SandboxSessionConfig &
+  Readonly<{
+    metadata: BaseMetadata;
+    snapshot: Snapshot.Snapshot;
 
-  metrics: ReadonlyArray<Metric.Task.Metric>;
-  trajMetrics: ReadonlyArray<Metric.Traj.Metric>;
-  stages: ReadonlyArray<Stage>;
+    metrics: ReadonlyArray<Metric.Task.Metric>;
+    trajMetrics: ReadonlyArray<Metric.Traj.Metric>;
+    stages: ReadonlyArray<Stage>;
 
-  [TypeId]: TypeId;
-}> & { _G?: G; _S?: S };
+    [TypeId]: TypeId;
+  }> & { _G?: G; _S?: S };
 
 export type AnyTask = Task<any, any>;
 
