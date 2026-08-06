@@ -1,0 +1,2208 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Open Insight — Eval Observatory · run_0248</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@6/dist/echarts.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #f0efeb;
+        --dark: #1c1c1a;
+        --ink: #1c1c1a;
+        --muted: #8f8e88;
+        --faint: #c6c5bf;
+        --grid: #deddd6;
+      }
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html {
+        scroll-behavior: smooth;
+      }
+      body {
+        background: var(--bg);
+        font-family: "Inter", sans-serif;
+        color: var(--ink);
+        padding: 34px 40px 64px;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      .page {
+        max-width: 1200px;
+        margin: 0 auto;
+      }
+      .grid2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+      }
+      .card {
+        background: var(--bg);
+        border-radius: 24px;
+        padding: 26px 28px 20px;
+        min-width: 0;
+      }
+      .card.wide {
+        grid-column: 1/-1;
+      }
+      h2 {
+        font-weight: 700;
+        font-size: 16.5px;
+        letter-spacing: -0.02em;
+        margin-bottom: 3px;
+      }
+      .sub {
+        font-size: 11.5px;
+        color: var(--muted);
+        margin-bottom: 14px;
+        line-height: 1.55;
+      }
+      .sub b {
+        font-weight: 600;
+        color: #6a6963;
+      }
+      .src {
+        font-size: 9.5px;
+        color: var(--faint);
+        margin-top: 12px;
+        letter-spacing: 0.08em;
+        font-weight: 500;
+      }
+      svg {
+        width: 100%;
+        display: block;
+        margin: 0 auto;
+      }
+      svg text {
+        font-family: "Inter", sans-serif;
+      }
+      .wrap {
+        position: relative;
+        height: 340px;
+      }
+      .ch {
+        height: 340px;
+      }
+      .pop {
+        transform-box: fill-box;
+        transform-origin: center;
+        animation: pop 0.5s cubic-bezier(0.2, 0.7, 0.3, 1.3) both;
+      }
+      @keyframes pop {
+        from {
+          transform: scale(0);
+        }
+        to {
+          transform: none;
+        }
+      }
+      .fade {
+        animation: fade 0.9s ease both;
+      }
+      @keyframes fade {
+        from {
+          opacity: 0;
+        }
+      }
+      .draw {
+        stroke-dasharray: 1;
+        stroke-dashoffset: 1;
+        animation: draw 1s cubic-bezier(0.4, 0, 0.2, 1) both;
+      }
+      @keyframes draw {
+        to {
+          stroke-dashoffset: 0;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .pop,
+        .fade {
+          animation: none;
+        }
+        .draw {
+          animation: none;
+          stroke-dasharray: none;
+          stroke-dashoffset: 0;
+        }
+        * {
+          transition-duration: 0.01ms !important;
+          animation-duration: 0.01ms !important;
+        }
+      }
+
+      /* ── page furniture ─────────────────────────────────── */
+      .pagehead {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 16px;
+        margin: 0 0 22px;
+      }
+      .head-titles h1 {
+        font-size: 23px;
+        letter-spacing: -0.02em;
+        font-weight: 800;
+      }
+      .head-titles p {
+        font-size: 12px;
+        color: var(--muted);
+        margin-top: 4px;
+        line-height: 1.7;
+      }
+      .live {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        font-size: 9px;
+        font-weight: 700;
+        letter-spacing: 0.1em;
+        padding: 4px 12px;
+        border-radius: 99px;
+        background: var(--ink);
+        color: #f0efeb;
+        margin-bottom: 10px;
+      }
+      .live i {
+        width: 5px;
+        height: 5px;
+        border-radius: 50%;
+        background: #b3b0a4;
+      }
+      .meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 18px;
+        font-size: 10px;
+        color: var(--muted);
+        margin-top: 10px;
+      }
+      .meta b {
+        color: var(--ink);
+        font-weight: 600;
+      }
+      .tabs {
+        display: flex;
+        align-self: center;
+        border: 1px solid var(--ink);
+        border-radius: 99px;
+        overflow: hidden;
+      }
+      .tabs button {
+        background: transparent;
+        border: 0;
+        font: inherit;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        padding: 8px 18px;
+        color: var(--muted);
+        cursor: pointer;
+      }
+      .tabs button.active {
+        background: var(--ink);
+        color: #f0efeb;
+      }
+      .tabs button:focus-visible {
+        outline: 2px solid var(--ink);
+        outline-offset: 2px;
+      }
+
+      .kpis {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 20px;
+        margin: 0 0 20px;
+      }
+      .kpi {
+        background: var(--bg);
+        border-radius: 18px;
+        padding: 16px 18px 14px;
+      }
+      .kpi .lbl {
+        font-size: 9px;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        color: var(--muted);
+      }
+      .kpi .val {
+        font-size: 26px;
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        margin-top: 2px;
+        line-height: 1;
+      }
+      .kpi .val small {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--muted);
+      }
+      .kpi .delta {
+        font-size: 9.5px;
+        font-weight: 600;
+        margin-top: 6px;
+        color: var(--muted);
+        letter-spacing: 0.02em;
+      }
+      .kpi .delta.up {
+        color: var(--ink);
+      }
+      .kpi .delta span {
+        font-variant-numeric: tabular-nums;
+      }
+
+      .divider {
+        height: 1px;
+        background: var(--grid);
+        margin: 26px 0 22px;
+      }
+      .sectionlabel {
+        font-size: 9px;
+        font-weight: 700;
+        letter-spacing: 0.14em;
+        color: var(--faint);
+        margin: 0 0 14px;
+      }
+
+      .needs {
+        display: flex;
+        flex-direction: column;
+        border-top: 1px solid var(--grid);
+        margin-top: 16px;
+      }
+      .needs-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        padding: 14px 2px 8px;
+        font-size: 9px;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        color: var(--muted);
+      }
+      .needs-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 2px;
+        width: 100%;
+        border: 0;
+        background: transparent;
+        font: inherit;
+        text-align: left;
+        cursor: pointer;
+        border-bottom: 1px solid var(--grid);
+        color: var(--ink);
+        font-size: 10.5px;
+      }
+      .needs-row:last-of-type {
+        border-bottom: 0;
+      }
+      .needs-row:hover .tm {
+        color: var(--ink);
+      }
+      .needs-row .dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        flex: none;
+      }
+      .needs-row .tm {
+        flex: 1;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+      }
+      .needs-row .meta2 {
+        font-size: 9px;
+        color: var(--muted);
+        font-variant-numeric: tabular-nums;
+      }
+      .needs-more {
+        font-size: 9px;
+        color: var(--faint);
+        padding: 8px 2px 0;
+      }
+
+      /* ── task view ── */
+      .taskhead {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        margin: 0 0 18px;
+      }
+      .crumb {
+        font-size: 10px;
+        color: var(--muted);
+        margin-bottom: 8px;
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+      .crumb button {
+        background: 0;
+        border: 0;
+        font: inherit;
+        font-size: 10px;
+        font-weight: 600;
+        color: var(--muted);
+        cursor: pointer;
+        padding: 0;
+      }
+      .crumb button:hover {
+        color: var(--ink);
+      }
+      .crumb .mid {
+        color: var(--faint);
+      }
+      .taskhead h1 {
+        font-size: 20px;
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        font-variant-numeric: tabular-nums;
+      }
+      .taskhead .tmeta {
+        display: flex;
+        gap: 18px;
+        font-size: 10px;
+        color: var(--muted);
+      }
+      .taskhead .tmeta b {
+        display: block;
+        color: var(--ink);
+        font-weight: 600;
+        margin-top: 3px;
+        font-variant-numeric: tabular-nums;
+      }
+      .chips {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .chip {
+        display: flex;
+        align-items: baseline;
+        gap: 7px;
+        font-size: 10px;
+        padding: 6px 12px;
+        border-radius: 99px;
+        border: 1px solid var(--grid);
+        color: var(--muted);
+        background: transparent;
+        cursor: pointer;
+        font-weight: 600;
+      }
+      .chip i {
+        width: 5px;
+        height: 5px;
+        border-radius: 50%;
+      }
+      .chip:hover {
+        color: var(--ink);
+        border-color: var(--muted);
+      }
+      .chip.active {
+        border-color: var(--ink);
+        color: var(--ink);
+      }
+      .chip small {
+        font-size: 8.5px;
+        color: var(--muted);
+        font-weight: 700;
+        letter-spacing: 0.06em;
+      }
+      .trailbar {
+        display: flex;
+        gap: 6px;
+        margin-bottom: 16px;
+      }
+      .trailbar button {
+        flex: 1;
+        text-align: center;
+        font: inherit;
+        font-size: 10.5px;
+        font-weight: 700;
+        padding: 7px 0;
+        border: 1px solid var(--grid);
+        border-radius: 99px;
+        background: transparent;
+        color: var(--muted);
+        cursor: pointer;
+      }
+      .trailbar button .st {
+        display: block;
+        font-size: 8px;
+        font-weight: 600;
+        letter-spacing: 0.06em;
+        color: var(--faint);
+        margin-top: 2px;
+      }
+      .trailbar button.on {
+        border-color: var(--ink);
+        color: var(--ink);
+      }
+      .trailbar button.on .st {
+        color: var(--muted);
+      }
+
+      .msgs {
+        display: flex;
+        flex-direction: column;
+        gap: 0;
+      }
+      .msg {
+        border-bottom: 1px solid var(--grid);
+        padding: 16px 0;
+      }
+      .msg:first-child {
+        padding-top: 2px;
+      }
+      .msg-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        margin-bottom: 7px;
+      }
+      .msg-who {
+        font-size: 9px;
+        font-weight: 700;
+        letter-spacing: 0.1em;
+      }
+      .msg-who .t {
+        color: var(--faint);
+        margin-left: 8px;
+      }
+      .msg tk {
+        font-size: 9px;
+        color: var(--faint);
+        font-variant-numeric: tabular-nums;
+      }
+      .msg p {
+        font-size: 12px;
+        line-height: 1.62;
+        color: #33322e;
+      }
+      .toolcall {
+        border: 1px solid var(--grid);
+        border-radius: 10px;
+        margin-top: 10px;
+        overflow: hidden;
+      }
+      .toolcall .cmd {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        padding: 8px 12px;
+        font-size: 10px;
+        background: rgba(222, 221, 214, 0.35);
+      }
+      .toolcall .cmd .fx {
+        width: 6px;
+        height: 6px;
+        border-radius: 2px;
+        flex: none;
+        background: var(--faint);
+      }
+      .toolcall .cmd code {
+        font-family: "SFMono-Regular", Consolas, monospace;
+        font-size: 9.5px;
+        color: #33322e;
+      }
+      .toolcall .out {
+        padding: 8px 12px;
+        font-family: "SFMono-Regular", Consolas, monospace;
+        font-size: 9px;
+        line-height: 1.6;
+        color: var(--muted);
+        border-top: 1px solid var(--grid);
+      }
+      .toolcall .out b {
+        color: var(--ink);
+        font-weight: 600;
+      }
+      .msg-foot {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: 12px;
+        font-size: 9.5px;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+      }
+      .msg-foot .ok {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        color: var(--ink);
+      }
+
+      .legend {
+        display: flex;
+        gap: 16px;
+        flex-wrap: wrap;
+        margin-top: 12px;
+        font-size: 10px;
+        color: var(--muted);
+      }
+      .legend span {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-weight: 600;
+      }
+      .legend .sw {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        flex: none;
+      }
+      .legend .row {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-weight: 600;
+        white-space: nowrap;
+      }
+      .legend .sub2 {
+        display: block;
+        font-size: 8.5px;
+        font-weight: 500;
+        color: var(--faint);
+      }
+      @media (max-width: 960px) {
+        .grid2 {
+          grid-template-columns: 1fr;
+        }
+        .card.wide {
+          grid-column: auto;
+        }
+        .kpis {
+          grid-template-columns: 1fr 1fr;
+        }
+        .pagehead {
+          flex-direction: column;
+          align-items: flex-start;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <header class="pagehead">
+        <div class="head-titles">
+          <span class="live"><i></i>LIVE · RUN 0248</span>
+          <h1>SWE-bench Verified · Eval Observatory</h1>
+          <p>
+            Six hundred tasks, one harness. As trails complete, the estimate settles and the cost
+            per trail falls.<br />Every dot, tick and rung below is one real unit — nothing is
+            invented to fill the page.
+          </p>
+          <div class="meta">
+            <span>CLAUDE-SONNET-4 <b>@</b> DOCKER-LINUX-X64</span>
+            <span>ELAPSED <b>01:42:16</b></span>
+            <span>03 AUG 2026 · 14:32 CST</span>
+          </div>
+        </div>
+        <div class="tabs" role="tablist" aria-label="View">
+          <button data-view-trigger="bench" class="active">BENCH</button>
+          <button data-view-trigger="task">TASK</button>
+        </div>
+      </header>
+
+      <!-- ── bench overview ─────────────────────────────────────── -->
+      <section data-view="bench">
+        <div class="kpis">
+          <div class="kpi">
+            <div class="lbl">AVG PASS@1</div>
+            <div class="val">0.634</div>
+            <div class="delta up">▲ <span>+0.028</span> vs prev run</div>
+          </div>
+          <div class="kpi">
+            <div class="lbl">COMPLETED</div>
+            <div class="val">432<small> / 600</small></div>
+            <div class="delta up"><span>72.0%</span> of run</div>
+          </div>
+          <div class="kpi">
+            <div class="lbl">MEAN COST / TRAIL</div>
+            <div class="val">$0.82</div>
+            <div class="delta">▼ <span>−$0.06</span> per trail</div>
+          </div>
+          <div class="kpi">
+            <div class="lbl">P50 DURATION</div>
+            <div class="val">07:18</div>
+            <div class="delta up">▲ <span>−0:41</span> faster</div>
+          </div>
+        </div>
+
+        <div class="grid2">
+          <!-- G8 · rainfall dual area — cumulative evaluation signal -->
+          <div class="card wide">
+            <h2>Cost rains in, pass@1 climbs</h2>
+            <div class="sub">
+              cost per trail falls from the top <b>·</b> pass@1 flows below, converging near
+              <b>0.63</b> <b>·</b> cumulative over 600 trails
+            </div>
+            <div class="ch" id="signal"></div>
+            <div class="src">RAINFALL DUAL AREA · PASS@1 × COST/TRAIL · RUN 0248, LIVE</div>
+          </div>
+
+          <!-- G4 · dot waffle — where 432 trails landed -->
+          <div class="card">
+            <h2>Three ways a trail can end</h2>
+            <div class="sub">one dot = one completed trail <b>·</b> 432 of 600 so far</div>
+            <svg
+              id="waffle"
+              viewBox="0 0 520 300"
+              preserveAspectRatio="xMidYMid meet"
+              style="max-height: 320px"
+            ></svg>
+            <div class="src">DOT WAFFLE · OUTCOME, 3 NUMBERS · RUN 0248</div>
+          </div>
+
+          <!-- F11 · tick gauge — run progress -->
+          <div class="card">
+            <h2>Seventy-two percent of the run</h2>
+            <div class="sub">one tick = one percent of 600 trails <b>·</b> inked = done</div>
+            <svg id="gauge" viewBox="0 0 400 320" preserveAspectRatio="xMidYMid meet"></svg>
+            <div class="src">TICK GAUGE · RUN GEOMETRY · RUN 0248, LIVE</div>
+          </div>
+
+          <!-- F1 · rung bars — sandboxes in flight -->
+          <div class="card">
+            <h2>Sandboxes in flight, twenty-four deep</h2>
+            <div class="sub">one rung = one active sandbox <b>·</b> last eight checkpoints</div>
+            <svg id="queue" viewBox="0 0 400 320" preserveAspectRatio="xMidYMid meet"></svg>
+            <div class="src">RUNG BARS · QUEUE PRESSURE · LIVE OPS</div>
+          </div>
+
+          <!-- task health matrix + needs attention -->
+          <div class="card wide">
+            <h2>One hundred twenty tasks, one cell each</h2>
+            <div class="sub">
+              cell shade = current status <b>·</b> ink = passing, mid = failed, pale = errored,
+              hollow = queued <b>·</b> 96 of 120 healthy
+            </div>
+            <svg
+              id="matrix"
+              viewBox="0 0 760 320"
+              preserveAspectRatio="xMidYMid meet"
+              style="max-height: 300px"
+            ></svg>
+            <div class="legend">
+              <span class="row"><span class="sw" style="background: #1c1c1a"></span>PASS</span>
+              <span class="row"><span class="sw" style="background: #8f8e88"></span>FAIL</span>
+              <span class="row"><span class="sw" style="background: #c0bfb8"></span>ERROR</span>
+              <span class="row"
+                ><span class="sw" style="border: 1px solid #c6c5bf; background: transparent"></span
+                >QUEUED</span
+              >
+              <span style="margin-left: auto">TASKS, LEFT TO RIGHT = QUEUE ORDER</span>
+            </div>
+            <div class="needs">
+              <div class="needs-head"><span>NEEDS ATTENTION</span><span>08</span></div>
+              <button class="needs-row" data-open-task="django__django-16379">
+                <span class="dot" style="background: #8f8e88"></span
+                ><span class="tm">django__django-16379</span><span class="meta2">0 / 4</span>
+              </button>
+              <button class="needs-row" data-open-task="sympy__sympy-24066">
+                <span class="dot" style="background: #c0bfb8"></span
+                ><span class="tm">sympy__sympy-24066</span><span class="meta2">err</span>
+              </button>
+              <button class="needs-row" data-open-task="pytest__pytest-10356">
+                <span class="dot" style="background: #8f8e88"></span
+                ><span class="tm">pytest__pytest-10356</span><span class="meta2">1 / 4</span>
+              </button>
+              <button class="needs-row" data-open-task="scipy__scipy-14141">
+                <span class="dot" style="background: #c0bfb8"></span
+                ><span class="tm">scipy__scipy-14141</span><span class="meta2">err</span>
+              </button>
+              <div class="needs-more">…4 MORE IN THE RUN QUEUE</div>
+            </div>
+            <div class="src">STATUS UNIT-GRID · 120 TASKS × 1 CELL · RUN 0248, LIVE</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── task detail ────────────────────────────────────────── -->
+      <section data-view="task" hidden>
+        <div class="taskhead">
+          <div>
+            <div class="crumb">
+              <button data-view-trigger="bench">BENCH</button><span class="mid">/</span
+              ><span>TASK</span>
+            </div>
+            <h1 id="task-title">django__django-16379</h1>
+            <div class="tmeta">
+              <div><span>REPOSITORY</span><b>django/django</b></div>
+              <div><span>TRAILS</span><b>04 / 04</b></div>
+              <div><span>DURATION</span><b>31:42</b></div>
+              <div><span>OUTCOME</span><b>0.250 pass@1</b></div>
+            </div>
+          </div>
+          <div class="chips" id="task-chips">
+            <button class="chip active" data-task-name="django__django-16379">
+              <i style="background: #1c1c1a"></i>django__django-16379<small>0.25</small>
+            </button>
+            <button class="chip" data-task-name="astropy__astropy-12907">
+              <i style="background: #1c1c1a"></i>astropy__astropy-12907<small>1.00</small>
+            </button>
+            <button class="chip" data-task-name="pytest__pytest-10356">
+              <i style="background: #8f8e88"></i>pytest__pytest-10356<small>0.50</small>
+            </button>
+            <button class="chip" data-task-name="sympy__sympy-24066">
+              <i style="background: #c0bfb8"></i>sympy__sympy-24066<small>err</small>
+            </button>
+            <button class="chip" data-task-name="scikit-learn__scikit-learn-14087">
+              <i style="background: #1c1c1a"></i>scikit-learn__scikit-learn-14087<small>0.75</small>
+            </button>
+          </div>
+        </div>
+
+        <div class="kpis">
+          <div class="kpi">
+            <div class="lbl">PASS@1</div>
+            <div class="val">0.250</div>
+            <div class="delta"><span>1 trail of 4 passed</span></div>
+          </div>
+          <div class="kpi">
+            <div class="lbl">PASS²</div>
+            <div class="val">0.062</div>
+            <div class="delta"><span>both-trail odds</span></div>
+          </div>
+          <div class="kpi">
+            <div class="lbl">MEAN TOKENS / TRAIL</div>
+            <div class="val">21.8<small>k</small></div>
+            <div class="delta up">▲ <span>07:28</span> mean duration</div>
+          </div>
+          <div class="kpi">
+            <div class="lbl">P50 COST / TRAIL</div>
+            <div class="val">$0.82</div>
+            <div class="delta"><span>est. budget $4.00</span></div>
+          </div>
+        </div>
+
+        <div class="grid2">
+          <!-- F2 · hairline line — metric convergence -->
+          <div class="card">
+            <h2>The estimate settles by trail four</h2>
+            <div class="sub">
+              pass@1 estimate after each trail <b>·</b> one dot = one confirmed verdict
+            </div>
+            <svg id="conv" viewBox="0 0 400 320" preserveAspectRatio="xMidYMid meet"></svg>
+            <div class="src">HAIRLINE LINE · PASS@1 × PASS², N=4 · DJANGO#16379</div>
+          </div>
+
+          <!-- G3 · chunky bars — trail comparison -->
+          <div class="card">
+            <h2>One trail carried the task</h2>
+            <div class="sub">tokens burned per trail <b>·</b> the passing trail wears black</div>
+            <div class="wrap"><canvas id="trailbars"></canvas></div>
+            <div class="src">CHUNKY BARS · TOKEN SPEND, 4 TRAILS · DJANGO#16379</div>
+          </div>
+
+          <!-- F3 · hairline area — trajectory -->
+          <div class="card wide">
+            <h2>Context winds up, stage by stage</h2>
+            <div class="sub">
+              one hairline = context tokens at each checkpoint <b>·</b> bars mark tool returns
+              <b>·</b> dashed lines = stage boundaries · trail 001
+            </div>
+            <svg
+              id="traj"
+              viewBox="0 0 760 300"
+              preserveAspectRatio="xMidYMid meet"
+              style="max-height: 320px"
+            ></svg>
+            <div class="legend">
+              <span class="row"
+                ><span class="sw" style="background: #1c1c1a"></span>CONTEXT (TOKENS)</span
+              >
+              <span class="row"
+                ><span class="sw" style="background: #c6c5bf; border-radius: 2px"></span>TOOL
+                RUN</span
+              >
+              <span class="row"
+                ><span
+                  class="sw"
+                  style="border: 1px dashed #b0afa9; background: transparent; border-radius: 0"
+                ></span
+                >STAGE BOUNDARY</span
+              >
+            </div>
+            <div class="src">
+              HAIRLINE AREA × TOOL EVENTS · TRAJECTORY, TRAIL 001 · DJANGO#16379
+            </div>
+          </div>
+
+          <!-- conversation — trail select -->
+          <div class="card wide">
+            <h2>What one agent was reading</h2>
+            <div class="sub">
+              the passing trail, message by message <b>·</b> pick a trail to rewind the run
+            </div>
+            <div class="trailbar" id="trailbar">
+              <button data-trail="000">000<span class="st">FAILED · VERIFY</span></button>
+              <button data-trail="001" class="on">
+                001<span class="st">PASSED · COMPLETE</span>
+              </button>
+              <button data-trail="002">002<span class="st">FAILED · TEST</span></button>
+              <button data-trail="003">003<span class="st">FAILED · VERIFY</span></button>
+            </div>
+            <div class="msgs" id="feed">
+              <div class="msg">
+                <div class="msg-head">
+                  <span class="msg-who">SYSTEM<span class="t">00:00.000</span></span
+                  ><tk>CONTEXT 3,180 TOK</tk>
+                </div>
+                <p>
+                  You are in a repository containing a failing test. Inspect the issue, implement
+                  the narrowest correct fix, and verify it.
+                </p>
+              </div>
+              <div class="msg">
+                <div class="msg-head">
+                  <span class="msg-who">AGENT — INSPECT<span class="t">00:06.412</span></span
+                  ><tk>1,284 TOK</tk>
+                </div>
+                <p>
+                  I’ll trace where the model field is serialized, then compare the failing
+                  expectation with the migration behavior.
+                </p>
+                <div class="toolcall">
+                  <div class="cmd">
+                    <span class="fx"></span><code>rg "serialize.*field" django/ tests/</code>
+                  </div>
+                  <div class="out">
+                    django/db/migrations/serializer.py:214<br />tests/migrations/test_writer.py:731
+                  </div>
+                </div>
+              </div>
+              <div class="msg">
+                <div class="msg-head">
+                  <span class="msg-who">AGENT — PATCH<span class="t">02:31.084</span></span
+                  ><tk>4,906 TOK</tk>
+                </div>
+                <p>
+                  The serializer drops the callable’s module when the field is nested. The existing
+                  branch handles classes but not bound factory functions. I’ll reuse the import-path
+                  normalization already applied to validators.
+                </p>
+                <div class="toolcall">
+                  <div class="cmd">
+                    <span class="fx"></span><code>django/db/migrations/serializer.py</code>
+                  </div>
+                  <div class="out">
+                    <b>−</b> return self.value.__name__<br /><b>+</b> return self.value.__qualname__
+                  </div>
+                </div>
+              </div>
+              <div class="msg" style="border-bottom: 0">
+                <div class="msg-head">
+                  <span class="msg-who">AGENT — VERIFY<span class="t">08:54.220</span></span
+                  ><tk>18,704 TOK</tk>
+                </div>
+                <p>
+                  Targeted migration tests pass. I’m running the related serializer suite to check
+                  for import-path regressions.
+                </p>
+                <div class="toolcall">
+                  <div class="cmd">
+                    <span class="fx"></span><code>./runtests.py migrations.test_writer</code>
+                  </div>
+                  <div class="out">Ran 114 tests in 3.824s · <b>OK</b></div>
+                </div>
+                <div class="msg-foot">
+                  <span class="ok">VERIFICATION PASSED</span><tk>09:41.332 · 21.8K TOK</tk>
+                </div>
+              </div>
+            </div>
+            <div class="src">CONVERSATION LOG · TRAIL 001 · DJANGO#16379, RUN 0248</div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <script>
+      /* ═══════════════ MONO TOKENS — 风格的唯一正本 ═══════════════ */
+      (function (global) {
+        "use strict";
+        const INK = "#1C1C1A";
+        const PAPER = "#F0EFEB";
+        const MUTED = "#8F8E88";
+        const FAINT = "#C6C5BF";
+        const GRID = "#DEDDD6";
+        const L = ["#1C1C1A", "#4A4944", "#6A6963", "#8F8E88", "#B0AFA9", "#C6C5BF", "#D8D7D1"];
+        const LAD = ["#1C1C1A", "#4A4944", "#8F8E88", "#B0AFA9", "#D8D7D1"];
+        const DARK = { bg: "#1C1C1A", ink: PAPER, muted: MUTED, faint: "#55554F", grid: "#2E2D29" };
+        const FONT = {
+          family: "Inter",
+          title: { size: 16.5, weight: 700, spacing: "-.02em" },
+          sub: { size: 11.5, weight: 400 },
+          src: { size: 9.5, weight: 500, spacing: ".08em" },
+        };
+        const SHAPE = { cardRadius: 24, cardPad: "26px 28px 20px", barRadius: 99 };
+        const MOTION = {
+          enter: 900,
+          easing: "quarticOut",
+          staggerDot: 12,
+          staggerBar: 100,
+          css: `
+  .pop{transform-box:fill-box;transform-origin:center;animation:pop .5s cubic-bezier(.2,.7,.3,1.3) both}
+  @keyframes pop{from{transform:scale(0)}to{transform:none}}
+  .fade{animation:fade .9s ease both}
+  @keyframes fade{from{opacity:0}}
+  .draw{stroke-dasharray:1;stroke-dashoffset:1;animation:draw 1s cubic-bezier(.4,0,.2,1) both}
+  @keyframes draw{to{stroke-dashoffset:0}}
+  @media (prefers-reduced-motion:reduce){
+    .pop,.fade{animation:none}
+    .draw{animation:none;stroke-dasharray:none;stroke-dashoffset:0}
+  }`,
+        };
+        const tipLight = {
+          backgroundColor: INK,
+          borderWidth: 0,
+          padding: [10, 14],
+          textStyle: { color: PAPER, fontFamily: "Inter", fontSize: 12 },
+        };
+        const rnd = (i, k) => Math.abs(((i * 73856093) ^ (k * 19349663)) % 1000) / 1000;
+        const D2R = Math.PI / 180;
+        const pol = (cx, cy, r, deg) => [
+          cx + r * Math.cos(deg * D2R),
+          cy + r * Math.sin(deg * D2R),
+        ];
+        const NS = "http://www.w3.org/2000/svg";
+        const el = (p, t, a) => {
+          const n = document.createElementNS(NS, t);
+          for (const k in a) n.setAttribute(k, a[k]);
+          p.appendChild(n);
+          return n;
+        };
+        const txt = (p, a, s) => {
+          const n = el(p, "text", a);
+          n.textContent = s;
+          return n;
+        };
+        const tip = (n, s) => {
+          const t = document.createElementNS(NS, "title");
+          t.textContent = s;
+          n.appendChild(t);
+        };
+        const timers = {};
+        const keep = (id, t) => {
+          (timers[id] = timers[id] || []).push(t);
+        };
+        const obsReveal = (id, fn) => {
+          const n = document.getElementById(id);
+          const go = () => {
+            (timers[id] || []).forEach(clearInterval);
+            timers[id] = [];
+            if (n.tagName === "svg" || n.tagName === "SVG") n.innerHTML = "";
+            fn(n);
+          };
+          const io = new IntersectionObserver(
+            (es) => {
+              if (es[0].isIntersecting) {
+                go();
+                io.disconnect();
+              }
+            },
+            { threshold: 0.3 },
+          );
+          io.observe(n);
+          n.style.cursor = "pointer";
+          n.addEventListener("click", go);
+        };
+        const eReveal = (id, opt) =>
+          obsReveal(id, (elDom) => {
+            const g = echarts.getInstanceByDom(elDom) || echarts.init(elDom);
+            g.clear();
+            g.setOption(opt);
+          });
+        global.MONO = {
+          INK,
+          PAPER,
+          MUTED,
+          FAINT,
+          GRID,
+          L,
+          LAD,
+          DARK,
+          FONT,
+          SHAPE,
+          MOTION,
+          tipLight,
+          rnd,
+          pol,
+          el,
+          txt,
+          tip,
+          obsReveal,
+          eReveal,
+          keep,
+        };
+      })(typeof window !== "undefined" ? window : globalThis);
+
+      /* ── Chart.js shared setup ─────────────────────────────── */
+      const cjs = {};
+      const cReveal = (id, mkCfg) =>
+        MONO.obsReveal(id, (el) => {
+          cjs[id]?.destroy();
+          cjs[id] = new Chart(el, mkCfg());
+        });
+      Chart.defaults.color = MONO.MUTED;
+      Chart.defaults.font.family = "Inter";
+      Chart.defaults.font.size = 10.5;
+      Chart.defaults.borderColor = MONO.GRID;
+      Chart.defaults.plugins.legend.display = false;
+      Chart.defaults.plugins.tooltip.backgroundColor = MONO.INK;
+      Chart.defaults.plugins.tooltip.titleColor = "#F0EFEB";
+      Chart.defaults.plugins.tooltip.bodyColor = "#A5A49E";
+      Chart.defaults.plugins.tooltip.padding = 12;
+      Chart.defaults.plugins.tooltip.cornerRadius = 12;
+      Chart.defaults.plugins.tooltip.displayColors = false;
+
+      const { INK, PAPER, MUTED, FAINT, GRID, L, LAD } = MONO;
+
+      /* ═══════════════ BENCH · G8 rainfall — cumulative signal ═══════════════ */
+      (() => {
+        const N = 30;
+        const cost = [],
+          pass = [];
+        {
+          let tot = 0,
+            trails = 0;
+          for (let i = 0; i < N; i++) {
+            const p = Math.min(0.66, 0.624 + i * 0.0008 + (MONO.rnd(i, 3) - 0.5) * 0.014);
+            let hit = 0;
+            for (let k = 0; k < 20; k++) if (MONO.rnd(i * 20 + k, 9) < p) hit++;
+            tot += hit;
+            trails += 20;
+            pass.push(+(tot / trails).toFixed(3));
+          }
+        }
+        for (let i = 0; i < N; i++)
+          cost.push(+(1.36 - (0.74 * i) / (N - 1) + (MONO.rnd(i, 7) - 0.5) * 0.05).toFixed(2));
+        const FINAL = pass[N - 1];
+        MONO.eReveal("signal", {
+          animationDuration: 1200,
+          animationEasing: "quarticOut",
+          tooltip: {
+            ...MONO.tipLight,
+            trigger: "axis",
+            formatter: (p) =>
+              `Trail ${20 * p[0].dataIndex + 20} — cost $${cost[p[0].dataIndex]} · pass@1 ${pass[p[0].dataIndex].toFixed(3)}`,
+          },
+          axisPointer: { link: [{ xAxisIndex: "all" }], lineStyle: { color: "#B0AFA9" } },
+          grid: [
+            { left: 44, right: 14, top: 10, height: "27%" },
+            { left: 44, right: 14, top: "43%", bottom: 30 },
+          ],
+          xAxis: [
+            {
+              gridIndex: 0,
+              type: "category",
+              data: pass.map((_, i) => (i + 1) * 20),
+              axisLine: { show: false },
+              axisTick: { show: false },
+              axisLabel: { show: false },
+              position: "bottom",
+            },
+            {
+              gridIndex: 1,
+              type: "category",
+              data: pass.map((_, i) => (i + 1) * 20),
+              axisLine: { show: false },
+              axisTick: { show: false },
+              axisLabel: {
+                color: "#B0AFA9",
+                fontFamily: "Inter",
+                fontSize: 9.5,
+                interval: 4,
+                formatter: (v) => v + "",
+              },
+            },
+          ],
+          yAxis: [
+            {
+              gridIndex: 0,
+              inverse: true,
+              max: 1.55,
+              splitLine: { show: false },
+              axisLabel: {
+                color: "#B0AFA9",
+                fontFamily: "Inter",
+                fontSize: 9,
+                formatter: "$" + "{value}",
+              },
+              axisLine: { show: false },
+              axisTick: { show: false },
+            },
+            {
+              gridIndex: 1,
+              max: 0.75,
+              splitLine: { lineStyle: { color: "#DEDDD6" } },
+              axisLabel: { color: MUTED, fontFamily: "Inter", fontSize: 9.5 },
+              axisLine: { show: false },
+              axisTick: { show: false },
+            },
+          ],
+          series: [
+            {
+              name: "cost",
+              type: "bar",
+              xAxisIndex: 0,
+              yAxisIndex: 0,
+              data: cost,
+              itemStyle: { color: "#B0AFA9", borderRadius: [0, 0, 4, 4] },
+              barWidth: "55%",
+            },
+            {
+              name: "pass@1",
+              type: "line",
+              xAxisIndex: 1,
+              yAxisIndex: 1,
+              data: pass,
+              smooth: 0.4,
+              symbol: "none",
+              lineStyle: { color: INK, width: 2.2 },
+              endLabel: {
+                show: true,
+                fontFamily: "Inter",
+                fontSize: 12,
+                fontWeight: 800,
+                color: INK,
+                formatter: () => FINAL.toFixed(3),
+              },
+              areaStyle: {
+                color: {
+                  type: "linear",
+                  x: 0,
+                  y: 0,
+                  x2: 0,
+                  y2: 1,
+                  colorStops: [
+                    { offset: 0, color: "rgba(28,28,26,.22)" },
+                    { offset: 1, color: "rgba(28,28,26,0)" },
+                  ],
+                },
+              },
+            },
+          ],
+        });
+      })();
+
+      /* ═══════════════ BENCH · G4 dot waffle — outcome ═══════════════ */
+      (() => {
+        const D = [
+          ["PASS", 274, MONO.INK],
+          ["FAIL", 124, "#6A6963"],
+          ["ERROR", 34, "#B0AFA9"],
+        ];
+        MONO.obsReveal("waffle", (s) => {
+          const COLS = 24,
+            CELL = 15,
+            R = 4.1,
+            X0 = 14,
+            Y0 = 16;
+          let idx = 0;
+          D.forEach(([name, v, shade], g) => {
+            for (let k = 0; k < v; k++) {
+              const c = idx + k,
+                row = Math.floor(c / COLS),
+                col = c % COLS;
+              const dot = MONO.el(s, "circle", {
+                cx: X0 + col * CELL + CELL / 2,
+                cy: Y0 + row * CELL + CELL / 2,
+                r: R,
+                fill: shade,
+                class: "pop",
+                style: `animation-delay:${c * 0.007 + g * 0.05}s`,
+              });
+              MONO.tip(dot, `${name} trail #${c + 1}`);
+            }
+            idx += v;
+          });
+          D.forEach(([name, v, shade], g) => {
+            const y = 34 + g * 62;
+            MONO.el(s, "circle", {
+              cx: 430,
+              cy: y - 14,
+              r: 5,
+              fill: shade,
+              class: "pop",
+              style: `animation-delay:${g * 0.1}s`,
+            });
+            const n = MONO.txt(
+              s,
+              {
+                x: 446,
+                y: y - 11,
+                "font-size": 16,
+                "font-weight": 800,
+                fill: g === 0 ? INK : "#6A6963",
+                class: "fade",
+                style: `animation-delay:${0.4 + g * 0.1}s`,
+              },
+              v,
+            );
+            MONO.tip(n, `${name} — ${v} trails`);
+            MONO.txt(
+              s,
+              {
+                x: 446,
+                y: y + 4,
+                "font-size": 9,
+                "font-weight": 700,
+                fill: g === 0 ? "#6A6963" : MUTED,
+                "letter-spacing": ".08em",
+                class: "fade",
+                style: `animation-delay:${0.45 + g * 0.1}s`,
+              },
+              name,
+            );
+          });
+          MONO.txt(
+            s,
+            {
+              x: 14,
+              y: 296,
+              "font-size": 7.5,
+              "font-weight": 600,
+              fill: "#C6C5BF",
+              "letter-spacing": ".12em",
+              class: "fade",
+              style: "animation-delay:.9s",
+            },
+            "ONE DOT = ONE COMPLETED TRAIL · 432 TOTAL",
+          );
+        });
+      })();
+
+      /* ═══════════════ BENCH · F11 tick gauge — run progress ═══════════════ */
+      (() => {
+        const GOAL = 72;
+        MONO.obsReveal("gauge", (s) => {
+          const cx = 200,
+            cy = 190,
+            R0 = 104,
+            A0 = -195,
+            SW = 210;
+          for (let k = 0; k < 100; k++) {
+            const a = A0 + (k / 100) * SW,
+              inked = k < GOAL;
+            const len = inked ? 13 + MONO.rnd(k + 1, 3) * 6 : 5 + MONO.rnd(k + 1, 7) * 2.5;
+            const [x1, y1] = MONO.pol(cx, cy, R0, a),
+              [x2, y2] = MONO.pol(cx, cy, R0 + len, a);
+            MONO.el(s, "line", {
+              x1,
+              y1,
+              x2,
+              y2,
+              stroke: inked ? INK : "#CFCEC7",
+              "stroke-width": inked ? 1 : 0.6,
+              class: "fade",
+              style: `animation-delay:${k * 0.011}s`,
+            });
+          }
+          [25, 50, 75, 100].forEach((m) => {
+            const a = A0 + (m / 100) * SW,
+              [dx, dy] = MONO.pol(cx, cy, R0 - 7, a),
+              [tx2, ty2] = MONO.pol(cx, cy, R0 - 19, a);
+            MONO.el(s, "circle", {
+              cx: dx,
+              cy: dy,
+              r: 1,
+              fill: "#B0AFA9",
+              class: "fade",
+              style: "animation-delay:.8s",
+            });
+            MONO.txt(
+              s,
+              {
+                x: tx2,
+                y: ty2 + 3,
+                "font-size": 7,
+                "font-weight": 600,
+                fill: "#C6C5BF",
+                "text-anchor": "middle",
+                class: "fade",
+                style: "animation-delay:.85s",
+              },
+              m,
+            );
+          });
+          const aT = A0 + (GOAL / 100) * SW,
+            [ex, ey] = MONO.pol(cx, cy, R0 + 20, aT);
+          MONO.el(s, "circle", {
+            cx: ex,
+            cy: ey,
+            r: 2.4,
+            fill: INK,
+            class: "pop",
+            style: "animation-delay:1.1s",
+          });
+          MONO.txt(
+            s,
+            {
+              x: cx,
+              y: cy - 4,
+              "font-size": 34,
+              "font-weight": 800,
+              fill: INK,
+              "text-anchor": "middle",
+              class: "fade",
+              style: "animation-delay:1s",
+            },
+            GOAL + "%",
+          );
+          MONO.txt(
+            s,
+            {
+              x: cx,
+              y: cy + 16,
+              "font-size": 8.5,
+              "font-weight": 600,
+              fill: MUTED,
+              "text-anchor": "middle",
+              "letter-spacing": ".1em",
+              class: "fade",
+              style: "animation-delay:1.05s",
+            },
+            "168 TRAILS TO GO",
+          );
+          MONO.txt(
+            s,
+            {
+              x: 200,
+              y: 300,
+              "font-size": 7,
+              "font-weight": 600,
+              fill: "#B0AFA9",
+              "text-anchor": "middle",
+              "letter-spacing": ".12em",
+              class: "fade",
+              style: "animation-delay:1.2s",
+            },
+            "ONE TICK = 1% OF THE RUN · INKED = DONE",
+          );
+        });
+      })();
+
+      /* ═══════════════ BENCH · F1 rung bars — sandboxes in flight ═══════════════ */
+      (() => {
+        const D = [
+          ["T0", 11],
+          ["T1", 14],
+          ["T2", 13],
+          ["T3", 17],
+          ["T4", 16],
+          ["T5", 20],
+          ["T6", 19],
+          ["T7", 24],
+        ].map(([t, v]) => [t, v + (MONO.rnd(t.charCodeAt(1), 4) - 0.5) * 2]);
+        D.forEach((d) => (d[1] = Math.max(4, Math.round(d[1]))));
+        MONO.obsReveal("queue", (s) => {
+          const x0 = (i) => 54 + i * 43,
+            base = 266,
+            step = 5.6,
+            HW = 13;
+          D.forEach(([name, v], i) => {
+            const x = x0(i);
+            for (let k = 0; k < v; k++) {
+              const y = base - k * step,
+                w = HW - 1.2 + MONO.rnd(k + 1, i + 2) * 2.6;
+              MONO.el(s, "line", {
+                x1: x - w,
+                y1: y,
+                x2: x + w,
+                y2: y,
+                stroke: INK,
+                "stroke-width": 1,
+                opacity: 0.5 + MONO.rnd(k + 2, i + 4) * 0.5,
+                class: "fade",
+                style: `animation-delay:${i * 0.08 + k * 0.012}s`,
+              });
+              if (k % 5 === 4)
+                MONO.el(s, "circle", {
+                  cx: x + HW + 4.5,
+                  cy: y,
+                  r: 0.8,
+                  fill: "#C6C5BF",
+                  class: "fade",
+                  style: `animation-delay:${i * 0.08 + k * 0.012}s`,
+                });
+            }
+            const topY = base - (v - 1) * step;
+            const num = MONO.txt(
+              s,
+              {
+                x,
+                y: topY - 10,
+                "font-size": 11,
+                "font-weight": 800,
+                fill: INK,
+                "text-anchor": "middle",
+                class: "fade",
+                style: `animation-delay:${0.4 + i * 0.08}s`,
+              },
+              v,
+            );
+            MONO.tip(num, `${name} — ${v} sandboxes`);
+            MONO.txt(
+              s,
+              {
+                x,
+                y: base + 18,
+                "font-size": 7.5,
+                "font-weight": 700,
+                fill: MUTED,
+                "text-anchor": "middle",
+                "letter-spacing": ".08em",
+                class: "fade",
+                style: `animation-delay:${i * 0.08}s`,
+              },
+              name,
+            );
+          });
+          MONO.el(s, "line", {
+            x1: 28,
+            y1: base + 4,
+            x2: 372,
+            y2: base + 4,
+            stroke: GRID,
+            "stroke-width": 0.8,
+            class: "fade",
+          });
+          MONO.txt(
+            s,
+            {
+              x: 200,
+              y: 306,
+              "font-size": 7,
+              "font-weight": 600,
+              fill: "#B0AFA9",
+              "text-anchor": "middle",
+              "letter-spacing": ".12em",
+              class: "fade",
+              style: "animation-delay:.9s",
+            },
+            "ONE RUNG = ONE ACTIVE SANDBOX · DOT MARKS EVERY FIFTH",
+          );
+        });
+      })();
+
+      /* ═══════════════ BENCH · 120-task status unit-grid ═══════════════ */
+      (() => {
+        const STATUS = {
+          P: ["#1C1C1A", "PASS"],
+          F: ["#8F8E88", "FAIL"],
+          E: ["#C0BFB8", "ERROR"],
+          Q: [null, "QUEUED"],
+        };
+        const make = () => {
+          const cells = [];
+          for (let k = 0; k < 120; k++) {
+            const r = MONO.rnd(k + 1, 21);
+            cells.push(r < 0.525 ? "P" : r < 0.66 ? "F" : r < 0.72 ? "E" : "Q");
+          }
+          // force a clean tail of queued tasks (the run is 72% through)
+          for (let k = 114; k < 120; k++) cells[k] = k === 114 ? "P" : "Q";
+          return cells;
+        };
+        MONO.obsReveal("matrix", (s) => {
+          const cells = make();
+          const COLS = 12,
+            CELL = 25,
+            X0 = (760 - 12 * 25) / 2,
+            Y0 = 12;
+          let healthy = 0;
+          cells.forEach((st, i) => {
+            const row = Math.floor(i / COLS),
+              col = i % COLS;
+            const x = X0 + col * CELL + CELL / 2,
+              y = Y0 + row * CELL + CELL / 2;
+            if (st === "F" || st === "E") {
+              /* unhealthy */
+            } else healthy++;
+            if (st === "Q") {
+              const r = MONO.el(s, "rect", {
+                x: x - 8,
+                y: y - 8,
+                width: 16,
+                height: 16,
+                rx: 4,
+                fill: "transparent",
+                stroke: "#C6C5BF",
+                "stroke-width": 1,
+                class: "pop",
+                style: `animation-delay:${i * 0.006}s`,
+              });
+              MONO.tip(r, `Task ${i + 1} — queued`);
+            } else {
+              const c = MONO.el(s, "rect", {
+                x: x - 8,
+                y: y - 8,
+                width: 16,
+                height: 16,
+                rx: 4,
+                fill: STATUS[st][0],
+                class: "pop",
+                style: `animation-delay:${i * 0.006}s`,
+              });
+              MONO.tip(c, `Task ${i + 1} — ${STATUS[st][1]}`);
+            }
+          });
+          const offset = Y0 + 10 * CELL + 26;
+          MONO.txt(
+            s,
+            {
+              x: X0,
+              y: offset,
+              "font-size": 10,
+              "font-weight": 800,
+              fill: INK,
+              class: "fade",
+              style: "animation-delay:1s",
+            },
+            `${healthy} HEALTHY`,
+          );
+          MONO.txt(
+            s,
+            {
+              x: X0 + 108,
+              y: offset,
+              "font-size": 10,
+              "font-weight": 600,
+              fill: MUTED,
+              class: "fade",
+              style: "animation-delay:1s",
+            },
+            "OF 120 TASKS",
+          );
+          MONO.el(s, "line", {
+            x1: X0,
+            y1: offset + 14,
+            x2: X0 + 12 * CELL,
+            y2: offset + 14,
+            stroke: GRID,
+            "stroke-width": 0.8,
+            class: "fade",
+            style: "animation-delay:1s",
+          });
+          MONO.txt(
+            s,
+            {
+              x: X0,
+              y: offset + 30,
+              "font-size": 7,
+              "font-weight": 600,
+              fill: "#B0AFA9",
+              "letter-spacing": ".12em",
+              class: "fade",
+              style: "animation-delay:1.1s",
+            },
+            "RAN LEFT TO RIGHT · FIRST COLUMN = OLDEST QUEUE SLOT",
+          );
+        });
+      })();
+
+      /* ═══════════════ TASK · F2 hairline line — metric convergence ═══════════════ */
+      (() => {
+        const P1 = [0.0, 0.0, 0.333, 0.25];
+        const P2 = [0.0, 0.0, 0.111, 0.062];
+        MONO.obsReveal("conv", (s) => {
+          const x = (i) => 62 + i * 92,
+            base = 262,
+            map = (v) => base - v * 560;
+          for (let i = 0; i < 4; i++) {
+            const px = x(i);
+            MONO.el(s, "line", {
+              x1: px,
+              y1: base,
+              x2: px,
+              y2: base - 6,
+              stroke: "#CFCEC7",
+              "stroke-width": 0.6,
+              class: "fade",
+              style: `animation-delay:${i * 0.06}s`,
+            });
+          }
+          MONO.el(s, "line", {
+            x1: 48,
+            y1: base,
+            x2: 356,
+            y2: base,
+            stroke: GRID,
+            "stroke-width": 0.8,
+            class: "fade",
+          });
+          [0, 0.25, 0.5, 0.75].forEach((v) => {
+            const y = map(v);
+            MONO.el(s, "line", {
+              x1: 48,
+              y1: y,
+              x2: 356,
+              y2: y,
+              stroke: GRID,
+              "stroke-width": 0.6,
+              "stroke-dasharray": "2 4",
+              opacity: 0.5,
+              class: "fade",
+              style: "animation-delay:.2s",
+            });
+            MONO.txt(
+              s,
+              {
+                x: 40,
+                y: y + 3,
+                "font-size": 7,
+                "font-weight": 600,
+                fill: "#B0AFA9",
+                "text-anchor": "end",
+                class: "fade",
+                style: "animation-delay:.2s",
+              },
+              v,
+            );
+          });
+          MONO.el(s, "path", {
+            d: "M" + P1.map((v, i) => `${x(i)} ${map(v)}`).join(" L "),
+            fill: "none",
+            stroke: INK,
+            "stroke-width": 1.2,
+            pathLength: 1,
+            class: "draw",
+            style: "animation-duration:1.2s",
+          });
+          MONO.el(s, "path", {
+            d: "M" + P2.map((v, i) => `${x(i)} ${map(v)}`).join(" L "),
+            fill: "none",
+            stroke: "#8F8E88",
+            "stroke-width": 1,
+            "stroke-dasharray": "3 3",
+            pathLength: 1,
+            class: "draw",
+            style: "animation-duration:1.2s;animation-delay:.3s",
+          });
+          P1.forEach((v, i) => {
+            const d = MONO.el(s, "circle", {
+              cx: x(i),
+              cy: map(v),
+              r: i === 3 ? 4.4 : 3,
+              fill: i === 3 ? INK : PAPER,
+              stroke: INK,
+              "stroke-width": i === 3 ? 0 : 1.2,
+              class: "pop",
+              style: `animation-delay:${0.5 + i * 0.12}s`,
+            });
+            MONO.tip(d, `After trail ${i + 1} — pass@1 ${v.toFixed(3)}`);
+          });
+          [
+            [0, "T1"],
+            [1, "T2"],
+            [2, "T3"],
+            [3, "T4"],
+          ].forEach(([i, m]) =>
+            MONO.txt(
+              s,
+              {
+                x: x(i),
+                y: base + 18,
+                "font-size": 7.5,
+                "font-weight": 700,
+                fill: MUTED,
+                "text-anchor": "middle",
+                "letter-spacing": ".08em",
+                class: "fade",
+                style: `animation-delay:${i * 0.06}s`,
+              },
+              m,
+            ),
+          );
+          MONO.txt(
+            s,
+            {
+              x: x(3) - 9,
+              y: map(P2[3]) + 13,
+              "font-size": 8.5,
+              "font-weight": 700,
+              fill: "#6A6963",
+              "text-anchor": "end",
+              class: "fade",
+              style: "animation-delay:1s",
+            },
+            "0.062",
+          );
+          MONO.txt(
+            s,
+            {
+              x: x(3) - 9,
+              y: map(P1[3]) - 9,
+              "font-size": 10,
+              "font-weight": 800,
+              fill: INK,
+              "text-anchor": "end",
+              class: "fade",
+              style: "animation-delay:.95s",
+            },
+            "0.250",
+          );
+          MONO.txt(
+            s,
+            {
+              x: 200,
+              y: 306,
+              "font-size": 7,
+              "font-weight": 600,
+              fill: "#B0AFA9",
+              "text-anchor": "middle",
+              "letter-spacing": ".12em",
+              class: "fade",
+              style: "animation-delay:1.1s",
+            },
+            "SOLID = PASS@1 · DASHED = PASS² · READ AT THE FLOOR",
+          );
+        });
+      })();
+
+      /* ═══════════════ TASK · G3 chunky bars — trail comparison ═══════════════ */
+      (() => {
+        const TRAILS = [
+          { id: "000", tokens: 19.2, dur: "06:14", cost: "$0.71", state: "failed · verify" },
+          { id: "001", tokens: 27.8, dur: "09:41", cost: "$1.06", state: "passed · complete" },
+          { id: "002", tokens: 22.5, dur: "08:03", cost: "$0.88", state: "failed · test" },
+          { id: "003", tokens: 17.6, dur: "05:52", cost: "$0.64", state: "failed · verify" },
+        ];
+        const barColors = () =>
+          TRAILS.map((t, i) => (i === 1 ? INK : ["#B0AFA9", "#C6C5BF", "#8F8E88", "#B0AFA9"][i]));
+        window.__trailData = TRAILS;
+        window.__selectedTrail = 1;
+        window.__highlightTrial = () => {
+          const bars = cjs["trailbars"];
+          if (!bars) return;
+          bars.data.datasets[0].data = TRAILS.map((t) => t.tokens);
+          bars.data.datasets[0].backgroundColor = barColors();
+          bars.data.datasets[0].borderColor = TRAILS.map((t, i) =>
+            i === window.__selectedTrail ? INK : "rgba(0,0,0,0)",
+          );
+          bars.data.datasets[0].borderWidth = TRAILS.map((t) =>
+            t === TRAILS[window.__selectedTrail] ? 1.5 : 0,
+          );
+          bars.update();
+        };
+        cReveal("trailbars", () => ({
+          type: "bar",
+          data: {
+            labels: TRAILS.map((t) => t.id),
+            datasets: [
+              {
+                data: TRAILS.map((t) => t.tokens),
+                backgroundColor: barColors(),
+                borderColor: TRAILS.map((t, i) =>
+                  i === window.__selectedTrail ? INK : "rgba(0,0,0,0)",
+                ),
+                borderWidth: TRAILS.map((t, i) => (i === window.__selectedTrail ? 1.5 : 0)),
+                borderRadius: { topLeft: 99, topRight: 99 },
+                borderSkipped: false,
+                barPercentage: 0.5,
+              },
+            ],
+          },
+          options: {
+            maintainAspectRatio: false,
+            animation: {
+              duration: 900,
+              easing: "easeOutQuart",
+              delay: (c) => (c.type === "data" ? c.dataIndex * 110 : 0),
+            },
+            plugins: {
+              tooltip: {
+                callbacks: {
+                  label: (i) =>
+                    `trail ${i.label} — ${i.raw}k tokens · ${TRAILS[i.dataIndex].dur} · ${TRAILS[i.dataIndex].state}`,
+                },
+              },
+            },
+            scales: {
+              x: {
+                grid: { display: false },
+                border: { display: false },
+                ticks: { padding: 8, font: { size: 9, weight: 600 } },
+              },
+              y: { display: false, suggestedMax: 32 },
+            },
+          },
+          plugins: [
+            {
+              id: "topValues",
+              afterDatasetsDraw(chart) {
+                const { ctx } = chart;
+                chart.getDatasetMeta(0).data.forEach((bar, i) => {
+                  ctx.save();
+                  ctx.font = "700 13px Inter";
+                  ctx.fillStyle = INK;
+                  ctx.textAlign = "center";
+                  ctx.fillText(TRAILS[i].tokens + "k", bar.x, bar.y - 10);
+                  ctx.restore();
+                });
+              },
+            },
+          ],
+        }));
+      })();
+
+      /* ═══════════════ TASK · F3 hairline area — trajectory ═══════════════ */
+      (() => {
+        const toolCalls = [
+          { t: 6, x: 'rg "serialize.*field" django/ tests/' },
+          { t: 151, x: "edit django/db/migrations/serializer.py" },
+          { t: 534, x: "./runtests.py migrations.test_writer" },
+        ];
+        const STAGE = [
+          [0, 130, "INSPECT"],
+          [130, 350, "PATCH"],
+          [350, 600, "VERIFY"],
+        ];
+        MONO.obsReveal("traj", (s) => {
+          const X0 = 54,
+            X1 = 738,
+            base = 262,
+            mapX = (t) => X0 + (t / 600) * (X1 - X0),
+            mapY = (v) => base - (v / 22000) * 200;
+          const ctxOf = (t) => {
+            if (t <= 6) return 3200 + t * 40;
+            if (t <= 130) return 3470 + (t - 6) * 9;
+            if (t <= 151) return 4590 + (t - 130) * 30;
+            if (t <= 350) return 5220 + (t - 151) * 44;
+            if (t <= 581) return 13980 + (t - 350) * 34;
+            return 21800;
+          };
+          // stage boundary guards
+          MONO.el(s, "line", {
+            x1: X0 - 8,
+            y1: base,
+            x2: X1 + 8,
+            y2: base,
+            stroke: GRID,
+            "stroke-width": 0.8,
+            class: "fade",
+          });
+          // context hairlines, one per 10s
+          for (let t = 0; t <= 600; t += 10) {
+            const v = ctxOf(t),
+              x = mapX(t);
+            MONO.el(s, "line", {
+              x1: x,
+              y1: base,
+              x2: x,
+              y2: mapY(v),
+              stroke: t === 600 ? INK : "#8F8E88",
+              "stroke-width": t === 600 ? 1.1 : 0.5,
+              opacity: t === 600 ? 1 : 0.5 + MONO.rnd(t / 10 + 1, 8) * 0.45,
+              class: "fade",
+              style: `animation-delay:${(t / 10) * 0.014}s`,
+            });
+          }
+          const pts = [];
+          for (let t = 0; t <= 600; t += 10) pts.push(`${mapX(t)} ${mapY(ctxOf(t))}`);
+          MONO.el(s, "path", {
+            d: "M" + pts.join(" L "),
+            fill: "none",
+            stroke: INK,
+            "stroke-width": 1.2,
+            pathLength: 1,
+            class: "draw",
+            style: "animation-duration:1.4s;animation-delay:.3s",
+          });
+          // tool-run markers
+          toolCalls.forEach((tc, i) => {
+            const x = mapX(tc.t);
+            MONO.el(s, "rect", {
+              x: x + 4,
+              y: 20,
+              width: 9,
+              height: base - 20,
+              rx: 4,
+              fill: "#EDECE6",
+              stroke: "#D8D6CE",
+              "stroke-width": 0.7,
+              class: "fade",
+              style: `animation-delay:${0.5 + i * 0.15}s`,
+            });
+            const lbl = MONO.txt(
+              s,
+              {
+                x: x + 8,
+                y: 40,
+                "font-size": 7,
+                "font-weight": 700,
+                fill: "#B0AFA9",
+                "text-anchor": "middle",
+                transform: `rotate(-90 ${x + 8} 40)`,
+                "letter-spacing": ".08em",
+                class: "fade",
+                style: `animation-delay:${0.6 + i * 0.15}s`,
+              },
+              "TOOL",
+            );
+            MONO.tip(lbl, tc.x);
+          });
+          // stage boundaries
+          STAGE.forEach(([a, b, name]) => {
+            const xa = mapX(a),
+              xb = mapX(b);
+            MONO.el(s, "line", {
+              x1: xa,
+              y1: 18,
+              x2: xa,
+              y2: base,
+              stroke: "#B0AFA9",
+              "stroke-width": 0.7,
+              "stroke-dasharray": "3 4",
+              class: "fade",
+              style: "animation-delay:.7s",
+            });
+            const cx = (xa + xb) / 2;
+            MONO.txt(
+              s,
+              {
+                x: cx,
+                y: base + 22,
+                "font-size": 8,
+                "font-weight": 800,
+                fill: "#6A6963",
+                "text-anchor": "middle",
+                "letter-spacing": ".1em",
+                class: "fade",
+                style: `animation-delay:.75s`,
+              },
+              name,
+            );
+          });
+          // peak
+          const end = MONO.el(s, "circle", {
+            cx: mapX(600),
+            cy: mapY(ctxOf(600)),
+            r: 4.4,
+            fill: INK,
+            class: "pop",
+            style: "animation-delay:1.2s",
+          });
+          MONO.tip(end, "21.8k tokens at the end of the trail");
+          MONO.txt(
+            s,
+            {
+              x: mapX(600) - 12,
+              y: mapY(ctxOf(600)) - 11,
+              "font-size": 9.5,
+              "font-weight": 800,
+              fill: INK,
+              "text-anchor": "end",
+              style: `paint-order:stroke;stroke:${PAPER};stroke-width:3px;animation-delay:1.3s`,
+              class: "fade",
+            },
+            "21.8k",
+          );
+          [
+            [0, "0:00"],
+            [300, "5:00"],
+            [600, "9:41"],
+          ].forEach(([t, m]) =>
+            MONO.txt(
+              s,
+              {
+                x: mapX(t),
+                y: base + 44,
+                "font-size": 7,
+                "font-weight": 600,
+                fill: "#C6C5BF",
+                "text-anchor": middle_anchor(t),
+                class: "fade",
+                style: "animation-delay:1s",
+              },
+              m,
+            ),
+          );
+          function middle_anchor(t) {
+            return t === 0 ? "start" : t === 600 ? "end" : "middle";
+          }
+        });
+      })();
+
+      /* ═══════════════ page interactions ═══════════════ */
+      const setMainView = (view) => {
+        document.querySelectorAll("[data-view]").forEach((p) => {
+          p.hidden = p.dataset.view !== view;
+        });
+        document
+          .querySelectorAll("[data-view-trigger]")
+          .forEach((b) => b.classList.toggle("active", b.dataset.viewTrigger === view));
+      };
+      document
+        .querySelectorAll("[data-view-trigger]")
+        .forEach((b) => b.addEventListener("click", () => setMainView(b.dataset.viewTrigger)));
+      document.querySelectorAll("[data-open-task]").forEach((b) =>
+        b.addEventListener("click", () => {
+          setMainView("task");
+          document.getElementById("task-title").textContent = b.dataset.openTask;
+          document
+            .querySelectorAll("[data-task-name]")
+            .forEach((c) =>
+              c.classList.toggle("active", c.dataset.taskName === b.dataset.openTask),
+            );
+        }),
+      );
+      document.querySelectorAll("[data-task-name]").forEach((b) =>
+        b.addEventListener("click", () => {
+          document
+            .querySelectorAll("[data-task-name]")
+            .forEach((c) => c.classList.remove("active"));
+          b.classList.add("active");
+          document.getElementById("task-title").textContent = b.dataset.taskName;
+        }),
+      );
+
+      /* — trail selection: rewind the conversation + highlight the bar — */
+      const TRAIL_FEED = {
+        "000": {
+          who: [
+            [
+              "AGENT — INSPECT",
+              "00:05.911",
+              "1,120 TOK",
+              "The import path is fine at the top level; the factory call is where the symbol gets dropped.",
+            ],
+            [
+              "AGENT — PATCH",
+              "02:00.120",
+              "4,002 TOK",
+              "I narrowed onto the serializer, but patched the wrong branch first and burned a verify cycle.",
+            ],
+            [
+              "AGENT — VERIFY",
+              "06:14.880",
+              "19,204 TOK",
+              "The targeted test still fails — the suffix the migration writer expects is different from what I produced.",
+            ],
+          ],
+          foot: "VERIFY FAILED · 19.2K TOK · 06:14",
+        },
+        "001": {
+          who: [
+            [
+              "AGENT — INSPECT",
+              "00:06.412",
+              "1,284 TOK",
+              "I’ll trace where the model field is serialized, then compare the failing expectation with the migration behavior.",
+            ],
+            [
+              "AGENT — PATCH",
+              "02:31.084",
+              "4,906 TOK",
+              "The serializer drops the callable’s module when the field is nested. I’ll reuse the import-path normalization already applied to validators.",
+            ],
+            [
+              "AGENT — VERIFY",
+              "08:54.220",
+              "18,704 TOK",
+              "Targeted migration tests pass. Running the related serializer suite to check for import-path regressions.",
+            ],
+          ],
+          foot: "VERIFICATION PASSED · 21.8K TOK · 09:41",
+        },
+        "002": {
+          who: [
+            [
+              "AGENT — INSPECT",
+              "00:04.330",
+              "1,090 TOK",
+              "A test-time regression — the bound factory loses its qualname before the writer ever sees it.",
+            ],
+            [
+              "AGENT — PATCH",
+              "02:44.700",
+              "4,810 TOK",
+              "Applied the same fix but did not re-run the sibling suites; the import-path branch regressed silently.",
+            ],
+            [
+              "AGENT — VERIFY",
+              "08:03.120",
+              "22,502 TOK",
+              "Related serializer suite now fails on the import-path normalization corner.",
+            ],
+          ],
+          foot: "TEST FAILED · 22.5K TOK · 08:03",
+        },
+        "003": {
+          who: [
+            [
+              "AGENT — INSPECT",
+              "00:06.050",
+              "1,015 TOK",
+              "Fast pass: this looks like the same failure as trail 001, so skip straight to the patch.",
+            ],
+            [
+              "AGENT — PATCH",
+              "02:12.410",
+              "3,880 TOK",
+              "Reused the proven fix, but the sandbox froze mid-suite and the run was cut short.",
+            ],
+            [
+              "AGENT — VERIFY",
+              "05:52.660",
+              "17,608 TOK",
+              "Verify never completed — the task was killed by the timeout guard.",
+            ],
+          ],
+          foot: "VERIFY FAILED · 17.6K TOK · 05:52",
+        },
+      };
+      document.querySelectorAll("#trailbar button").forEach((b) =>
+        b.addEventListener("click", () => {
+          document.querySelectorAll("#trailbar button").forEach((x) => x.classList.remove("on"));
+          b.classList.add("on");
+          const id = b.dataset.trail;
+          window.__selectedTrail = parseInt(id, 10);
+          if (typeof window.__highlightTrial === "function") window.__highlightTrial();
+          const f = TRAIL_FEED[id];
+          const feed = document.getElementById("feed");
+          feed.style.opacity = ".45";
+          window.setTimeout(() => {
+            const parts = [
+              `<div class="msg"><div class="msg-head"><span class="msg-who">SYSTEM<span class="t">00:00.000</span></span><tk>CONTEXT 3,180 TOK</tk></div>` +
+                `<p>You are in a repository containing a failing test. Inspect the issue, implement the narrowest correct fix, and verify it.</p></div>`,
+            ];
+            f.who.forEach((m, i) => {
+              const last = i === f.who.length - 1;
+              parts.push(
+                `<div class="msg"${last ? ' style="border-bottom:0"' : ""}><div class="msg-head"><span class="msg-who">${m[0]}<span class="t">${m[1]}</span></span><tk>${m[2]}</tk></div>` +
+                  `<p>${m[3]}</p>` +
+                  (last
+                    ? `<div class="msg-foot"><span class="ok">${id === "001" ? "VERIFICATION PASSED" : "TRAIL CLOSED"}</span><tk>${f.foot}</tk></div>`
+                    : "") +
+                  "</div>",
+              );
+            });
+            feed.innerHTML = parts.join("");
+            feed.style.opacity = "1";
+          }, 120);
+        }),
+      );
+
+      /* global resize for echarts */
+      addEventListener("resize", () => {
+        ["signal"].forEach((id) => echarts.getInstanceByDom(document.getElementById(id))?.resize());
+      });
+    </script>
+  </body>
+</html>
