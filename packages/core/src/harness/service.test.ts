@@ -27,7 +27,7 @@ layer(Harness.Service.layer("test").pipe(Layer.provide(dependencies)))((it) => {
   it.effect("builds a snapshot run backed by the acquired snapshot handle", () =>
     Effect.gen(function* () {
       const harness = yield* Harness.Service;
-      const run = yield* harness.buildSnapshot(Snapshot.make("test-image"));
+      const run = yield* harness.runSnapshot(Snapshot.make("test-image"));
       assert.strictEqual(run.handle, handle);
     }).pipe(Effect.scoped),
   );

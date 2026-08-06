@@ -14,45 +14,48 @@ export class Metadata extends Schema.Class<Metadata>("HarnessMetadata")({
 }) {}
 type MetadataEncoded = Schema.Codec.Encoded<typeof Metadata>;
 
-export type Session = Readonly<{
+export type AgentSession = Readonly<{
   trajectory: Effect.Effect<Prompt.Trajectory, HarnessError>;
   prompt(prompt: Prompt.Prompt): Stream.Stream<StreamPartEncoded, HarnessError>;
 }>;
 
-export type SessionConfig = Readonly<{
+export type AgentSessionConfig = Readonly<{
   // TODO support per-session network policies
 }>;
 
-const makeSession = Effect.fn(function* (
+const makeAgentSession = Effect.fn(function* (
   agent: Agent.Agent,
-): Effect.fn.Return<Session, HarnessError> {
+  _config: AgentSessionConfig,
+): Effect.fn.Return<AgentSession, HarnessError> {
   return {
     trajectory: agent.trajectory.pipe(Effect.mapError(HarnessError.agent)),
     prompt: (prompt) => agent.prompt(prompt).pipe(Stream.mapError(HarnessError.agent)),
-  } satisfies Session;
+  } satisfies AgentSession;
 });
 
-export type SandboxRun = Readonly<{
+export type SandboxSession = Readonly<{
   sandbox: Sandbox.Sandbox;
-  runSession(options?: Partial<SessionConfig>): Effect.Effect<Session, HarnessError, Scope.Scope>;
+  runAgent(
+    options?: Partial<AgentSessionConfig>,
+  ): Effect.Effect<AgentSession, HarnessError, Scope.Scope>;
 }>;
 
-export type SandboxConfig = Readonly<{
+export type SandboxSessionConfig = Readonly<{
   /** The resources to provide to the sandbox. */
   resources: Resource.Resources;
 }>;
 
-export type SnapshotRun = Readonly<{
+export type SnapshotSession = Readonly<{
   /** The snapshot handle built from the task snapshot, used to run a sandbox. */
   handle: Snapshot.Handle.Handle;
 
   /** Run a sandbox backed by `snapshotHandle`. */
   runSandbox(
-    options?: Partial<SandboxConfig>,
-  ): Effect.Effect<SandboxRun, HarnessError, Scope.Scope>;
+    options?: Partial<SandboxSessionConfig>,
+  ): Effect.Effect<SandboxSession, HarnessError, Scope.Scope>;
 }>;
 
-export type BuildConfig = Readonly<{
+export type SnapshotSessionConfig = Readonly<{
   /** Whether task sandbox snapshots may be reused from the snapshot cache. Defaults to `true`. */
   cacheTaskSnapshot: boolean;
 
@@ -62,10 +65,10 @@ export type BuildConfig = Readonly<{
 
 export type Harness = Readonly<{
   metadata: Metadata;
-  buildSnapshot(
+  runSnapshot(
     snapshot: Snapshot.Snapshot,
-    options?: Partial<BuildConfig>,
-  ): Effect.Effect<SnapshotRun, HarnessError, Scope.Scope>;
+    options?: Partial<SnapshotSessionConfig>,
+  ): Effect.Effect<SnapshotSession, HarnessError, Scope.Scope>;
 }>;
 
 export type ConfigOptions = Omit<MetadataEncoded, "id">;
@@ -115,20 +118,20 @@ export class Service extends Context.Service<Service, Harness>()("harness/Servic
               .runSandbox({ handle, resources })
               .pipe(Effect.mapError(HarnessError.sandbox));
 
-            const runSession = Effect.fn("HarnessService.runSession")(function* (_config = {}) {
+            const runSession = Effect.fn("HarnessService.runSession")(function* (config = {}) {
               const agentSession = yield* agentProvider
                 .runSession(sandbox)
                 .pipe(Effect.mapError(HarnessError.agent));
-              return yield* makeSession(agentSession);
-            }) satisfies SandboxRun["runSession"];
+              return yield* makeAgentSession(agentSession, config);
+            }) satisfies SandboxSession["runAgent"];
 
-            return { sandbox, runSession } satisfies SandboxRun;
-          }) satisfies SnapshotRun["runSandbox"];
+            return { sandbox, runAgent: runSession } satisfies SandboxSession;
+          }) satisfies SnapshotSession["runSandbox"];
 
-          return { handle, runSandbox } satisfies SnapshotRun;
-        }) satisfies Harness["buildSnapshot"];
+          return { handle, runSandbox } satisfies SnapshotSession;
+        }) satisfies Harness["runSnapshot"];
 
-        return { metadata, buildSnapshot: build } satisfies Harness;
+        return { metadata, runSnapshot: build } satisfies Harness;
       }),
     );
   };

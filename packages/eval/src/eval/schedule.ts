@@ -67,7 +67,7 @@ export const run = Effect.fn("exec/schedule")(
     );
 
     const prepareTask = Effect.fn("exec/prepareTask")(
-      function* (task: Task.AnyTask, run: Harness.SnapshotRun) {
+      function* (task: Task.AnyTask, session: Harness.SnapshotSession) {
         yield* Effect.annotateCurrentSpan({
           benchmark: benchId,
           taskName: task.metadata.name,
@@ -85,7 +85,7 @@ export const run = Effect.fn("exec/schedule")(
           bench,
           eventQueue,
           config,
-          run,
+          session,
           harnessId,
         });
 
@@ -196,14 +196,14 @@ export const run = Effect.fn("exec/schedule")(
           yield* Effect.annotateCurrentSpan({ benchmark: benchId, snapshot: hash });
           yield* Effect.logDebug("Preparing snapshot");
 
-          const run = yield* harness
-            .buildSnapshot(snapshot, config)
+          const snapshotSession = yield* harness
+            .runSnapshot(snapshot, config)
             .pipe(Effect.mapError(EvalError.harness));
 
           yield* Effect.logDebug("Prepared snapshot");
 
           return yield* Effect.all(
-            tasks.map((task) => prepareTask(task, run)),
+            tasks.map((task) => prepareTask(task, snapshotSession)),
             { concurrency: taskConcurrency },
           );
         },

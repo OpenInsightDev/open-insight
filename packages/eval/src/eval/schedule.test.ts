@@ -54,11 +54,11 @@ const makeSnapshotRun = () =>
     runSandbox: () =>
       Effect.sync(() => ({
         sandbox: fakeSandbox,
-        runSession: () => Effect.sync(makeFakeSession),
+        runAgent: () => Effect.sync(makeFakeSession),
       })),
   }));
 
-const makeFakeSession = (): Harness.Session => {
+const makeFakeSession = (): Harness.AgentSession => {
   let responded = false;
 
   return {
@@ -71,7 +71,7 @@ const makeFakeSession = (): Harness.Session => {
           }),
         ),
       ),
-  } satisfies Harness.Session;
+  } satisfies Harness.AgentSession;
 };
 
 const fakeHarness = {
@@ -80,7 +80,7 @@ const fakeHarness = {
     name: Option.none(),
     description: Option.none(),
   }),
-  buildSnapshot: makeSnapshotRun,
+  runSnapshot: makeSnapshotRun,
 } satisfies Harness.Harness;
 
 it.effect("emits task and eval stop events at completion", () =>
@@ -88,7 +88,7 @@ it.effect("emits task and eval stop events at completion", () =>
     let harnessRunCount = 0;
     const harness = {
       ...fakeHarness,
-      buildSnapshot: () =>
+      runSnapshot: () =>
         Effect.sync(() => {
           harnessRunCount += 1;
           return {
@@ -96,7 +96,7 @@ it.effect("emits task and eval stop events at completion", () =>
             runSandbox: () =>
               Effect.sync(() => ({
                 sandbox: fakeSandbox,
-                runSession: () => Effect.sync(makeFakeSession),
+                runAgent: () => Effect.sync(makeFakeSession),
               })),
           };
         }),
@@ -158,7 +158,7 @@ it.effect("builds a shared snapshot once for tasks in the same group", () =>
     let buildSnapshotCount = 0;
     const harness = {
       ...fakeHarness,
-      buildSnapshot: () =>
+      runSnapshot: () =>
         Effect.sync(() => {
           buildSnapshotCount += 1;
           return {
@@ -166,7 +166,7 @@ it.effect("builds a shared snapshot once for tasks in the same group", () =>
             runSandbox: () =>
               Effect.sync(() => ({
                 sandbox: fakeSandbox,
-                runSession: () => Effect.sync(makeFakeSession),
+                runAgent: () => Effect.sync(makeFakeSession),
               })),
           };
         }),
@@ -205,7 +205,7 @@ it.effect("builds distinct snapshots separately across task groups", () =>
     let buildSnapshotCount = 0;
     const harness = {
       ...fakeHarness,
-      buildSnapshot: () =>
+      runSnapshot: () =>
         Effect.sync(() => {
           buildSnapshotCount += 1;
           return {
@@ -213,7 +213,7 @@ it.effect("builds distinct snapshots separately across task groups", () =>
             runSandbox: () =>
               Effect.sync(() => ({
                 sandbox: fakeSandbox,
-                runSession: () => Effect.sync(makeFakeSession),
+                runAgent: () => Effect.sync(makeFakeSession),
               })),
           };
         }),

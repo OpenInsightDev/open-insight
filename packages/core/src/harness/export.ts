@@ -10,9 +10,11 @@ export {
 
 export {
   Service,
-  type BuildConfig,
-  type SnapshotRun,
   type Harness,
-  type Session,
-  type SandboxRun,
+  type SnapshotSessionConfig,
+  type SnapshotSession,
+  type AgentSessionConfig,
+  type AgentSession,
+  type SandboxSessionConfig,
+  type SandboxSession,
 } from "./service.ts";
