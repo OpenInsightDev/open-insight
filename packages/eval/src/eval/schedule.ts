@@ -101,26 +101,6 @@ export const run = Effect.fn("exec/schedule")(
         ),
     );
 
-    const prepareSnapshotGroup = Effect.fn("exec/prepareSnapshotGroup")(
-      function* ({ hash, snapshot, tasks }: SnapshotGroup) {
-        yield* Effect.annotateCurrentSpan({ benchmark: benchId, snapshot: hash });
-        yield* Effect.logDebug("Preparing snapshot");
-
-        const run = yield* harness
-          .buildSnapshot(snapshot, config)
-          .pipe(Effect.mapError(EvalError.harness));
-
-        yield* Effect.logDebug("Prepared snapshot");
-
-        return yield* Effect.all(
-          tasks.map((task) => prepareTask(task, run)),
-          { concurrency: taskConcurrency },
-        );
-      },
-      (effect, { hash }) =>
-        effect.pipe(Effect.annotateLogs({ benchmark: benchId, snapshot: hash })),
-    );
-
     const runScheduledTrail = Effect.fn("exec/runScheduledTrail")(
       function* ({ task, runTrail, trailIdx }: ScheduledTrail) {
         yield* Effect.annotateCurrentSpan({
@@ -211,13 +191,33 @@ export const run = Effect.fn("exec/schedule")(
         };
       });
 
-      const scheduledTaskGroups = yield* Effect.forEach(groups, prepareSnapshotGroup, {
+      const prepare = Effect.fn(
+        function* ({ hash, snapshot, tasks }: SnapshotGroup) {
+          yield* Effect.annotateCurrentSpan({ benchmark: benchId, snapshot: hash });
+          yield* Effect.logDebug("Preparing snapshot");
+
+          const run = yield* harness
+            .buildSnapshot(snapshot, config)
+            .pipe(Effect.mapError(EvalError.harness));
+
+          yield* Effect.logDebug("Prepared snapshot");
+
+          return yield* Effect.all(
+            tasks.map((task) => prepareTask(task, run)),
+            { concurrency: taskConcurrency },
+          );
+        },
+        (effect, { hash }) =>
+          effect.pipe(Effect.annotateLogs({ benchmark: benchId, snapshot: hash })),
+      );
+
+      const scheduledGroups = yield* Effect.forEach(groups, prepare, {
         concurrency: snapshotConcurrency,
       });
-      const scheduledTasks = scheduledTaskGroups.flat();
-      yield* Effect.logDebug(`Prepared ${scheduledTasks.length} task(s)`);
+      const scheduleds = scheduledGroups.flat();
+      yield* Effect.logDebug(`Prepared ${scheduleds.length} task(s)`);
 
-      const completedTrails = makeTrailStream(scheduledTasks).pipe(
+      const completedTrails = makeTrailStream(scheduleds).pipe(
         Stream.mapEffect(runScheduledTrail, {
           concurrency: trailConcurrency,
           unordered: true,
