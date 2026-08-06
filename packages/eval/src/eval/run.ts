@@ -6,17 +6,13 @@ import { run as runSchedule } from "./schedule.ts";
 import type { BenchResult } from "./result.ts";
 import { NodeServices } from "@effect/platform-node";
 import { EvalError } from "./error.ts";
-import { Harness, Sandbox } from "@open-insight/core/internal";
+import { Harness } from "@open-insight/core/internal";
 import * as Task from "#/task/index.ts";
 
 export const run = (configOptions: Partial<Config> = {}) =>
   Effect.fn(function* <T extends Task.AnyTask, E, R>(
     bench: Effect.Effect<Bench.Bench<T>, E, R>,
-  ): Effect.fn.Return<
-    BenchResult<Task.GradeOf<T>>,
-    EvalError | E,
-    Harness.Service | R | Sandbox.ProviderService
-  > {
+  ): Effect.fn.Return<BenchResult<Task.GradeOf<T>>, EvalError | E, Harness.Service | R> {
     const config = makeConfig(configOptions);
     const transport = yield* Effect.serviceOption(Event.Transport.Service);
     const eventQueue = yield* Event.makeQueue();

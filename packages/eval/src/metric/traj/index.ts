@@ -52,9 +52,9 @@ const execMetric = Effect.fn("metric/traj/execMetric")(function* (
   prev: Result | null,
   state: Ref.Ref<ReadonlyMap<Metric, Result>>,
 ): Effect.fn.Return<StreamResult, MetricError> {
-  const rawResult = yield* Effect.tryPromise(() => Promise.resolve(metric.exec(context, prev))).pipe(
-    Effect.mapError(MetricError.exec(metric.metadata.id)),
-  );
+  const rawResult = yield* Effect.tryPromise(() =>
+    Promise.resolve(metric.exec(context, prev)),
+  ).pipe(Effect.mapError(MetricError.exec(metric.metadata.id)));
   const result = yield* Schema.decodeEffect(Result)(rawResult).pipe(
     Effect.mapError(MetricError.result(metric.metadata.id)),
     Effect.as(rawResult),

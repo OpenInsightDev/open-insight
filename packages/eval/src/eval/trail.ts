@@ -43,13 +43,17 @@ export const createTrail = Effect.fn("exec/createTrail")(
     task,
     config,
     eventQueue,
+    run,
+    harnessId,
   }: {
     bench: Bench.Bench;
     task: Task.AnyTask;
     config: Config;
     eventQueue: Event.EventEnqueue;
-  }): Effect.fn.Return<RunTrail, EvalError, Harness.Service | Scope.Scope> {
-    const { snapshot, resources, stages, metrics: taskMetrics, trajMetrics } = task;
+    run: Harness.SnapshotRun;
+    harnessId: string;
+  }): Effect.fn.Return<RunTrail, EvalError, Scope.Scope> {
+    const { resources, stages, metrics: taskMetrics, trajMetrics } = task;
     const { verifMode, graderMaxRetries: maxRetries } = config;
 
     const offer = Event.offerTo(eventQueue);
@@ -66,9 +70,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
       }
     }
 
-    const harnessService = yield* Harness.Service;
     const benchId = bench.metadata.id;
-    const harnessId = harnessService.metadata.id;
     yield* Effect.logDebug("Prepared task definition");
 
     const taskMetricRunners = yield* Effect.forEach(taskMetrics, Metric.Task.run);
@@ -96,15 +98,15 @@ export const createTrail = Effect.fn("exec/createTrail")(
     });
 
     const runTrail = Effect.fn(
-      function* (idx: number): Effect.fn.Return<TrailResult, EvalError, Scope.Scope> {
+      function* (
+        run: Harness.SandboxRun,
+        idx: number,
+      ): Effect.fn.Return<TrailResult, EvalError, Scope.Scope> {
         const startedAt = yield* DateTime.now;
         yield* Effect.annotateCurrentSpan({ taskName: task.metadata.name, trailIdx: idx });
         yield* Effect.logDebug("Starting sandbox for trail");
 
-        const harnessRun = yield* harnessService
-          .run(snapshot, { resources, ...config })
-          .pipe(Effect.mapError(EvalError.harness));
-        const ctx = yield* Sandbox.asPromise(harnessRun.sandbox);
+        const ctx = yield* Sandbox.asPromise(run.sandbox);
 
         yield* Effect.logDebug("Prepared sandbox for trail");
 
@@ -285,9 +287,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
             const currentSession = yield* Ref.get(sessionRef);
             if (!resume || Option.isNone(currentSession)) {
               yield* Effect.logDebug(`Starting new agent session for stage ${metadata.id}`);
-              const session = yield* harnessRun
-                .runSession()
-                .pipe(Effect.mapError(EvalError.harness));
+              const session = yield* run.runSession().pipe(Effect.mapError(EvalError.harness));
               yield* Ref.set(sessionRef, Option.some(session));
             }
           }
@@ -424,7 +424,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
           usage: state.usage,
         } satisfies TrailResult;
       },
-      (effect, trailIdx) =>
+      (effect, _run, trailIdx) =>
         effect.pipe(
           Effect.annotateLogs({ taskName: task.metadata.name, trailIdx }),
           Effect.mapError(EvalError.taskExec(task, trailIdx)),
@@ -433,7 +433,13 @@ export const createTrail = Effect.fn("exec/createTrail")(
 
     return (trailIdx) =>
       Effect.logDebug(`Starting trail ${trailIdx}`).pipe(
-        Effect.andThen(runTrail(trailIdx).pipe(Effect.scoped)),
+        Effect.andThen(
+          run.runSandbox({ resources }).pipe(
+            Effect.mapError(EvalError.harness),
+            Effect.flatMap((sandboxRun) => runTrail(sandboxRun, trailIdx)),
+            Effect.scoped,
+          ),
+        ),
         Effect.tap((result) => runTaskMetrics(result, trailIdx)),
         Effect.tap(() => Effect.logDebug(`Completed trail ${trailIdx}`)),
       );

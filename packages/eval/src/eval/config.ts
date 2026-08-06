@@ -2,7 +2,7 @@ import type { NodeSdk } from "@effect/opentelemetry";
 import { Harness } from "@open-insight/core/internal";
 
 /** Runtime configuration for an evaluation run. */
-export type Config = Harness.Config &
+export type Config = Harness.BuildConfig &
   Readonly<{
     /** Configuration for the OpenTelemetry Node SDK. Defaults to an empty configuration. */
     otel: NodeSdk.Configuration;

@@ -1,8 +1,7 @@
-import { Crypto, DateTime, Effect, FileSystem, Option, Path, Ref, Scope, Stream } from "effect";
-import type { ChildProcessSpawner } from "effect/unstable/process";
+import { Array, Crypto, DateTime, Effect, Ref, Scope, Stream } from "effect";
 import { castDraft, produce } from "immer";
 import * as Bench from "#/bench/index.ts";
-import { Harness, Sandbox, Snapshot } from "@open-insight/core/internal";
+import { Harness, Snapshot } from "@open-insight/core/internal";
 import * as Metric from "#/metric/index.ts";
 import * as Task from "#/task/index.ts";
 import type { Config } from "./config.ts";
@@ -21,6 +20,12 @@ type ScheduledTrail = ScheduledTask &
     trailIdx: number;
   }>;
 
+type SnapshotGroup = Readonly<{
+  hash: string;
+  snapshot: Snapshot.Snapshot;
+  tasks: ReadonlyArray<Task.AnyTask>;
+}>;
+
 type Options = Readonly<{
   bench: Bench.Bench;
   eventQueue: Event.EventEnqueue;
@@ -30,24 +35,16 @@ export const run = Effect.fn("exec/schedule")(
   function* (
     { bench, eventQueue }: Options,
     config: Config,
-  ): Effect.fn.Return<
-    BenchResult,
-    EvalError,
-    | Crypto.Crypto
-    | FileSystem.FileSystem
-    | ChildProcessSpawner.ChildProcessSpawner
-    | Path.Path
-    | Scope.Scope
-    | Harness.Service
-    | Sandbox.ProviderService
-  > {
+  ): Effect.fn.Return<BenchResult, EvalError, Crypto.Crypto | Scope.Scope | Harness.Service> {
     const { snapshotConcurrency, taskConcurrency, trailConcurrency } = config;
     const offer = Event.offerTo(eventQueue);
 
-    const benchId = bench.metadata.id;
     const harness = yield* Harness.Service;
-    const sandboxProvider = yield* Sandbox.ProviderService;
-    const evalEventFields = { bench: benchId, harness: harness.metadata.id };
+    const { tasks } = bench;
+
+    const benchId = bench.metadata.id;
+    const harnessId = harness.metadata.id;
+    const evalEventFields = { bench: benchId, harness: harnessId };
     const taskEventFields = (task: Task.AnyTask) => ({
       ...evalEventFields,
       task: task.metadata.id,
@@ -70,7 +67,7 @@ export const run = Effect.fn("exec/schedule")(
     );
 
     const prepareTask = Effect.fn("exec/prepareTask")(
-      function* (task: Task.AnyTask) {
+      function* (task: Task.AnyTask, run: Harness.SnapshotRun) {
         yield* Effect.annotateCurrentSpan({
           benchmark: benchId,
           taskName: task.metadata.name,
@@ -88,18 +85,40 @@ export const run = Effect.fn("exec/schedule")(
           bench,
           eventQueue,
           config,
+          run,
+          harnessId,
         });
 
         yield* Effect.logDebug("Prepared task");
         return { task, runTrail };
       },
-      (effect, task) =>
+      (effect, task, _run) =>
         effect.pipe(
           Effect.annotateLogs({
             benchmark: benchId,
             taskName: task.metadata.name,
           }),
         ),
+    );
+
+    const prepareSnapshotGroup = Effect.fn("exec/prepareSnapshotGroup")(
+      function* ({ hash, snapshot, tasks }: SnapshotGroup) {
+        yield* Effect.annotateCurrentSpan({ benchmark: benchId, snapshot: hash });
+        yield* Effect.logDebug("Preparing snapshot");
+
+        const run = yield* harness
+          .buildSnapshot(snapshot, config)
+          .pipe(Effect.mapError(EvalError.harness));
+
+        yield* Effect.logDebug("Prepared snapshot");
+
+        return yield* Effect.all(
+          tasks.map((task) => prepareTask(task, run)),
+          { concurrency: taskConcurrency },
+        );
+      },
+      (effect, { hash }) =>
+        effect.pipe(Effect.annotateLogs({ benchmark: benchId, snapshot: hash })),
     );
 
     const runScheduledTrail = Effect.fn("exec/runScheduledTrail")(
@@ -145,8 +164,6 @@ export const run = Effect.fn("exec/schedule")(
         ),
       );
 
-    const tasks = bench.tasks;
-
     if (tasks.length === 0) {
       yield* Effect.logWarning("No tasks to schedule");
       const finishedAt = yield* DateTime.now;
@@ -170,49 +187,35 @@ export const run = Effect.fn("exec/schedule")(
     }).pipe(offer);
 
     const result = yield* Effect.gen(function* () {
-      const snapshots = yield* Effect.forEach(
+      const hashed = yield* Effect.forEach(
         tasks,
         Effect.fn(function* (task) {
-          const handle = yield* Snapshot.Handle.make(task.snapshot).pipe(
+          const hash = yield* Snapshot.hash(task.snapshot).pipe(
             Effect.mapError(EvalError.snapshot(task)),
           );
-          return [handle.name, task] satisfies readonly [string, Task.AnyTask];
+          return { hash, task } satisfies Readonly<{ hash: string; task: Task.AnyTask }>;
         }),
         { concurrency: "unbounded" },
       );
-      const uniqueSnapshotTasks = [...new Map(snapshots).values()];
 
-      yield* Effect.forEach(
-        uniqueSnapshotTasks,
-        Effect.fn(
-          function* (task) {
-            const taskSnapshot = yield* sandboxProvider.aquireSnapshot({
-              snapshot: task.snapshot,
-              cache: config.cacheTaskSnapshot,
-            });
-            yield* harness.snapshotExtension.pipe(
-              Option.match({
-                onNone: () => Effect.void,
-                onSome: ({ instructions, context }) =>
-                  sandboxProvider.deriveSnapshot({
-                    handle: taskSnapshot,
-                    instructions,
-                    context: context ?? task.snapshot.context,
-                    cache: config.cacheAgentSnapshot,
-                  }),
-              }),
-            );
-          },
-          (effect, task) => effect.pipe(Effect.mapError(EvalError.snapshot(task))),
-        ),
-        { concurrency: snapshotConcurrency, discard: true },
-      );
-      yield* Effect.logDebug("Prepared all snapshots");
-
-      const scheduledTasks = yield* Effect.all(tasks.map(prepareTask), {
-        concurrency: taskConcurrency,
+      // group snapshots by hash to dedup
+      // same snapshot should only be built once
+      const groups: ReadonlyArray<SnapshotGroup> = Object.values(
+        Array.groupBy(hashed, ({ hash }) => hash),
+      ).map((entries) => {
+        const [first] = entries;
+        return {
+          hash: first.hash,
+          snapshot: first.task.snapshot,
+          tasks: entries.map(({ task }) => task),
+        };
       });
-      yield* Effect.logDebug("Prepared all tasks");
+
+      const scheduledTaskGroups = yield* Effect.forEach(groups, prepareSnapshotGroup, {
+        concurrency: snapshotConcurrency,
+      });
+      const scheduledTasks = scheduledTaskGroups.flat();
+      yield* Effect.logDebug(`Prepared ${scheduledTasks.length} task(s)`);
 
       const completedTrails = makeTrailStream(scheduledTasks).pipe(
         Stream.mapEffect(runScheduledTrail, {

@@ -19,6 +19,10 @@ export type Session = Readonly<{
   prompt(prompt: Prompt.Prompt): Stream.Stream<StreamPartEncoded, HarnessError>;
 }>;
 
+export type SessionConfig = Readonly<{
+  // TODO support per-session network policies
+}>;
+
 const makeSession = Effect.fn(function* (
   agent: Agent.Agent,
 ): Effect.fn.Return<Session, HarnessError> {
@@ -28,12 +32,27 @@ const makeSession = Effect.fn(function* (
   } satisfies Session;
 });
 
-export type Run = Readonly<{
+export type SandboxRun = Readonly<{
   sandbox: Sandbox.Sandbox;
-  runSession(): Effect.Effect<Session, HarnessError, Scope.Scope>;
+  runSession(options?: Partial<SessionConfig>): Effect.Effect<Session, HarnessError, Scope.Scope>;
 }>;
 
-export type Config = Readonly<{
+export type SandboxConfig = Readonly<{
+  /** The resources to provide to the sandbox. */
+  resources: Resource.Resources;
+}>;
+
+export type SnapshotRun = Readonly<{
+  /** The snapshot handle built from the task snapshot, used to run a sandbox. */
+  handle: Snapshot.Handle.Handle;
+
+  /** Run a sandbox backed by `snapshotHandle`. */
+  runSandbox(
+    options?: Partial<SandboxConfig>,
+  ): Effect.Effect<SandboxRun, HarnessError, Scope.Scope>;
+}>;
+
+export type BuildConfig = Readonly<{
   /** Whether task sandbox snapshots may be reused from the snapshot cache. Defaults to `true`. */
   cacheTaskSnapshot: boolean;
 
@@ -43,14 +62,10 @@ export type Config = Readonly<{
 
 export type Harness = Readonly<{
   metadata: Metadata;
-  snapshotExtension: Option.Option<Agent.SnapshotExtension>;
-  run(
+  buildSnapshot(
     snapshot: Snapshot.Snapshot,
-    options?: Partial<Config> &
-      Readonly<{
-        resources?: Resource.Resources;
-      }>,
-  ): Effect.Effect<Run, HarnessError, Scope.Scope>;
+    options?: Partial<BuildConfig>,
+  ): Effect.Effect<SnapshotRun, HarnessError, Scope.Scope>;
 }>;
 
 export type ConfigOptions = Omit<MetadataEncoded, "id">;
@@ -70,15 +85,15 @@ export class Service extends Context.Service<Service, Harness>()("harness/Servic
           Effect.mapError(HarnessError.init),
         );
 
-        const run = Effect.fn("HarnessService.run")(function* (
+        const build = Effect.fn("HarnessService.build")(function* (
           snapshot,
-          { resources = Resource.make(), cacheTaskSnapshot = true, cacheAgentSnapshot = true } = {},
+          { cacheTaskSnapshot = true, cacheAgentSnapshot = true } = {},
         ) {
           const taskSnapshot = yield* sandboxProvider
             .aquireSnapshot({ snapshot, cache: cacheTaskSnapshot })
             .pipe(Effect.mapError(HarnessError.snapshotAcquire(snapshot)));
 
-          const runSnapshot = yield* agentProvider.snapshotExtension.pipe(
+          const handle = yield* agentProvider.snapshotExtension.pipe(
             Option.match({
               onNone: () => Effect.succeed(taskSnapshot),
               onSome: ({ instructions, context }) =>
@@ -93,22 +108,27 @@ export class Service extends Context.Service<Service, Harness>()("harness/Servic
             }),
           );
 
-          const sandbox = yield* sandboxProvider
-            .runSandbox({ handle: runSnapshot, resources })
-            .pipe(Effect.mapError(HarnessError.sandbox));
+          const runSandbox = Effect.fn("HarnessService.runSandbox")(function* ({
+            resources = Resource.make(),
+          } = {}) {
+            const sandbox = yield* sandboxProvider
+              .runSandbox({ handle, resources })
+              .pipe(Effect.mapError(HarnessError.sandbox));
 
-          return {
-            sandbox,
-            runSession: Effect.fn(function* () {
+            const runSession = Effect.fn("HarnessService.runSession")(function* (_config = {}) {
               const agentSession = yield* agentProvider
                 .runSession(sandbox)
                 .pipe(Effect.mapError(HarnessError.agent));
               return yield* makeSession(agentSession);
-            }),
-          };
-        }) satisfies Harness["run"];
+            }) satisfies SandboxRun["runSession"];
 
-        return { metadata, snapshotExtension: agentProvider.snapshotExtension, run };
+            return { sandbox, runSession } satisfies SandboxRun;
+          }) satisfies SnapshotRun["runSandbox"];
+
+          return { handle, runSandbox } satisfies SnapshotRun;
+        }) satisfies Harness["buildSnapshot"];
+
+        return { metadata, buildSnapshot: build } satisfies Harness;
       }),
     );
   };

@@ -24,10 +24,11 @@ const dependencies = Layer.mergeAll(
 );
 
 layer(Harness.Service.layer("test").pipe(Layer.provide(dependencies)))((it) => {
-  it.effect("constructs the harness service", () =>
+  it.effect("builds a snapshot run backed by the acquired snapshot handle", () =>
     Effect.gen(function* () {
       const harness = yield* Harness.Service;
-      assert.isTrue(Option.isNone(harness.snapshotExtension));
-    }),
+      const run = yield* harness.buildSnapshot(Snapshot.make("test-image"));
+      assert.strictEqual(run.handle, handle);
+    }).pipe(Effect.scoped),
   );
 });

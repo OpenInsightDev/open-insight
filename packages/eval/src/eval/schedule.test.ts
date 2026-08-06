@@ -48,6 +48,16 @@ const fakeSandbox = {
 
 const fakeSnapshotHandle = Brand.nominal<Snapshot.Handle.Handle>()({ name: "test-image" });
 
+const makeSnapshotRun = () =>
+  Effect.sync(() => ({
+    handle: fakeSnapshotHandle,
+    runSandbox: () =>
+      Effect.sync(() => ({
+        sandbox: fakeSandbox,
+        runSession: () => Effect.sync(makeFakeSession),
+      })),
+  }));
+
 const makeFakeSession = (): Harness.Session => {
   let responded = false;
 
@@ -70,31 +80,24 @@ const fakeHarness = {
     name: Option.none(),
     description: Option.none(),
   }),
-  snapshotExtension: Option.none(),
-  run: () =>
-    Effect.succeed({
-      sandbox: fakeSandbox,
-      runSession: () => Effect.sync(makeFakeSession),
-    }),
+  buildSnapshot: makeSnapshotRun,
 } satisfies Harness.Harness;
-
-const fakeSandboxProvider = {
-  aquireSnapshot: () => Effect.succeed(fakeSnapshotHandle),
-  deriveSnapshot: () => Effect.succeed(fakeSnapshotHandle),
-  runSandbox: () => Effect.succeed(fakeSandbox),
-} satisfies Sandbox.Provider;
 
 it.effect("emits task and eval stop events at completion", () =>
   Effect.gen(function* () {
     let harnessRunCount = 0;
     const harness = {
       ...fakeHarness,
-      run: () =>
+      buildSnapshot: () =>
         Effect.sync(() => {
           harnessRunCount += 1;
           return {
-            sandbox: fakeSandbox,
-            runSession: () => Effect.sync(makeFakeSession),
+            handle: fakeSnapshotHandle,
+            runSandbox: () =>
+              Effect.sync(() => ({
+                sandbox: fakeSandbox,
+                runSession: () => Effect.sync(makeFakeSession),
+              })),
           };
         }),
     } satisfies Harness.Harness;
@@ -122,12 +125,11 @@ it.effect("emits task and eval stop events at completion", () =>
     const result = yield* Effect.succeed(bench).pipe(
       Eval.run({ snapshotConcurrency: 1, trailConcurrency: 2, trailCount: 2 }),
       Effect.provideService(Harness.Service, harness),
-      Effect.provideService(Sandbox.ProviderService, fakeSandboxProvider),
       Effect.provideService(Event.Transport.Service, transport),
     );
 
     assert.strictEqual(result.tasks.task?.trails.length, 2);
-    assert.strictEqual(harnessRunCount, 2);
+    assert.strictEqual(harnessRunCount, 1);
     const trailStopIndices = events.flatMap((event, index) =>
       event._tag === "TrailScheduleEvent" && event.task === "task" && event.op === "stop"
         ? [index]
@@ -151,40 +153,24 @@ it.effect("emits task and eval stop events at completion", () =>
   }),
 );
 
-it.effect("prepares a shared snapshot once before running trails", () =>
+it.effect("builds a shared snapshot once for tasks in the same group", () =>
   Effect.gen(function* () {
-    let acquireCount = 0;
-    let deriveCount = 0;
-    let prepared = false;
+    let buildSnapshotCount = 0;
     const harness = {
       ...fakeHarness,
-      snapshotExtension: Option.some({
-        instructions: [Snapshot.Inst.run("true")],
-        context: "/tmp",
-      }),
-      run: () =>
+      buildSnapshot: () =>
         Effect.sync(() => {
-          assert.isTrue(prepared);
+          buildSnapshotCount += 1;
           return {
-            sandbox: fakeSandbox,
-            runSession: () => Effect.sync(makeFakeSession),
+            handle: fakeSnapshotHandle,
+            runSandbox: () =>
+              Effect.sync(() => ({
+                sandbox: fakeSandbox,
+                runSession: () => Effect.sync(makeFakeSession),
+              })),
           };
         }),
     } satisfies Harness.Harness;
-    const sandboxProvider = {
-      ...fakeSandboxProvider,
-      aquireSnapshot: () =>
-        Effect.sync(() => {
-          acquireCount += 1;
-          return fakeSnapshotHandle;
-        }),
-      deriveSnapshot: () =>
-        Effect.sync(() => {
-          deriveCount += 1;
-          prepared = true;
-          return fakeSnapshotHandle;
-        }),
-    } satisfies Sandbox.Provider;
     const transport: Event.Transport.Transport = {
       send: (stream: Event.EventStream) => Stream.runDrain(stream),
     };
@@ -203,14 +189,61 @@ it.effect("prepares a shared snapshot once before running trails", () =>
     );
 
     const result = yield* Effect.succeed(bench).pipe(
-      Eval.run({ snapshotConcurrency: 2, trailConcurrency: 2, trailCount: 1 }),
+      Eval.run({ snapshotConcurrency: 2, trailConcurrency: 2, trailCount: 2 }),
       Effect.provideService(Harness.Service, harness),
-      Effect.provideService(Sandbox.ProviderService, sandboxProvider),
       Effect.provideService(Event.Transport.Service, transport),
     );
 
-    assert.strictEqual(acquireCount, 1);
-    assert.strictEqual(deriveCount, 1);
+    assert.strictEqual(buildSnapshotCount, 1);
+    assert.strictEqual(result.tasks.first?.trails.length, 2);
+    assert.strictEqual(result.tasks.second?.trails.length, 2);
+  }),
+);
+
+it.effect("builds distinct snapshots separately across task groups", () =>
+  Effect.gen(function* () {
+    let buildSnapshotCount = 0;
+    const harness = {
+      ...fakeHarness,
+      buildSnapshot: () =>
+        Effect.sync(() => {
+          buildSnapshotCount += 1;
+          return {
+            handle: fakeSnapshotHandle,
+            runSandbox: () =>
+              Effect.sync(() => ({
+                sandbox: fakeSandbox,
+                runSession: () => Effect.sync(makeFakeSession),
+              })),
+          };
+        }),
+    } satisfies Harness.Harness;
+    const transport: Event.Transport.Transport = {
+      send: (stream: Event.EventStream) => Stream.runDrain(stream),
+    };
+    const makeTask = (id: string, snapshot: Snapshot.Snapshot) =>
+      Task.make({
+        id,
+        name: id,
+        snapshot,
+        prompt: "test",
+        grader: Grade.make(GradeResult)(async () => ({ passed: true })),
+      });
+    const bench = yield* Bench.make(
+      "distinct-snapshot-bench",
+      Tasks.fromIter([
+        makeTask("first", Snapshot.make("image-a")),
+        makeTask("second", Snapshot.make("image-b")),
+      ]),
+    );
+
+    const result = yield* Effect.succeed(bench).pipe(
+      Eval.run({ snapshotConcurrency: 2, trailConcurrency: 2, trailCount: 1 }),
+      Effect.provideService(Harness.Service, harness),
+      Effect.provideService(Event.Transport.Service, transport),
+    );
+
+    assert.strictEqual(buildSnapshotCount, 2);
     assert.strictEqual(result.tasks.first?.trails.length, 1);
     assert.strictEqual(result.tasks.second?.trails.length, 1);
   }),
@@ -260,7 +293,6 @@ it.effect("verifies stable encoded fields while allowing dynamic grade fields", 
         verifMode: true,
       }),
       Effect.provideService(Harness.Service, fakeHarness),
-      Effect.provideService(Sandbox.ProviderService, fakeSandboxProvider),
       Effect.provideService(Event.Transport.Service, transport),
     );
 

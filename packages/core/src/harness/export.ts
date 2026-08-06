@@ -8,4 +8,11 @@ export {
   SnapshotDeriveError,
 } from "./error.ts";
 
-export { Service, type Config, type Harness, type Session, type Run } from "./service.ts";
+export {
+  Service,
+  type BuildConfig,
+  type SnapshotRun,
+  type Harness,
+  type Session,
+  type SandboxRun,
+} from "./service.ts";

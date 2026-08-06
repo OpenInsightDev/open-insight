@@ -25,15 +25,22 @@ provides `Harness.Service` to downstream consumers.
 by the harness. Evaluation uses this value to prepare the same derived snapshot
 before trails start.
 
-## Running a Task
+## Building and Running a Task
 
-`harness.run(snapshot, options?)` returns a `Run` inside a `Scope` — the sandbox lives for the scope's lifetime:
+`harness.build(snapshot, options?)` builds the snapshot into a `Built` inside a `Scope` — the snapshot handle lives for the scope's lifetime:
 
 ```ts
-const run = yield* harness.run(task.snapshot, {
-  resources: Resource.make({ memoryMiB: 4096 }),
+const built = yield* harness.build(task.snapshot, {
   cacheTaskSnapshot: true,
   cacheAgentSnapshot: false,
+});
+```
+
+A `Built` exposes the `snapshotHandle` used to run the sandbox, plus a `runSandbox(options?)` method that starts the sandbox with it and the given `Resource.Resources`:
+
+```ts
+const run = yield* built.runSandbox({
+  resources: Resource.make({ memoryMiB: 4096 }),
 });
 
 const session = yield* run.runSession();
