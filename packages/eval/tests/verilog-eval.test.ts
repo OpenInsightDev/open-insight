@@ -144,32 +144,30 @@ async function* loadTasks(repoPath: string) {
       id,
       name: id.toLocaleUpperCase(),
       snapshot,
-    }).pipe(
-      Task.stage("final", {
-        prompt: `${prompt.trimEnd()}. Complete the task by writing the full Verilog solution to /workspace/top.v.`,
-        grader: Grade.make(GradeResult)(
-          async ({ upload, $ }) => {
-            await $`mkdir -p /tmp/verilog-eval`;
-            await upload({
-              hostPath: refPath,
-              sandboxPath: "/tmp/verilog-eval/ref.sv",
-            });
-            await upload({
-              hostPath: testPath,
-              sandboxPath: "/tmp/verilog-eval/test.sv",
-            });
+      prompt: `${prompt.trimEnd()}. Complete the task by writing the full Verilog solution to /workspace/top.v.`,
+      grader: Grade.make(GradeResult)(
+        async ({ upload, $ }) => {
+          await $`mkdir -p /tmp/verilog-eval`;
+          await upload({
+            hostPath: refPath,
+            sandboxPath: "/tmp/verilog-eval/ref.sv",
+          });
+          await upload({
+            hostPath: testPath,
+            sandboxPath: "/tmp/verilog-eval/test.sv",
+          });
 
-            if (id === "Prob099_m2014_q6c") {
-              // VerilogEval issue #13: the testbench names Y1/Y3 as Y2/Y4.
-              await $`sed -i -e 's/\.Y2(/.Y1(/g' -e 's/\.Y4(/.Y3(/g' /tmp/verilog-eval/test.sv`;
-            }
+          if (id === "Prob099_m2014_q6c") {
+            // VerilogEval issue #13: the testbench names Y1/Y3 as Y2/Y4.
+            await $`sed -i -e 's/\.Y2(/.Y1(/g' -e 's/\.Y4(/.Y3(/g' /tmp/verilog-eval/test.sv`;
+          }
 
-            // Mirror the upstream harness (Makefile.in sv-iv-test target):
-            // compile the solution with the testbench and reference module
-            // using the same iverilog flags and top-module selection, then
-            // simulate under the same 30s timeout, appending a TIMEOUT
-            // marker on expiry exactly like the Makefile does.
-            const output = await $`if \\
+          // Mirror the upstream harness (Makefile.in sv-iv-test target):
+          // compile the solution with the testbench and reference module
+          // using the same iverilog flags and top-module selection, then
+          // simulate under the same 30s timeout, appending a TIMEOUT
+          // marker on expiry exactly like the Makefile does.
+          const output = await $`if \\
                     cp top.v /tmp/verilog-eval/top.v && \\
                     cd /tmp/verilog-eval && \\
                     iverilog -Wall -Winfloop -Wno-timescale -g2012 -s tb -o simv top.v test.sv ref.sv; \\
@@ -181,31 +179,31 @@ async function* loadTasks(repoPath: string) {
                     fi; \\
                   fi 2>&1`;
 
-            // sv-iv-analyze scans the generated Verilog when the log has no
-            // mismatch summary, so capture the solution artifact as well.
-            const topV = (await $`if [ -f top.v ]; then cat top.v; fi`).trim();
+          // sv-iv-analyze scans the generated Verilog when the log has no
+          // mismatch summary, so capture the solution artifact as well.
+          const topV = (await $`if [ -f top.v ]; then cat top.v; fi`).trim();
 
-            if (process.env.VERILOG_EVAL_DEBUG === "1") {
-              console.log(`[VERILOG-EVAL][${id}] === top.v ===`);
-              console.log(topV);
-              console.log(`[VERILOG-EVAL][${id}] === iverilog+sim output ===`);
-              console.log(output);
-            }
+          if (process.env.VERILOG_EVAL_DEBUG === "1") {
+            console.log(`[VERILOG-EVAL][${id}] === top.v ===`);
+            console.log(topV);
+            console.log(`[VERILOG-EVAL][${id}] === iverilog+sim output ===`);
+            console.log(output);
+          }
 
-            const { simPass, category } = analyzeVerilogEval(output, topV);
+          const { simPass, category } = analyzeVerilogEval(output, topV);
 
-            return { simPass, category };
+          return { simPass, category };
+        },
+        {
+          verif: async ({ upload, $ }) => {
+            await upload({ hostPath: refPath, sandboxPath: "/tmp/ref.sv" });
+            await $`sed 's/RefModule/TopModule/g' /tmp/ref.sv > top.v`;
+            return null;
           },
-          {
-            verif: async ({ upload, $ }) => {
-              await upload({ hostPath: refPath, sandboxPath: "/tmp/ref.sv" });
-              await $`sed 's/RefModule/TopModule/g' /tmp/ref.sv > top.v`;
-              return null;
-            },
-            expect: { simPass: true, category: "." },
-          },
-        ),
-      }),
+          expect: { simPass: true, category: "." },
+        },
+      ),
+    }).pipe(
       Task.mapMetric(({ simPass }) => ({ pass: simPass }), TaskMetric.passAtK(1), {
         name: "Pass@1",
         description: "Whether the task was solved in the first trial.",
@@ -258,7 +256,6 @@ process.loadEnvFile(envPath);
 const openAiApiKey = env("OPENAI_API_KEY");
 const openAiBaseUrl = env("OPENAI_BASE_URL");
 const openAiModel = env("OPENAI_MODEL");
-
 const serveEnv = envify({
   OPENAI_API_KEY: openAiApiKey,
   OPENAI_BASE_URL: openAiBaseUrl,

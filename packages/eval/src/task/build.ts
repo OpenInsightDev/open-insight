@@ -51,16 +51,26 @@ export type Task<G extends Grade.Result = never, S extends Stage = never> = Read
 
 export type AnyTask = Task<any, any>;
 
-export const make = Effect.fn(function* (
-  options: BaseMetadataEncoded &
-    Readonly<{
-      snapshot: Snapshot.Snapshot;
-      resources?: Resource.Resources;
-      trajMetrics?: ReadonlyArray<Metric.Traj.Metric>;
-    }>,
-): Effect.fn.Return<Task, TaskError> {
+const InitialStageName = "initial";
+type InitialStageName = typeof InitialStageName;
+
+type Options<G extends Grade.Result> = BaseMetadataEncoded &
+  Readonly<{
+    snapshot: Snapshot.Snapshot;
+    resources?: Resource.Resources;
+    trajMetrics?: ReadonlyArray<Metric.Traj.Metric>;
+  }> &
+  StageOptions<G, never>;
+
+export const make = Effect.fn(function* <G extends Grade.Result>(
+  options: Options<G>,
+): Effect.fn.Return<Task<G, Stage<InitialStageName, G>>, TaskError> {
   const { snapshot, resources = Resource.make({}), trajMetrics = [] } = options;
   const metadata = yield* Schema.decodeEffect(BaseMetadata)(options).pipe(
+    Effect.mapError(TaskError.metadata),
+  );
+
+  const initialStage = yield* makeStage<InitialStageName, G, never>("initial", options).pipe(
     Effect.mapError(TaskError.metadata),
   );
 
@@ -70,9 +80,9 @@ export const make = Effect.fn(function* (
     resources,
     trajMetrics,
     metrics: [],
-    stages: [],
+    stages: [initialStage],
     [TypeId]: TypeId,
-  } satisfies Task;
+  } satisfies Task<G, Stage<InitialStageName, G>>;
 });
 
 export type Init = BivariantFn<(sandbox: Sandbox.SandboxPromise) => PromiseLike<void>>;
@@ -93,7 +103,7 @@ export type Stage<
 type StageResult<S> = S extends Stage<infer N, infer G, infer _> ? Record<N, G["Type"]> : never;
 type StageResults<S extends Stage> = UnionToIntersection<StageResult<S>>;
 
-type Options<G extends Grade.Result, S extends Stage> = Readonly<{
+type StageOptions<G extends Grade.Result, S extends Stage> = Readonly<{
   prompt: PromptOptions;
   grader: Grade.Grader<G, StageResults<S>>;
   init?: Init | null;
@@ -101,8 +111,34 @@ type Options<G extends Grade.Result, S extends Stage> = Readonly<{
 }> &
   Omit<StageMetadataEncoded, "name">;
 
+const makeStage = Effect.fn(function* <N extends string, G extends Grade.Result, S extends Stage>(
+  name: N,
+  options: StageOptions<G, S>,
+): Effect.fn.Return<Stage<N, G, S>, SchemaError> {
+  const { prompt: promptOptions, grader, init = null, resume = false } = options;
+  const metadata = yield* Schema.decodeEffect(StageMetadata)({
+    ...options,
+    name,
+  });
+
+  const makePrompt = () => makePromptFn(promptOptions);
+
+  return {
+    name,
+    metadata,
+    prompt: makePrompt(),
+    makePrompt,
+    grader,
+    init,
+    resume,
+  } satisfies Stage<N, G, S>;
+});
+
 export const stage =
-  <N extends string, G extends Grade.Result, S extends Stage>(name: N, options: Options<G, S>) =>
+  <N extends string, G extends Grade.Result, S extends Stage>(
+    name: N,
+    options: StageOptions<G, S>,
+  ) =>
   <TG extends Grade.Result, E, R>(task: Effect.Effect<Task<TG, S>, E, R>) =>
     task.pipe(
       Effect.flatMap(
@@ -111,26 +147,10 @@ export const stage =
           E | SchemaError,
           R
         > {
-          const { prompt: promptOptions, grader, init = null, resume = false } = options;
-          const metadata = yield* Schema.decodeEffect(StageMetadata)({
-            ...options,
-            name,
-          });
-
-          const makePrompt = () => makePromptFn(promptOptions);
-
-          const stage = {
-            name,
-            metadata,
-            prompt: makePrompt(),
-            makePrompt,
-            grader,
-            init,
-            resume,
-          } satisfies Stage<N, G, S>;
+          const nextStage = yield* makeStage(name, options);
 
           return produce(task, (draft) => {
-            draft.stages.push(castDraft(stage));
+            draft.stages.push(castDraft(nextStage));
           }) as Task<G, S | Stage<N, G, S>>;
         }),
       ),

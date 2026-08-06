@@ -1,5 +1,10 @@
 # Onboard
 
+## Fix
+
+- 在 harness service 里面把镜像构建阶段暴露出来；
+- 在 Task.make 里面把 stage options 添加进去；
+
 ## Harness
 
 - 把现在的 agent/ 直接改名叫 harness/；

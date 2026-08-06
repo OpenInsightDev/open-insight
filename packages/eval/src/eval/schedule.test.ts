@@ -114,13 +114,9 @@ it.effect("emits task and eval stop events at completion", () =>
       id: "task",
       name: "task",
       snapshot: Snapshot.make("test-image"),
-    }).pipe(
-      Task.stage("grade", {
-        id: "grade",
-        prompt: "test",
-        grader: Grade.make(GradeResult)(async () => ({ passed: true })),
-      }),
-    );
+      prompt: "test",
+      grader: Grade.make(GradeResult)(async () => ({ passed: true })),
+    });
     const bench = yield* Bench.make("bench", Tasks.fromIter([Effect.succeed(task)]));
 
     const result = yield* Effect.succeed(bench).pipe(
@@ -194,13 +190,13 @@ it.effect("prepares a shared snapshot once before running trails", () =>
     };
     const snapshot = Snapshot.make("shared-image");
     const makeTask = (id: string) =>
-      Task.make({ id, name: id, snapshot }).pipe(
-        Task.stage("grade", {
-          id: "grade",
-          prompt: "test",
-          grader: Grade.make(GradeResult)(async () => ({ passed: true })),
-        }),
-      );
+      Task.make({
+        id,
+        name: id,
+        snapshot,
+        prompt: "test",
+        grader: Grade.make(GradeResult)(async () => ({ passed: true })),
+      });
     const bench = yield* Bench.make(
       "shared-snapshot-bench",
       Tasks.fromIter([makeTask("first"), makeTask("second")]),
@@ -235,28 +231,24 @@ it.effect("verifies stable encoded fields while allowing dynamic grade fields", 
       id: "verif-task",
       name: "verif task",
       snapshot: Snapshot.make("test-image"),
-    }).pipe(
-      Task.stage("grade", {
-        id: "grade",
-        prompt: "test",
-        grader: Grade.make(DynamicGradeResult)(
-          async ({ trajectory }) =>
-            trajectory.content.length === 0
-              ? { passed: false, summary: "initial" }
-              : { passed: true, summary: "1 passed in 0.25s" },
-          {
-            verif: async () => {
-              verifierRunCount += 1;
-              if (verifierRunCount > 1) {
-                throw new globalThis.Error("Verifier must run once per stage");
-              }
-              return "verified";
-            },
-            expect: { passed: true },
+      prompt: "test",
+      grader: Grade.make(DynamicGradeResult)(
+        async ({ trajectory }) =>
+          trajectory.content.length === 0
+            ? { passed: false, summary: "initial" }
+            : { passed: true, summary: "1 passed in 0.25s" },
+        {
+          verif: async () => {
+            verifierRunCount += 1;
+            if (verifierRunCount > 1) {
+              throw new globalThis.Error("Verifier must run once per stage");
+            }
+            return "verified";
           },
-        ),
-      }),
-    );
+          expect: { passed: true },
+        },
+      ),
+    });
     const bench = yield* Bench.make("verif-bench", Tasks.fromIter([Effect.succeed(task)]));
 
     const result = yield* Effect.succeed(bench).pipe(
