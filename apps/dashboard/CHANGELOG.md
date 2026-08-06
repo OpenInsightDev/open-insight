@@ -1,5 +1,14 @@
 # dashboard
 
+## 0.0.7
+
+### Patch Changes
+
+- patch
+- Updated dependencies
+  - @open-insight/core@1.0.4
+  - @open-insight/eval@1.0.4
+
 ## 0.0.6
 
 ### Patch Changes

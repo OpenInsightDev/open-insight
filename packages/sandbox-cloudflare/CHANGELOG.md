@@ -1,5 +1,13 @@
 # @open-insight/sandbox-cloudflare
 
+## 1.0.4
+
+### Patch Changes
+
+- patch
+- Updated dependencies
+  - @open-insight/core@1.0.4
+
 ## 1.0.3
 
 ### Patch Changes

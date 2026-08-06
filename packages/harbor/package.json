@@ -1,6 +1,6 @@
 {
   "name": "@open-insight/harbor",
-  "version": "0.0.24",
+  "version": "1.0.4",
   "description": "Harbor task authoring for Open Insight — scaffold, design, and verify agent evaluation tasks.",
   "homepage": "https://github.com/OpenInsightDev/open-insight#readme",
   "bugs": {
