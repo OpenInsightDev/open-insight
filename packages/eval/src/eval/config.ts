@@ -1,6 +1,8 @@
-import { LogLevel } from "effect";
+import { Effect, LogLevel } from "effect";
 import type { NodeSdk } from "@effect/opentelemetry";
+import { Env } from "@open-insight/core";
 import { Harness } from "@open-insight/core/internal";
+import { EvalError } from "./error.ts";
 
 /** Runtime configuration for an evaluation run. */
 export type Config =
@@ -53,4 +55,14 @@ export const DefaultConfig: Required<Config> = {
 export const make = (options: Partial<Config> = {}): Config => ({
   ...DefaultConfig,
   ...options,
+});
+
+/**
+ * Resolves an evaluation configuration from run options, falling back to the
+ * `OPENINSIGHT_LOG_LEVEL` environment variable for `logLevel` when no explicit
+ * option is provided.
+ */
+export const resolveConfig = Effect.fn(function* (options: Partial<Config> = {}) {
+  const envLogLevel = yield* Env.resolveLogLevel().pipe(Effect.mapError(EvalError.init));
+  return make(options.logLevel === undefined ? { ...options, logLevel: envLogLevel } : options);
 });

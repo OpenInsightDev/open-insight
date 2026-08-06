@@ -1,6 +1,6 @@
-import { Effect, LogLevel, Option, Queue, References, Scope, Stream } from "effect";
+import { Effect, Logger, Option, Queue, References, Scope, Stream } from "effect";
 import * as Event from "#/event/index.ts";
-import { type Config, make as makeConfig } from "./config.ts";
+import { resolveConfig, type Config } from "./config.ts";
 import * as Bench from "#/bench/index.ts";
 import { run as runSchedule } from "./schedule.ts";
 import type { BenchResult } from "./result.ts";
@@ -13,15 +13,7 @@ export const run = (configOptions: Partial<Config> = {}) =>
   Effect.fn(function* <T extends Task.AnyTask, E, R>(
     bench: Effect.Effect<Bench.Bench<T>, E, R>,
   ): Effect.fn.Return<BenchResult<Task.GradeOf<T>>, EvalError | E, Harness.Service | R> {
-    const config = makeConfig(configOptions);
-    // Derive the minimum log level for Effect log output, honoring the most
-    // restrictive of the configured level and an externally-provided minimum.
-    const currentMinimum = yield* References.MinimumLogLevel;
-    const minimumLogLevel: LogLevel.LogLevel = config.console
-      ? LogLevel.isGreaterThanOrEqualTo(config.logLevel, currentMinimum)
-        ? config.logLevel
-        : currentMinimum
-      : "None";
+    const config = yield* resolveConfig(configOptions);
     const transport = yield* Effect.serviceOption(Event.Transport.Service);
     const eventQueue = yield* Event.makeQueue();
     const harness = yield* Harness.Service;
@@ -36,7 +28,7 @@ export const run = (configOptions: Partial<Config> = {}) =>
       }),
     );
 
-    const result = yield* bench
+    const runEffect = bench
       .pipe(
         Effect.flatMap((bench) =>
           Effect.zipWith(
@@ -49,7 +41,11 @@ export const run = (configOptions: Partial<Config> = {}) =>
       )
       .pipe(Effect.provide(NodeServices.layer))
       .pipe(Effect.provideService(Harness.Service, harness))
-      .pipe(Effect.provideService(References.MinimumLogLevel, minimumLogLevel));
+      .pipe(Effect.provideService(References.MinimumLogLevel, config.logLevel));
+
+    const result = yield* config.console
+      ? Effect.withLogger(runEffect, Logger.defaultLogger)
+      : runEffect;
 
     return result as BenchResult<Task.GradeOf<T>>;
   });
