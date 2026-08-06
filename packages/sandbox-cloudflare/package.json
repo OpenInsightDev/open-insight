@@ -31,6 +31,7 @@
     "prepublishOnly": "vp run build"
   },
   "dependencies": {
+    "@cloudflare/computer": "catalog:",
     "@cloudflare/sandbox": "catalog:"
   },
   "devDependencies": {

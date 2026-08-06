@@ -1,18 +1,5 @@
 # Onboard
 
-## Fix
-
-- 在 harness service 里面把镜像构建阶段暴露出来；
-- 在 Task.make 里面把 stage options 添加进去；
-
-## Harness
-
-- 把现在的 agent/ 直接改名叫 harness/；
-- Sandbox 不应该独立提供，而应该由 harness/ 来决定如何提供。
-  - 对于一个通用 harness 可以要求由用户来提供 sandbox layer；
-  - 对于一个对环境有要求的 harness 则应当在内部提供 layer，而要求用户在外部提供构建专用 sandbox 所需的参数/layer等；
-  - eval 层反而不用动，由 harness 层统一提供对 Agent 和 Sandbox 的 layer。对于这种需求可以使用 `Layer.provideMerge`。
-
 ## Agent
 
 - 梳理 harness engineering 目前公认的几大模块，将其建模为 effect service；

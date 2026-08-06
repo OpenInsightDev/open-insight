@@ -1,3 +1,2 @@
-export function fn() {
-  return "Hello, tsdown!";
-}
+import {} from "@cloudflare/computer";
+import {} from "@open-insight/core";
