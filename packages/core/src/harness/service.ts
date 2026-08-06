@@ -59,12 +59,7 @@ export class Service extends Context.Service<Service, Harness>()("harness/Servic
   static layer = (
     id: string,
     config: ConfigOptions = {},
-  ): Layer.Layer<
-    Service | Sandbox.ProviderService,
-    HarnessError,
-    Agent.ProviderService | Sandbox.ProviderService
-  > => {
-    const sandboxLayer = Layer.effect(Sandbox.ProviderService, Sandbox.ProviderService);
+  ): Layer.Layer<Service, HarnessError, Agent.ProviderService | Sandbox.ProviderService> => {
     return Layer.effect(
       this,
       Effect.gen(function* () {
@@ -115,6 +110,6 @@ export class Service extends Context.Service<Service, Harness>()("harness/Servic
 
         return { metadata, snapshotExtension: agentProvider.snapshotExtension, run };
       }),
-    ).pipe(Layer.provideMerge(sandboxLayer));
+    );
   };
 }

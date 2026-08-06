@@ -578,11 +578,7 @@ export const makeProvider = Effect.fn("Acp.makeProvider")(function* (
 export const layerFrom = (
   { id, agentId }: { id: string; agentId: string },
   options: Options & Harness.ConfigOptions = {},
-): Layer.Layer<
-  Harness.Service | Sandbox.ProviderService,
-  HarnessError,
-  Path.Path | Sandbox.ProviderService
-> =>
+): Layer.Layer<Harness.Service, HarnessError, Path.Path | Sandbox.ProviderService> =>
   Harness.Service.layer(id, options).pipe(
     Layer.provide(
       Layer.effect(

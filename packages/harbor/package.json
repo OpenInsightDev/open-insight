@@ -47,10 +47,6 @@
     "check": "vp check",
     "prepublishOnly": "vp run build"
   },
-  "dependencies": {
-    "@open-insight/core": "workspace:*",
-    "@open-insight/eval": "workspace:*"
-  },
   "devDependencies": {
     "@types/node": "catalog:",
     "bumpp": "catalog:",
@@ -59,6 +55,8 @@
     "vitest": "catalog:"
   },
   "peerDependencies": {
+    "@open-insight/core": "workspace:*",
+    "@open-insight/eval": "workspace:*",
     "effect": "catalog:"
   }
 }

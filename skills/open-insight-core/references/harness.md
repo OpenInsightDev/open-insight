@@ -19,8 +19,7 @@ const harness = Harness.Service.layer("my-harness", {
 ```
 
 The layer requires `Agent.ProviderService` and `Sandbox.ProviderService`, and
-provides both `Harness.Service` and the same `Sandbox.ProviderService` to
-downstream consumers.
+provides `Harness.Service` to downstream consumers.
 
 `harness.snapshotExtension` exposes the optional agent snapshot extension used
 by the harness. Evaluation uses this value to prepare the same derived snapshot

@@ -24,12 +24,9 @@ const dependencies = Layer.mergeAll(
 );
 
 layer(Harness.Service.layer("test").pipe(Layer.provide(dependencies)))((it) => {
-  it.effect("provides the sandbox provider to downstream consumers", () =>
+  it.effect("constructs the harness service", () =>
     Effect.gen(function* () {
       const harness = yield* Harness.Service;
-      const providedSandbox = yield* Sandbox.ProviderService;
-
-      assert.strictEqual(providedSandbox, sandboxProvider);
       assert.isTrue(Option.isNone(harness.snapshotExtension));
     }),
   );
