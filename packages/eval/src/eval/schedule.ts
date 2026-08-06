@@ -81,12 +81,12 @@ export const run = Effect.fn("exec/schedule")(
         }).pipe(offer);
 
         const runTrail = yield* createTrail({
+          benchId,
+          harnessId,
           task,
-          bench,
           eventQueue,
           config,
           snapshotSession,
-          harnessId,
         });
 
         yield* Effect.logDebug("Prepared task");

@@ -19,13 +19,8 @@ export type AgentSession = Readonly<{
   prompt(prompt: Prompt.Prompt): Stream.Stream<StreamPartEncoded, HarnessError>;
 }>;
 
-export type AgentSessionConfig = Readonly<{
-  // TODO support per-session network policies
-}>;
-
 const makeAgentSession = Effect.fn(function* (
   agent: Agent.Agent,
-  _config: AgentSessionConfig,
 ): Effect.fn.Return<AgentSession, HarnessError> {
   return {
     trajectory: agent.trajectory.pipe(Effect.mapError(HarnessError.agent)),
@@ -35,9 +30,7 @@ const makeAgentSession = Effect.fn(function* (
 
 export type SandboxSession = Readonly<{
   sandbox: Sandbox.Sandbox;
-  runAgent(
-    options?: Partial<AgentSessionConfig>,
-  ): Effect.Effect<AgentSession, HarnessError, Scope.Scope>;
+  runAgent(): Effect.Effect<AgentSession, HarnessError, Scope.Scope>;
 }>;
 
 export type SandboxSessionConfig = Readonly<{
@@ -125,11 +118,11 @@ export class Service extends Context.Service<Service, Harness>()("harness/Servic
               .runSandbox({ handle, resources })
               .pipe(Effect.mapError(HarnessError.sandbox));
 
-            const runSession = Effect.fn("HarnessService.runSession")(function* (config = {}) {
+            const runSession = Effect.fn("HarnessService.runSession")(function* () {
               const agentSession = yield* agentProvider
                 .runSession(sandbox)
                 .pipe(Effect.mapError(HarnessError.agent));
-              return yield* makeAgentSession(agentSession, config);
+              return yield* makeAgentSession(agentSession);
             }) satisfies SandboxSession["runAgent"];
 
             return { sandbox, runAgent: runSession } satisfies SandboxSession;

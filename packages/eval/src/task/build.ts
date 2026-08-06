@@ -1,7 +1,7 @@
 import { Effect, Schema } from "effect";
 import * as Metric from "#/metric/index.ts";
 import * as Grade from "#/grade/index.ts";
-import { Harness, Resource, Sandbox, type Snapshot } from "@open-insight/core/internal";
+import { Harness, Sandbox, type Snapshot } from "@open-insight/core/internal";
 import { IDSchema } from "#/utils/schema.ts";
 import type { BivariantFn, UnionToIntersection } from "#/utils/variant.ts";
 import { makePromptFn, type PromptFn, type PromptOptions } from "./prompt.ts";
@@ -37,20 +37,18 @@ export class Metadata extends Schema.Class<Metadata>("Metadata")({
   extras: Schema.Record(Schema.String, Schema.Json),
 }) {}
 
-export type Task<
-  G extends Grade.Result = never,
-  S extends Stage = never,
-> = Harness.SandboxSessionConfig &
-  Readonly<{
-    metadata: BaseMetadata;
-    snapshot: Snapshot.Snapshot;
+export type Task<G extends Grade.Result = never, S extends Stage = never> = Readonly<{
+  metadata: BaseMetadata;
+  snapshot: Snapshot.Snapshot;
 
-    metrics: ReadonlyArray<Metric.Task.Metric>;
-    trajMetrics: ReadonlyArray<Metric.Traj.Metric>;
-    stages: ReadonlyArray<Stage>;
+  metrics: ReadonlyArray<Metric.Task.Metric>;
+  trajMetrics: ReadonlyArray<Metric.Traj.Metric>;
+  stages: ReadonlyArray<Stage>;
 
-    [TypeId]: TypeId;
-  }> & { _G?: G; _S?: S };
+  sandboxConfig: Harness.SandboxSessionConfig;
+
+  [TypeId]: TypeId;
+}> & { _G?: G; _S?: S };
 
 export type AnyTask = Task<any, any>;
 
@@ -58,9 +56,9 @@ const InitialStageName = "initial";
 type InitialStageName = typeof InitialStageName;
 
 type Options<G extends Grade.Result> = BaseMetadataEncoded &
+  Partial<Harness.SandboxSessionConfig> &
   Readonly<{
     snapshot: Snapshot.Snapshot;
-    resources?: Resource.Resources;
     trajMetrics?: ReadonlyArray<Metric.Traj.Metric>;
   }> &
   StageOptions<G, never>;
@@ -68,7 +66,7 @@ type Options<G extends Grade.Result> = BaseMetadataEncoded &
 export const make = Effect.fn(function* <G extends Grade.Result>(
   options: Options<G>,
 ): Effect.fn.Return<Task<G, Stage<InitialStageName, G>>, TaskError> {
-  const { snapshot, resources = Resource.make({}), trajMetrics = [] } = options;
+  const { snapshot, trajMetrics = [] } = options;
   const metadata = yield* Schema.decodeEffect(BaseMetadata)(options).pipe(
     Effect.mapError(TaskError.metadata),
   );
@@ -80,11 +78,14 @@ export const make = Effect.fn(function* <G extends Grade.Result>(
   return {
     metadata,
     snapshot,
-    resources,
     trajMetrics,
     metrics: [],
     stages: [initialStage],
     [TypeId]: TypeId,
+    sandboxConfig: {
+      ...Harness.DefaultSandboxSessionConfig,
+      ...options,
+    },
   } satisfies Task<G, Stage<InitialStageName, G>>;
 });
 

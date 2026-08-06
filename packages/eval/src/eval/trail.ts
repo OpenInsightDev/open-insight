@@ -2,7 +2,6 @@ import { DateTime, Effect, Match, Option, Ref, Schedule, Scope, Schema, Stream }
 import { Response } from "effect/unstable/ai";
 import { Agent, Sandbox } from "@open-insight/core";
 import { Harness, Prompt } from "@open-insight/core/internal";
-import * as Bench from "#/bench/index.ts";
 import * as Grade from "#/grade/index.ts";
 import * as Metric from "#/metric/index.ts";
 import * as Task from "#/task/index.ts";
@@ -39,21 +38,21 @@ const makeVerifAgent = Effect.fn("exec/makeVerifAgent")(function* ({
 
 export const createTrail = Effect.fn("exec/createTrail")(
   function* ({
-    bench,
+    benchId,
+    harnessId,
     task,
     config,
     eventQueue,
     snapshotSession,
-    harnessId,
   }: {
-    bench: Bench.Bench;
+    benchId: string;
+    harnessId: string;
     task: Task.AnyTask;
     config: Config;
     eventQueue: Event.EventEnqueue;
-    harnessId: string;
     snapshotSession: Harness.SnapshotSession;
   }): Effect.fn.Return<RunTrail, EvalError, Scope.Scope> {
-    const { stages, metrics: taskMetrics, trajMetrics } = task;
+    const { stages, metrics: taskMetrics, trajMetrics, sandboxConfig } = task;
     const { verifMode, graderMaxRetries: maxRetries } = config;
 
     const offer = Event.offerTo(eventQueue);
@@ -70,7 +69,6 @@ export const createTrail = Effect.fn("exec/createTrail")(
       }
     }
 
-    const benchId = bench.metadata.id;
     yield* Effect.logDebug("Prepared task definition");
 
     const taskMetricRunners = yield* Effect.forEach(taskMetrics, Metric.Task.run);
@@ -436,7 +434,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
     return (trailIdx) =>
       Effect.logDebug(`Starting trail ${trailIdx}`).pipe(
         Effect.andThen(
-          snapshotSession.runSandbox(task).pipe(
+          snapshotSession.runSandbox(sandboxConfig).pipe(
             Effect.mapError(EvalError.harness),
             Effect.flatMap((sandboxSession) => runTrail(sandboxSession, trailIdx)),
             Effect.scoped,
