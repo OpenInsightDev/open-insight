@@ -15,9 +15,14 @@ export type SnapshotExtension = Readonly<{
   context?: string;
 }>;
 
+export type SessionOptions = Readonly<{}>;
+
 export type Provider = Readonly<{
   snapshotExtension: Option.Option<SnapshotExtension>;
-  runSession(sandbox: Sandbox.Sandbox): Effect.Effect<Agent, AgentError, Scope.Scope>;
+  runSession(
+    sandbox: Sandbox.Sandbox,
+    options?: SessionOptions,
+  ): Effect.Effect<Agent, AgentError, Scope.Scope>;
 }>;
 
 export class ProviderService extends Context.Service<ProviderService, Provider>()(
