@@ -1,5 +1,9 @@
 # Onboard
 
+## Grade
+
+- 支持 sandboxed grader
+
 ## Agent
 
 - 梳理 harness engineering 目前公认的几大模块，将其建模为 effect service；

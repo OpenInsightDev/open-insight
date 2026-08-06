@@ -1,7 +1,5 @@
 export {
   EvalError,
-  make,
-  type Executor,
   type Result,
   type BenchResult,
   type TaskResult,

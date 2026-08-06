@@ -1,7 +1,7 @@
 import { Formatter, Schema } from "effect";
 import * as Grade from "#/grade/index.ts";
 import * as Tasks from "#/tasks/index.ts";
-import * as Task from "../task/index.ts";
+import * as Task from "#/task/index.ts";
 import * as Bench from "#/bench/index.ts";
 import * as Event from "#/event/index.ts";
 import { Agent, Harness, Snapshot } from "@open-insight/core/internal";

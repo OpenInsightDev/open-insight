@@ -284,7 +284,7 @@ const main = Effect.gen(function* () {
     .pipe(
       Effect.provide(
         Acp.layerFrom(
-          { id: "deepseek", agentId: "codex-acp" },
+          "codex-acp",
           // Bake the DeepSeek-compatible endpoint into the derived agent
           // snapshot so `acp-agent serve codex-acp` and the codex process it
           // spawns inherit the credentials and model selection.
