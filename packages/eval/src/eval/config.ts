@@ -1,3 +1,4 @@
+import { LogLevel } from "effect";
 import type { NodeSdk } from "@effect/opentelemetry";
 import { Harness } from "@open-insight/core/internal";
 
@@ -26,6 +27,12 @@ export type Config =
 
       /** Whether to run stages with verifier agents and validate their expected grades. Defaults to `false`. */
       verifMode: boolean;
+
+      /** Whether to emit Effect log output to the console during the run. Defaults to `true`. */
+      console: boolean;
+
+      /** Minimum severity for log output. Defaults to `"Info"`. Ignored when `console` is `false`. */
+      logLevel: LogLevel.LogLevel;
     }>;
 
 /** Default runtime configuration used when no evaluation overrides are provided. */
@@ -38,6 +45,8 @@ export const DefaultConfig: Required<Config> = {
   trailCount: 1,
   graderMaxRetries: 3,
   verifMode: false,
+  console: true,
+  logLevel: "Info",
 };
 
 /** Creates an evaluation configuration by applying overrides to {@link DefaultConfig}. */
