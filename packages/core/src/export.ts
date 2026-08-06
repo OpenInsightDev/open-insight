@@ -15,6 +15,8 @@ export * as Prompt from "./prompt/export.ts";
 export * as Acp from "./acp/export.ts";
 export { AcpError } from "./acp/export.ts";
 
+export * as Env from "./env.ts";
+
 export * as Harness from "./harness/export.ts";
 export { HarnessError } from "./harness/export.ts";
 

@@ -1,9 +1,11 @@
-import { Effect, FileSystem, Schema } from "effect";
+import { createHash } from "node:crypto";
+import { Effect, FileSystem, Path, Schema } from "effect";
 import { HttpClient, HttpClientResponse } from "effect/unstable/http";
 import * as Task from "#/task/index.ts";
 import { TasksError } from "./error.ts";
 import type { Load } from "./index.ts";
 import * as tar from "tar";
+import * as Cache from "./cache.ts";
 
 const extractArchive = Effect.fn(function* (
   archivePath: string,
@@ -34,19 +36,26 @@ const extractArchive = Effect.fn(function* (
 export const withDist = ({
   url,
   format = "tar.gz",
+  cleanup = false,
 }: {
   url: string;
   format?: "tar.gz" | "tar.zst";
+  /** Whether to remove the cache directory after the tasks are loaded. Defaults to `false`. */
+  cleanup?: boolean;
 }) =>
   Effect.fn(function* <T extends Task.AnyTask, E, R>(
     exec: (options: { distPath: string }) => Load<T, E, R>,
   ) {
     const fs = yield* FileSystem.FileSystem;
-    const distPath = yield* fs.makeTempDirectoryScoped({ prefix: "open-insight-dist-" });
-    const archivePath = yield* fs.makeTempFileScoped({
-      prefix: "open-insight-dist-",
-      suffix: `.${format}`,
-    });
+    const path = yield* Path.Path;
+    const key = createHash("sha256").update(url).digest("hex").slice(0, 16);
+    const distPath = yield* Cache.cacheDir(path.join("dist", key));
+    if (cleanup) {
+      yield* Effect.addFinalizer(() =>
+        fs.remove(distPath, { recursive: true, force: true }).pipe(Effect.ignore),
+      );
+    }
+    const archivePath = path.join(distPath, `.archive.${format}`);
     const parsedUrl = yield* Schema.decodeUnknownEffect(Schema.URLFromString)(url);
     const archive = yield* HttpClient.get(parsedUrl).pipe(
       Effect.flatMap(HttpClientResponse.filterStatusOk),
@@ -57,6 +66,7 @@ export const withDist = ({
     yield* fs.writeFile(archivePath, archive);
 
     yield* extractArchive(archivePath, distPath, format);
+    yield* fs.remove(archivePath, { force: true });
 
     const loader = yield* Effect.try({
       try: () => exec({ distPath }),

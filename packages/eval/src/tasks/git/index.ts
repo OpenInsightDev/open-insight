@@ -1,12 +1,14 @@
+import { createHash } from "node:crypto";
 import type * as Task from "#/task/index.ts";
 import { ChildProcess as CP } from "effect/unstable/process";
-import { Effect, FileSystem } from "effect";
+import { Effect, FileSystem, Path } from "effect";
 import { Spawn } from "@open-insight/core/utils";
+import * as Cache from "../cache.ts";
 import type { Load } from "../index.ts";
 import { TasksError } from "../error.ts";
 
 interface Options {
-  /** Target directory. Defaults to a scoped temporary directory. */
+  /** Target directory. Defaults to a cache directory under `.open-insight/git/`. */
   readonly directory?: string;
   /** Branch or tag name to checkout. */
   readonly branch?: string;
@@ -18,6 +20,8 @@ interface Options {
   readonly singleBranch?: boolean;
   /** Shell script to run from the repository root after the repository is prepared. */
   readonly postInit?: string;
+  /** Remove the auto-created repo cache directory after the tasks are loaded. Ignored when `directory` is set. Defaults to `false`. */
+  readonly cleanup?: boolean;
 }
 
 const loadGitRepo = Effect.fn(function* (repoPath: string, repoURL: string, options: Options) {
@@ -138,16 +142,18 @@ export const withGitRepo = (repoURL: string, options: Options = {}) =>
       exec: (repoPath: string) => Load<T, E, R> | Promise<Load<T, E, R>>,
     ) {
       const fs = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
 
+      const cached = options.directory === undefined;
       let repoPath = options.directory;
       if (!repoPath) {
-        const tempRepoPath = yield* fs.makeTempDirectory({
-          prefix: "open-insight-task-",
-        });
+        const key = createHash("sha256").update(repoURL).digest("hex").slice(0, 16);
+        repoPath = yield* Cache.cacheDir(path.join("git", key));
+      }
+      if (options.cleanup && cached) {
         yield* Effect.addFinalizer(() =>
-          fs.remove(tempRepoPath, { recursive: true, force: true }).pipe(Effect.ignore),
+          fs.remove(repoPath, { recursive: true, force: true }).pipe(Effect.ignore),
         );
-        repoPath = tempRepoPath;
       }
 
       yield* loadGitRepo(repoPath, repoURL, options).pipe(Effect.mapError(TasksError.source));
