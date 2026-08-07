@@ -1,7 +1,10 @@
 import { Schema } from "effect";
-import { make, type Verif } from "../index.ts";
+import { make } from "../index.ts";
+import type { Verif } from "../verif.ts";
 
-const Result = Schema.Struct({ success: Schema.Boolean });
+export class Result extends Schema.Class<Result>("Grade.Command.Result")({
+  success: Schema.Boolean,
+}) {}
 
 export const success = (bash: string, options?: Verif<typeof Result>) =>
   make(Result)(
