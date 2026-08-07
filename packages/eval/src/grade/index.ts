@@ -1,7 +1,8 @@
 import { Prompt, type Sandbox } from "@open-insight/core/internal";
 import type { BivariantFn, UnionToIntersection } from "#/utils/variant.ts";
-import { Effect, Equal, Schema } from "effect";
+import { Effect, Schema } from "effect";
 import { GradeError, Retry } from "./error.ts";
+import { type Verif } from "./verif.ts";
 
 export type Result = Schema.ConstraintCodec<unknown, object>;
 export type Results = Record<string, Result["Type"]>;
@@ -16,31 +17,15 @@ export type Exec<R extends Result = Result, Rs extends Results = never> = Bivari
   (ctx: Context<Rs>) => PromiseLike<R["Encoded"]>
 >;
 
-export type VerifExec = (
-  options: Readonly<{
-    trajectory: Prompt.Trajectory;
-  }> &
-    Sandbox.SandboxPromise,
-) => PromiseLike<Prompt.RawInput | null>;
-export type Verif<R extends Result = Result> = Readonly<{
-  verif: VerifExec;
-  expect: Partial<R["Encoded"]>;
-}>;
-
 export type Grader<R extends Result = Result, Rs extends Results = never> = Readonly<{
   schema: R;
   grade: Exec<R, Rs>;
-  verif?: Verif<R>;
+  verif: Verif<R> | null;
 }>;
 
 export const make =
   <R extends Result>(schema: R) =>
   <Rs extends Results>(grade: Exec<R, Rs>, verif?: Verif<R>) => ({ schema, grade, verif });
-
-export const isVerifiable = (
-  grader: Grader,
-): grader is Grader & Readonly<{ verif: NonNullable<Grader["verif"]> }> =>
-  grader.verif !== undefined;
 
 export const run = <R extends Result, Rs extends Results>(grader: Grader<R, Rs>) =>
   Effect.fn(function* (
@@ -55,21 +40,6 @@ export const run = <R extends Result, Rs extends Results>(grader: Grader<R, Rs>)
     );
   });
 
-export const matches = <R extends Result>(
-  schema: R,
-  result: R["Encoded"],
-  expect: Partial<R["Encoded"]>,
-): Effect.Effect<boolean, GradeError, R["DecodingServices"]> =>
-  Effect.all([
-    Schema.decodeEffect(schema)(result),
-    // Preserve dynamic result fields while overriding the stable fields declared by expect.
-    Schema.decodeEffect(schema)({ ...result, ...expect }),
-  ]).pipe(
-    Effect.map(([actual, expected]) => Equal.equals(actual, expected)),
-    Effect.mapError(GradeError.result),
-  );
-
 export * from "./builtin/index.ts";
 export * from "./error.ts";
-
-export * as Sandbox from "./sandbox/index.ts";
+export * as Sandbox from "./sandbox.ts";
