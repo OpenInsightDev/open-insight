@@ -59,3 +59,6 @@
 [submodule ".repos/effect-uai"]
 	path = .repos/effect-uai
 	url = https://github.com/betalyra/effect-uai.git
+[submodule ".repos/agent-plugin"]
+	path = .repos/agent-plugin
+	url = https://github.com/agentplugins/agent-plugins-spec.git
