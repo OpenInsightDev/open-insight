@@ -41,14 +41,11 @@ export const GitKind = Schema.Literals(["not-a-repo", "dirty-working-tree", "che
 export type GitKind = Schema.Schema.Type<typeof GitKind>;
 
 /** A unified git error for failures during a git operation. */
-export class GitError extends Schema.TaggedErrorClass<GitError>("open-insight/GitError")(
-  "GitError",
-  {
-    kind: Schema.Literals(["not-a-repo", "dirty-working-tree", "check-failed"]),
-    cwd: Schema.String,
-    cause: Schema.optionalKey(Schema.Defect()),
-  },
-) {
+export class GitError extends Schema.TaggedError<GitError>("open-insight/GitError")("GitError", {
+  kind: Schema.Literals(["not-a-repo", "dirty-working-tree", "check-failed"]),
+  cwd: Schema.String,
+  cause: Schema.optionalKey(Schema.Defect()),
+}) {
   override get message(): string {
     switch (this.kind) {
       case "not-a-repo":

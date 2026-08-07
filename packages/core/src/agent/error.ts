@@ -1,31 +1,29 @@
-import { Schema } from "effect";
+import { Formatter, Schema } from "effect";
 
-const Cause = Schema.Error();
-
-export class StreamError extends Schema.TaggedErrorClass<StreamError>(
+export class StreamError extends Schema.TaggedError<StreamError>(
   "open-insight/AgentError/StreamError",
 )("StreamError", {
-  cause: Cause,
+  cause: Schema.Defect(),
 }) {
   override get message(): string {
-    return `Agent response stream failed: ${this.cause.message}`;
+    return `Agent response stream failed: ${Formatter.format(this.cause)}`;
   }
 }
 
-export class TrajectoryError extends Schema.TaggedErrorClass<TrajectoryError>(
+export class TrajectoryError extends Schema.TaggedError<TrajectoryError>(
   "open-insight/AgentError/TrajectoryError",
 )("TrajectoryError", {
-  cause: Cause,
+  cause: Schema.Defect(),
 }) {
   override get message(): string {
-    return `Agent trajectory failed: ${this.cause.message}`;
+    return `Agent trajectory failed: ${Formatter.format(this.cause)}`;
   }
 }
 
 export const ErrorReason = Schema.Union([StreamError, TrajectoryError]);
 export type ErrorReason = Schema.Schema.Type<typeof ErrorReason>;
 
-export class AgentError extends Schema.TaggedErrorClass<AgentError>("open-insight/AgentError")(
+export class AgentError extends Schema.TaggedError<AgentError>("open-insight/AgentError")(
   "AgentError",
   {
     reason: ErrorReason,
@@ -41,11 +39,11 @@ export class AgentError extends Schema.TaggedErrorClass<AgentError>("open-insigh
 
   static stream = (cause: unknown): AgentError =>
     AgentError.make({
-      reason: StreamError.make({ cause: Schema.decodeUnknownSync(Cause)(cause) }),
+      reason: StreamError.make({ cause }),
     });
 
   static trajectory = (cause: unknown): AgentError =>
     AgentError.make({
-      reason: TrajectoryError.make({ cause: Schema.decodeUnknownSync(Cause)(cause) }),
+      reason: TrajectoryError.make({ cause }),
     });
 }

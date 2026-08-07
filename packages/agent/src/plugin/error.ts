@@ -1,7 +1,7 @@
 import { Formatter, Schema } from "effect";
 
 /** The plugin root is not an existing directory. */
-export class RootInvalid extends Schema.TaggedErrorClass<RootInvalid>(
+export class RootInvalid extends Schema.TaggedError<RootInvalid>(
   "open-insight/PluginError/RootInvalid",
 )("RootInvalid", {
   root: Schema.String,
@@ -13,7 +13,7 @@ export class RootInvalid extends Schema.TaggedErrorClass<RootInvalid>(
 }
 
 /** `plugin.json` is absent at the plugin root. */
-export class ManifestMissing extends Schema.TaggedErrorClass<ManifestMissing>(
+export class ManifestMissing extends Schema.TaggedError<ManifestMissing>(
   "open-insight/PluginError/ManifestMissing",
 )("ManifestMissing", {
   root: Schema.String,
@@ -24,7 +24,7 @@ export class ManifestMissing extends Schema.TaggedErrorClass<ManifestMissing>(
 }
 
 /** `plugin.json` is unreadable, invalid JSON, or violates the manifest schema. */
-export class ManifestInvalid extends Schema.TaggedErrorClass<ManifestInvalid>(
+export class ManifestInvalid extends Schema.TaggedError<ManifestInvalid>(
   "open-insight/PluginError/ManifestInvalid",
 )("ManifestInvalid", {
   root: Schema.String,
@@ -45,7 +45,7 @@ export type ErrorReason = Schema.Schema.Type<typeof ErrorReason>;
  * directory or manifest rejects the plugin. Component-level failures are
  * isolated and never surface through this error (§6.2, §7.2.2, §11.3).
  */
-export class PluginError extends Schema.TaggedErrorClass<PluginError>("open-insight/PluginError")(
+export class PluginError extends Schema.TaggedError<PluginError>("open-insight/PluginError")(
   "PluginError",
   {
     reason: ErrorReason,

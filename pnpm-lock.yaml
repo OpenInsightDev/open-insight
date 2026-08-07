@@ -379,6 +379,9 @@ importers:
       '@typescript/native-preview':
         specifier: 'catalog:'
         version: 7.0.0-dev.20260707.2
+      effect:
+        specifier: 'catalog:'
+        version: 4.0.0-beta.105
       skills:
         specifier: 'catalog:'
         version: 1.5.21

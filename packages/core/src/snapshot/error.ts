@@ -2,7 +2,7 @@ import { Formatter, Schema } from "effect";
 import { Snapshot } from "./build.ts";
 import { Instruction, Instructions } from "./inst.ts";
 
-export class BuildError extends Schema.TaggedErrorClass<BuildError>(
+export class BuildError extends Schema.TaggedError<BuildError>(
   "open-insight/SnapshotError/BuildError",
 )("BuildError", {
   snapshot: Schema.suspend(() => Snapshot),
@@ -13,7 +13,7 @@ export class BuildError extends Schema.TaggedErrorClass<BuildError>(
   }
 }
 
-export class DeriveError extends Schema.TaggedErrorClass<DeriveError>(
+export class DeriveError extends Schema.TaggedError<DeriveError>(
   "open-insight/SnapshotError/DeriveError",
 )("DeriveError", {
   name: Schema.String,
@@ -25,18 +25,19 @@ export class DeriveError extends Schema.TaggedErrorClass<DeriveError>(
   }
 }
 
-export class UseError extends Schema.TaggedErrorClass<UseError>(
-  "open-insight/SnapshotError/UseError",
-)("UseError", {
-  name: Schema.String,
-  cause: Schema.Defect(),
-}) {
+export class UseError extends Schema.TaggedError<UseError>("open-insight/SnapshotError/UseError")(
+  "UseError",
+  {
+    name: Schema.String,
+    cause: Schema.Defect(),
+  },
+) {
   override get message(): string {
     return `Failed to use snapshot "${this.name}": ${Formatter.format(this.cause)}`;
   }
 }
 
-export class InstructionUnsupported extends Schema.TaggedErrorClass<InstructionUnsupported>(
+export class InstructionUnsupported extends Schema.TaggedError<InstructionUnsupported>(
   "open-insight/SnapshotError/InstructionUnsupported",
 )("InstructionUnsupported", {
   name: Schema.String,
@@ -56,11 +57,12 @@ export const ErrorReason = Schema.Union([
 ]);
 export type ErrorReason = Schema.Schema.Type<typeof ErrorReason>;
 
-export class SnapshotError extends Schema.TaggedErrorClass<SnapshotError>(
-  "open-insight/SnapshotError",
-)("SnapshotError", {
-  reason: ErrorReason,
-}) {
+export class SnapshotError extends Schema.TaggedError<SnapshotError>("open-insight/SnapshotError")(
+  "SnapshotError",
+  {
+    reason: ErrorReason,
+  },
+) {
   override get message(): string {
     return this.reason.message;
   }

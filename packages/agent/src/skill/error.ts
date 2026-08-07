@@ -1,24 +1,26 @@
-import { Schema } from "effect";
-
-const Cause = Schema.Error();
+import { Formatter, Schema } from "effect";
 
 /** A skills directory or discovered SKILL.md file could not be read. */
-export class SourceError extends Schema.TaggedErrorClass<SourceError>()("SourceError", {
+export class SourceError extends Schema.TaggedError<SourceError>(
+  "open-insight/SkillsError/SourceError",
+)("SourceError", {
   path: Schema.String,
-  cause: Cause,
+  cause: Schema.Defect(),
 }) {
   override get message(): string {
-    return `Failed to read Agent Skills source "${this.path}": ${this.cause.message}`;
+    return `Failed to read Agent Skills source "${this.path}": ${Formatter.format(this.cause)}`;
   }
 }
 
 /** A discovered SKILL.md file does not conform to the Agent Skills specification. */
-export class InvalidMetadata extends Schema.TaggedErrorClass<InvalidMetadata>()("InvalidMetadata", {
+export class InvalidMetadata extends Schema.TaggedError<InvalidMetadata>(
+  "open-insight/SkillsError/InvalidMetadata",
+)("InvalidMetadata", {
   path: Schema.String,
-  cause: Cause,
+  cause: Schema.Defect(),
 }) {
   override get message(): string {
-    return `Invalid Agent Skills metadata in "${this.path}": ${this.cause.message}`;
+    return `Invalid Agent Skills metadata in "${this.path}": ${Formatter.format(this.cause)}`;
   }
 }
 
@@ -26,9 +28,12 @@ export const ErrorReason = Schema.Union([SourceError, InvalidMetadata]);
 export type ErrorReason = Schema.Schema.Type<typeof ErrorReason>;
 
 /** The normalized error exposed by skill discovery and preparation. */
-export class Error extends Schema.TaggedErrorClass<Error>()("SkillsError", {
-  reason: ErrorReason,
-}) {
+export class SkillsError extends Schema.TaggedError<SkillsError>("open-insight/SkillsError")(
+  "SkillsError",
+  {
+    reason: ErrorReason,
+  },
+) {
   override get message(): string {
     return this.reason.message;
   }
@@ -37,14 +42,13 @@ export class Error extends Schema.TaggedErrorClass<Error>()("SkillsError", {
     return this.reason;
   }
 
-  static mapUnknownError = (mapper: (cause: globalThis.Error) => ErrorReason) => (cause: unknown) =>
-    cause instanceof Error
-      ? cause
-      : new Error({ reason: mapper(Schema.decodeUnknownSync(Cause)(cause)) });
+  static source =
+    (path: string) =>
+    (cause: unknown): SkillsError =>
+      SkillsError.make({ reason: SourceError.make({ path, cause }) });
 
-  static source = (path: string) =>
-    this.mapUnknownError((cause) => new SourceError({ path, cause }));
-
-  static metadata = (path: string) =>
-    this.mapUnknownError((cause) => new InvalidMetadata({ path, cause }));
+  static metadata =
+    (path: string) =>
+    (cause: unknown): SkillsError =>
+      SkillsError.make({ reason: InvalidMetadata.make({ path, cause }) });
 }

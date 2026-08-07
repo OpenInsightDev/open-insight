@@ -11,7 +11,7 @@ export type PromptErrorReason = Schema.Schema.Type<typeof PromptErrorReason>;
 export const PromptCapability = Schema.Literals(["image", "audio", "embeddedContext"]);
 export type PromptCapability = Schema.Schema.Type<typeof PromptCapability>;
 
-export class PromptError extends Schema.TaggedErrorClass<PromptError>(
+export class PromptError extends Schema.TaggedError<PromptError>(
   "open-insight/AcpError/PromptError",
 )("PromptError", {
   reason: PromptErrorReason,
@@ -42,7 +42,7 @@ export const HttpTransportOperation = Schema.Literals([
 ]);
 export type HttpTransportOperation = Schema.Schema.Type<typeof HttpTransportOperation>;
 
-export class HttpTransportError extends Schema.TaggedErrorClass<HttpTransportError>(
+export class HttpTransportError extends Schema.TaggedError<HttpTransportError>(
   "open-insight/AcpError/HttpTransportError",
 )("HttpTransportError", {
   url: Schema.String,
@@ -66,7 +66,7 @@ export const AuthenticationErrorReason = Schema.Literals([
 ]);
 export type AuthenticationErrorReason = Schema.Schema.Type<typeof AuthenticationErrorReason>;
 
-export class AuthenticationError extends Schema.TaggedErrorClass<AuthenticationError>(
+export class AuthenticationError extends Schema.TaggedError<AuthenticationError>(
   "open-insight/AcpError/AuthenticationError",
 )("AuthenticationError", {
   reason: AuthenticationErrorReason,
@@ -92,12 +92,9 @@ export class AuthenticationError extends Schema.TaggedErrorClass<AuthenticationE
 export const ErrorReason = Schema.Union([PromptError, HttpTransportError, AuthenticationError]);
 export type ErrorReason = Schema.Schema.Type<typeof ErrorReason>;
 
-export class AcpError extends Schema.TaggedErrorClass<AcpError>("open-insight/AcpError")(
-  "AcpError",
-  {
-    reason: ErrorReason,
-  },
-) {
+export class AcpError extends Schema.TaggedError<AcpError>("open-insight/AcpError")("AcpError", {
+  reason: ErrorReason,
+}) {
   override get message(): string {
     return this.reason.message;
   }

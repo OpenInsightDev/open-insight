@@ -13,7 +13,7 @@ export class Retry extends Data.TaggedError("Retry")<{
 export const retry = (prompt: Prompt.RawInput): Retry => new Retry({ prompt });
 
 /** The grader execution failed. */
-export class ExecutionFailed extends Schema.TaggedErrorClass<ExecutionFailed>(
+export class ExecutionFailed extends Schema.TaggedError<ExecutionFailed>(
   "open-insight/eval/GradeError/ExecutionFailed",
 )("ExecutionFailed", {
   cause: Schema.Defect(),
@@ -24,7 +24,7 @@ export class ExecutionFailed extends Schema.TaggedErrorClass<ExecutionFailed>(
 }
 
 /** The grader verification run failed. */
-export class VerificationFailed extends Schema.TaggedErrorClass<VerificationFailed>(
+export class VerificationFailed extends Schema.TaggedError<VerificationFailed>(
   "open-insight/eval/GradeError/VerificationFailed",
 )("VerificationFailed", {
   cause: Schema.Defect(),
@@ -35,7 +35,7 @@ export class VerificationFailed extends Schema.TaggedErrorClass<VerificationFail
 }
 
 /** The grader produced a result that does not satisfy its declared schema. */
-export class InvalidResult extends Schema.TaggedErrorClass<InvalidResult>(
+export class InvalidResult extends Schema.TaggedError<InvalidResult>(
   "open-insight/eval/GradeError/InvalidResult",
 )("InvalidResult", {
   cause: Schema.Defect(),
@@ -49,7 +49,7 @@ export const ErrorReason = Schema.Union([ExecutionFailed, VerificationFailed, In
 export type ErrorReason = Schema.Schema.Type<typeof ErrorReason>;
 
 /** The normalized error exposed by grader execution. */
-export class GradeError extends Schema.TaggedErrorClass<GradeError>("open-insight/eval/GradeError")(
+export class GradeError extends Schema.TaggedError<GradeError>("open-insight/eval/GradeError")(
   "GradeError",
   {
     reason: ErrorReason,

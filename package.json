@@ -13,10 +13,11 @@
     "@changesets/cli": "catalog:",
     "@effect/language-service": "catalog:",
     "@effect/tsgo": "catalog:",
-    "typescript": "catalog:",
     "@typescript/native-preview": "catalog:",
-    "vite-plus": "catalog:",
-    "skills": "catalog:"
+    "effect": "catalog:",
+    "skills": "catalog:",
+    "typescript": "catalog:",
+    "vite-plus": "catalog:"
   },
   "devEngines": {
     "packageManager": {

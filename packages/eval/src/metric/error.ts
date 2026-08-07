@@ -1,7 +1,7 @@
 import { Formatter, Schema } from "effect";
 
 /** The metadata describing a metric is invalid. */
-export class InvalidMetadata extends Schema.TaggedErrorClass<InvalidMetadata>(
+export class InvalidMetadata extends Schema.TaggedError<InvalidMetadata>(
   "open-insight/eval/MetricError/InvalidMetadata",
 )("InvalidMetadata", {
   cause: Schema.Defect(),
@@ -12,7 +12,7 @@ export class InvalidMetadata extends Schema.TaggedErrorClass<InvalidMetadata>(
 }
 
 /** A metric execution could not produce the expected result. */
-export class ExecutionFailed extends Schema.TaggedErrorClass<ExecutionFailed>(
+export class ExecutionFailed extends Schema.TaggedError<ExecutionFailed>(
   "open-insight/eval/MetricError/ExecutionFailed",
 )("ExecutionFailed", {
   metric: Schema.String,
@@ -24,7 +24,7 @@ export class ExecutionFailed extends Schema.TaggedErrorClass<ExecutionFailed>(
 }
 
 /** A calculated value does not satisfy the metric result contract. */
-export class InvalidResult extends Schema.TaggedErrorClass<InvalidResult>(
+export class InvalidResult extends Schema.TaggedError<InvalidResult>(
   "open-insight/eval/MetricError/InvalidResult",
 )("InvalidResult", {
   metric: Schema.String,
@@ -36,7 +36,7 @@ export class InvalidResult extends Schema.TaggedErrorClass<InvalidResult>(
 }
 
 /** A metric result could not be projected into chart data. */
-export class ChartFailed extends Schema.TaggedErrorClass<ChartFailed>(
+export class ChartFailed extends Schema.TaggedError<ChartFailed>(
   "open-insight/eval/MetricError/ChartFailed",
 )("ChartFailed", {
   metric: Schema.String,
@@ -56,11 +56,12 @@ export const ErrorReason = Schema.Union([
 export type ErrorReason = Schema.Schema.Type<typeof ErrorReason>;
 
 /** The normalized error exposed by metric construction and evaluation. */
-export class MetricError extends Schema.TaggedErrorClass<MetricError>(
-  "open-insight/eval/MetricError",
-)("MetricError", {
-  reason: ErrorReason,
-}) {
+export class MetricError extends Schema.TaggedError<MetricError>("open-insight/eval/MetricError")(
+  "MetricError",
+  {
+    reason: ErrorReason,
+  },
+) {
   override get message(): string {
     return this.reason.message;
   }

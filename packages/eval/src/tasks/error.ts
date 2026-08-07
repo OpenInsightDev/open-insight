@@ -1,48 +1,46 @@
-import { Schema } from "effect";
-
-const Cause = Schema.Error();
+import { Formatter, Schema } from "effect";
 
 /** A task source could not be accessed or prepared. */
-export class SourceNotAvailable extends Schema.TaggedErrorClass<SourceNotAvailable>(
+export class SourceNotAvailable extends Schema.TaggedError<SourceNotAvailable>(
   "open-insight/TasksError/SourceNotAvailable",
 )("SourceNotAvailable", {
-  cause: Cause,
+  cause: Schema.Defect(),
 }) {
   override get message(): string {
-    return `Failed to access task source: ${this.cause.message}`;
+    return `Failed to access task source: ${Formatter.format(this.cause)}`;
   }
 }
 
 /** A resolved value could not be interpreted as a valid task. */
-export class InvalidTask extends Schema.TaggedErrorClass<InvalidTask>(
+export class InvalidTask extends Schema.TaggedError<InvalidTask>(
   "open-insight/TasksError/InvalidTask",
 )("InvalidTask", {
-  cause: Cause,
+  cause: Schema.Defect(),
 }) {
   override get message(): string {
-    return `Invalid task: ${this.cause.message}`;
+    return `Invalid task: ${Formatter.format(this.cause)}`;
   }
 }
 
 /** A valid task requires capabilities that are not supported. */
-export class UnsupportedTask extends Schema.TaggedErrorClass<UnsupportedTask>(
+export class UnsupportedTask extends Schema.TaggedError<UnsupportedTask>(
   "open-insight/TasksError/UnsupportedTask",
 )("UnsupportedTask", {
-  cause: Cause,
+  cause: Schema.Defect(),
 }) {
   override get message(): string {
-    return `Unsupported task: ${this.cause.message}`;
+    return `Unsupported task: ${Formatter.format(this.cause)}`;
   }
 }
 
 /** A task could not be constructed or initialized. */
-export class InitFailed extends Schema.TaggedErrorClass<InitFailed>(
+export class InitFailed extends Schema.TaggedError<InitFailed>(
   "open-insight/TasksError/InitFailed",
 )("InitFailed", {
-  cause: Cause,
+  cause: Schema.Defect(),
 }) {
   override get message(): string {
-    return `Failed to initialize task collection: ${this.cause.message}`;
+    return `Failed to initialize task collection: ${Formatter.format(this.cause)}`;
   }
 }
 
@@ -55,7 +53,7 @@ export const ErrorReason = Schema.Union([
 export type ErrorReason = Schema.Schema.Type<typeof ErrorReason>;
 
 /** The normalized error exposed by task collection operations. */
-export class TasksError extends Schema.TaggedErrorClass<TasksError>("open-insight/TasksError")(
+export class TasksError extends Schema.TaggedError<TasksError>("open-insight/TasksError")(
   "TasksError",
   {
     reason: ErrorReason,
@@ -71,21 +69,21 @@ export class TasksError extends Schema.TaggedErrorClass<TasksError>("open-insigh
 
   static source = (cause: unknown): TasksError =>
     TasksError.make({
-      reason: SourceNotAvailable.make({ cause: Schema.decodeUnknownSync(Cause)(cause) }),
+      reason: SourceNotAvailable.make({ cause }),
     });
 
   static invalid = (cause: unknown): TasksError =>
     TasksError.make({
-      reason: InvalidTask.make({ cause: Schema.decodeUnknownSync(Cause)(cause) }),
+      reason: InvalidTask.make({ cause }),
     });
 
   static unsupported = (cause: unknown): TasksError =>
     TasksError.make({
-      reason: UnsupportedTask.make({ cause: Schema.decodeUnknownSync(Cause)(cause) }),
+      reason: UnsupportedTask.make({ cause }),
     });
 
   static init = (cause: unknown): TasksError =>
     TasksError.make({
-      reason: InitFailed.make({ cause: Schema.decodeUnknownSync(Cause)(cause) }),
+      reason: InitFailed.make({ cause }),
     });
 }

@@ -10,7 +10,7 @@ const NonNegativeInt = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0));
 type ExecTask = Task.AnyTask;
 
 /** The evaluation could not be initialized. */
-export class InitFailed extends Schema.TaggedErrorClass<InitFailed>(
+export class InitFailed extends Schema.TaggedError<InitFailed>(
   "open-insight/eval/EvalError/InitFailed",
 )("InitFailed", {
   cause: Schema.Defect(),
@@ -21,7 +21,7 @@ export class InitFailed extends Schema.TaggedErrorClass<InitFailed>(
 }
 
 /** A task could not be initialized for the evaluation run. */
-export class TaskInitFailed extends Schema.TaggedErrorClass<TaskInitFailed>(
+export class TaskInitFailed extends Schema.TaggedError<TaskInitFailed>(
   "open-insight/eval/EvalError/TaskInitFailed",
 )("TaskInitFailed", {
   task: Task.ID,
@@ -33,7 +33,7 @@ export class TaskInitFailed extends Schema.TaggedErrorClass<TaskInitFailed>(
 }
 
 /** An evaluation trail failed while executing a task stage. */
-export class TaskExecFailed extends Schema.TaggedErrorClass<TaskExecFailed>(
+export class TaskExecFailed extends Schema.TaggedError<TaskExecFailed>(
   "open-insight/eval/EvalError/TaskExecFailed",
 )("TaskExecFailed", {
   task: Task.ID,
@@ -46,7 +46,7 @@ export class TaskExecFailed extends Schema.TaggedErrorClass<TaskExecFailed>(
 }
 
 /** A task's verification execution failed. */
-export class VerifExecFailed extends Schema.TaggedErrorClass<VerifExecFailed>(
+export class VerifExecFailed extends Schema.TaggedError<VerifExecFailed>(
   "open-insight/eval/EvalError/VerifExecFailed",
 )("VerifExecFailed", {
   task: Task.ID,
@@ -58,7 +58,7 @@ export class VerifExecFailed extends Schema.TaggedErrorClass<VerifExecFailed>(
 }
 
 /** A task does not declare verifiers for stages that require verification. */
-export class MissingVerifier extends Schema.TaggedErrorClass<MissingVerifier>(
+export class MissingVerifier extends Schema.TaggedError<MissingVerifier>(
   "open-insight/eval/EvalError/MissingVerifier",
 )("MissingVerifier", {
   task: Task.ID,
@@ -70,7 +70,7 @@ export class MissingVerifier extends Schema.TaggedErrorClass<MissingVerifier>(
 }
 
 /** A verification run produced a result that does not match the expected grade. */
-export class VerifMismatch extends Schema.TaggedErrorClass<VerifMismatch>(
+export class VerifMismatch extends Schema.TaggedError<VerifMismatch>(
   "open-insight/eval/EvalError/VerifMismatch",
 )("VerifMismatch", {
   task: Task.ID,
@@ -83,7 +83,7 @@ export class VerifMismatch extends Schema.TaggedErrorClass<VerifMismatch>(
 }
 
 /** A task already matches the expected grade before verification runs. */
-export class VerifInitialMatch extends Schema.TaggedErrorClass<VerifInitialMatch>(
+export class VerifInitialMatch extends Schema.TaggedError<VerifInitialMatch>(
   "open-insight/eval/EvalError/VerifInitialMatch",
 )("VerifInitialMatch", {
   task: Task.ID,
@@ -95,7 +95,7 @@ export class VerifInitialMatch extends Schema.TaggedErrorClass<VerifInitialMatch
 }
 
 /** A task snapshot could not be prepared. */
-export class SnapshotFailed extends Schema.TaggedErrorClass<SnapshotFailed>(
+export class SnapshotFailed extends Schema.TaggedError<SnapshotFailed>(
   "open-insight/eval/EvalError/SnapshotFailed",
 )("SnapshotFailed", {
   task: Task.ID,
@@ -126,7 +126,7 @@ export const ErrorReason = Schema.Union([
 export type ErrorReason = Schema.Schema.Type<typeof ErrorReason>;
 
 /** The normalized error exposed by evaluation runs. */
-export class EvalError extends Schema.TaggedErrorClass<EvalError>("open-insight/eval/EvalError")(
+export class EvalError extends Schema.TaggedError<EvalError>("open-insight/eval/EvalError")(
   "EvalError",
   {
     reason: ErrorReason,

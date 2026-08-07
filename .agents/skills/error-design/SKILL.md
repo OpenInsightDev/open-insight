@@ -1,6 +1,6 @@
 ---
 name: error-design
-description: Design conventions for module error hierarchies with Effect. Use when creating, refactoring, or reviewing a module's Error classes — tagged union design, Schema.TaggedErrorClass usage, factory construction, exports. Follows the official Effect SqlError pattern.
+description: Design conventions for module error hierarchies with Effect. Use when creating, refactoring, or reviewing a module's Error classes — tagged union design, Schema.TaggedError usage, factory construction, exports. Follows the official Effect SqlError pattern.
 ---
 
 # Error Design
@@ -12,7 +12,7 @@ One wrapper class over a tagged union of reason variants:
 ```ts
 import { Formatter, Schema } from "effect";
 
-export class ConnectionError extends Schema.TaggedErrorClass<ConnectionError>(
+export class ConnectionError extends Schema.TaggedError<ConnectionError>(
   "effect/sql/SqlError/ConnectionError", // identifier → instance name, namespaced
 )("ConnectionError", {                   // tag → _tag, no module prefix
   cause: Schema.Defect(),
@@ -25,7 +25,7 @@ export class ConnectionError extends Schema.TaggedErrorClass<ConnectionError>(
 export const ErrorReason = Schema.Union([ConnectionError, QueryError]);
 export type ErrorReason = Schema.Schema.Type<typeof ErrorReason>;
 
-export class SqlError extends Schema.TaggedErrorClass<SqlError>("effect/sql/SqlError")(
+export class SqlError extends Schema.TaggedError<SqlError>("effect/sql/SqlError")(
   "SqlError",
   { reason: ErrorReason },
 ) {
@@ -62,13 +62,13 @@ export class SqlError extends Schema.TaggedErrorClass<SqlError>("effect/sql/SqlE
      return `Connection failed: ${Formatter.format(this.cause)}`;
    }
    ```
-   Never decode a Defect — `decodeUnknownSync` throws `Expected JSON value` (raw storage works only because `.make()` skips validation). There is no valid `Schema.Error()` + `decodeUnknownSync` usage in a rewritten module; that is the legacy pattern and must be removed, not kept. `Formatter.format` renders `"Error: boom"`, not the bare message — that is the accepted rendering.
+   Never decode a Defect — `decodeUnknownSync` throws `Expected JSON value` (raw storage works only because `.make()` skips validation). In the new API `Schema.Error` is a class constructor used to *declare* an error class — it is not a schema for arbitrary errors (calling it as `Schema.Error()` no longer type-checks). If a cause must be a real `Error` value it is a `Schema.ErrorInstance()`; but do not use it — causes are stored raw as `Schema.Defect()`. There is no valid `Schema.ErrorInstance()`/`Schema.Error()` + `decodeUnknownSync` usage in a rewritten module; that is the legacy pattern and must be removed, not kept. `Formatter.format` renders `"Error: boom"`, not the bare message — that is the accepted rendering.
 8. `_tag` is for discrimination; the namespaced identifier owns collision avoidance.
 9. "Rewrite" means replace the whole error module — no legacy remnants survive. A rewritten error.ts contains none of the following (`rg` each against the module returns nothing):
-   - `Schema.Error()` / `Schema.decodeUnknownSync(...)` — causes are `Schema.Defect()` stored raw, read via `Formatter.format`
+   - `Schema.Error()` / `Schema.ErrorInstance()` / `Schema.decodeUnknownSync(...)` — causes are `Schema.Defect()` stored raw, read via `Formatter.format`
    - `mapUnknownError` — factories wrap unconditionally with `.make()`
    - `new XxxError(...)` — construction only via `.make()`
-   - `TaggedErrorClass<X>()("X", ...)` with an empty identifier — every class takes a namespaced identifier
+   - `TaggedError<X>()("X", ...)` with an empty identifier — every class takes a namespaced identifier
    - `Schema.optional(` — use `Schema.optionalKey(`
    - a wrapper class named `Error` — it is `XxxError`
    - variant names ending in `Error` — the suffix belongs to the wrapper only
@@ -89,6 +89,6 @@ Verify each item against the finished module before considering the work done. E
 - [ ] Module index re-exports `./error.ts` (e.g. `export * from "./error.ts"`).
 - [ ] Package root: any namespace re-export (`export * as X`) of this module is paired with a direct `export { XxxError }` so the wrapper stays importable.
 - [ ] No `any`, no `as` anywhere in error.ts.
-- [ ] Causes are stored raw (`Schema.Defect()`) and read only via `Formatter.format`; a `Defect` is never decoded, and no `Schema.Error()` / `decodeUnknownSync` remains.
-- [ ] Rewrite completeness: `rg` for legacy remnants (`Schema.Error()`, `decodeUnknownSync`, `mapUnknownError`, `new XxxError(`, empty `TaggedErrorClass<X>()(`) inside the module's error.ts returns nothing.
+- [ ] Causes are stored raw (`Schema.Defect()`) and read only via `Formatter.format`; a `Defect` is never decoded, and no `Schema.Error()`, `Schema.ErrorInstance()`, or `decodeUnknownSync` remains.
+- [ ] Rewrite completeness: `rg` for legacy remnants (`Schema.Error()`, `Schema.ErrorInstance()`, `decodeUnknownSync`, `mapUnknownError`, `new XxxError(`, empty `TaggedError<X>()(`) inside the module's error.ts returns nothing.
 - [ ] All `catchTag(...)` / test references use the final `_tag` values after any rename; `rg` for the old names returns nothing outside the diff.

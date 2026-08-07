@@ -2,7 +2,7 @@ import { Formatter, Schema } from "effect";
 import { Assertion } from "../assert/index.ts";
 import * as Snapshot from "../snapshot/index.ts";
 
-export class ProviderNotAvailableError extends Schema.TaggedErrorClass<ProviderNotAvailableError>(
+export class ProviderNotAvailableError extends Schema.TaggedError<ProviderNotAvailableError>(
   "open-insight/SandboxError/ProviderNotAvailableError",
 )("ProviderNotAvailableError", {
   name: Schema.String,
@@ -13,7 +13,7 @@ export class ProviderNotAvailableError extends Schema.TaggedErrorClass<ProviderN
   }
 }
 
-export class SandboxStartError extends Schema.TaggedErrorClass<SandboxStartError>(
+export class SandboxStartError extends Schema.TaggedError<SandboxStartError>(
   "open-insight/SandboxError/SandboxStartError",
 )("SandboxStartError", {
   name: Schema.String,
@@ -24,7 +24,7 @@ export class SandboxStartError extends Schema.TaggedErrorClass<SandboxStartError
   }
 }
 
-export class SandboxExecError extends Schema.TaggedErrorClass<SandboxExecError>(
+export class SandboxExecError extends Schema.TaggedError<SandboxExecError>(
   "open-insight/SandboxError/SandboxExecError",
 )("SandboxExecError", {
   name: Schema.String,
@@ -36,7 +36,7 @@ export class SandboxExecError extends Schema.TaggedErrorClass<SandboxExecError>(
   }
 }
 
-export class SandboxExposeError extends Schema.TaggedErrorClass<SandboxExposeError>(
+export class SandboxExposeError extends Schema.TaggedError<SandboxExposeError>(
   "open-insight/SandboxError/SandboxExposeError",
 )("SandboxExposeError", {
   name: Schema.String,
@@ -48,7 +48,7 @@ export class SandboxExposeError extends Schema.TaggedErrorClass<SandboxExposeErr
   }
 }
 
-export class SnapshotBuildUnsupported extends Schema.TaggedErrorClass<SnapshotBuildUnsupported>(
+export class SnapshotBuildUnsupported extends Schema.TaggedError<SnapshotBuildUnsupported>(
   "open-insight/SandboxError/SnapshotBuildUnsupported",
 )("SnapshotBuildUnsupported", {
   name: Schema.String,
@@ -68,7 +68,7 @@ export class AssertionFailure extends Schema.Class<AssertionFailure>(
   actual: Schema.optionalKey(Schema.String),
 }) {}
 
-export class AssertionError extends Schema.TaggedErrorClass<AssertionError>(
+export class AssertionError extends Schema.TaggedError<AssertionError>(
   "open-insight/SandboxError/AssertionError",
 )("AssertionError", {
   failures: Schema.Array(AssertionFailure),
@@ -91,11 +91,12 @@ export const ErrorReason = Schema.Union([
 ]);
 export type ErrorReason = Schema.Schema.Type<typeof ErrorReason>;
 
-export class SandboxError extends Schema.TaggedErrorClass<SandboxError>(
-  "open-insight/SandboxError",
-)("SandboxError", {
-  reason: ErrorReason,
-}) {
+export class SandboxError extends Schema.TaggedError<SandboxError>("open-insight/SandboxError")(
+  "SandboxError",
+  {
+    reason: ErrorReason,
+  },
+) {
   override get message(): string {
     return this.reason.message;
   }

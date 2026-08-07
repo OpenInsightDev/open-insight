@@ -1,29 +1,27 @@
-import { Schema } from "effect";
+import { Formatter, Schema } from "effect";
 import type * as Task from "#/task/index.ts";
 
-const Cause = Schema.Error();
-
-export class InitFailed extends Schema.TaggedErrorClass<InitFailed>(
+export class InitFailed extends Schema.TaggedError<InitFailed>(
   "open-insight/eval/BenchError/InitFailed",
 )("InitFailed", {
-  cause: Cause,
+  cause: Schema.Defect(),
 }) {
   override get message(): string {
-    return `Failed to initialize benchmark: ${this.cause.message}`;
+    return `Failed to initialize benchmark: ${Formatter.format(this.cause)}`;
   }
 }
 
-export class TaskLoadFailed extends Schema.TaggedErrorClass<TaskLoadFailed>(
+export class TaskLoadFailed extends Schema.TaggedError<TaskLoadFailed>(
   "open-insight/eval/BenchError/TaskLoadFailed",
 )("TaskLoadFailed", {
-  cause: Cause,
+  cause: Schema.Defect(),
 }) {
   override get message(): string {
-    return `Failed to load benchmark task: ${this.cause.message}`;
+    return `Failed to load benchmark task: ${Formatter.format(this.cause)}`;
   }
 }
 
-export class TaskNotFound extends Schema.TaggedErrorClass<TaskNotFound>(
+export class TaskNotFound extends Schema.TaggedError<TaskNotFound>(
   "open-insight/eval/BenchError/TaskNotFound",
 )("TaskNotFound", {
   id: Schema.String,
@@ -36,7 +34,7 @@ export class TaskNotFound extends Schema.TaggedErrorClass<TaskNotFound>(
 export const ErrorReason = Schema.Union([InitFailed, TaskLoadFailed, TaskNotFound]);
 export type ErrorReason = Schema.Schema.Type<typeof ErrorReason>;
 
-export class BenchError extends Schema.TaggedErrorClass<BenchError>("open-insight/eval/BenchError")(
+export class BenchError extends Schema.TaggedError<BenchError>("open-insight/eval/BenchError")(
   "BenchError",
   {
     reason: ErrorReason,
@@ -51,11 +49,11 @@ export class BenchError extends Schema.TaggedErrorClass<BenchError>("open-insigh
   }
 
   static init = (cause: unknown): BenchError =>
-    BenchError.make({ reason: InitFailed.make({ cause: Schema.decodeUnknownSync(Cause)(cause) }) });
+    BenchError.make({ reason: InitFailed.make({ cause }) });
 
   static taskLoad = (cause: unknown): BenchError =>
     BenchError.make({
-      reason: TaskLoadFailed.make({ cause: Schema.decodeUnknownSync(Cause)(cause) }),
+      reason: TaskLoadFailed.make({ cause }),
     });
 
   static taskNotFound = (id: Task.ID): BenchError =>

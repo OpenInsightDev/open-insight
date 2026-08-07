@@ -3,17 +3,18 @@ import * as Agent from "#/agent/index.ts";
 import { SandboxError } from "#/sandbox/index.ts";
 import * as Snapshot from "#/snapshot/index.ts";
 
-export class InitError extends Schema.TaggedErrorClass<InitError>(
-  "open-insight/HarnessError/InitError",
-)("InitError", {
-  cause: Schema.Defect(),
-}) {
+export class InitError extends Schema.TaggedError<InitError>("open-insight/HarnessError/InitError")(
+  "InitError",
+  {
+    cause: Schema.Defect(),
+  },
+) {
   override get message(): string {
     return `Failed to initialize harness: ${this.cause}`;
   }
 }
 
-export class SnapshotAcquireError extends Schema.TaggedErrorClass<SnapshotAcquireError>(
+export class SnapshotAcquireError extends Schema.TaggedError<SnapshotAcquireError>(
   "open-insight/HarnessError/SnapshotAcquireError",
 )("SnapshotAcquireError", {
   snapshot: Snapshot.Snapshot,
@@ -24,7 +25,7 @@ export class SnapshotAcquireError extends Schema.TaggedErrorClass<SnapshotAcquir
   }
 }
 
-export class SnapshotDeriveError extends Schema.TaggedErrorClass<SnapshotDeriveError>(
+export class SnapshotDeriveError extends Schema.TaggedError<SnapshotDeriveError>(
   "open-insight/HarnessError/SnapshotDeriveError",
 )("SnapshotDeriveError", {
   instructions: Snapshot.Instructions,
@@ -35,7 +36,7 @@ export class SnapshotDeriveError extends Schema.TaggedErrorClass<SnapshotDeriveE
   }
 }
 
-export class SandboxRunError extends Schema.TaggedErrorClass<SandboxRunError>(
+export class SandboxRunError extends Schema.TaggedError<SandboxRunError>(
   "open-insight/HarnessError/SandboxRunError",
 )("SandboxRunError", {
   cause: SandboxError,
@@ -45,7 +46,7 @@ export class SandboxRunError extends Schema.TaggedErrorClass<SandboxRunError>(
   }
 }
 
-export class SessionNotStartedError extends Schema.TaggedErrorClass<SessionNotStartedError>(
+export class SessionNotStartedError extends Schema.TaggedError<SessionNotStartedError>(
   "open-insight/HarnessError/SessionNotStartedError",
 )("SessionNotStartedError", {}) {
   override get message(): string {
@@ -63,11 +64,12 @@ export const ErrorReason = Schema.Union([
 ]);
 export type ErrorReason = Schema.Schema.Type<typeof ErrorReason>;
 
-export class HarnessError extends Schema.TaggedErrorClass<HarnessError>(
-  "open-insight/HarnessError",
-)("HarnessError", {
-  reason: ErrorReason,
-}) {
+export class HarnessError extends Schema.TaggedError<HarnessError>("open-insight/HarnessError")(
+  "HarnessError",
+  {
+    reason: ErrorReason,
+  },
+) {
   override get message(): string {
     return this.reason.message;
   }

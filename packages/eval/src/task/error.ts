@@ -1,6 +1,6 @@
 import { Formatter, Schema } from "effect";
 
-export class PromptError extends Schema.TaggedErrorClass<PromptError>(
+export class PromptError extends Schema.TaggedError<PromptError>(
   "open-insight/TaskError/PromptError",
 )("PromptError", {
   cause: Schema.Defect(),
@@ -10,7 +10,7 @@ export class PromptError extends Schema.TaggedErrorClass<PromptError>(
   }
 }
 
-export class InvalidMetadata extends Schema.TaggedErrorClass<InvalidMetadata>(
+export class InvalidMetadata extends Schema.TaggedError<InvalidMetadata>(
   "open-insight/TaskError/InvalidMetadata",
 )("InvalidMetadata", {
   cause: Schema.Defect(),
@@ -23,7 +23,7 @@ export class InvalidMetadata extends Schema.TaggedErrorClass<InvalidMetadata>(
 export const ErrorReason = Schema.Union([PromptError, InvalidMetadata]);
 export type ErrorReason = Schema.Schema.Type<typeof ErrorReason>;
 
-export class TaskError extends Schema.TaggedErrorClass<TaskError>("open-insight/TaskError")(
+export class TaskError extends Schema.TaggedError<TaskError>("open-insight/TaskError")(
   "TaskError",
   {
     reason: ErrorReason,

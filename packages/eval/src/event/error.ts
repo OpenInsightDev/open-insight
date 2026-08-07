@@ -1,7 +1,7 @@
 import { Formatter, Schema } from "effect";
 
 /** An event does not satisfy the contract required for publication. */
-export class InvalidEvent extends Schema.TaggedErrorClass<InvalidEvent>(
+export class InvalidEvent extends Schema.TaggedError<InvalidEvent>(
   "open-insight/eval/EventError/InvalidEvent",
 )("InvalidEvent", {
   cause: Schema.Defect(),
@@ -12,7 +12,7 @@ export class InvalidEvent extends Schema.TaggedErrorClass<InvalidEvent>(
 }
 
 /** One or more events could not be delivered to their destination. */
-export class SendFailed extends Schema.TaggedErrorClass<SendFailed>(
+export class SendFailed extends Schema.TaggedError<SendFailed>(
   "open-insight/eval/EventError/SendFailed",
 )("SendFailed", {
   cause: Schema.Defect(),
@@ -26,7 +26,7 @@ export const ErrorReason = Schema.Union([InvalidEvent, SendFailed]);
 export type ErrorReason = Schema.Schema.Type<typeof ErrorReason>;
 
 /** The normalized error exposed by event publication operations. */
-export class EventError extends Schema.TaggedErrorClass<EventError>("open-insight/eval/EventError")(
+export class EventError extends Schema.TaggedError<EventError>("open-insight/eval/EventError")(
   "EventError",
   {
     reason: ErrorReason,
