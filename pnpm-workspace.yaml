@@ -87,6 +87,8 @@ catalog:
   computesdk: ^4.1.4
   '@computesdk/e2b': ^1.7.52
   '@computesdk/provider': ^2.1.4
+  '@effect/sql-sqlite-node': 4.0.0-beta.105
+  '@effect/sql-sqlite-wasm': 4.0.0-beta.104
 overrides:
   vite: "catalog:"
   vitest: "catalog:"
@@ -131,5 +133,6 @@ minimumReleaseAgeExclude:
   - '@effect/platform-node@4.0.0-beta.102'
   - '@effect/vitest@4.0.0-beta.102'
   - effect@4.0.0-beta.102
+  - '@effect/sql-sqlite-node@4.0.0-beta.105'
 patchedDependencies:
   '@effect/ai-openai-compat@4.0.0-beta.101': patches/@effect__ai-openai-compat@4.0.0-beta.101.patch

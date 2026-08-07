@@ -1,6 +1,6 @@
 import type { Prompt, Sandbox, Snapshot } from "@open-insight/core/internal";
 import type { BivariantFn, UnionToIntersection } from "#/utils/variant.ts";
-import type { Result, Results } from "./index.ts";
+import type { Result, Results } from "./base.ts";
 import type { Verif } from "./verif.ts";
 
 export type SandboxScope = "per-task" | "per-trail";

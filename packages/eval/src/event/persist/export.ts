@@ -1,4 +1,4 @@
-export { Error, Options, type Operation } from "./schema.ts";
-export { make, type Journal } from "./service.ts";
-export * from "./builtin/export.ts";
+export { Service } from "./service.ts";
+export { layer, make } from "./index.ts";
+export type { Persist } from "./schema.ts";
 export * as Internal from "./index.ts";

@@ -52,6 +52,8 @@
     "@effect/ai-openai-compat": "catalog:",
     "@effect/opentelemetry": "catalog:",
     "@effect/platform-node": "catalog:",
+    "@effect/sql-sqlite-node": "catalog:",
+    "@effect/sql-sqlite-wasm": "catalog:",
     "@effect/vitest": "catalog:",
     "@open-insight/core": "workspace:*",
     "@opentelemetry/api-logs": "catalog:",
