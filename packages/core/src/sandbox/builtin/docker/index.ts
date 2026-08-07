@@ -28,7 +28,6 @@ export const make = Effect.fn("sandbox/provider/docker")(
     const runtime = yield* Runtime.make().pipe(Effect.mapError(SandboxError.provider("docker")));
 
     const crypto = yield* Crypto.Crypto;
-    const cp = yield* ChildProcessSpawner.ChildProcessSpawner;
     const spawner = yield* Spawn.Service;
     const fs = yield* FileSystem.FileSystem;
 
@@ -216,7 +215,7 @@ export const make = Effect.fn("sandbox/provider/docker")(
 
     const runSandbox = Effect.fn(
       function* ({ handle, resources }) {
-        const name = yield* Sandbox.makeName(handle).pipe(
+        const name = yield* Sandbox.makeName().pipe(
           Effect.mapError(SandboxError.sandboxStart(handle.name)),
         );
         yield* Effect.annotateCurrentSpan({
@@ -395,10 +394,7 @@ export const make = Effect.fn("sandbox/provider/docker")(
         effect.pipe(
           Effect.provideService(Spawn.Service, spawner),
           Effect.provideService(Crypto.Crypto, crypto),
-          Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, cp),
-          Effect.annotateLogs({
-            provider: "docker",
-          }),
+          Effect.annotateLogs({ provider: "docker" }),
         ),
     ) satisfies Sandbox.Provider["runSandbox"];
 
