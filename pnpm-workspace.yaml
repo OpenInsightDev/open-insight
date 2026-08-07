@@ -88,6 +88,7 @@ catalog:
   '@computesdk/e2b': ^1.7.52
   '@computesdk/provider': ^2.1.4
   '@effect/sql-sqlite-node': 4.0.0-beta.105
+  ajv: ^8.20.0
 overrides:
   vite: "catalog:"
   vitest: "catalog:"

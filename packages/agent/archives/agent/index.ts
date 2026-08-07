@@ -3,7 +3,7 @@ import { Prompt as CorePrompt } from "@open-insight/core/internal";
 import { Context, Effect, Option, Ref, Result, Stream } from "effect";
 import { LanguageModel, Prompt, Response, Tool, Toolkit } from "effect/unstable/ai";
 import * as Cli from "#/cli/index.ts";
-import * as AgentContext from "#/context/index.ts";
+import * as AgentContext from "../../src/history/index.ts";
 import * as Mcp from "#/mcp/index.ts";
 import * as Skills from "#/skills/index.ts";
 import * as SandboxToolkit from "#/sandbox/index.ts";
