@@ -79,6 +79,7 @@ const accumulate = (
                 name: part.name,
                 isFailure: part.isFailure,
                 result: part.result,
+                providerExecuted: part.providerExecuted ?? false,
               }),
             ],
           ],
