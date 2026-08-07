@@ -4,7 +4,7 @@ import * as Tasks from "#/tasks/index.ts";
 import * as Task from "#/task/index.ts";
 import * as Bench from "#/bench/index.ts";
 import * as Event from "#/event/index.ts";
-import { Agent, Harness, Snapshot } from "@open-insight/core/internal";
+import { Agent, Harness, Snapshot, Utils } from "@open-insight/core/internal";
 
 const NonNegativeInt = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0));
 type ExecTask = Task.AnyTask;
@@ -109,6 +109,7 @@ export class SnapshotFailed extends Schema.TaggedErrorClass<SnapshotFailed>(
 
 export const ErrorReason = Schema.Union([
   InitFailed,
+  Utils.Git.GitError,
   Agent.AgentError,
   Tasks.TasksError,
   Event.EventError,
@@ -142,6 +143,8 @@ export class EvalError extends Schema.TaggedErrorClass<EvalError>("open-insight/
 
   static init = (cause: unknown): EvalError =>
     EvalError.make({ reason: InitFailed.make({ cause }) });
+
+  static git = (cause: Utils.Git.GitError): EvalError => EvalError.make({ reason: cause });
 
   static agent = (cause: Agent.AgentError): EvalError => EvalError.make({ reason: cause });
 

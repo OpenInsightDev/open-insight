@@ -1,7 +1,6 @@
-import { createHash } from "node:crypto";
 import type * as Task from "#/task/index.ts";
 import { ChildProcess as CP } from "effect/unstable/process";
-import { Effect, FileSystem, Path } from "effect";
+import { Crypto, Effect, Encoding, FileSystem, Path } from "effect";
 import { Spawn } from "@open-insight/core/utils";
 import * as Cache from "../cache.ts";
 import type { Load } from "../index.ts";
@@ -147,7 +146,10 @@ export const withGitRepo = (repoURL: string, options: Options = {}) =>
       const cached = options.directory === undefined;
       let repoPath = options.directory;
       if (!repoPath) {
-        const key = createHash("sha256").update(repoURL).digest("hex").slice(0, 16);
+        const crypto = yield* Crypto.Crypto;
+        const key = Encoding.encodeHex(
+          yield* crypto.digest("SHA-256", new TextEncoder().encode(repoURL)),
+        ).slice(0, 16);
         repoPath = yield* Cache.cacheDir(path.join("git", key));
       }
       if (options.cleanup && cached) {
@@ -179,5 +181,3 @@ export const withGithub = (id: string, options?: Options) =>
 
 export const withHuggingface = (id: string, options?: Options) =>
   withGitRepo(`https://huggingface.co/datasets/${id}.git`, options);
-
-export * from "./utils.ts";

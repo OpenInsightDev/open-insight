@@ -1,13 +1,16 @@
-import { Context, Crypto, Effect } from "effect";
+import { Context, Effect, Hash } from "effect";
 import { SandboxError } from "../error.ts";
 import { type Command, type Handle, type Spawn } from "./service.ts";
+import * as Snapshot from "#/snapshot/index.ts";
+import { Git } from "#/utils/index.ts";
 
 export const SANDBOX_NAME = "open-insight-sandbox";
 
-export const makeName = Effect.fn(function* () {
-  const crypto = yield* Crypto.Crypto;
-  const id = yield* crypto.randomUUIDv4;
-  return `${SANDBOX_NAME}-${id}`;
+export const makeName = Effect.fn(function* (handle: Snapshot.Handle.Handle) {
+  const commitHash = yield* Git.commitHash();
+  const handleName = handle.name;
+  const hash = Hash.hash(`${commitHash}-${handleName}`);
+  return `${SANDBOX_NAME}-${hash}`;
 });
 
 export type Sandbox = Spawn &

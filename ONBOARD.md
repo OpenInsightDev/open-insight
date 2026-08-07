@@ -4,6 +4,11 @@
 
 - 支持 sandboxed grader
 
+## Eval
+
+- 强制要求必须在一个 git 仓库中进行评测。
+- 支持清理策略：如果没能得到最终 result 而退出则不清理任何中间缓存；得到 result 后根据用户要求决定是否清理。
+
 ## Agent
 
 - 梳理 harness engineering 目前公认的几大模块，将其建模为 effect service；

@@ -36,9 +36,13 @@ export type SandboxSession = Readonly<{
 export type SandboxSessionConfig = Readonly<{
   /** The resources to provide to the sandbox. */
   resources: Resource.Resources;
+
+  /** Whether the sandbox may be reused from the snapshot cache. Defaults to `true`. */
+  cache: boolean;
 }>;
 export const DefaultSandboxSessionConfig: SandboxSessionConfig = {
   resources: Resource.make(),
+  cache: true,
 };
 
 export type SnapshotSession = Readonly<{
@@ -113,19 +117,20 @@ export class Service extends Context.Service<Service, Harness>()("harness/Servic
 
           const runSandbox = Effect.fn("HarnessService.runSandbox")(function* ({
             resources = Resource.make(),
+            cache = true,
           } = {}) {
             const sandbox = yield* sandboxProvider
-              .runSandbox({ handle, resources })
+              .runSandbox({ handle, resources, cache })
               .pipe(Effect.mapError(HarnessError.sandbox));
 
-            const runSession = Effect.fn("HarnessService.runSession")(function* () {
+            const runAgent = Effect.fn("HarnessService.runAgent")(function* () {
               const agentSession = yield* agentProvider
                 .runSession(sandbox)
                 .pipe(Effect.mapError(HarnessError.agent));
               return yield* makeAgentSession(agentSession);
             }) satisfies SandboxSession["runAgent"];
 
-            return { sandbox, runAgent: runSession } satisfies SandboxSession;
+            return { sandbox, runAgent: runAgent } satisfies SandboxSession;
           }) satisfies SnapshotSession["runSandbox"];
 
           return { handle, runSandbox } satisfies SnapshotSession;

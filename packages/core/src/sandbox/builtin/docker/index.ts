@@ -3,8 +3,7 @@ import * as Sandbox from "#/sandbox/export.ts";
 import * as Snapshot from "#/snapshot/export.ts";
 import { Spawn, Bash } from "#/utils/export.ts";
 import { Crypto, Duration, Effect, FileSystem, Layer, Match } from "effect";
-import { ChildProcess as CP } from "effect/unstable/process";
-import { ChildProcessSpawner } from "effect/unstable/process/ChildProcessSpawner";
+import { ChildProcessSpawner, ChildProcess as CP } from "effect/unstable/process";
 import { formatPorts, formatResources, hasPort } from "./utils.ts";
 import { makeSandboxSpawner } from "./spawn.ts";
 import * as Runtime from "./runtime.ts";
@@ -24,11 +23,12 @@ export const make = Effect.fn("sandbox/provider/docker")(
   }: Options): Effect.fn.Return<
     Sandbox.Provider,
     SandboxError,
-    Crypto.Crypto | FileSystem.FileSystem | Spawn.Service
+    Crypto.Crypto | FileSystem.FileSystem | Spawn.Service | ChildProcessSpawner.ChildProcessSpawner
   > {
     const runtime = yield* Runtime.make().pipe(Effect.mapError(SandboxError.provider("docker")));
 
     const crypto = yield* Crypto.Crypto;
+    const cp = yield* ChildProcessSpawner.ChildProcessSpawner;
     const spawner = yield* Spawn.Service;
     const fs = yield* FileSystem.FileSystem;
 
@@ -97,7 +97,7 @@ export const make = Effect.fn("sandbox/provider/docker")(
       );
 
     const aquireSnapshot = Effect.fn(
-      function* ({ snapshot, cache = false }) {
+      function* ({ snapshot, cache }) {
         const handle = yield* Snapshot.Handle.make(snapshot);
 
         yield* Effect.annotateCurrentSpan({
@@ -176,7 +176,7 @@ export const make = Effect.fn("sandbox/provider/docker")(
           baseImage: handle.name,
           image: derived.name,
           context,
-          cache: cache ?? false,
+          cache,
         });
 
         const containerfilePath = yield* Snapshot.writeInstructions(
@@ -216,7 +216,7 @@ export const make = Effect.fn("sandbox/provider/docker")(
 
     const runSandbox = Effect.fn(
       function* ({ handle, resources }) {
-        const name = yield* Sandbox.makeName().pipe(
+        const name = yield* Sandbox.makeName(handle).pipe(
           Effect.mapError(SandboxError.sandboxStart(handle.name)),
         );
         yield* Effect.annotateCurrentSpan({
@@ -395,6 +395,7 @@ export const make = Effect.fn("sandbox/provider/docker")(
         effect.pipe(
           Effect.provideService(Spawn.Service, spawner),
           Effect.provideService(Crypto.Crypto, crypto),
+          Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, cp),
           Effect.annotateLogs({
             provider: "docker",
           }),
@@ -415,7 +416,7 @@ export const layerFrom = (
 ): Layer.Layer<
   Sandbox.ProviderService,
   SandboxError,
-  Crypto.Crypto | FileSystem.FileSystem | ChildProcessSpawner
+  Crypto.Crypto | FileSystem.FileSystem | ChildProcessSpawner.ChildProcessSpawner
 > => Layer.effect(Sandbox.ProviderService)(make(options));
 
 export const layer = layerFrom({});

@@ -16,7 +16,6 @@ export type LoadFnReturn<
 > = Effect.fn.Return<Tasks<T>, E, R>;
 
 export * from "./error.ts";
-export * from "./file.ts";
 export * from "./dist.ts";
 export * from "./git/index.ts";
 export * from "./iter.ts";
