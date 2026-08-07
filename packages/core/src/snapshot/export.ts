@@ -1,19 +1,21 @@
 export {
-  ContainerfileSnapshot,
-  InstructionsSnapshot,
-  Snapshot,
+  ContainerfileTemplate,
+  InstructionsTemplate,
+  Template,
+  Image,
+  FromString,
   encode,
   extend,
   build,
   hash,
   isContainerfile,
   isInstructions,
-  make,
-  makeWith,
+  makeTemplate,
+  makeTemplateWith,
   Scratch,
   writeInstructions,
   type MakeOptions,
-} from "./build.ts";
+} from "./template.ts";
 export {
   BuildError,
   DeriveError,
@@ -22,9 +24,6 @@ export {
   InstructionUnsupported,
   UseError,
 } from "./error.ts";
-
-export * as Image from "./image.ts";
-export * as Handle from "./handle.ts";
 
 export * from "./inst.ts";
 export * as Internal from "./index.ts";

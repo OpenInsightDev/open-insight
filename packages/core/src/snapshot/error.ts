@@ -1,11 +1,11 @@
 import { Formatter, Schema } from "effect";
-import { Snapshot } from "./build.ts";
+import { Template } from "./template.ts";
 import { Instruction, Instructions } from "./inst.ts";
 
 export class BuildError extends Schema.TaggedError<BuildError>(
   "open-insight/SnapshotError/BuildError",
 )("BuildError", {
-  snapshot: Schema.suspend(() => Snapshot),
+  template: Schema.suspend(() => Template),
   cause: Schema.Defect(),
 }) {
   override get message(): string {
@@ -41,7 +41,7 @@ export class InstructionUnsupported extends Schema.TaggedError<InstructionUnsupp
   "open-insight/SnapshotError/InstructionUnsupported",
 )("InstructionUnsupported", {
   name: Schema.String,
-  snapshot: Schema.suspend(() => Snapshot),
+  template: Schema.suspend(() => Template),
   instruction: Instruction,
 }) {
   override get message(): string {
@@ -72,9 +72,9 @@ export class SnapshotError extends Schema.TaggedError<SnapshotError>("open-insig
   }
 
   static build =
-    (snapshot: Snapshot) =>
+    (template: Template) =>
     (cause: unknown): SnapshotError =>
-      SnapshotError.make({ reason: BuildError.make({ snapshot, cause }) });
+      SnapshotError.make({ reason: BuildError.make({ template, cause }) });
 
   static derive =
     (name: string, instructions: Instructions) =>
@@ -88,10 +88,10 @@ export class SnapshotError extends Schema.TaggedError<SnapshotError>("open-insig
 
   static instUnsupported = (
     name: string,
-    snapshot: Snapshot,
+    template: Template,
     instruction: Instruction,
   ): SnapshotError =>
     SnapshotError.make({
-      reason: InstructionUnsupported.make({ name, snapshot, instruction }),
+      reason: InstructionUnsupported.make({ name, template, instruction }),
     });
 }

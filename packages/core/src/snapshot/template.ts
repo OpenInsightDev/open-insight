@@ -1,24 +1,35 @@
 import { Crypto, Effect, Encoding, FileSystem, Path, Schema } from "effect";
 import { SnapshotError } from "./error.ts";
-import * as Image from "./image.ts";
 import { cmd, Instruction, Instructions } from "./inst.ts";
+
+const OciImageReference =
+  /^(?:(?<domain>[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)+)(?::(?<port>\d+))?\/)?(?<repository>[a-z0-9]+(?:(?:[._]|__|[-]*)[a-z0-9]+)*(?:\/[a-z0-9]+(?:(?:[._]|__|[-]*)[a-z0-9]+)*)*)(?::(?<tag>[a-zA-Z0-9_][a-zA-Z0-9._-]{0,127}))?(?:@(?<digest>[a-zA-Z0-9-_]+:[a-fA-F0-9]{32,}))?$/;
+
+export const Image = Schema.String.pipe(Schema.brand("Image"));
+export type Image = Schema.Schema.Type<typeof Image>;
+
+export const FromString = Schema.String.check(
+  Schema.isPattern(OciImageReference, { expected: "a valid OCI image reference" }),
+).pipe(Schema.decodeTo(Image));
+
+const makeImage = (image: string): Image => Image.make(image);
 
 // Sandbox environments only allow `sleep` as the default command.
 const defaultCommand = cmd("sleep", "infinity");
 
-/** A snapshot described with the provider-independent instruction set. */
-export class InstructionsSnapshot extends Schema.TaggedClass<InstructionsSnapshot>()(
+/** A template described with the provider-independent instruction set. */
+export class InstructionsTemplate extends Schema.TaggedClass<InstructionsTemplate>()(
   "Instructions",
   {
-    image: Image.FromString,
+    image: FromString,
     instructions: Instructions,
     /** Absolute build-context directory on the host machine. */
     context: Schema.String,
   },
 ) {}
 
-/** A snapshot described by a Dockerfile or Containerfile on the user's machine. */
-export class ContainerfileSnapshot extends Schema.TaggedClass<ContainerfileSnapshot>()(
+/** A template described by a Dockerfile or Containerfile on the user's machine. */
+export class ContainerfileTemplate extends Schema.TaggedClass<ContainerfileTemplate>()(
   "Containerfile",
   {
     /** Absolute path to the Dockerfile or Containerfile on the host machine. */
@@ -28,11 +39,11 @@ export class ContainerfileSnapshot extends Schema.TaggedClass<ContainerfileSnaps
   },
 ) {}
 
-export const Snapshot = Schema.Union([InstructionsSnapshot, ContainerfileSnapshot]);
-export type Snapshot = Schema.Schema.Type<typeof Snapshot>;
+export const Template = Schema.Union([InstructionsTemplate, ContainerfileTemplate]);
+export type Template = Schema.Schema.Type<typeof Template>;
 
-export const isInstructions = Schema.is(InstructionsSnapshot);
-export const isContainerfile = Schema.is(ContainerfileSnapshot);
+export const isInstructions = Schema.is(InstructionsTemplate);
+export const isContainerfile = Schema.is(ContainerfileTemplate);
 
 /**
  * The name of the snapshot.
@@ -78,38 +89,38 @@ export const encode = ({
 };
 
 /** Write provider-independent instructions to a temporary Containerfile and return its path. */
-export const writeInstructions = Effect.fn(function* (snapshot: InstructionsSnapshot) {
+export const writeInstructions = Effect.fn(function* (template: InstructionsTemplate) {
   const fs = yield* FileSystem.FileSystem;
   const containerfilePath = yield* fs.makeTempFile({
     prefix: "open-insight-",
     suffix: ".Containerfile",
   });
-  yield* fs.writeFileString(containerfilePath, encode(snapshot));
+  yield* fs.writeFileString(containerfilePath, encode(template));
   return containerfilePath;
 });
 
 export const hash = Effect.fn(
-  function* (snapshot: Snapshot) {
+  function* (template: Template) {
     const crypto = yield* Crypto.Crypto;
-    const source = isInstructions(snapshot)
-      ? JSON.stringify({ containerfile: encode(snapshot), context: snapshot.context })
-      : JSON.stringify({ filePath: snapshot.filePath, context: snapshot.context });
+    const source = isInstructions(template)
+      ? JSON.stringify({ containerfile: encode(template), context: template.context })
+      : JSON.stringify({ filePath: template.filePath, context: template.context });
     const bytes = new TextEncoder().encode(source);
     const digest = yield* crypto.digest("SHA-256", bytes);
     return Encoding.encodeHex(digest);
   },
-  (effect, snapshot): Effect.Effect<string, Error, Crypto.Crypto> =>
-    effect.pipe(Effect.mapError(SnapshotError.build(snapshot))),
+  (effect, template): Effect.Effect<string, Error, Crypto.Crypto> =>
+    effect.pipe(Effect.mapError(SnapshotError.build(template))),
 );
 
-/** Extend an instruction snapshot after its existing instructions. */
+/** Extend an instruction template after its existing instructions. */
 export const extend =
   (instructions: Instructions) =>
-  (snapshot: InstructionsSnapshot): InstructionsSnapshot =>
-    new InstructionsSnapshot({
-      image: snapshot.image,
-      instructions: [...snapshot.instructions, ...instructions],
-      context: snapshot.context,
+  (template: InstructionsTemplate): InstructionsTemplate =>
+    new InstructionsTemplate({
+      image: template.image,
+      instructions: [...template.instructions, ...instructions],
+      context: template.context,
     });
 
 export const build = Effect.fn(function* ({
@@ -132,7 +143,7 @@ export const build = Effect.fn(function* ({
       ? path.dirname(resolvedFilePath)
       : yield* fs.realPath(path.resolve(context));
 
-  return new ContainerfileSnapshot({
+  return new ContainerfileTemplate({
     filePath: resolvedFilePath,
     context: resolvedContext,
   });
@@ -144,24 +155,24 @@ export type MakeOptions = {
   instructions: Instructions;
 };
 
-/** Create a snapshot from an OCI image reference without build instructions. */
-export const make = (image: string): InstructionsSnapshot =>
-  new InstructionsSnapshot({
-    image: Image.make(image),
+/** Create a template from an OCI image reference without build instructions. */
+export const makeTemplate = (image: string): InstructionsTemplate =>
+  new InstructionsTemplate({
+    image: makeImage(image),
     context: "/tmp",
     instructions: [defaultCommand],
   });
 
-/** Create a snapshot from an OCI image reference and provider-independent instructions. */
-export const makeWith = ({
+/** Create a template from an OCI image reference and provider-independent instructions. */
+export const makeTemplateWith = ({
   image,
   context = "/tmp",
   instructions,
-}: MakeOptions): InstructionsSnapshot =>
-  new InstructionsSnapshot({
-    image: Image.make(image),
+}: MakeOptions): InstructionsTemplate =>
+  new InstructionsTemplate({
+    image: makeImage(image),
     context,
     instructions: [...instructions, defaultCommand],
   });
 
-export const Scratch = make("scratch");
+export const Scratch = makeTemplate("scratch");
