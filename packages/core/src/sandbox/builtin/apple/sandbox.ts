@@ -14,7 +14,7 @@ import {
 } from "./utils.ts";
 
 type RunOptions = Readonly<{
-  handle: Snapshot.Handle.Handle;
+  snapshot: Snapshot.Snapshot;
   resources: Resource.Resources;
   timeout: Duration.Input;
 }>;
@@ -23,7 +23,7 @@ const formatSandboxCommand = ({ command, args = [] }: Sandbox.Spawn.Command) =>
   [command, ...args].map(Bash.quote).join(" ");
 
 const ensureSupportedResources = Effect.fn(function* (
-  handle: Snapshot.Handle.Handle,
+  snapshot: Snapshot.Snapshot,
   resources: Resource.Resources,
 ) {
   if (Option.isNone(resources.memoryMiB) || resources.memoryMiB.value >= minimumMemoryMiB) {
@@ -31,7 +31,7 @@ const ensureSupportedResources = Effect.fn(function* (
   }
 
   return yield* Effect.fail(
-    SandboxError.sandboxStart(handle.name)(
+    SandboxError.sandboxStart(snapshot.name)(
       new Error(
         `Apple container requires at least ${minimumMemoryMiB} MiB of memory, received ${resources.memoryMiB.value} MiB`,
       ),
@@ -40,24 +40,24 @@ const ensureSupportedResources = Effect.fn(function* (
 });
 
 export const runSandbox = Effect.fn(
-  function* ({ handle, resources, timeout }: RunOptions) {
+  function* ({ snapshot, resources, timeout }: RunOptions) {
     const fs = yield* FileSystem.FileSystem;
     const spawner = yield* Spawn.Service;
     const name = yield* Sandbox.makeName().pipe(
-      Effect.mapError(SandboxError.sandboxStart(handle.name)),
+      Effect.mapError(SandboxError.sandboxStart(snapshot.name)),
     );
     const networkName = `oi-network-${name.slice(-36)}`;
     yield* Effect.annotateCurrentSpan({
-      appleContainerImage: handle.name,
+      appleContainerImage: snapshot.name,
       containerName: name,
     });
     yield* Effect.logDebug("Starting Apple container sandbox", {
-      image: handle.name,
+      image: snapshot.name,
       containerName: name,
       resources,
     });
 
-    yield* ensureSupportedResources(handle, resources);
+    yield* ensureSupportedResources(snapshot, resources);
 
     const start = Effect.fn(function* (command: CP.Command) {
       yield* spawner
@@ -129,10 +129,10 @@ export const runSandbox = Effect.fn(
           )
         : [];
 
-    const resourceArgs = yield* formatResources(handle.name, resources);
+    const resourceArgs = yield* formatResources(snapshot.name, resources);
     const create = CP.make(
       "container",
-      ["create", "--rm", "--detach", "--name", name, ...networkArgs, ...resourceArgs, handle.name],
+      ["create", "--rm", "--detach", "--name", name, ...networkArgs, ...resourceArgs, snapshot.name],
       containerOptions,
     );
     yield* Effect.acquireRelease(
@@ -140,13 +140,13 @@ export const runSandbox = Effect.fn(
       removeContainer,
     );
     yield* Effect.logDebug("Apple sandbox container was created", {
-      image: handle.name,
+      image: snapshot.name,
       containerName: name,
     });
 
     yield* start(CP.make`container start ${name}`);
     yield* Effect.logDebug("Apple sandbox container is running", {
-      image: handle.name,
+      image: snapshot.name,
       containerName: name,
     });
 
@@ -187,7 +187,7 @@ export const runSandbox = Effect.fn(
         yield* spawner
           .success(command)
           .pipe(Effect.timeout(timeout))
-          .pipe(Effect.mapError(SandboxError.sandboxExec(handle.name, Bash.format(command))));
+          .pipe(Effect.mapError(SandboxError.sandboxExec(snapshot.name, Bash.format(command))));
         yield* Effect.logDebug("Downloaded file from Apple sandbox", {
           containerName: name,
           sandboxPath,
@@ -204,7 +204,7 @@ export const runSandbox = Effect.fn(
         yield* spawner
           .success(command)
           .pipe(Effect.timeout(timeout))
-          .pipe(Effect.mapError(SandboxError.sandboxExec(handle.name, Bash.format(command))));
+          .pipe(Effect.mapError(SandboxError.sandboxExec(snapshot.name, Bash.format(command))));
         yield* Effect.logDebug("Uploaded file to Apple sandbox", {
           containerName: name,
           hostPath,
@@ -216,7 +216,7 @@ export const runSandbox = Effect.fn(
         return yield* sandboxSpawner
           .stdout(command)
           .pipe(
-            Effect.mapError(SandboxError.sandboxExec(handle.name, formatSandboxCommand(command))),
+            Effect.mapError(SandboxError.sandboxExec(snapshot.name, formatSandboxCommand(command))),
           );
       }),
       writeFile: Effect.fn(
@@ -233,7 +233,7 @@ export const runSandbox = Effect.fn(
               spawner
                 .success(command)
                 .pipe(Effect.timeout(timeout))
-                .pipe(Effect.mapError(SandboxError.sandboxExec(handle.name, Bash.format(command)))),
+                .pipe(Effect.mapError(SandboxError.sandboxExec(snapshot.name, Bash.format(command)))),
             ),
             Effect.ensuring(fs.remove(hostPath, { force: true }).pipe(Effect.ignore)),
           );
@@ -245,7 +245,7 @@ export const runSandbox = Effect.fn(
         (effect, { sandboxPath }) =>
           effect.pipe(
             Effect.mapError(
-              SandboxError.sandboxExec(handle.name, `write ${Bash.quote(sandboxPath)}`),
+              SandboxError.sandboxExec(snapshot.name, `write ${Bash.quote(sandboxPath)}`),
             ),
           ),
       ),

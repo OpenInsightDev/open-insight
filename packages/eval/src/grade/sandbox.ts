@@ -35,7 +35,7 @@ type Config = Readonly<{
 export type Grader<R extends Result = Result, Rs extends Results = never> = Readonly<{
   schema: R;
   grade: Exec<R, Rs>;
-  snapshot: Snapshot.Snapshot;
+  snapshot: Snapshot.Template;
   verif: Verif<R> | null;
   config: Config;
 }>;
@@ -50,7 +50,7 @@ export const make =
   <R extends Result>(schema: R) =>
   <Rs extends Results>(
     grade: Exec<R, Rs>,
-    snapshot: Snapshot.Snapshot,
+    snapshot: Snapshot.Template,
     { verif = null, scope = "per-trail" }: Options<R> = {},
   ): Grader<R, Rs> => ({
     schema,

@@ -111,7 +111,7 @@ async function* loadTasks(repoPath: string) {
 
   const datasetDir = resolve(repoPath, datasetDirName);
 
-  const snapshot = Snapshot.makeWith({
+  const snapshot = Snapshot.makeTemplateWith({
     image: "ubuntu:24.04",
     context: import.meta.dirname,
     instructions: [

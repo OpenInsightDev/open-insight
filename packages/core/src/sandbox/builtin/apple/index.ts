@@ -27,13 +27,13 @@ export const make = Effect.fn("sandbox/provider/apple")(
       .success(CP.make`container builder start`)
       .pipe(Effect.mapError(SandboxError.provider("apple")));
 
-    const aquireSnapshot = Effect.fn(function* (options) {
-      return yield* Image.aquireSnapshot(options).pipe(
+    const acquireSnapshot = Effect.fn(function* (options) {
+      return yield* Image.acquireSnapshot(options).pipe(
         Effect.provideService(Crypto.Crypto, crypto),
         Effect.provideService(FileSystem.FileSystem, fs),
         Effect.provideService(Spawn.Service, spawner),
       );
-    }) satisfies Sandbox.Provider["aquireSnapshot"];
+    }) satisfies Sandbox.Provider["acquireSnapshot"];
 
     const deriveSnapshot = Effect.fn(function* (options) {
       return yield* Image.deriveSnapshot(options).pipe(
@@ -43,8 +43,8 @@ export const make = Effect.fn("sandbox/provider/apple")(
       );
     }) satisfies Sandbox.Provider["deriveSnapshot"];
 
-    const runSandbox = Effect.fn(function* ({ handle, resources }) {
-      return yield* AppleSandbox.runSandbox({ handle, resources, timeout }).pipe(
+    const runSandbox = Effect.fn(function* ({ snapshot, resources }) {
+      return yield* AppleSandbox.runSandbox({ snapshot, resources, timeout }).pipe(
         Effect.provideService(Crypto.Crypto, crypto),
         Effect.provideService(FileSystem.FileSystem, fs),
         Effect.provideService(Spawn.Service, spawner),
@@ -52,7 +52,7 @@ export const make = Effect.fn("sandbox/provider/apple")(
     }) satisfies Sandbox.Provider["runSandbox"];
 
     return {
-      aquireSnapshot,
+      acquireSnapshot,
       deriveSnapshot,
       runSandbox,
     } satisfies Sandbox.Provider;

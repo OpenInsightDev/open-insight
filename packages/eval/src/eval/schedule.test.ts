@@ -46,11 +46,11 @@ const fakeSandbox = {
   expose: () => Effect.succeed({ hostUrl: "http://localhost" }),
 } satisfies Sandbox.Sandbox;
 
-const fakeSnapshotHandle = Brand.nominal<Snapshot.Handle.Handle>()({ name: "test-image" });
+const fakeSnapshot = Brand.nominal<Snapshot.Snapshot>()({ name: "test-image" });
 
 const makeSnapshotRun = () =>
   Effect.sync(() => ({
-    handle: fakeSnapshotHandle,
+    snapshot: fakeSnapshot,
     runSandbox: () =>
       Effect.sync(() => ({
         sandbox: fakeSandbox,
@@ -92,7 +92,7 @@ it.effect("emits task and eval stop events at completion", () =>
         Effect.sync(() => {
           harnessRunCount += 1;
           return {
-            handle: fakeSnapshotHandle,
+            snapshot: fakeSnapshot,
             runSandbox: () =>
               Effect.sync(() => ({
                 sandbox: fakeSandbox,
@@ -116,7 +116,7 @@ it.effect("emits task and eval stop events at completion", () =>
     const task = yield* Task.make({
       id: "task",
       name: "task",
-      snapshot: Snapshot.make("test-image"),
+      snapshot: Snapshot.makeTemplate("test-image"),
       prompt: "test",
       grader: Grade.make(GradeResult)(async () => ({ passed: true })),
     });
@@ -162,7 +162,7 @@ it.effect("builds a shared snapshot once for tasks in the same group", () =>
         Effect.sync(() => {
           buildSnapshotCount += 1;
           return {
-            handle: fakeSnapshotHandle,
+            snapshot: fakeSnapshot,
             runSandbox: () =>
               Effect.sync(() => ({
                 sandbox: fakeSandbox,
@@ -174,7 +174,7 @@ it.effect("builds a shared snapshot once for tasks in the same group", () =>
     const transport: Event.Transport.Transport = {
       send: (stream: Event.EventStream) => Stream.runDrain(stream),
     };
-    const snapshot = Snapshot.make("shared-image");
+    const snapshot = Snapshot.makeTemplate("shared-image");
     const makeTask = (id: string) =>
       Task.make({
         id,
@@ -209,7 +209,7 @@ it.effect("builds distinct snapshots separately across task groups", () =>
         Effect.sync(() => {
           buildSnapshotCount += 1;
           return {
-            handle: fakeSnapshotHandle,
+            snapshot: fakeSnapshot,
             runSandbox: () =>
               Effect.sync(() => ({
                 sandbox: fakeSandbox,
@@ -221,7 +221,7 @@ it.effect("builds distinct snapshots separately across task groups", () =>
     const transport: Event.Transport.Transport = {
       send: (stream: Event.EventStream) => Stream.runDrain(stream),
     };
-    const makeTask = (id: string, snapshot: Snapshot.Snapshot) =>
+    const makeTask = (id: string, snapshot: Snapshot.Template) =>
       Task.make({
         id,
         name: id,
@@ -232,8 +232,8 @@ it.effect("builds distinct snapshots separately across task groups", () =>
     const bench = yield* Bench.make(
       "distinct-snapshot-bench",
       Tasks.fromIter([
-        makeTask("first", Snapshot.make("image-a")),
-        makeTask("second", Snapshot.make("image-b")),
+        makeTask("first", Snapshot.makeTemplate("image-a")),
+        makeTask("second", Snapshot.makeTemplate("image-b")),
       ]),
     );
 
@@ -263,7 +263,7 @@ it.effect("verifies stable encoded fields while allowing dynamic grade fields", 
     const task = yield* Task.make({
       id: "verif-task",
       name: "verif task",
-      snapshot: Snapshot.make("test-image"),
+      snapshot: Snapshot.makeTemplate("test-image"),
       prompt: "test",
       grader: Grade.make(DynamicGradeResult)(
         async ({ trajectory }) =>

@@ -52,7 +52,7 @@ export class SnapshotBuildUnsupported extends Schema.TaggedError<SnapshotBuildUn
   "open-insight/SandboxError/SnapshotBuildUnsupported",
 )("SnapshotBuildUnsupported", {
   name: Schema.String,
-  snapshot: Snapshot.ContainerfileSnapshot,
+  template: Snapshot.ContainerfileTemplate,
 }) {
   override get message(): string {
     return `Sandbox provider "${this.name}" does not support Containerfile snapshots`;
@@ -117,9 +117,9 @@ export class SandboxError extends Schema.TaggedError<SandboxError>("open-insight
 
   static buildUnsupported = (
     name: string,
-    snapshot: Snapshot.ContainerfileSnapshot,
+    template: Snapshot.ContainerfileTemplate,
   ): SandboxError =>
-    SandboxError.make({ reason: SnapshotBuildUnsupported.make({ name, snapshot }) });
+    SandboxError.make({ reason: SnapshotBuildUnsupported.make({ name, template }) });
 
   static sandboxStart =
     (name: string) =>

@@ -99,7 +99,7 @@ export class SnapshotFailed extends Schema.TaggedError<SnapshotFailed>(
   "open-insight/eval/EvalError/SnapshotFailed",
 )("SnapshotFailed", {
   task: Task.ID,
-  snapshot: Snapshot.Snapshot,
+  snapshot: Snapshot.Template,
   cause: Schema.Defect(),
 }) {
   override get message(): string {

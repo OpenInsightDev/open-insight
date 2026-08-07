@@ -25,5 +25,7 @@ export {
   UseError,
 } from "./error.ts";
 
+export { make, derive, type Snapshot } from "./snapshot.ts";
+
 export * from "./inst.ts";
 export * as Internal from "./index.ts";

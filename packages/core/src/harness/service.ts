@@ -46,10 +46,10 @@ export const DefaultSandboxSessionConfig: SandboxSessionConfig = {
 };
 
 export type SnapshotSession = Readonly<{
-  /** The snapshot handle built from the task snapshot, used to run a sandbox. */
-  handle: Snapshot.Handle.Handle;
+  /** The snapshot built from the task template, used to run a sandbox. */
+  snapshot: Snapshot.Snapshot;
 
-  /** Run a sandbox backed by `snapshotHandle`. */
+  /** Run a sandbox backed by `snapshot`. */
   runSandbox(
     options?: Partial<SandboxSessionConfig>,
   ): Effect.Effect<SandboxSession, HarnessError, Scope.Scope>;
@@ -70,7 +70,7 @@ export const DefaultSnapshotSessionConfig: SnapshotSessionConfig = {
 export type Harness = Readonly<{
   metadata: Metadata;
   runSnapshot(
-    snapshot: Snapshot.Snapshot,
+    snapshot: Snapshot.Template,
     options?: Partial<SnapshotSessionConfig>,
   ): Effect.Effect<SnapshotSession, HarnessError, Scope.Scope>;
 }>;
@@ -93,22 +93,22 @@ export class Service extends Context.Service<Service, Harness>()("harness/Servic
         );
 
         const build = Effect.fn("HarnessService.build")(function* (
-          snapshot,
+          template,
           { cacheTaskSnapshot = true, cacheAgentSnapshot = true } = {},
         ) {
-          const taskSnapshot = yield* sandboxProvider
-            .aquireSnapshot({ snapshot, cache: cacheTaskSnapshot })
-            .pipe(Effect.mapError(HarnessError.snapshotAcquire(snapshot)));
+          const snapshot = yield* sandboxProvider
+            .acquireSnapshot({ template, cache: cacheTaskSnapshot })
+            .pipe(Effect.mapError(HarnessError.snapshotAcquire(template)));
 
-          const handle = yield* agentProvider.snapshotExtension.pipe(
+          const derived = yield* agentProvider.snapshotExtension.pipe(
             Option.match({
-              onNone: () => Effect.succeed(taskSnapshot),
+              onNone: () => Effect.succeed(snapshot),
               onSome: ({ instructions, context }) =>
                 sandboxProvider
                   .deriveSnapshot({
-                    handle: taskSnapshot,
+                    snapshot,
                     instructions,
-                    context: context ?? snapshot.context,
+                    context: context ?? template.context,
                     cache: cacheAgentSnapshot,
                   })
                   .pipe(Effect.mapError(HarnessError.snapshotDerive(instructions))),
@@ -120,7 +120,7 @@ export class Service extends Context.Service<Service, Harness>()("harness/Servic
             cache = true,
           } = {}) {
             const sandbox = yield* sandboxProvider
-              .runSandbox({ handle, resources, cache })
+              .runSandbox({ snapshot: derived, resources, cache })
               .pipe(Effect.mapError(HarnessError.sandbox));
 
             const runAgent = Effect.fn("HarnessService.runAgent")(function* () {
@@ -133,7 +133,7 @@ export class Service extends Context.Service<Service, Harness>()("harness/Servic
             return { sandbox, runAgent: runAgent } satisfies SandboxSession;
           }) satisfies SnapshotSession["runSandbox"];
 
-          return { handle, runSandbox } satisfies SnapshotSession;
+          return { snapshot: derived, runSandbox } satisfies SnapshotSession;
         }) satisfies Harness["runSnapshot"];
 
         return { metadata, runSnapshot: build } satisfies Harness;

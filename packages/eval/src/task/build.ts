@@ -39,7 +39,7 @@ export class Metadata extends Schema.Class<Metadata>("Metadata")({
 
 export type Task<G extends Grade.Result = never, S extends Stage = never> = Readonly<{
   metadata: BaseMetadata;
-  snapshot: Snapshot.Snapshot;
+  snapshot: Snapshot.Template;
 
   metrics: ReadonlyArray<Metric.Task.Metric>;
   trajMetrics: ReadonlyArray<Metric.Traj.Metric>;
@@ -58,7 +58,7 @@ type InitialStageName = typeof InitialStageName;
 type Options<G extends Grade.Result> = BaseMetadataEncoded &
   Partial<Harness.SandboxSessionConfig> &
   Readonly<{
-    snapshot: Snapshot.Snapshot;
+    snapshot: Snapshot.Template;
     trajMetrics?: ReadonlyArray<Metric.Traj.Metric>;
   }> &
   StageOptions<G, never>;

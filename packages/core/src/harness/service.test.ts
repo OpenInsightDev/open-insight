@@ -5,11 +5,11 @@ import * as Harness from "./index.ts";
 import * as Sandbox from "#/sandbox/index.ts";
 import * as Snapshot from "#/snapshot/index.ts";
 
-const handle = Brand.nominal<Snapshot.Handle.Handle>()({ name: "test-image" });
+const snapshot = Brand.nominal<Snapshot.Snapshot>()({ name: "test-image" });
 
 const sandboxProvider = {
-  aquireSnapshot: () => Effect.succeed(handle),
-  deriveSnapshot: () => Effect.succeed(handle),
+  acquireSnapshot: () => Effect.succeed(snapshot),
+  deriveSnapshot: () => Effect.succeed(snapshot),
   runSandbox: () => Effect.die("not used"),
 } satisfies Sandbox.Provider;
 
@@ -27,8 +27,8 @@ layer(Harness.Service.layer("test").pipe(Layer.provide(dependencies)))((it) => {
   it.effect("builds a snapshot run backed by the acquired snapshot handle", () =>
     Effect.gen(function* () {
       const harness = yield* Harness.Service;
-      const run = yield* harness.runSnapshot(Snapshot.make("test-image"));
-      assert.strictEqual(run.handle, handle);
+      const run = yield* harness.runSnapshot(Snapshot.makeTemplate("test-image"));
+      assert.strictEqual(run.snapshot, snapshot);
     }).pipe(Effect.scoped),
   );
 });

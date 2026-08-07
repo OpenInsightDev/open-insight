@@ -22,7 +22,7 @@ type ScheduledTrail = ScheduledTask &
 
 type SnapshotGroup = Readonly<{
   hash: string;
-  snapshot: Snapshot.Snapshot;
+  snapshot: Snapshot.Template;
   tasks: ReadonlyArray<Task.AnyTask>;
 }>;
 

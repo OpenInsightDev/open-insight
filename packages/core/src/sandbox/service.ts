@@ -6,42 +6,42 @@ import * as Snapshot from "#/snapshot/index.ts";
 
 export type Provider = Readonly<{
   /**
-   * Acquire a handle to a snapshot, which can be used to run a sandbox or derive a new snapshot.
+   * Acquire a snapshot from a template, which can be used to run a sandbox or derive a new snapshot.
    *
-   * The handle refers to a snapshot that is guaranteed to exist in the provider's storage during the scope.
+   * The snapshot refers to a template that is guaranteed to exist in the provider's storage during the scope.
    *
    * Providers that cannot build an image from a local Dockerfile or Containerfile must fail a
-   * `Containerfile` snapshot with `SandboxError.buildUnsupported`.
+   * `Containerfile` template with `SandboxError.buildUnsupported`.
    *
    * @argument cache - If false, the provider will not cache the snapshot and will remove it from storage when the scope ends.
    */
-  aquireSnapshot(
+  acquireSnapshot(
     options: Readonly<{
-      snapshot: Snapshot.Snapshot;
+      template: Snapshot.Template;
       cache: boolean;
     }>,
-  ): Effect.Effect<Snapshot.Handle.Handle, SandboxError, Scope.Scope>;
+  ): Effect.Effect<Snapshot.Snapshot, SandboxError, Scope.Scope>;
 
   /**
-   * Derive a new snapshot handle from an existing handle with a set of instructions.
+   * Derive a new snapshot from an existing snapshot with a set of instructions.
    *
-   * The derived one is directly built from the given handle.
+   * The derived one is directly built from the given snapshot.
    */
   deriveSnapshot(
     options: Readonly<{
-      handle: Snapshot.Handle.Handle;
+      snapshot: Snapshot.Snapshot;
       instructions: Snapshot.Instructions;
       context: string;
       cache: boolean;
     }>,
-  ): Effect.Effect<Snapshot.Handle.Handle, SandboxError, Scope.Scope>;
+  ): Effect.Effect<Snapshot.Snapshot, SandboxError, Scope.Scope>;
 
   /**
-   * Run a sandbox with the given snapshot handle.
+   * Run a sandbox with the given snapshot.
    */
   runSandbox(
     options: Readonly<{
-      handle: Snapshot.Handle.Handle;
+      snapshot: Snapshot.Snapshot;
       resources: Resources;
       cache: boolean;
     }>,

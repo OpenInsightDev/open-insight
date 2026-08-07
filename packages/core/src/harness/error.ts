@@ -17,7 +17,7 @@ export class InitError extends Schema.TaggedError<InitError>("open-insight/Harne
 export class SnapshotAcquireError extends Schema.TaggedError<SnapshotAcquireError>(
   "open-insight/HarnessError/SnapshotAcquireError",
 )("SnapshotAcquireError", {
-  snapshot: Snapshot.Snapshot,
+  snapshot: Snapshot.Template,
   cause: SandboxError,
 }) {
   override get message(): string {
@@ -82,7 +82,7 @@ export class HarnessError extends Schema.TaggedError<HarnessError>("open-insight
     HarnessError.make({ reason: InitError.make({ cause }) });
 
   static snapshotAcquire =
-    (snapshot: Snapshot.Snapshot) =>
+    (snapshot: Snapshot.Template) =>
     (cause: SandboxError): HarnessError =>
       HarnessError.make({ reason: SnapshotAcquireError.make({ snapshot, cause }) });
 

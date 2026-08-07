@@ -4,92 +4,92 @@ import { Spawn } from "#/utils/export.ts";
 import { Effect } from "effect";
 import { ChildProcess as CP } from "effect/unstable/process";
 
-const imageExists = Effect.fn(function* (handle: Snapshot.Handle.Handle) {
+const imageExists = Effect.fn(function* (snapshot: Snapshot.Snapshot) {
   const spawner = yield* Spawn.Service;
-  return yield* spawner.success(CP.make`container image inspect ${handle.name}`).pipe(
+  return yield* spawner.success(CP.make`container image inspect ${snapshot.name}`).pipe(
     Effect.as(true),
     Effect.catch(() => Effect.succeed(false)),
   );
 });
 
-const removeImage = Effect.fn(function* (handle: Snapshot.Handle.Handle) {
+const removeImage = Effect.fn(function* (snapshot: Snapshot.Snapshot) {
   const spawner = yield* Spawn.Service;
-  yield* Effect.logDebug("Removing uncached Apple container image", { image: handle.name });
-  yield* spawner.success(CP.make`container image delete --force ${handle.name}`).pipe(
+  yield* Effect.logDebug("Removing uncached Apple container image", { image: snapshot.name });
+  yield* spawner.success(CP.make`container image delete --force ${snapshot.name}`).pipe(
     Effect.tap(() =>
       Effect.logDebug("Removed uncached Apple container image", {
-        image: handle.name,
+        image: snapshot.name,
       }),
     ),
     Effect.catch((error) =>
       Effect.logWarning("Failed to remove uncached Apple container image", {
-        image: handle.name,
+        image: snapshot.name,
         error,
       }),
     ),
   );
 });
 
-export const aquireSnapshot = Effect.fn(
-  function* ({ snapshot, cache = false }) {
+export const acquireSnapshot = Effect.fn(
+  function* ({ template, cache = false }) {
     const spawner = yield* Spawn.Service;
-    const handle = yield* Snapshot.Handle.make(snapshot);
+    const snapshot = yield* Snapshot.make(template);
     yield* Effect.annotateCurrentSpan({
-      appleContainerImage: handle.name,
-      snapshotContext: snapshot.context,
+      appleContainerImage: snapshot.name,
+      snapshotContext: template.context,
     });
 
-    if (yield* imageExists(handle)) {
+    if (yield* imageExists(snapshot)) {
       yield* Effect.logDebug("Using cached Apple container snapshot image", {
-        image: handle.name,
-        context: snapshot.context,
+        image: snapshot.name,
+        context: template.context,
       });
-      return handle;
+      return snapshot;
     }
 
     yield* Effect.logInfo("Building Apple container snapshot image", {
-      image: handle.name,
-      context: snapshot.context,
+      image: snapshot.name,
+      context: template.context,
       cache,
     });
 
-    const containerfilePath = Snapshot.isContainerfile(snapshot)
-      ? snapshot.filePath
-      : yield* Snapshot.writeInstructions(snapshot);
+    const containerfilePath = Snapshot.isContainerfile(template)
+      ? template.filePath
+      : yield* Snapshot.writeInstructions(template);
     yield* spawner.success(
-      CP.make`container build --file ${containerfilePath} --tag ${handle.name} ${snapshot.context}`,
+      CP.make`container build --file ${containerfilePath} --tag ${snapshot.name} ${template.context}`,
     );
     yield* Effect.logInfo("Built Apple container snapshot image", {
-      image: handle.name,
-      context: snapshot.context,
+      image: snapshot.name,
+      context: template.context,
     });
 
     if (!cache) {
-      yield* Effect.addFinalizer(() => removeImage(handle));
+      yield* Effect.addFinalizer(() => removeImage(snapshot));
     }
 
-    return handle;
+    return snapshot;
   },
-  (effect, { snapshot }) =>
+  (effect, { template }) =>
     effect.pipe(
-      Effect.annotateLogs({ snapshotContext: snapshot.context }),
-      Effect.mapError(SandboxError.snapshot(Snapshot.SnapshotError.build(snapshot))),
+      Effect.annotateLogs({ snapshotContext: template.context }),
+      Effect.mapError(SandboxError.snapshot(Snapshot.SnapshotError.build(template))),
     ),
 );
 
 export const deriveSnapshot = Effect.fn(
-  function* ({ handle, context, instructions, cache = false }) {
+  function* ({ snapshot, context, instructions, cache = false }) {
     const spawner = yield* Spawn.Service;
-    const derived = yield* Snapshot.Handle.derive({ handle, instructions });
+    const derived = yield* Snapshot.derive({ snapshot, instructions });
     yield* Effect.annotateCurrentSpan({
-      baseAppleContainerImage: handle.name,
+      baseAppleContainerImage: snapshot.name,
       appleContainerImage: derived.name,
       snapshotContext: context,
     });
 
     if (yield* imageExists(derived)) {
       yield* Effect.logDebug("Using cached derived Apple container image", {
-        baseImage: handle.name,
+        baseImage: snapshot.name,
         image: derived.name,
         context,
       });
@@ -97,20 +97,20 @@ export const deriveSnapshot = Effect.fn(
     }
 
     yield* Effect.logInfo("Building derived Apple container image", {
-      baseImage: handle.name,
+      baseImage: snapshot.name,
       image: derived.name,
       context,
       cache,
     });
 
     const containerfilePath = yield* Snapshot.writeInstructions(
-      Snapshot.makeWith({ image: handle.name, instructions, context }),
+      Snapshot.makeTemplateWith({ image: snapshot.name, instructions, context }),
     );
     yield* spawner.success(
       CP.make`container build --file ${containerfilePath} --tag ${derived.name} ${context}`,
     );
     yield* Effect.logInfo("Built derived Apple container image", {
-      baseImage: handle.name,
+      baseImage: snapshot.name,
       image: derived.name,
       context,
     });
@@ -121,11 +121,11 @@ export const deriveSnapshot = Effect.fn(
 
     return derived;
   },
-  (effect, { handle, instructions }) =>
+  (effect, { snapshot, instructions }) =>
     effect.pipe(
-      Effect.annotateLogs({ baseAppleContainerImage: handle.name }),
+      Effect.annotateLogs({ baseAppleContainerImage: snapshot.name }),
       Effect.mapError(
-        SandboxError.snapshot(Snapshot.SnapshotError.derive(handle.name, instructions)),
+        SandboxError.snapshot(Snapshot.SnapshotError.derive(snapshot.name, instructions)),
       ),
     ),
 );
