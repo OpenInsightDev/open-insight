@@ -7,17 +7,17 @@ catalogMode: strict
 
 catalog:
   "@types/node": ^26.1.1
-  effect: 4.0.0-beta.102
+  effect: 4.0.0-beta.105
   "@effect/language-service": ^0.87.1
   "@effect/tsgo": 0.24.3
   typescript: ^7.0.2
   vite: npm:@voidzero-dev/vite-plus-core@^0.2.6
   vitest: 4.1.10
   vite-plus: ^0.2.7
-  "@effect/platform-node": 4.0.0-beta.102
-  "@effect/vitest": 4.0.0-beta.102
-  "@effect/ai-openai": 4.0.0-beta.102
-  "@effect/opentelemetry": 4.0.0-beta.102
+  "@effect/platform-node": 4.0.0-beta.105
+  "@effect/vitest": 4.0.0-beta.105
+  "@effect/ai-openai": 4.0.0-beta.105
+  "@effect/opentelemetry": 4.0.0-beta.105
   ai: ^7.0.37
   "@changesets/cli": ^2.31.1
   pathe: ^2.0.3
@@ -52,7 +52,7 @@ catalog:
   '@opentelemetry/sdk-logs': ^0.221.0
   '@opentelemetry/sdk-trace-web': ^2.10.0
   '@effect/ai-openai-compat': 4.0.0-beta.101
-  '@effect/ai-anthropic': 4.0.0-beta.102
+  '@effect/ai-anthropic': 4.0.0-beta.105
   '@babel/core': ^8.0.1
   '@rolldown/plugin-babel': ^0.2.3
   '@types/babel__core': ^7.20.5
@@ -88,7 +88,6 @@ catalog:
   '@computesdk/e2b': ^1.7.52
   '@computesdk/provider': ^2.1.4
   '@effect/sql-sqlite-node': 4.0.0-beta.105
-  '@effect/sql-sqlite-wasm': 4.0.0-beta.104
 overrides:
   vite: "catalog:"
   vitest: "catalog:"
@@ -126,13 +125,13 @@ minimumReleaseAgeExclude:
   - '@typescript/typescript-win32-arm64@7.0.2'
   - '@typescript/typescript-win32-x64@7.0.2'
   - typescript@7.0.2
-  - '@effect/ai-anthropic@4.0.0-beta.102'
-  - '@effect/ai-openai@4.0.0-beta.102'
-  - '@effect/opentelemetry@4.0.0-beta.102'
-  - '@effect/platform-node-shared@4.0.0-beta.102'
-  - '@effect/platform-node@4.0.0-beta.102'
-  - '@effect/vitest@4.0.0-beta.102'
-  - effect@4.0.0-beta.102
+  - '@effect/ai-anthropic@4.0.0-beta.105'
+  - '@effect/ai-openai@4.0.0-beta.105'
+  - '@effect/opentelemetry@4.0.0-beta.105'
+  - '@effect/platform-node-shared@4.0.0-beta.105'
+  - '@effect/platform-node@4.0.0-beta.105'
+  - '@effect/vitest@4.0.0-beta.105'
+  - effect@4.0.0-beta.105
   - '@effect/sql-sqlite-node@4.0.0-beta.105'
 patchedDependencies:
   '@effect/ai-openai-compat@4.0.0-beta.101': patches/@effect__ai-openai-compat@4.0.0-beta.101.patch

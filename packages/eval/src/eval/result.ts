@@ -1,7 +1,5 @@
-import * as Event from "#/event/index.ts";
 import * as Bench from "#/bench/index.ts";
 import { TimestampSchema, type Timestamp } from "#/utils/schema.ts";
-import { Prompt } from "@open-insight/core/internal";
 import { Schema } from "effect";
 import { Response } from "effect/unstable/ai";
 
@@ -10,14 +8,12 @@ export const TrailResult = Schema.Struct({
   finishedAt: TimestampSchema,
   usage: Schema.NullOr(Response.Usage),
   grade: Schema.Unknown,
-  trajectory: Prompt.Trajectory,
 });
 export type TrailResult<G = unknown> = Readonly<{
   startedAt: Timestamp;
   finishedAt: Timestamp;
   usage: Response.Usage | null;
   grade: G;
-  trajectory: Prompt.Trajectory;
 }>;
 
 export const TaskResult = Schema.Struct({
@@ -48,7 +44,6 @@ export const Result = Schema.Struct({
   updatedAt: TimestampSchema,
   benchMetadata: Bench.Metadata,
   result: BenchResult,
-  events: Schema.Array(Event.Event),
 });
 export type Result<G = unknown> = Readonly<{
   startedAt: Timestamp;
@@ -56,5 +51,6 @@ export type Result<G = unknown> = Readonly<{
   finishedAt: Timestamp;
   benchMetadata: Bench.Metadata;
   result: BenchResult<G>;
-  events: ReadonlyArray<Event.Event>;
 }>;
+
+// TODO accumulate event stream into Result

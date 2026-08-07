@@ -19,7 +19,7 @@ const makeVerifAgent = Effect.fn("exec/makeVerifAgent")(function* ({
   verifier,
   sandbox,
 }: {
-  verifier: Grade.VerifExec;
+  verifier: Grade.Verif.Exec;
   sandbox: Sandbox.SandboxPromise;
 }): Effect.fn.Return<Harness.AgentSession> {
   const trajectory = yield* Effect.tryPromise(() =>

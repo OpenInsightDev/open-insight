@@ -124,7 +124,7 @@ const ToolResultPart = Schema.Struct({
   ),
 );
 
-// Effect does not export an AnyPart schema union.
+// HACK Effect does not export an AnyPart schema union.
 export const AnyPart = Schema.Union([
   Response.TextPart,
   Response.TextStartPart,

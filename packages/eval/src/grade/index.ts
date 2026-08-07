@@ -11,3 +11,5 @@ export const Grader = Data.taggedEnum<Grader>();
 export * from "./builtin/index.ts";
 export * from "./error.ts";
 export * as Sandbox from "./sandbox.ts";
+export * from "./base.ts";
+export * as Verif from "./verif.ts";

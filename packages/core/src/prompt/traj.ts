@@ -4,17 +4,6 @@ import { Prompt, type Response } from "effect/unstable/ai";
 export const Trajectory = Prompt.Prompt;
 export type Trajectory = Schema.Schema.Type<typeof Trajectory>;
 
-// HACK for some reason effect does not export a Part schema union
-export const PartDecoded = Schema.Union([
-  Prompt.TextPart,
-  Prompt.ReasoningPart,
-  Prompt.FilePart,
-  Prompt.ToolCallPart,
-  Prompt.ToolResultPart,
-  Prompt.ToolApprovalResponsePart,
-  Prompt.ToolApprovalRequestPart,
-]) satisfies Schema.Codec<Prompt.Part, Prompt.PartEncoded>;
-
 export type Parts = ReadonlyArray<Prompt.Part>;
 export type RespParts = ReadonlyArray<Response.AnyPart>;
 

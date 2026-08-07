@@ -137,7 +137,7 @@ export const run = ({ metrics, sandbox, prevTrajectory }: RunOptions) =>
 
       // Consume the trajectory once and dispatch each metric when its trigger is available.
       const trajResults = stream.pipe(
-        Stream.mapEffect((encoded) => Schema.decodeEffect(Prompt.PartDecoded)(encoded)),
+        Stream.mapEffect((encoded) => Schema.decodeEffect(Prompt.Part)(encoded)),
         Stream.mapEffect((part) =>
           Ref.updateAndGet(partsRef, (parts) => [...parts, part]).pipe(
             Effect.flatMap((parts) =>
