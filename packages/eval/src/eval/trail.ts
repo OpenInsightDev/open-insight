@@ -144,7 +144,8 @@ export const createTrail = Effect.fn("exec/createTrail")(
                 bench: benchId,
                 harness: harnessId,
                 task: task.metadata.id,
-                part: Schema.decodeUnknownSync(Event.StreamPart)(part),
+                // Events only transport `StreamPartEncoded` as-is — no decoding.
+                part,
                 trailIdx: idx,
               }).pipe(offer),
             ),
