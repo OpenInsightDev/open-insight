@@ -13,7 +13,6 @@ type UsageUpdate = Extract<SessionUpdate, { sessionUpdate: "usage_update" }>;
 
 type State = Readonly<{
   active: Readonly<Record<SegmentKind, string | undefined>>;
-  buffers: Readonly<Record<SegmentKind, string>>;
   fallbackIndexes: Readonly<Record<SegmentKind, number>>;
   toolNames: ReadonlyMap<string, string>;
   usage: UsageUpdate | undefined;
@@ -23,10 +22,6 @@ const initialState = (): State => ({
   active: {
     text: undefined,
     reasoning: undefined,
-  },
-  buffers: {
-    text: "",
-    reasoning: "",
   },
   fallbackIndexes: {
     text: 0,
@@ -67,12 +62,12 @@ const decodeJson = Schema.decodeUnknownSync(Schema.Json);
 const finishMetadata = (update: UsageUpdate | undefined): Response.ProviderMetadata =>
   update === undefined ? streamCompleteMetadata : acpMetadata(update);
 
-const metadataPart = (metadata: Response.ProviderMetadata): Response.PartEncoded => ({
+const metadataPart = (metadata: Response.ProviderMetadata): Response.StreamPartEncoded => ({
   type: "response-metadata",
   metadata,
 });
 
-const finishPart = (update: UsageUpdate | undefined): Response.PartEncoded => ({
+const finishPart = (update: UsageUpdate | undefined): Response.StreamPartEncoded => ({
   type: "finish",
   reason: "unknown",
   usage:
@@ -94,14 +89,31 @@ const finishPart = (update: UsageUpdate | undefined): Response.PartEncoded => ({
   metadata: finishMetadata(update),
 });
 
-const segmentFinalPart = (
+const segmentStartPart = (
   kind: SegmentKind,
-  text: string,
+  id: string,
   metadata: Response.ProviderMetadata,
-): Response.PartEncoded =>
+): Response.StreamPartEncoded =>
   kind === "text"
-    ? { type: "text", text, metadata }
-    : { type: "reasoning", text, metadata };
+    ? { type: "text-start", id, metadata }
+    : { type: "reasoning-start", id, metadata };
+
+const segmentDeltaPart = (
+  kind: SegmentKind,
+  id: string,
+  delta: string,
+  metadata: Response.ProviderMetadata,
+): Response.StreamPartEncoded =>
+  kind === "text"
+    ? { type: "text-delta", id, delta, metadata }
+    : { type: "reasoning-delta", id, delta, metadata };
+
+const segmentEndPart = (
+  kind: SegmentKind,
+  id: string,
+  metadata: Response.ProviderMetadata,
+): Response.StreamPartEncoded =>
+  kind === "text" ? { type: "text-end", id, metadata } : { type: "reasoning-end", id, metadata };
 
 const base64ToBytes = (data: string): Uint8Array | undefined =>
   Result.match(Encoding.decodeBase64(data), {
@@ -113,7 +125,7 @@ const filePartFromBase64 = (
   data: string,
   mediaType: string,
   metadata: Response.ProviderMetadata,
-): ReadonlyArray<Response.PartEncoded> => {
+): ReadonlyArray<Response.StreamPartEncoded> => {
   const bytes = base64ToBytes(data);
   return bytes === undefined
     ? [metadataPart(metadata)]
@@ -130,7 +142,7 @@ const filePartFromBase64 = (
 const contentBlockToParts = (
   content: ContentBlock,
   metadata: Response.ProviderMetadata,
-): ReadonlyArray<Response.PartEncoded> => {
+): ReadonlyArray<Response.StreamPartEncoded> => {
   switch (content.type) {
     case "image":
     case "audio":
@@ -181,7 +193,7 @@ const toolCallPart = (
   update: Extract<SessionUpdate, { sessionUpdate: "tool_call" }>,
   name: string,
   metadata: Response.ProviderMetadata,
-): Response.PartEncoded => ({
+): Response.StreamPartEncoded => ({
   type: "tool-call",
   id: update.toolCallId,
   name,
@@ -200,7 +212,7 @@ const toolResultPart = (
   update: Extract<SessionUpdate, { sessionUpdate: "tool_call_update" }>,
   name: string,
   metadata: Response.ProviderMetadata,
-): Response.PartEncoded => {
+): Response.StreamPartEncoded => {
   const result = update.rawOutput ??
     update.content ??
     update.locations ?? {
@@ -250,30 +262,32 @@ const nextChunkId = (
   ];
 };
 
+const setActiveSegment = (state: State, kind: SegmentKind, id: string | undefined): State => ({
+  ...state,
+  active: {
+    ...state.active,
+    [kind]: id,
+  },
+});
+
 const closeSegment = (
   state: State,
   kind: SegmentKind,
   metadata: Response.ProviderMetadata,
-): readonly [State, ReadonlyArray<Response.PartEncoded>] => {
-  if (state.active[kind] === undefined) {
+): readonly [State, ReadonlyArray<Response.StreamPartEncoded>] => {
+  const activeId = state.active[kind];
+  if (activeId === undefined) {
     return [state, []];
   }
 
-  return [
-    {
-      ...state,
-      active: { ...state.active, [kind]: undefined },
-      buffers: { ...state.buffers, [kind]: "" },
-    },
-    [segmentFinalPart(kind, state.buffers[kind], metadata)],
-  ];
+  return [setActiveSegment(state, kind, undefined), [segmentEndPart(kind, activeId, metadata)]];
 };
 
 const handleAgentChunk = (
   state: State,
   update: AgentChunkUpdate,
   metadata: Response.ProviderMetadata,
-): readonly [State, ReadonlyArray<Response.PartEncoded>] => {
+): readonly [State, ReadonlyArray<Response.StreamPartEncoded>] => {
   const kind = chunkKind(update);
   if (update.content.type !== "text") {
     return [state, contentBlockToParts(update.content, metadata)];
@@ -281,25 +295,18 @@ const handleAgentChunk = (
 
   const [stateWithId, id] = nextChunkId(state, update, kind);
   const activeId = stateWithId.active[kind];
-
-  // A chunk for the active segment appends to its buffer; a chunk for a new
-  // segment starts a fresh buffer and finalizes the previous one, if any.
-  const continuing = activeId === id;
-  const finalized: ReadonlyArray<Response.PartEncoded> =
-    activeId !== undefined && !continuing
-      ? [segmentFinalPart(kind, stateWithId.buffers[kind], metadata)]
-      : [];
+  const startsSegment = activeId !== id;
+  const closedParts: ReadonlyArray<Response.StreamPartEncoded> =
+    activeId !== undefined && startsSegment ? [segmentEndPart(kind, activeId, metadata)] : [];
+  const nextState = startsSegment ? setActiveSegment(stateWithId, kind, id) : stateWithId;
 
   return [
-    {
-      ...stateWithId,
-      active: { ...stateWithId.active, [kind]: id },
-      buffers: {
-        ...stateWithId.buffers,
-        [kind]: (continuing ? stateWithId.buffers[kind] : "") + update.content.text,
-      },
-    },
-    finalized,
+    nextState,
+    [
+      ...closedParts,
+      ...(startsSegment ? [segmentStartPart(kind, id, metadata)] : []),
+      segmentDeltaPart(kind, id, update.content.text, metadata),
+    ],
   ];
 };
 
@@ -307,7 +314,7 @@ const handleToolCall = (
   state: State,
   update: Extract<SessionUpdate, { sessionUpdate: "tool_call" }>,
   metadata: Response.ProviderMetadata,
-): readonly [State, ReadonlyArray<Response.PartEncoded>] => {
+): readonly [State, ReadonlyArray<Response.StreamPartEncoded>] => {
   const name =
     programmaticToolName(update.name) ?? inferToolName(update.kind, update.title, "acp_tool");
   const toolNames = new Map(state.toolNames);
@@ -325,7 +332,7 @@ const handleToolCallUpdate = (
   state: State,
   update: Extract<SessionUpdate, { sessionUpdate: "tool_call_update" }>,
   metadata: Response.ProviderMetadata,
-): readonly [State, ReadonlyArray<Response.PartEncoded>] => {
+): readonly [State, ReadonlyArray<Response.StreamPartEncoded>] => {
   const existingName = state.toolNames.get(update.toolCallId);
   const name =
     programmaticToolName(update.name) ??
@@ -344,7 +351,7 @@ const handleToolCallUpdate = (
 const handleUpdate = (
   state: State,
   update: SessionUpdate,
-): readonly [State, ReadonlyArray<Response.PartEncoded>] => {
+): readonly [State, ReadonlyArray<Response.StreamPartEncoded>] => {
   if (update.sessionUpdate === "usage_update") {
     return [{ ...state, usage: update }, []];
   }
@@ -370,7 +377,7 @@ const handleUpdate = (
   }
 };
 
-const closeStream = (state: State): ReadonlyArray<Response.PartEncoded> => {
+const closeStream = (state: State): ReadonlyArray<Response.StreamPartEncoded> => {
   const [stateWithoutText, textParts] = closeSegment(state, "text", streamCompleteMetadata);
   const [_closedState, reasoningParts] = closeSegment(
     stateWithoutText,
@@ -383,12 +390,12 @@ const closeStream = (state: State): ReadonlyArray<Response.PartEncoded> => {
 const handleStreamEvent = (
   state: State,
   event: SessionUpdate | typeof streamEnd,
-): readonly [State, ReadonlyArray<Response.PartEncoded>] =>
+): readonly [State, ReadonlyArray<Response.StreamPartEncoded>] =>
   event === streamEnd ? [state, closeStream(state)] : handleUpdate(state, event);
 
 export const transform = <E, R>(
   stream: Stream.Stream<SessionUpdate, E, R>,
-): Stream.Stream<Response.PartEncoded, E, R> =>
+): Stream.Stream<Response.StreamPartEncoded, E, R> =>
   stream.pipe(
     Stream.concat(Stream.succeed(streamEnd)),
     Stream.mapAccum(initialState, handleStreamEvent),

@@ -1,13 +1,13 @@
 import * as Sandbox from "#/sandbox/index.ts";
 import * as Snapshot from "#/snapshot/index.ts";
 import type * as Prompt from "#/prompt/index.ts";
-import { Context, Effect, Option, Scope, Stream } from "effect";
+import { Context, Effect, Option, Ref, Scope, Stream } from "effect";
 import type { AgentError } from "./error.ts";
 import { Response } from "effect/unstable/ai";
 
 export type Agent = Readonly<{
-  trajectory: Effect.Effect<Prompt.Trajectory, AgentError>;
-  prompt(prompt: Prompt.Prompt): Stream.Stream<Response.PartEncoded, AgentError>;
+  trajectory: Ref.Ref<Prompt.Trajectory>;
+  prompt(prompt: Prompt.Prompt): Stream.Stream<Prompt.AnyStreamPart, AgentError>;
 }>;
 
 export type SnapshotExtension = Readonly<{
@@ -29,14 +29,18 @@ export class ProviderService extends Context.Service<ProviderService, Provider>(
   "agent/AgentService",
 ) {}
 
+type PromptFn = (prompt: Prompt.Prompt) => Stream.Stream<Response.StreamPartEncoded, AgentError>;
+
 export const layerFrom = Effect.fn(function* (
-  prompt: (prompt: Prompt.Prompt) => Effect.Effect<Agent, AgentError>,
+  prompt: PromptFn,
 ): Effect.fn.Return<Agent, AgentError> {
   throw new Error("Not implemented");
 });
 
+type PromptAsyncFn = (prompt: Prompt.Prompt) => AsyncIterable<Response.StreamPartEncoded>;
+
 export const layerFromAsync = Effect.fn(function* (
-  prompt: (prompt: Prompt.Prompt) => AsyncIterable<Response.StreamPartEncoded>,
+  prompt: PromptAsyncFn,
 ): Effect.fn.Return<Agent, AgentError> {
   throw new Error("Not implemented");
 });

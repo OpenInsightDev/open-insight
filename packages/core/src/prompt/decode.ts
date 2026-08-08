@@ -1,4 +1,4 @@
-import { Effect, Option, Schema } from "effect";
+import { Effect, Option, Schema, Stream } from "effect";
 import { Response, Tool, Toolkit } from "effect/unstable/ai";
 
 /**
@@ -31,20 +31,31 @@ const PartHead = Schema.Struct({
  * toolkit from the tool name carried by `tool-call`/`tool-result` parts and
  * falling back to the empty toolkit otherwise.
  */
-const toolkitForPart = (encoded: Response.PartEncoded): Toolkit.Any => {
+const toolkitForPart = (encoded: Response.StreamPartEncoded): Toolkit.Any => {
   const head = Option.getOrNull(Schema.decodeUnknownOption(PartHead)(encoded));
   return head?.name ? toolkitFor(head.name) : emptyToolkit;
 };
 
-const partSchema = (encoded: Response.PartEncoded) => Response.Part(toolkitForPart(encoded));
+const streamPartSchema = (encoded: Response.StreamPartEncoded) =>
+  Response.StreamPart(toolkitForPart(encoded));
+
+export type AnyStreamPart = Response.StreamPart<Record<string, Tool.Any>>;
 
 /**
- * Decodes a single encoded response part (`Response.PartEncoded`) into a typed
- * `Response.AnyPart`, building a permissive toolkit from the tool name observed
- * on each `tool-call`/`tool-result` part so arbitrarily named tool
- * calls/results decode without a pre-declared toolkit.
+ * Decodes a single encoded stream part (`Response.StreamPartEncoded`) into its
+ * typed form, building a permissive toolkit from the tool name observed on each
+ * `tool-call`/`tool-result` part.
  */
-export const decodeResponsePartEncoded = (
-  encoded: Response.PartEncoded,
-): Effect.Effect<Response.AnyPart, Schema.SchemaError> =>
-  Schema.decodeUnknownEffect(partSchema(encoded))(encoded);
+export const decodeResponseStreamPartEncoded = (
+  encoded: Response.StreamPartEncoded,
+): Effect.Effect<AnyStreamPart, Schema.SchemaError> =>
+  Schema.decodeUnknownEffect(streamPartSchema(encoded))(encoded);
+
+/**
+ * Decodes a stream of encoded response stream parts
+ * (`Response.StreamPartEncoded`) into typed stream parts, one per event.
+ */
+export const decodeResponseStream = <E, R>(
+  stream: Stream.Stream<Response.StreamPartEncoded, E, R>,
+): Stream.Stream<AnyStreamPart, E | Schema.SchemaError, R> =>
+  stream.pipe(Stream.mapEffect(decodeResponseStreamPartEncoded));

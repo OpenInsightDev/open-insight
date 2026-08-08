@@ -1,131 +1,293 @@
-import { assert, it } from "@effect/vitest";
-import { Effect, Stream } from "effect";
 import type { SessionUpdate } from "@agentclientprotocol/sdk";
+import { assert, it } from "@effect/vitest";
+import { Cause, Effect, Option, Stream } from "effect";
+import type { StreamPartEncoded } from "effect/unstable/ai/Response";
 import { transform } from "./stream.ts";
 
-const run = (updates: ReadonlyArray<SessionUpdate>) =>
-  Stream.fromIterable(updates).pipe(transform, Stream.runCollect);
+const collect = (
+  updates: ReadonlyArray<SessionUpdate>,
+): Effect.Effect<Array<StreamPartEncoded>, never, never> =>
+  Stream.fromIterable(updates).pipe(
+    transform,
+    Stream.runCollect,
+    Effect.map((parts) => Array.from(parts)),
+  );
 
-const chunk = (
-  sessionUpdate: "agent_message_chunk" | "agent_thought_chunk",
-  messageId: string,
-  text: string,
-): SessionUpdate =>
-  ({ sessionUpdate, messageId, content: { type: "text", text } }) as unknown as SessionUpdate;
+const textChunk = (text: string, messageId = "message-1"): SessionUpdate => ({
+  sessionUpdate: "agent_message_chunk",
+  messageId,
+  content: {
+    type: "text",
+    text,
+  },
+});
 
-it("accumulates text chunks into a single text part per message and emits finish", () =>
+const thoughtChunk = (text: string, messageId = "thought-1"): SessionUpdate => ({
+  sessionUpdate: "agent_thought_chunk",
+  messageId,
+  content: {
+    type: "text",
+    text,
+  },
+});
+
+const anonymousTextChunk = (text: string): SessionUpdate => ({
+  sessionUpdate: "agent_message_chunk",
+  content: {
+    type: "text",
+    text,
+  },
+});
+
+it.effect("maps agent text chunks to text stream parts and finish", () =>
   Effect.gen(function* () {
-    const parts = yield* run([
-      chunk("agent_message_chunk", "m1", "Hello"),
-      chunk("agent_message_chunk", "m1", " world"),
-      chunk("agent_message_chunk", "m2", "Next"),
+    const parts = yield* collect([textChunk("hello "), textChunk("world")]);
+
+    assert.deepStrictEqual(
+      parts.map((part) => part.type),
+      ["text-start", "text-delta", "text-delta", "text-end", "finish"],
+    );
+    assert.strictEqual(parts[0]?.type === "text-start" && parts[0].id, "message-1");
+    assert.strictEqual(parts[1]?.type === "text-delta" && parts[1].delta, "hello ");
+    assert.strictEqual(parts[2]?.type === "text-delta" && parts[2].delta, "world");
+  }),
+);
+
+it.effect("maps thought chunks to reasoning stream parts", () =>
+  Effect.gen(function* () {
+    const parts = yield* collect([thoughtChunk("thinking")]);
+
+    assert.deepStrictEqual(
+      parts.map((part) => part.type),
+      ["reasoning-start", "reasoning-delta", "reasoning-end", "finish"],
+    );
+    assert.strictEqual(parts[1]?.type === "reasoning-delta" && parts[1].delta, "thinking");
+  }),
+);
+
+it.effect("keeps consecutive chunks without message ids in one segment", () =>
+  Effect.gen(function* () {
+    const parts = yield* collect([anonymousTextChunk("hello "), anonymousTextChunk("world")]);
+
+    assert.deepStrictEqual(
+      parts.map((part) => part.type),
+      ["text-start", "text-delta", "text-delta", "text-end", "finish"],
+    );
+    assert.strictEqual(parts[0]?.type === "text-start" && parts[0].id, "acp-agent-message-1");
+    assert.strictEqual(parts[1]?.type === "text-delta" && parts[1].id, "acp-agent-message-1");
+    assert.strictEqual(parts[2]?.type === "text-delta" && parts[2].id, "acp-agent-message-1");
+  }),
+);
+
+it.effect("closes the active message when message id changes", () =>
+  Effect.gen(function* () {
+    const parts = yield* collect([textChunk("one", "one"), textChunk("two", "two")]);
+
+    assert.deepStrictEqual(
+      parts.map((part) => part.type),
+      ["text-start", "text-delta", "text-end", "text-start", "text-delta", "text-end", "finish"],
+    );
+    assert.strictEqual(parts[2]?.type === "text-end" && parts[2].id, "one");
+    assert.strictEqual(parts[3]?.type === "text-start" && parts[3].id, "two");
+  }),
+);
+
+it.effect("starts a new segment when a previous message id reappears", () =>
+  Effect.gen(function* () {
+    const parts = yield* collect([
+      textChunk("first", "one"),
+      textChunk("second", "two"),
+      textChunk("third", "one"),
     ]);
 
     assert.deepStrictEqual(
       parts.map((part) => part.type),
-      ["text", "text", "finish"],
+      [
+        "text-start",
+        "text-delta",
+        "text-end",
+        "text-start",
+        "text-delta",
+        "text-end",
+        "text-start",
+        "text-delta",
+        "text-end",
+        "finish",
+      ],
     );
-    const [first, second] = parts as Array<{ type: string; text?: string }>;
-    assert.strictEqual(first.type === "text" && first.text, "Hello world");
-    assert.strictEqual(second.type === "text" && second.text, "Next");
-  }).pipe(Effect.runPromise));
-
-it("accumulates reasoning chunks into a single reasoning part", () =>
-  Effect.gen(function* () {
-    const parts = yield* run([
-      chunk("agent_thought_chunk", "r1", "think"),
-      chunk("agent_thought_chunk", "r1", "ing"),
-    ]);
-
     assert.deepStrictEqual(
-      parts.map((part) => part.type),
-      ["reasoning", "finish"],
+      parts.flatMap((part) => (part.type === "text-start" ? [part.id] : [])),
+      ["one", "two", "one"],
     );
-    const first = parts[0] as { type: string; text?: string };
-    assert.strictEqual(first.type === "reasoning" && first.text, "thinking");
-  }).pipe(Effect.runPromise));
+  }),
+);
 
-it("interleaves text and reasoning segments independently", () =>
+it.effect("maps tool events to real tool-call and tool-result parts", () =>
   Effect.gen(function* () {
-    const parts = yield* run([
-      chunk("agent_message_chunk", "m1", "A"),
-      chunk("agent_thought_chunk", "r1", "R1"),
-      chunk("agent_message_chunk", "m1", "B"),
-    ]);
-
-    assert.deepStrictEqual(
-      parts.map((part) => part.type),
-      ["text", "reasoning", "finish"],
-    );
-    const [first, second] = parts as Array<{ type: string; text?: string }>;
-    assert.strictEqual(first.type === "text" && first.text, "AB");
-    assert.strictEqual(second.type === "reasoning" && second.text, "R1");
-  }).pipe(Effect.runPromise));
-
-it("forwards tool calls and both preliminary and final tool results", () =>
-  Effect.gen(function* () {
-    const parts = yield* run([
+    const updates: ReadonlyArray<SessionUpdate> = [
       {
         sessionUpdate: "tool_call",
-        toolCallId: "tc1",
+        toolCallId: "tool-1",
         title: "Read file",
-        name: "ReadFile",
-        rawInput: { path: "/tmp/a" },
-      } as unknown as SessionUpdate,
-      {
-        sessionUpdate: "tool_call_update",
-        toolCallId: "tc1",
+        name: "filesystem_read",
+        kind: "read",
         status: "in_progress",
-      } as unknown as SessionUpdate,
+        rawInput: {
+          path: "README.md",
+        },
+      },
       {
         sessionUpdate: "tool_call_update",
-        toolCallId: "tc1",
+        toolCallId: "tool-1",
         status: "completed",
-        rawOutput: { content: "data" },
-      } as unknown as SessionUpdate,
-    ]);
+        rawOutput: {
+          ok: true,
+        },
+      },
+    ];
+
+    const parts = yield* collect(updates);
 
     assert.deepStrictEqual(
       parts.map((part) => part.type),
-      ["tool-call", "tool-result", "tool-result", "finish"],
+      ["tool-call", "tool-result", "finish"],
     );
+    assert.strictEqual(parts[0]?.type === "tool-call" && parts[0].id, "tool-1");
+    assert.strictEqual(parts[0]?.type === "tool-call" && parts[0].name, "filesystem_read");
+    assert.strictEqual(parts[1]?.type === "tool-result" && parts[1].id, "tool-1");
+    assert.strictEqual(parts[1]?.type === "tool-result" && parts[1].name, "filesystem_read");
+    assert.strictEqual(parts[1]?.type === "tool-result" && parts[1].isFailure, false);
+    assert.strictEqual(parts[1]?.type === "tool-result" && parts[1].preliminary, false);
+  }),
+);
 
-    const call = parts[0] as { type: string; name?: string; params?: unknown };
-    assert.strictEqual(call.type === "tool-call" && call.name, "ReadFile");
-    assert.deepStrictEqual(call.type === "tool-call" && call.params, { path: "/tmp/a" });
-
-    const preliminary = parts[1] as {
-      type: string;
-      preliminary?: boolean;
-      isFailure?: boolean;
-    };
-    assert.strictEqual(preliminary.type === "tool-result" && preliminary.preliminary, true);
-    assert.strictEqual(preliminary.type === "tool-result" && preliminary.isFailure, false);
-
-    const final_ = parts[2] as {
-      type: string;
-      preliminary?: boolean;
-      isFailure?: boolean;
-      result?: unknown;
-    };
-    assert.strictEqual(final_.type === "tool-result" && final_.preliminary, false);
-    assert.strictEqual(final_.type === "tool-result" && final_.isFailure, false);
-    assert.deepStrictEqual(final_.type === "tool-result" && final_.result, { content: "data" });
-  }).pipe(Effect.runPromise));
-
-it("emits a finish part carrying usage from a usage_update", () =>
+it.effect("tracks a programmatic name first seen in a tool update", () =>
   Effect.gen(function* () {
-    const parts = yield* run([
-      { sessionUpdate: "usage_update", used: 42, size: 100 } as unknown as SessionUpdate,
+    const parts = yield* collect([
+      {
+        sessionUpdate: "tool_call_update",
+        toolCallId: "tool-rename",
+        name: "shell_execute",
+        status: "in_progress",
+      },
+      {
+        sessionUpdate: "tool_call_update",
+        toolCallId: "tool-rename",
+        status: "completed",
+      },
+    ]);
+
+    assert.deepStrictEqual(
+      parts.flatMap((part) => (part.type === "tool-result" ? [part.name] : [])),
+      ["shell_execute", "shell_execute"],
+    );
+  }),
+);
+
+it.effect("maps in-progress tool updates to preliminary tool results", () =>
+  Effect.gen(function* () {
+    const parts = yield* collect([
+      {
+        sessionUpdate: "tool_call_update",
+        toolCallId: "tool-2",
+        status: "in_progress",
+        content: [
+          {
+            type: "content",
+            content: {
+              type: "text",
+              text: "working",
+            },
+          },
+        ],
+      },
     ]);
 
     assert.deepStrictEqual(
       parts.map((part) => part.type),
-      ["finish"],
+      ["tool-result", "finish"],
     );
-    const finish = parts[0] as {
-      type: string;
-      usage?: { inputTokens?: { total?: number } };
-    };
-    assert.strictEqual(finish.type === "finish" && finish.usage?.inputTokens?.total, 42);
-  }).pipe(Effect.runPromise));
+    assert.strictEqual(parts[0]?.type === "tool-result" && parts[0].preliminary, true);
+    assert.strictEqual(parts[0]?.type === "tool-result" && parts[0].name, "acp_tool_tool_2");
+  }),
+);
+
+it.effect("keeps plan and session state events as metadata", () =>
+  Effect.gen(function* () {
+    const updates: ReadonlyArray<SessionUpdate> = [
+      {
+        sessionUpdate: "plan",
+        entries: [
+          {
+            content: "Implement",
+            priority: "high",
+            status: "in_progress",
+          },
+        ],
+      },
+      {
+        sessionUpdate: "current_mode_update",
+        currentModeId: "code",
+      },
+      {
+        sessionUpdate: "session_info_update",
+        title: "Session",
+      },
+    ];
+
+    const parts = yield* collect(updates);
+
+    assert.deepStrictEqual(
+      parts.map((part) => part.type),
+      ["response-metadata", "response-metadata", "response-metadata", "finish"],
+    );
+  }),
+);
+
+it.effect("uses the latest usage update when the stream finishes", () =>
+  Effect.gen(function* () {
+    const parts = yield* collect([
+      textChunk("before "),
+      {
+        sessionUpdate: "usage_update",
+        used: 42,
+        size: 100,
+      },
+      textChunk("after"),
+    ]);
+
+    assert.deepStrictEqual(
+      parts.map((part) => part.type),
+      ["text-start", "text-delta", "text-delta", "text-end", "finish"],
+    );
+    const finish = parts.find((part) => part.type === "finish");
+    assert.strictEqual(finish?.type === "finish" && finish.usage.inputTokens.total, 42);
+  }),
+);
+
+it.effect("preserves upstream errors without emitting successful completion", () =>
+  Effect.gen(function* () {
+    const error = "boom";
+    const observed: Array<StreamPartEncoded> = [];
+    const result = yield* Stream.make(textChunk("partial")).pipe(
+      Stream.concat(Stream.fail(error)),
+      transform,
+      Stream.tap((part) =>
+        Effect.sync(() => {
+          observed.push(part);
+        }),
+      ),
+      Stream.runDrain,
+      Effect.exit,
+    );
+
+    assert.deepStrictEqual(
+      observed.map((part) => part.type),
+      ["text-start", "text-delta"],
+    );
+    assert.strictEqual(result._tag, "Failure");
+    if (result._tag === "Failure") {
+      assert.deepStrictEqual(Cause.findErrorOption(result.cause), Option.some(error));
+    }
+  }),
+);
