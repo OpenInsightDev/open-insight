@@ -1,60 +1,105 @@
-import { Effect, Option, Schema, Stream } from "effect";
-import { Response, Tool, Toolkit } from "effect/unstable/ai";
+import { Effect, Function, Schema, SchemaTransformation, Stream } from "effect";
+import { Response } from "effect/unstable/ai";
+import {
+  TextStartPart,
+  DocumentSourcePart,
+  ErrorPart,
+  FilePart,
+  FinishPart,
+  ReasoningDeltaPart,
+  ReasoningEndPart,
+  ReasoningStartPart,
+  ResponseMetadataPart,
+  TextDeltaPart,
+  TextEndPart,
+  ToolApprovalRequestPart,
+  ToolParamsDeltaPart,
+  ToolParamsEndPart,
+  ToolParamsStartPart,
+  UrlSourcePart,
+} from "effect/unstable/ai/Response";
 
-/**
- * The `Response.Part` tool-call/tool-result branches are keyed by the specific
- * tool name. Because the toolkit is not known before a part is observed on the
- * wire, build a permissive toolkit from the tool name carried by the encoded
- * part so that arbitrarily named tool calls/results decode without a
- * pre-declared toolkit.
- */
-const toolkitFor = (name: string): Toolkit.Any =>
-  Toolkit.make(
-    Tool.make(name, {
-      parameters: Schema.Unknown,
-      success: Schema.Unknown,
-      failure: Schema.Unknown,
-    }),
+// HACK ToolCallPart that can decode any tool name and params
+export const AnyToolCallPart = Response.ToolCallPart("tool-call", Schema.Json).mapFields(
+  (fields) => ({
+    ...fields,
+    name: Schema.String,
+  }),
+);
+export type AnyToolCallPart = Schema.Schema.Type<typeof AnyToolCallPart>;
+
+// HACK The `Response.ToolResultPart` schema keys its decoded/encoded structs by the
+// specific tool `name` literal. Because the toolkit is not known before a part
+// is observed on the wire, mirror `AnyToolCallPart` and relax `name` to any
+// `Schema.String` on both the decoded and encoded structs, keeping the rest of
+// the part shape (and its encode/decode transformation) intact.
+const PartTypeId = "~effect/ai/Content/Part";
+
+const baseToolResult = Response.ToolResultPart("tool-result", Schema.Json, Schema.Json);
+
+// HACK ToolResultPart that can decode any tool name, result, and failure
+export const AnyToolResultPart = baseToolResult.to
+  .mapFields((fields) => ({
+    ...fields,
+    name: Schema.String,
+  }))
+  .pipe(
+    Schema.encodeTo(
+      baseToolResult.from.mapFields((fields) => ({
+        ...fields,
+        name: Schema.String,
+      })),
+      SchemaTransformation.transform({
+        decode: (encoded) => ({
+          ...encoded,
+          [PartTypeId]: PartTypeId,
+          providerExecuted: encoded.providerExecuted ?? false,
+          metadata: encoded.metadata ?? {},
+          encodedResult: encoded.result,
+          preliminary: encoded.preliminary ?? false,
+        }),
+        encode: Function.identity,
+      }),
+    ),
   );
+export type AnyToolResultPart = Schema.Schema.Type<typeof AnyToolResultPart>;
 
-/** An empty toolkit: sufficient to decode parts that are not tool-bound. */
-export const emptyToolkit: Toolkit.Any = Toolkit.make();
+export const AnyStreamPart = Schema.Union([
+  TextStartPart,
+  TextDeltaPart,
+  TextEndPart,
+  ReasoningStartPart,
+  ReasoningDeltaPart,
+  ReasoningEndPart,
+  ToolParamsStartPart,
+  ToolParamsDeltaPart,
+  ToolParamsEndPart,
+  ToolApprovalRequestPart,
+  AnyToolCallPart,
+  AnyToolResultPart,
+  FilePart,
+  DocumentSourcePart,
+  UrlSourcePart,
+  ResponseMetadataPart,
+  FinishPart,
+  ErrorPart,
+]);
+export type AnyStreamPart = Schema.Schema.Type<typeof AnyStreamPart>;
 
-/** Lightweight head schema used to peek the tool name off an encoded part. */
-const PartHead = Schema.Struct({
-  type: Schema.Union([Schema.Literal("tool-call"), Schema.Literal("tool-result")]),
-  name: Schema.String,
-});
-
-/**
- * Builds the toolkit needed to validate an encoded part, deriving the permissive
- * toolkit from the tool name carried by `tool-call`/`tool-result` parts and
- * falling back to the empty toolkit otherwise.
- */
-const toolkitForPart = (encoded: Response.StreamPartEncoded): Toolkit.Any => {
-  const head = Option.getOrNull(Schema.decodeUnknownOption(PartHead)(encoded));
-  return head?.name ? toolkitFor(head.name) : emptyToolkit;
-};
-
-const streamPartSchema = (encoded: Response.StreamPartEncoded) =>
-  Response.StreamPart(toolkitForPart(encoded));
-
-export type AnyStreamPart = Response.StreamPart<Record<string, Tool.Any>>;
-
-/**
- * Decodes a single encoded stream part (`Response.StreamPartEncoded`) into its
- * typed form, building a permissive toolkit from the tool name observed on each
- * `tool-call`/`tool-result` part.
- */
+// /**
+//  * Decodes a single encoded stream part (`Response.StreamPartEncoded`) into its
+//  * typed form, building a permissive toolkit from the tool name observed on each
+//  * `tool-call`/`tool-result` part.
+//  */
 export const decodeResponseStreamPartEncoded = (
   encoded: Response.StreamPartEncoded,
 ): Effect.Effect<AnyStreamPart, Schema.SchemaError> =>
-  Schema.decodeUnknownEffect(streamPartSchema(encoded))(encoded);
+  Schema.decodeUnknownEffect(AnyToolCallPart)(encoded);
 
-/**
- * Decodes a stream of encoded response stream parts
- * (`Response.StreamPartEncoded`) into typed stream parts, one per event.
- */
+// /**
+//  * Decodes a stream of encoded response stream parts
+//  * (`Response.StreamPartEncoded`) into typed stream parts, one per event.
+//  */
 export const decodeResponseStream = <E, R>(
   stream: Stream.Stream<Response.StreamPartEncoded, E, R>,
 ): Stream.Stream<AnyStreamPart, E | Schema.SchemaError, R> =>

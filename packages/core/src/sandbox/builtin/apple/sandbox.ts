@@ -132,7 +132,16 @@ export const runSandbox = Effect.fn(
     const resourceArgs = yield* formatResources(snapshot.name, resources);
     const create = CP.make(
       "container",
-      ["create", "--rm", "--detach", "--name", name, ...networkArgs, ...resourceArgs, snapshot.name],
+      [
+        "create",
+        "--rm",
+        "--detach",
+        "--name",
+        name,
+        ...networkArgs,
+        ...resourceArgs,
+        snapshot.name,
+      ],
       containerOptions,
     );
     yield* Effect.acquireRelease(
@@ -233,7 +242,9 @@ export const runSandbox = Effect.fn(
               spawner
                 .success(command)
                 .pipe(Effect.timeout(timeout))
-                .pipe(Effect.mapError(SandboxError.sandboxExec(snapshot.name, Bash.format(command)))),
+                .pipe(
+                  Effect.mapError(SandboxError.sandboxExec(snapshot.name, Bash.format(command))),
+                ),
             ),
             Effect.ensuring(fs.remove(hostPath, { force: true }).pipe(Effect.ignore)),
           );

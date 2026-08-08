@@ -23,17 +23,17 @@ validate session identity.
 
 ## Mapping Decisions
 
-| ACP update                                                                                        | Effect AI output      | Reason                                                              |
-| ------------------------------------------------------------------------------------------------- | --------------------- | ------------------------------------------------------------------- |
-| `agent_message_chunk` text                                                                        | `text`                | Chunks accumulate into one complete non-streaming text part.        |
-| `agent_thought_chunk` text                                                                        | `reasoning`           | Effect AI has a dedicated reasoning part.                           |
-| `user_message_chunk`                                                                              | `response-metadata`   | User chunks are transcript input, not assistant response text.      |
-| Non-text content blocks                                                                           | `file` or `response-metadata` | Preserve structured payloads without inventing display text. |
-| `tool_call`                                                                                       | `tool-call`            | Preserves the model/tool action boundary.                           |
-| `tool_call_update`                                                                                | `tool-result`          | `pending` and `in_progress` become preliminary results; `completed` and `failed` become final results. |
-| `plan`, `plan_update`, `plan_removed`                                                             | `response-metadata`    | Plans are ACP UI/progress state, not model text.                    |
-| `available_commands_update`, `current_mode_update`, `config_option_update`, `session_info_update` | `response-metadata`    | These are session/client state events.                              |
-| `usage_update`                                                                                    | `finish`               | Effect AI carries usage on finish parts.                            |
+| ACP update                                                                                        | Effect AI output              | Reason                                                                                                 |
+| ------------------------------------------------------------------------------------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `agent_message_chunk` text                                                                        | `text`                        | Chunks accumulate into one complete non-streaming text part.                                           |
+| `agent_thought_chunk` text                                                                        | `reasoning`                   | Effect AI has a dedicated reasoning part.                                                              |
+| `user_message_chunk`                                                                              | `response-metadata`           | User chunks are transcript input, not assistant response text.                                         |
+| Non-text content blocks                                                                           | `file` or `response-metadata` | Preserve structured payloads without inventing display text.                                           |
+| `tool_call`                                                                                       | `tool-call`                   | Preserves the model/tool action boundary.                                                              |
+| `tool_call_update`                                                                                | `tool-result`                 | `pending` and `in_progress` become preliminary results; `completed` and `failed` become final results. |
+| `plan`, `plan_update`, `plan_removed`                                                             | `response-metadata`           | Plans are ACP UI/progress state, not model text.                                                       |
+| `available_commands_update`, `current_mode_update`, `config_option_update`, `session_info_update` | `response-metadata`           | These are session/client state events.                                                                 |
+| `usage_update`                                                                                    | `finish`                      | Effect AI carries usage on finish parts.                                                               |
 
 ACP-specific details are stored under `metadata.acp`. Metadata values are kept
 JSON compatible. Unknown values such as `rawInput` and `rawOutput` are copied

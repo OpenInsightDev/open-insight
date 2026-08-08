@@ -371,7 +371,9 @@ export const make = Effect.fn("sandbox/provider/docker")(
                     .success(command.pipe(runtime))
                     .pipe(Effect.timeout(timeout))
                     .pipe(
-                      Effect.mapError(SandboxError.sandboxExec(snapshot.name, Bash.format(command))),
+                      Effect.mapError(
+                        SandboxError.sandboxExec(snapshot.name, Bash.format(command)),
+                      ),
                     ),
                 ),
                 Effect.ensuring(fs.remove(hostPath, { force: true }).pipe(Effect.ignore)),
