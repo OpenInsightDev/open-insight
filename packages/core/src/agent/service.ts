@@ -3,11 +3,11 @@ import * as Snapshot from "#/snapshot/index.ts";
 import type * as Prompt from "#/prompt/index.ts";
 import { Context, Effect, Option, Scope, Stream } from "effect";
 import type { AgentError } from "./error.ts";
-import type { StreamPartEncoded } from "effect/unstable/ai/Response";
+import { Response } from "effect/unstable/ai";
 
 export type Agent = Readonly<{
   trajectory: Effect.Effect<Prompt.Trajectory, AgentError>;
-  prompt(prompt: Prompt.Prompt): Stream.Stream<StreamPartEncoded, AgentError>;
+  prompt(prompt: Prompt.Prompt): Stream.Stream<Response.StreamPartEncoded, AgentError>;
 }>;
 
 export type SnapshotExtension = Readonly<{
