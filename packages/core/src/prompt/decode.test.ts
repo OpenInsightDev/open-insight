@@ -1,85 +1,56 @@
 import { assert, it } from "@effect/vitest";
-import { Effect, Stream } from "effect";
+import { Effect } from "effect";
 import { Response } from "effect/unstable/ai";
-import { decodeResponsePartEncodedStream } from "./decode.ts";
+import { decodeResponsePartEncoded } from "./decode.ts";
 
-const run = (parts: ReadonlyArray<Response.StreamPartEncoded>) =>
-  Stream.fromIterable(parts).pipe(decodeResponsePartEncodedStream, Stream.runCollect);
+const decode = (part: Response.PartEncoded) =>
+  decodeResponsePartEncoded(part).pipe(Effect.runPromise);
 
-it("decodes non-tool parts without a toolkit", () =>
-  Effect.gen(function* () {
-    const parts = yield* run([
-      { type: "text-start", id: "t1" } as Response.StreamPartEncoded,
-      { type: "text-delta", id: "t1", delta: "hi" } as Response.StreamPartEncoded,
-      { type: "text-end", id: "t1" } as Response.StreamPartEncoded,
-    ]);
+it("decodes a non-tool part without a toolkit", async () => {
+  const part = await decode({ type: "text", text: "hello" } as Response.PartEncoded);
+  assert.strictEqual(part.type, "text");
+  if (part.type === "text") {
+    assert.strictEqual(part.text, "hello");
+  }
+});
 
-    assert.deepStrictEqual(
-      parts.map((p) => p.type),
-      ["text-start", "text-delta", "text-end"],
-    );
-  }).pipe(Effect.runPromise));
+it("decodes an arbitrarily named tool-call into a branded part", async () => {
+  const part = await decode({
+    type: "tool-call",
+    id: "call_1",
+    name: "bash",
+    params: { cmd: "ls" },
+    providerExecuted: true,
+  } as Response.PartEncoded);
+  assert.ok(Response.isPart(part));
+  assert.strictEqual(part.type, "tool-call");
+  if (part.type === "tool-call") {
+    assert.strictEqual(part.name, "bash");
+    assert.strictEqual(part.providerExecuted, true);
+  }
+});
 
-it("decodes an arbitrarily named tool-call into a branded part", () =>
-  Effect.gen(function* () {
-    const parts = yield* run([
-      {
-        type: "tool-call",
-        id: "call_1",
-        name: "bash",
-        params: { cmd: "ls" },
-        providerExecuted: true,
-      } as Response.StreamPartEncoded,
-    ]);
+it("decodes an arbitrarily named tool-result into a branded part", async () => {
+  const part = await decode({
+    type: "tool-result",
+    id: "call_1",
+    name: "ReadFile",
+    isFailure: false,
+    result: { content: "src" },
+  } as Response.PartEncoded);
+  assert.strictEqual(part.type, "tool-result");
+  if (part.type === "tool-result") {
+    assert.strictEqual(part.name, "ReadFile");
+    assert.strictEqual(part.isFailure, false);
+    assert.deepStrictEqual(part.result, { content: "src" });
+  }
+});
 
-    assert.strictEqual(parts.length, 1);
-    const part = parts[0];
-    assert.ok(Response.isPart(part));
-    assert.strictEqual(part.type, "tool-call");
-    if (part.type === "tool-call") {
-      assert.strictEqual(part.name, "bash");
-      assert.strictEqual(part.providerExecuted, true);
-    }
-  }).pipe(Effect.runPromise));
-
-it("decodes an arbitrarily named tool-result into a branded part", () =>
-  Effect.gen(function* () {
-    const parts = yield* run([
-      {
-        type: "tool-result",
-        id: "call_1",
-        name: "ReadFile",
-        isFailure: false,
-        result: { content: "src" },
-      } as Response.StreamPartEncoded,
-    ]);
-
-    assert.strictEqual(parts.length, 1);
-    const part = parts[0];
-    assert.ok(Response.isPart(part));
-    assert.strictEqual(part.type, "tool-result");
-    if (part.type === "tool-result") {
-      assert.strictEqual(part.name, "ReadFile");
-      assert.strictEqual(part.isFailure, false);
-      assert.deepStrictEqual(part.result, { content: "src" });
-    }
-  }).pipe(Effect.runPromise));
-
-it("decodes distinct tool names independently", () =>
-  Effect.gen(function* () {
-    const parts = yield* run([
-      { type: "tool-call", id: "a", name: "A", params: {} } as Response.StreamPartEncoded,
-      {
-        type: "tool-result",
-        id: "b",
-        name: "B",
-        isFailure: true,
-        result: "boom",
-      } as Response.StreamPartEncoded,
-    ]);
-
-    assert.deepStrictEqual(
-      parts.map((p) => p.type),
-      ["tool-call", "tool-result"],
-    );
-  }).pipe(Effect.runPromise));
+it("decodes a reasoning part into a branded part", async () => {
+  const part = await decode({
+    type: "reasoning",
+    id: "r1",
+    text: "thinking",
+  } as Response.PartEncoded);
+  assert.strictEqual(part.type, "reasoning");
+});

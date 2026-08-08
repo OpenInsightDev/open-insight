@@ -14,6 +14,6 @@ export { type HttpStreamOptions, type WebSocketStreamOptions } from "./http.ts";
 export { type ToAcpPromptOptions, toAcpPrompt } from "./prompt.ts";
 export { layerFrom, type Options } from "./service.ts";
 export { transform } from "./stream.ts";
-export type { StreamPartEncoded } from "effect/unstable/ai/Response";
+export type { PartEncoded } from "effect/unstable/ai/Response";
 
 export * as Internal from "./index.ts";

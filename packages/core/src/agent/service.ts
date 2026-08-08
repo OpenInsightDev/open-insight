@@ -7,7 +7,7 @@ import { Response } from "effect/unstable/ai";
 
 export type Agent = Readonly<{
   trajectory: Effect.Effect<Prompt.Trajectory, AgentError>;
-  prompt(prompt: Prompt.Prompt): Stream.Stream<Response.StreamPartEncoded, AgentError>;
+  prompt(prompt: Prompt.Prompt): Stream.Stream<Response.PartEncoded, AgentError>;
 }>;
 
 export type SnapshotExtension = Readonly<{
@@ -28,3 +28,15 @@ export type Provider = Readonly<{
 export class ProviderService extends Context.Service<ProviderService, Provider>()(
   "agent/AgentService",
 ) {}
+
+export const layerFrom = Effect.fn(function* (
+  prompt: (prompt: Prompt.Prompt) => Effect.Effect<Agent, AgentError>,
+): Effect.fn.Return<Agent, AgentError> {
+  throw new Error("Not implemented");
+});
+
+export const layerFromAsync = Effect.fn(function* (
+  prompt: (prompt: Prompt.Prompt) => AsyncIterable<Response.StreamPartEncoded>,
+): Effect.fn.Return<Agent, AgentError> {
+  throw new Error("Not implemented");
+});

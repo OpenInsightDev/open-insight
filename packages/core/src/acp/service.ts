@@ -95,7 +95,7 @@ type MakeAgentOptions = Omit<SessionContext, "history" | "turnActive">;
 
 type ResponseState = Readonly<{
   trajectory: Prompt.Prompt;
-  responseParts: Array<Response.StreamPartEncoded>;
+  responseParts: Array<Response.PartEncoded>;
   committed: Ref.Ref<boolean>;
 }>;
 
@@ -289,51 +289,19 @@ const sessionUpdateStream = (
   }).pipe(Stream.unwrap);
 
 const promptFromResponseParts = (
-  parts: ReadonlyArray<Response.StreamPartEncoded>,
+  parts: ReadonlyArray<Response.PartEncoded>,
 ): Prompt.Prompt => {
   const assistantParts: Array<Prompt.AssistantMessagePart> = [];
   const toolParts: Array<Prompt.ToolMessagePart> = [];
-  const activeText = new Map<string, string>();
-  const activeReasoning = new Map<string, string>();
 
   for (const part of parts) {
     switch (part.type) {
-      case "text-start":
-        activeText.set(part.id, "");
+      case "text":
+        assistantParts.push(Prompt.makePart("text", { text: part.text }));
         break;
-      case "text-delta": {
-        const text = activeText.get(part.id);
-        if (text !== undefined) {
-          activeText.set(part.id, text + part.delta);
-        }
+      case "reasoning":
+        assistantParts.push(Prompt.makePart("reasoning", { text: part.text }));
         break;
-      }
-      case "text-end": {
-        const text = activeText.get(part.id);
-        if (text !== undefined) {
-          assistantParts.push(Prompt.makePart("text", { text }));
-        }
-        activeText.delete(part.id);
-        break;
-      }
-      case "reasoning-start":
-        activeReasoning.set(part.id, "");
-        break;
-      case "reasoning-delta": {
-        const text = activeReasoning.get(part.id);
-        if (text !== undefined) {
-          activeReasoning.set(part.id, text + part.delta);
-        }
-        break;
-      }
-      case "reasoning-end": {
-        const text = activeReasoning.get(part.id);
-        if (text !== undefined) {
-          assistantParts.push(Prompt.makePart("reasoning", { text }));
-        }
-        activeReasoning.delete(part.id);
-        break;
-      }
       case "tool-call":
         assistantParts.push(
           Prompt.makePart("tool-call", {
@@ -399,9 +367,9 @@ const responseStream = (
 const promptStream = (
   context: SessionContext,
   trajectory: Prompt.Prompt,
-): Stream.Stream<Response.StreamPartEncoded, Agent.AgentError> =>
+): Stream.Stream<Response.PartEncoded, Agent.AgentError> =>
   Effect.gen(function* () {
-    const responseParts: Array<Response.StreamPartEncoded> = [];
+    const responseParts: Array<Response.PartEncoded> = [];
     const committed = yield* Ref.make(false);
     const state: ResponseState = { trajectory, responseParts, committed };
     const message = yield* userMessage(trajectory);

@@ -5,7 +5,7 @@ import * as Sandbox from "#/sandbox/index.ts";
 import * as Snapshot from "#/snapshot/index.ts";
 import { HarnessError } from "./error.ts";
 import type * as Prompt from "#/prompt/index.ts";
-import type { StreamPartEncoded } from "effect/unstable/ai/Response";
+import type { PartEncoded } from "effect/unstable/ai/Response";
 
 export class Metadata extends Schema.Class<Metadata>("HarnessMetadata")({
   id: Schema.String,
@@ -16,7 +16,7 @@ type MetadataEncoded = Schema.Codec.Encoded<typeof Metadata>;
 
 export type AgentSession = Readonly<{
   trajectory: Effect.Effect<Prompt.Trajectory, HarnessError>;
-  prompt(prompt: Prompt.Prompt): Stream.Stream<StreamPartEncoded, HarnessError>;
+  prompt(prompt: Prompt.Prompt): Stream.Stream<PartEncoded, HarnessError>;
 }>;
 
 const makeAgentSession = Effect.fn(function* (
