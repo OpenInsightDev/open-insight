@@ -1,7 +1,8 @@
 import * as Chart from "#/chart/index.ts";
 import { Schema } from "effect";
 import * as Bench from "#/bench/index.ts";
-import { Response, Toolkit } from "effect/unstable/ai";
+import { Response } from "effect/unstable/ai";
+import { Prompt } from "@open-insight/core/internal";
 
 const EvalFields = {
   bench: Schema.String,
@@ -65,15 +66,11 @@ export class TrailStagedEvent extends Schema.TaggedClass<TrailStagedEvent>()("Tr
 }) {}
 export type TrailStagedEventEncoded = Schema.Codec.Encoded<typeof TrailStagedEvent>;
 
-export const TrailStreamEvent = <T extends Toolkit.Any>(toolkit: T) =>
-  class TrailStreamEvent extends Schema.TaggedClass<TrailStreamEvent>()("TrailStreamEvent", {
-    ...TrailFields,
-    part: Response.StreamPart(toolkit),
-  }) {};
-
-export type TrailStreamEventEncoded = Schema.Codec.Encoded<
-  ReturnType<typeof TrailStreamEvent<Toolkit.Any>>
->;
+class TrailStreamEvent extends Schema.TaggedClass<TrailStreamEvent>()("TrailStreamEvent", {
+  ...TrailFields,
+  part: Prompt.AnyStreamPart,
+}) {}
+export type TrailStreamEventEncoded = Schema.Codec.Encoded<typeof TrailStreamEvent>;
 
 const MetricFields = {
   id: Schema.String,
@@ -99,19 +96,16 @@ export class BenchMetricEvent extends Schema.TaggedClass<BenchMetricEvent>()("Be
 }) {}
 export type BenchMetricEventEncoded = Schema.Codec.Encoded<typeof BenchMetricEvent>;
 
-export const EvalEvent = <T extends Toolkit.Any>(toolkit: T) =>
-  Schema.Union([
-    InitEvent,
-    EvalScheduleEvent,
-    TaskScheduleEvent,
-    TrailScheduleEvent,
-    TrailStagedEvent,
-    TrailStreamEvent(toolkit),
-    TrajMetricEvent,
-    TaskMetricEvent,
-    BenchMetricEvent,
-  ]);
-export type EvalEvent<T extends Toolkit.Any = Toolkit.Any> = Schema.Schema.Type<
-  ReturnType<typeof EvalEvent<T>>
->;
-export type EvalEventEncoded = Schema.Codec.Encoded<ReturnType<typeof EvalEvent<Toolkit.Any>>>;
+export const EvalEvent = Schema.Union([
+  InitEvent,
+  EvalScheduleEvent,
+  TaskScheduleEvent,
+  TrailScheduleEvent,
+  TrailStagedEvent,
+  TrailStreamEvent,
+  TrajMetricEvent,
+  TaskMetricEvent,
+  BenchMetricEvent,
+]);
+export type EvalEvent = Schema.Schema.Type<typeof EvalEvent>;
+export type EvalEventEncoded = Schema.Codec.Encoded<typeof EvalEvent>;
