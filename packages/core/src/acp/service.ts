@@ -29,8 +29,6 @@ import { HarnessError } from "#/harness/index.ts";
 const DEFAULT_CWD = "/workspace";
 const DEFAULT_PORT = 7689;
 const DEFAULT_PATH = "/acp";
-const ACP_AGENT_INSTALL_URL =
-  "https://github.com/OpenInsightDev/acp-agent/releases/latest/download/install.sh";
 const AUTH_REQUIRED_CODE = -32_000;
 
 const unsupportedCapabilities = {
@@ -179,13 +177,10 @@ const snapshotExtension = (agentId: string, options: Options): Agent.SnapshotExt
         from: "ghcr.io/astral-sh/uv:latest",
       }),
       Snapshot.Inst.available("uv"),
-      // TODO maybe we can use some kind of static curl here
-      Snapshot.Inst.available("curl"),
-      Snapshot.Inst.run(
-        `curl -fsSL ${ACP_AGENT_INSTALL_URL} | ACP_AGENT_INSTALL_DIR=/usr/local/bin sh`,
-      ),
+      Snapshot.Inst.copy(["/acp-agent"], "/usr/local/bin/acp-agent", {
+        from: "ghcr.io/openinsightdev/acp-agent:bin",
+      }),
       Snapshot.Inst.available("acp-agent"),
-      Snapshot.Inst.run("acp-agent install-env --yes"),
       Snapshot.Inst.run(`acp-agent install ${Bash.quote(agentId)}`),
       ...(serveEnv === undefined || Object.keys(serveEnv).length === 0
         ? []

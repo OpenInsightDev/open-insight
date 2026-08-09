@@ -2,6 +2,7 @@ export * as Sandbox from "./sandbox/index.ts";
 export * as Assert from "./assert/index.ts";
 export * as Resource from "./resource/index.ts";
 export * as Snapshot from "./snapshot/index.ts";
+export * as Plugin from "./plugin/index.ts";
 export * as Agent from "./agent/index.ts";
 export * as Prompt from "./prompt/index.ts";
 export * as Acp from "./acp/index.ts";

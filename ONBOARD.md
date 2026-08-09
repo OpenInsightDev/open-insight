@@ -1,5 +1,9 @@
 # Onboard
 
+## Core Agent
+
+- 支持在 runSession 的时候输入 plugins 作为参数，用于使用标准格式向 agent 注入插件；
+
 ## Grade
 
 - 支持 sandboxed grader

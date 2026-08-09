@@ -66,7 +66,7 @@ export class TrailStagedEvent extends Schema.TaggedClass<TrailStagedEvent>()("Tr
 }) {}
 export type TrailStagedEventEncoded = Schema.Codec.Encoded<typeof TrailStagedEvent>;
 
-class TrailStreamEvent extends Schema.TaggedClass<TrailStreamEvent>()("TrailStreamEvent", {
+export class TrailStreamEvent extends Schema.TaggedClass<TrailStreamEvent>()("TrailStreamEvent", {
   ...TrailFields,
   part: Prompt.AnyStreamPart,
 }) {}
@@ -109,3 +109,8 @@ export const EvalEvent = Schema.Union([
 ]);
 export type EvalEvent = Schema.Schema.Type<typeof EvalEvent>;
 export type EvalEventEncoded = Schema.Codec.Encoded<typeof EvalEvent>;
+
+/** Backward-compatible alias for the plain (non-toolkit-parameterized) event schema. */
+export const Event = EvalEvent;
+export type Event = Schema.Schema.Type<typeof Event>;
+export type EventEncoded = Schema.Codec.Encoded<typeof Event>;

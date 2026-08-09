@@ -9,6 +9,9 @@ export * as Assert from "./assert/export.ts";
 export * as Snapshot from "./snapshot/export.ts";
 export { SnapshotError } from "./snapshot/export.ts";
 
+export * as Plugin from "./plugin/export.ts";
+export { PluginError } from "./plugin/export.ts";
+
 export * as Agent from "./agent/export.ts";
 export { AgentError } from "./agent/export.ts";
 
