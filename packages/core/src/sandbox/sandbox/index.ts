@@ -1,6 +1,6 @@
 import { Context, Effect, Crypto } from "effect";
 import { SandboxError } from "../error.ts";
-import { type Command, type Handle, type Spawn } from "./service.ts";
+import { type Spawn } from "./service.ts";
 
 export const SANDBOX_NAME = "open-insight-sandbox";
 
@@ -12,7 +12,6 @@ export const makeName = Effect.fn(function* () {
 
 export type Sandbox = Spawn &
   Readonly<{
-    cmd(process: Command): Effect.Effect<Handle, SandboxError>;
     readFile(options: Readonly<{ sandboxPath: string }>): Effect.Effect<string, SandboxError>;
     writeFile(
       options: Readonly<{ sandboxPath: string; content: string }>,

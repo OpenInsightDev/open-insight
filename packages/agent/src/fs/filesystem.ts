@@ -211,15 +211,12 @@ export const make = (
 
   class FileImpl implements FileSystem.File {
     readonly [FileSystem.FileTypeId]: typeof FileSystem.FileTypeId = FileSystem.FileTypeId;
-    readonly fd: FileSystem.File.Descriptor;
     private position: bigint = BigInt(0);
 
     constructor(
       private readonly handle: FileHandle,
       private readonly append: boolean,
-    ) {
-      this.fd = FileSystem.FileDescriptor(this.handle.fd);
-    }
+    ) {}
 
     get stat() {
       return Effect.map(
@@ -240,7 +237,7 @@ export const make = (
         } else if (from === "current") {
           this.position = this.position + offsetSize;
         }
-        return this.position;
+        return FileSystem.Size(this.position);
       });
     }
 
