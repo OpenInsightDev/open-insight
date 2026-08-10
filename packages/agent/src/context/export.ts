@@ -1,11 +1,3 @@
-/**
- * Public exports for the `context` module.
- *
- * `context` provides the context management pipeline for agent sessions:
- * middlewares transform `{ sandbox, trajectory, responding, prompting }`
- * right before the next round of prompting, and the applied result is
- * committed by the agent loop.
- */
 export {
   Service,
   layer,
@@ -29,5 +21,6 @@ export {
   type PrePromptResult,
   type PrePromptState,
 } from "./middleware.ts";
+export { ContextError, ErrorReason, InvalidMetadata, MiddlewareFailed } from "./error.ts";
 
 export * as Internal from "./index.ts";

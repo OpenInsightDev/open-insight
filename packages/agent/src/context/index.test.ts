@@ -56,7 +56,6 @@ describe("Context.make", () => {
       });
 
       assert.strictEqual(result.responded.content.length, 3);
-      // sandbox is not part of the result
       assert.deepStrictEqual(Object.keys(result), ["trajectory", "responded"]);
     }),
   );
@@ -70,7 +69,6 @@ describe("Context.make", () => {
       );
       ctx.middlewares.add(wipe);
 
-      // Only an AfterRespond middleware is registered, so PrePrompt must be a no-op.
       const pre = yield* ctx.applyPrePrompt({
         ...fakeSandbox,
         trajectory: prompt("history"),
@@ -122,7 +120,6 @@ describe("Context.make", () => {
         prompt: prompt("hi"),
       });
       assert.strictEqual(result.prompt.content.length, 2);
-      // The PrePrompt middleware must not leak into applyAfterRespond.
       const after = yield* ctx.applyAfterRespond({
         ...fakeSandbox,
         trajectory: prompt("history"),
@@ -153,7 +150,6 @@ describe("Context.make", () => {
         prompt: prompt("hi"),
       });
 
-      // "a" and "b" are appended in registration order.
       assert.strictEqual(result.prompt.content.length, 3);
       const last = result.prompt.content.at(-1);
       assert.deepStrictEqual(last, Prompt.make([{ role: "user", content: "b" }]).content[0]);

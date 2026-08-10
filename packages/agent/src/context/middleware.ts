@@ -1,5 +1,6 @@
 import type { Prompt, Sandbox } from "@open-insight/core/internal";
 import { Data, Effect, Option, Schema } from "effect";
+import { ContextError } from "./error.ts";
 
 export type AfterRespondState = Sandbox.Sandbox &
   Readonly<{
@@ -11,7 +12,9 @@ export type AfterRespondResult = Readonly<{
   trajectory: Prompt.Trajectory;
   responded: Prompt.Prompt;
 }>;
-export type AfterRespondFn = (state: AfterRespondState) => Effect.Effect<AfterRespondResult, never>;
+export type AfterRespondFn = (
+  state: AfterRespondState,
+) => Effect.Effect<AfterRespondResult, unknown>;
 
 export type PrePromptState = Sandbox.Sandbox &
   Readonly<{
@@ -23,7 +26,7 @@ export type PrePromptResult = Readonly<{
   trajectory: Prompt.Trajectory;
   prompt: Prompt.Prompt;
 }>;
-export type PrePromptFn = (state: PrePromptState) => Effect.Effect<PrePromptResult, never>;
+export type PrePromptFn = (state: PrePromptState) => Effect.Effect<PrePromptResult, unknown>;
 
 export type Fn = Data.TaggedEnum<{
   PrePrompt: { fn: PrePromptFn };
@@ -60,7 +63,9 @@ export type Middleware = Readonly<{
 type Options = MetadataEncoded;
 
 export const make = Effect.fn(function* (fn: Fn, options: Options) {
-  const metadata = yield* Schema.decodeEffect(Metadata)(options);
+  const metadata = yield* Schema.decodeEffect(Metadata)(options).pipe(
+    Effect.mapError((cause) => ContextError.invalidMetadata(cause)),
+  );
   return { metadata, fn } as Middleware;
 });
 
