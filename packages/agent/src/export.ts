@@ -7,3 +7,5 @@ export * as Ptc from "./ptc/export.ts";
 export { PtcError } from "./ptc/error.ts";
 export * as Agent from "./agent/export.ts";
 export { AgentError } from "./agent/error.ts";
+export * as Activity from "./activity/export.ts";
+export { ActivityError } from "./activity/error.ts";
