@@ -39,7 +39,7 @@ export type Task<G extends Grade.AnyResult = never> = Readonly<{
 
 export type AnyTask = Task<any>;
 
-type Options<G extends Grade.AnyResult> = BaseMetadataEncoded &
+type Options = BaseMetadataEncoded &
   Partial<Harness.SandboxSessionConfig> &
   Readonly<{
     snapshot: Snapshot.Template;
@@ -47,7 +47,7 @@ type Options<G extends Grade.AnyResult> = BaseMetadataEncoded &
   }>;
 
 export const make = Effect.fn(function* <G extends Grade.AnyResult>(
-  options: Options<G>,
+  options: Options,
 ): Effect.fn.Return<Task<G>, TaskError> {
   const { snapshot, trajMetrics = [] } = options;
   const metadata = yield* Schema.decodeEffect(BaseMetadata)(options).pipe(

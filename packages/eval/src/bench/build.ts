@@ -57,7 +57,6 @@ export const metadata = (bench: Bench): Metadata =>
       tasks: bench.tasks.map((task) =>
         Task.Metadata.make({
           base: task.metadata,
-          stages: task.stages.map((stage) => stage.metadata),
           extras: {},
         }),
       ),

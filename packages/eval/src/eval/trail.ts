@@ -52,7 +52,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
     eventQueue: Event.EventEnqueue;
     snapshotSession: Harness.SnapshotSession;
   }): Effect.fn.Return<RunTrail, EvalError, Scope.Scope> {
-    const { stages, metrics: taskMetrics, trajMetrics, sandboxConfig } = task;
+    const { metrics: taskMetrics, trajMetrics, sandboxConfig } = task;
     const { verifMode, graderMaxRetries: maxRetries } = config;
 
     const offer = Event.offerTo(eventQueue);

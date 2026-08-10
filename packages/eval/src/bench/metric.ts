@@ -43,7 +43,7 @@ export const metric =
     exec: Metric.Bench.Exec<G["Type"], MR>,
     options: Omit<Metric.Bench.Options<G["Type"], MR>, "exec"> = {},
   ) =>
-  <S extends Task.Stage, E, R>(bench: Effect.Effect<Bench<Task.Task<G, S>>, E, R>) =>
+  <E, R>(bench: Effect.Effect<Bench<Task.Task<G>>, E, R>) =>
     Effect.flatMap(bench, (bench) =>
       Metric.Bench.make({ ...options, exec }).pipe(
         Effect.mapError(BenchError.init),
@@ -61,7 +61,7 @@ export const mapMetric =
     exec: Metric.Bench.Exec<M, MR>,
     options: Omit<Metric.Bench.Options<G["Type"], MR>, "exec"> = {},
   ) =>
-  <S extends Task.Stage, E, R>(bench: Effect.Effect<Bench<Task.Task<G, S>>, E, R>) =>
+  <E, R>(bench: Effect.Effect<Bench<Task.Task<G>>, E, R>) =>
     Effect.flatMap(bench, (bench) =>
       Metric.Bench.make({ ...options, exec: mapBenchExec(mapper, exec) }).pipe(
         Effect.mapError(BenchError.init),
@@ -79,7 +79,7 @@ export const taskMetric =
     exec: Metric.Task.Exec<G["Type"], MR>,
     options: Omit<Metric.Task.Options<G["Type"], MR>, "exec"> = {},
   ) =>
-  <S extends Task.Stage, E, R>(bench: Effect.Effect<Bench<Task.Task<G, S>>, E, R>) =>
+  <E, R>(bench: Effect.Effect<Bench<Task.Task<G>>, E, R>) =>
     Effect.flatMap(bench, (bench) => {
       if (!bench.tasks.some((task) => task.metadata.id === taskId)) {
         return Effect.fail(BenchError.taskNotFound(taskId));
@@ -107,7 +107,7 @@ export const mapTaskMetric =
     exec: Metric.Task.Exec<M, MR>,
     options: Omit<Metric.Task.Options<G["Type"], MR>, "exec"> = {},
   ) =>
-  <S extends Task.Stage, E, R>(bench: Effect.Effect<Bench<Task.Task<G, S>>, E, R>) =>
+  <E, R>(bench: Effect.Effect<Bench<Task.Task<G>>, E, R>) =>
     Effect.flatMap(bench, (bench) => {
       if (!bench.tasks.some((task) => task.metadata.id === taskId)) {
         return Effect.fail(BenchError.taskNotFound(taskId));

@@ -1,4 +1,4 @@
-import { Prompt } from "@open-insight/core";
+import { Prompt } from "@open-insight/core/internal";
 import { Data, Formatter, Schema } from "effect";
 
 /**
