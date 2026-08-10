@@ -1,12 +1,14 @@
 import { Context, Effect } from "effect";
 import * as Middle from "./middleware.ts";
 
-export type Trajectory = Readonly<{
+export type ContextManagement = Readonly<{
   middlewares: Set<Middle.Middleware>;
   apply(state: Middle.State): Effect.Effect<Middle.State, never>;
 }>;
 
-export class Service extends Context.Service<Service, Trajectory>()("open-insight/Trajectory") {}
+export class Service extends Context.Service<Service, ContextManagement>()(
+  "open-insight/ContextManagement",
+) {}
 
 export const register =
   (fn: Middle.Fn, options: Middle.MetadataEncoded) =>

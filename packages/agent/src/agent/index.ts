@@ -1,12 +1,7 @@
 import { Sandbox, type Prompt } from "@open-insight/core/internal";
 import { Context, Effect, Layer, Ref, Stream } from "effect";
 import { Response, Tool, Toolkit } from "effect/unstable/ai";
-import * as Traj from "#/trajectory/index.ts";
-
-export type State = Readonly<{
-  trajectory: Ref.Ref<Prompt.Trajectory>;
-  responses: Array<Prompt.Part>;
-}>;
+import * as CtxManage from "#/context/index.ts";
 
 export type Session<Tools extends Record<string, Tool.Any>> = Readonly<{
   toolkit: Toolkit.Toolkit<Tools>;
@@ -27,7 +22,7 @@ export const layerFrom = () =>
     Service,
     Effect.gen(function* () {
       const sandbox = yield* Sandbox.ProviderService;
-      const traj = yield* Traj.Service;
+      const ctxManage = yield* CtxManage.Service;
       throw new Error("no");
     }),
   );
