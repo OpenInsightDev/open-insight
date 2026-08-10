@@ -178,12 +178,12 @@ export class EvalError extends Schema.TaggedError<EvalError>("open-insight/eval/
 
   static verifMismatch = (
     task: ExecTask,
-    expect: Grade.Result["Encoded"],
+    expect: Grade.AnyResult["Encoded"],
     actual: unknown,
   ): EvalError =>
     EvalError.make({ reason: VerifMismatch.make({ task: task.metadata.id, expect, actual }) });
 
-  static verifInitialMatch = (task: ExecTask, expect: Grade.Result["Encoded"]): EvalError =>
+  static verifInitialMatch = (task: ExecTask, expect: Grade.AnyResult["Encoded"]): EvalError =>
     EvalError.make({ reason: VerifInitialMatch.make({ task: task.metadata.id, expect }) });
 
   static verifExec =

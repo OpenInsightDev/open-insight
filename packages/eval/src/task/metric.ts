@@ -3,10 +3,10 @@ import * as Metric from "#/metric/index.ts";
 import type { TrailResult } from "#/eval/result.ts";
 import { Effect, Schema } from "effect";
 import { castDraft, produce } from "immer";
-import type { Stage, Task } from "./build.ts";
+import type { Task } from "./build.ts";
 import { TaskError } from "./error.ts";
 
-const mapExec = <G extends Grade.Result, M, R extends Schema.JsonObject>(
+const mapExec = <G extends Grade.AnyResult, M, R extends Schema.JsonObject>(
   mapper: (grade: G["Type"]) => M,
   exec: Metric.Task.Exec<M, R>,
 ): Metric.Task.Exec<G["Type"], R> => {
@@ -19,11 +19,11 @@ const mapExec = <G extends Grade.Result, M, R extends Schema.JsonObject>(
 };
 
 export const metric =
-  <G extends Grade.Result, MR extends Schema.JsonObject>(
+  <G extends Grade.AnyResult, MR extends Schema.JsonObject>(
     exec: Metric.Task.Exec<G["Type"], MR>,
     options: Omit<Metric.Task.Options<G["Type"], MR>, "exec"> = {},
   ) =>
-  <S extends Stage, E, R>(task: Effect.Effect<Task<G, S>, E, R>) =>
+  <E, R>(task: Effect.Effect<Task<G>, E, R>) =>
     Effect.flatMap(task, (task) =>
       Metric.Task.make({ ...options, exec }).pipe(
         Effect.mapError(TaskError.metadata),
@@ -36,12 +36,12 @@ export const metric =
     );
 
 export const mapMetric =
-  <G extends Grade.Result, M, MR extends Schema.JsonObject>(
+  <G extends Grade.AnyResult, M, MR extends Schema.JsonObject>(
     mapper: (grade: G["Type"]) => M,
     exec: Metric.Task.Exec<M, MR>,
     options: Omit<Metric.Task.Options<G["Type"], MR>, "exec"> = {},
   ) =>
-  <S extends Stage, E, R>(task: Effect.Effect<Task<G, S>, E, R>) =>
+  <E, R>(task: Effect.Effect<Task<G>, E, R>) =>
     task.pipe(
       Effect.flatMap((task) =>
         Metric.Task.make({ ...options, exec: mapExec(mapper, exec) }).pipe(
@@ -60,9 +60,9 @@ export const trajMetric =
     exec: Metric.Traj.Exec<R>,
     options: Omit<Metric.Traj.Options<R>, "exec"> = {},
   ) =>
-  <G extends Grade.Result, S extends Stage, E, R>(
-    task: Effect.Effect<Task<G, S>, E, R>,
-  ): Effect.Effect<Task<G, S>, E | Error, R> =>
+  <G extends Grade.AnyResult, E, R>(
+    task: Effect.Effect<Task<G>, E, R>,
+  ): Effect.Effect<Task<G>, E | Error, R> =>
     task.pipe(
       Effect.flatMap(
         Effect.fn(function* (task) {

@@ -12,7 +12,7 @@ import * as Event from "#/event/index.ts";
 
 export type RunTrail = (trailIdx: number) => Effect.Effect<TrailResult, EvalError, Scope.Scope>;
 
-type StageResults = Readonly<Grade.Results>;
+type StageResults = Readonly<Grade.AnyResults>;
 type Usage = Response.Usage | null;
 
 const makeVerifAgent = Effect.fn("exec/makeVerifAgent")(function* ({
@@ -222,7 +222,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
         });
 
         const execGrader = Effect.fn("exec/runTrail/executeGrader")(function* <
-          G extends Grade.Result,
+          G extends Grade.AnyResult,
         >(
           grader: Grade.Grader<G, StageResults>,
           results: StageResults,
@@ -240,7 +240,9 @@ export const createTrail = Effect.fn("exec/createTrail")(
           });
         });
 
-        const runGrader = Effect.fn("exec/runTrail/runGrader")(function* <G extends Grade.Result>(
+        const runGrader = Effect.fn("exec/runTrail/runGrader")(function* <
+          G extends Grade.AnyResult,
+        >(
           grader: Grade.Grader<G, StageResults>,
           results: StageResults,
         ): Effect.fn.Return<G["Encoded"], EvalError | Grade.Retry, Scope.Scope> {
@@ -252,7 +254,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
           { metadata, makePrompt, grader, init, resume }: Task.Stage,
           results: StageResults,
         ): Effect.fn.Return<
-          Readonly<{ grade: Grade.Result["Type"]; usage: Usage }>,
+          Readonly<{ grade: Grade.AnyResult["Type"]; usage: Usage }>,
           EvalError,
           Scope.Scope
         > {
@@ -380,7 +382,7 @@ export const createTrail = Effect.fn("exec/createTrail")(
 
         type StagesState = Readonly<{
           results: StageResults;
-          grade: Option.Option<Grade.Result["Type"]>;
+          grade: Option.Option<Grade.AnyResult["Type"]>;
           usage: Usage;
         }>;
 

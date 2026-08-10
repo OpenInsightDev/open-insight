@@ -7,7 +7,7 @@ import { castDraft, produce } from "immer";
 import type { Bench } from "./build.ts";
 import { BenchError } from "./error.ts";
 
-const mapBenchExec = <G extends Grade.Result, M, R extends Schema.JsonObject>(
+const mapBenchExec = <G extends Grade.AnyResult, M, R extends Schema.JsonObject>(
   mapper: (grade: G["Type"]) => M,
   exec: Metric.Bench.Exec<M, R>,
 ): Metric.Bench.Exec<G["Type"], R> => {
@@ -26,7 +26,7 @@ const mapBenchExec = <G extends Grade.Result, M, R extends Schema.JsonObject>(
     );
 };
 
-const mapTaskExec = <G extends Grade.Result, M, R extends Schema.JsonObject>(
+const mapTaskExec = <G extends Grade.AnyResult, M, R extends Schema.JsonObject>(
   mapper: (grade: G["Type"]) => M,
   exec: Metric.Task.Exec<M, R>,
 ): Metric.Task.Exec<G["Type"], R> => {
@@ -39,7 +39,7 @@ const mapTaskExec = <G extends Grade.Result, M, R extends Schema.JsonObject>(
 };
 
 export const metric =
-  <G extends Grade.Result, MR extends Schema.JsonObject>(
+  <G extends Grade.AnyResult, MR extends Schema.JsonObject>(
     exec: Metric.Bench.Exec<G["Type"], MR>,
     options: Omit<Metric.Bench.Options<G["Type"], MR>, "exec"> = {},
   ) =>
@@ -56,7 +56,7 @@ export const metric =
     );
 
 export const mapMetric =
-  <G extends Grade.Result, M, MR extends Schema.JsonObject>(
+  <G extends Grade.AnyResult, M, MR extends Schema.JsonObject>(
     mapper: (grade: G["Type"]) => M,
     exec: Metric.Bench.Exec<M, MR>,
     options: Omit<Metric.Bench.Options<G["Type"], MR>, "exec"> = {},
@@ -74,7 +74,7 @@ export const mapMetric =
     );
 
 export const taskMetric =
-  <G extends Grade.Result, MR extends Schema.JsonObject>(
+  <G extends Grade.AnyResult, MR extends Schema.JsonObject>(
     taskId: Task.ID,
     exec: Metric.Task.Exec<G["Type"], MR>,
     options: Omit<Metric.Task.Options<G["Type"], MR>, "exec"> = {},
@@ -101,7 +101,7 @@ export const taskMetric =
     });
 
 export const mapTaskMetric =
-  <G extends Grade.Result, M, MR extends Schema.JsonObject>(
+  <G extends Grade.AnyResult, M, MR extends Schema.JsonObject>(
     taskId: Task.ID,
     mapper: (grade: G["Type"]) => M,
     exec: Metric.Task.Exec<M, MR>,

@@ -1,6 +1,6 @@
 import { Sandbox, type Prompt, type Snapshot } from "@open-insight/core/internal";
-import type { BivariantFn, UnionToIntersection } from "#/utils/variant.ts";
-import type { Result, Results } from "./base.ts";
+import type { BivariantFn } from "#/utils/variant.ts";
+import type { AnyResult } from "./base.ts";
 import type { Verif } from "./verif.ts";
 import { Effect, FiberSet, FileSystem, Path } from "effect";
 
@@ -105,41 +105,40 @@ export const makeSandboxContext = Effect.fn(function* ({
   };
 });
 
-export type Context<Rs extends Results = never> = SandboxContext &
+export type Context = SandboxContext &
   Readonly<{
-    prevResults: UnionToIntersection<Rs>;
     trajectory: Prompt.Trajectory;
   }>;
 
-export type Exec<R extends Result = Result, Rs extends Results = never> = BivariantFn<
-  (ctx: Context<Rs>) => PromiseLike<R["Encoded"]>
+export type Exec<R extends AnyResult = AnyResult> = BivariantFn<
+  (ctx: Context) => PromiseLike<R["Encoded"]>
 >;
 
 type Config = Readonly<{
   scope: SandboxScope;
 }>;
 
-export type Grader<R extends Result = Result, Rs extends Results = never> = Readonly<{
+export type Grader<R extends AnyResult = AnyResult> = Readonly<{
   schema: R;
-  grade: Exec<R, Rs>;
+  grade: Exec<R>;
   snapshot: Snapshot.Template;
   verif: Verif<R> | null;
   config: Config;
 }>;
 
-type Options<R extends Result> = Readonly<{
+type Options<R extends AnyResult> = Readonly<{
   scope?: SandboxScope;
   verif?: Verif<R> | null;
 }> &
   Partial<Config>;
 
 export const make =
-  <R extends Result>(schema: R) =>
-  <Rs extends Results>(
-    grade: Exec<R, Rs>,
+  <R extends AnyResult>(schema: R) =>
+  (
+    grade: Exec<R>,
     snapshot: Snapshot.Template,
     { verif = null, scope = "per-trail" }: Options<R> = {},
-  ): Grader<R, Rs> => ({
+  ): Grader<R> => ({
     schema,
     grade,
     snapshot,

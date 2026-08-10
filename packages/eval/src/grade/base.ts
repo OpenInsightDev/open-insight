@@ -1,35 +1,33 @@
 import { Prompt, type Sandbox } from "@open-insight/core/internal";
-import type { BivariantFn, UnionToIntersection } from "#/utils/variant.ts";
+import type { BivariantFn } from "#/utils/variant.ts";
 import { Effect, Schema } from "effect";
 import { GradeError, Retry } from "./error.ts";
 import { type Verif } from "./verif.ts";
 
-export type Result = Schema.ConstraintCodec<unknown, object>;
-export type Results = Record<string, Result["Type"]>;
+export type AnyResult = Schema.ConstraintCodec<unknown, object>;
 
-export type Context<Rs extends Results = never> = Sandbox.SandboxPromise &
+export type Context = Sandbox.SandboxPromise &
   Readonly<{
-    prevResults: UnionToIntersection<Rs>;
     trajectory: Prompt.Trajectory;
   }>;
 
-export type Exec<R extends Result = Result, Rs extends Results = never> = BivariantFn<
-  (ctx: Context<Rs>) => PromiseLike<R["Encoded"]>
+export type Exec<R extends AnyResult = AnyResult> = BivariantFn<
+  (ctx: Context) => PromiseLike<R["Encoded"]>
 >;
 
-export type Grader<R extends Result = Result, Rs extends Results = never> = Readonly<{
+export type Grader<R extends AnyResult = AnyResult> = Readonly<{
   schema: R;
-  grade: Exec<R, Rs>;
+  grade: Exec<R>;
   verif: Verif<R> | null;
 }>;
 
 export const make =
-  <R extends Result>(schema: R) =>
-  <Rs extends Results>(grade: Exec<R, Rs>, verif?: Verif<R>) => ({ schema, grade, verif });
+  <R extends AnyResult>(schema: R) =>
+  (grade: Exec<R>, verif?: Verif<R>) => ({ schema, grade, verif });
 
-export const run = <R extends Result, Rs extends Results>(grader: Grader<R, Rs>) =>
+export const run = <R extends AnyResult>(grader: Grader<R>) =>
   Effect.fn(function* (
-    ctx: Context<Rs>,
+    ctx: Context,
   ): Effect.fn.Return<R["Type"], GradeError | Retry, R["DecodingServices"]> {
     const result = yield* Effect.tryPromise({
       try: () => grader.grade(ctx),

@@ -1,10 +1,10 @@
 import { type Grader as SandboxedGrader } from "./sandbox.ts";
-import { type Grader as BaseGrader, type Result, type Results } from "./base.ts";
+import { type Grader as BaseGrader, type AnyResult } from "./base.ts";
 import { Data } from "effect";
 
-export type Grader<R extends Result = Result, Rs extends Results = never> = Data.TaggedEnum<{
-  Base: BaseGrader<R, Rs>;
-  Sandboxed: SandboxedGrader<R, Rs>;
+export type Grader<R extends AnyResult = AnyResult> = Data.TaggedEnum<{
+  Base: BaseGrader<R>;
+  Sandboxed: SandboxedGrader<R>;
 }>;
 export const Grader = Data.taggedEnum<Grader>();
 
