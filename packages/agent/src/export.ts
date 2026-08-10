@@ -5,3 +5,5 @@ export * as Vm from "./vm/export.ts";
 export { VmError } from "./vm/error.ts";
 export * as Ptc from "./ptc/export.ts";
 export { PtcError } from "./ptc/error.ts";
+export * as Agent from "./agent/export.ts";
+export { AgentError } from "./agent/error.ts";
