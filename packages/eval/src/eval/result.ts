@@ -4,22 +4,32 @@ import { Prompt } from "@open-insight/core/internal";
 import { Schema } from "effect";
 import { Response } from "effect/unstable/ai";
 
-export const StageTrajectories = Schema.Record(Schema.String, Prompt.Trajectory);
-export type StageTrajectories = Schema.Schema.Type<typeof StageTrajectories>;
+export const StageResult = Schema.Struct({
+  startedAt: TimestampSchema,
+  finishedAt: TimestampSchema,
+  grade: Schema.Unknown,
+  trajectory: Prompt.Trajectory,
+  usage: Schema.NullOr(Response.Usage),
+});
+export type StageResult<G = unknown> = Readonly<{
+  startedAt: Timestamp;
+  finishedAt: Timestamp;
+  grade: G;
+  trajectory: Prompt.Trajectory;
+  usage: Response.Usage | null;
+}>;
 
 export const TrailResult = Schema.Struct({
   startedAt: TimestampSchema,
   finishedAt: TimestampSchema,
-  usage: Schema.NullOr(Response.Usage),
   grade: Schema.Unknown,
-  trajectories: StageTrajectories,
+  stages: Schema.Array(StageResult),
 });
 export type TrailResult<G = unknown> = Readonly<{
   startedAt: Timestamp;
   finishedAt: Timestamp;
-  usage: Response.Usage | null;
-  trajectories: StageTrajectories;
   grade: G;
+  stages: ReadonlyArray<StageResult<G>>;
 }>;
 
 export const TaskResult = Schema.Struct({

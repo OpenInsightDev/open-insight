@@ -71,7 +71,7 @@ export const make = Effect.fn(function* <G extends Grade.Result>(
     Effect.mapError(TaskError.metadata),
   );
 
-  const initialStage = yield* makeStage<InitialStageName, G, never>("initial", options).pipe(
+  const initStage = yield* makeStage<InitialStageName, G, never>("initial", options).pipe(
     Effect.mapError(TaskError.metadata),
   );
 
@@ -80,12 +80,12 @@ export const make = Effect.fn(function* <G extends Grade.Result>(
     snapshot,
     trajMetrics,
     metrics: [],
-    stages: [initialStage],
-    [TypeId]: TypeId,
+    stages: [initStage],
     sandboxConfig: {
       ...Harness.DefaultSandboxSessionConfig,
       ...options,
     },
+    [TypeId]: TypeId,
   } satisfies Task<G, Stage<InitialStageName, G>>;
 });
 
