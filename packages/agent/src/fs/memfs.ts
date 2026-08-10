@@ -30,9 +30,7 @@ export class MemFs extends Context.Service<MemFs, Fs>()("agent/MemFs") {
   /**
    * Provides `MemFs` backed by a fresh, empty in-memory volume.
    */
-  static readonly layer: Layer.Layer<MemFs> = Layer.fresh(
-    Layer.effect(MemFs)(Effect.sync(() => memfs())),
-  );
+  static readonly layer: Layer.Layer<MemFs> = Layer.fresh(Layer.effect(MemFs)(Effect.sync(memfs)));
 
   /**
    * Provides `MemFs` backed by a fresh in-memory volume seeded with a JSON

@@ -1,7 +1,7 @@
 import { assert, describe, it, layer } from "@effect/vitest";
 import { Effect, Fiber, FileSystem, Option, Stream } from "effect";
 import { MemFs } from "./memfs.ts";
-import * as Fs from "./fs.ts";
+import * as Fs from "./service.ts";
 
 describe("MemFs FileSystem", () => {
   layer(Fs.layer)((it) => {
