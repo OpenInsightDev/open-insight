@@ -1,4 +1,4 @@
-import { Sandbox } from "@open-insight/core";
+import { Sandbox } from "@open-insight/core/internal";
 import { Schema } from "effect";
 import { Tool } from "effect/unstable/ai";
 

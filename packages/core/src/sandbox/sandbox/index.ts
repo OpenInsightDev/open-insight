@@ -27,6 +27,9 @@ export type Sandbox = Spawn &
     ): Effect.Effect<{ hostUrl: string }, SandboxError>;
   }>;
 
+/**
+ * Reference of a live sandbox.
+ */
 export class Current extends Context.Service<Current, Sandbox>()("sandbox/Current") {}
 
 export * from "./promise.ts";

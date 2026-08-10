@@ -50,6 +50,7 @@
     "@modelcontextprotocol/sdk": "catalog:",
     "@open-insight/core": "workspace:*",
     "ajv": "catalog:",
+    "immer": "catalog:",
     "memfs": "catalog:",
     "yaml": "catalog:"
   },
