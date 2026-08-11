@@ -94,7 +94,7 @@ export type AnyStreamPart = Schema.Schema.Type<typeof AnyStreamPart>;
 export const decodeResponseStreamPartEncoded = (
   encoded: Response.StreamPartEncoded,
 ): Effect.Effect<AnyStreamPart, Schema.SchemaError> =>
-  Schema.decodeUnknownEffect(AnyToolCallPart)(encoded);
+  Schema.decodeUnknownEffect(AnyStreamPart)(encoded);
 
 // /**
 //  * Decodes a stream of encoded response stream parts
@@ -104,3 +104,13 @@ export const decodeResponseStream = <E, R>(
   stream: Stream.Stream<Response.StreamPartEncoded, E, R>,
 ): Stream.Stream<AnyStreamPart, E | Schema.SchemaError, R> =>
   stream.pipe(Stream.mapEffect(decodeResponseStreamPartEncoded));
+
+/**
+ * Encodes a typed stream part (`AnyStreamPart`) back into its encoded wire
+ * form (`Response.StreamPartEncoded`), the inverse of
+ * {@link decodeResponseStreamPartEncoded}.
+ */
+export const encodeResponseStreamPartEncoded = (
+  part: AnyStreamPart,
+): Effect.Effect<Response.StreamPartEncoded, Schema.SchemaError> =>
+  Schema.encodeUnknownEffect(AnyStreamPart)(part);

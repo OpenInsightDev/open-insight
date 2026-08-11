@@ -24,9 +24,6 @@ export type Config =
       /** Number of independent evaluation trails run for each task. Defaults to `1`. */
       trailCount: number;
 
-      /** Maximum additional agent turns requested by a grader. Defaults to 3. */
-      graderMaxRetries: number;
-
       /** Whether to run stages with verifier agents and validate their expected grades. Defaults to `false`. */
       verifMode: boolean;
 
@@ -45,7 +42,6 @@ export const DefaultConfig: Required<Config> = {
   taskConcurrency: 32,
   trailConcurrency: 32,
   trailCount: 1,
-  graderMaxRetries: 3,
   verifMode: false,
   console: true,
   logLevel: "Info",

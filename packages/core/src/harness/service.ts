@@ -1,11 +1,11 @@
-import { Context, Effect, Layer, Option, Schema, Scope, Stream } from "effect";
+import { Context, Effect, Layer, Option, Ref, Schema, Scope, Stream } from "effect";
 import * as Agent from "#/agent/index.ts";
 import * as Resource from "#/resource/index.ts";
 import * as Sandbox from "#/sandbox/index.ts";
 import * as Snapshot from "#/snapshot/index.ts";
 import { HarnessError } from "./error.ts";
-import type * as Prompt from "#/prompt/index.ts";
-import type { PartEncoded } from "effect/unstable/ai/Response";
+import * as Prompt from "#/prompt/index.ts";
+import { Response } from "effect/unstable/ai";
 
 export class Metadata extends Schema.Class<Metadata>("HarnessMetadata")({
   id: Schema.String,
@@ -15,16 +15,24 @@ export class Metadata extends Schema.Class<Metadata>("HarnessMetadata")({
 type MetadataEncoded = Schema.Codec.Encoded<typeof Metadata>;
 
 export type AgentSession = Readonly<{
-  trajectory: Effect.Effect<Prompt.Trajectory, HarnessError>;
-  prompt(prompt: Prompt.Prompt): Stream.Stream<PartEncoded, HarnessError>;
+  trajectory: Ref.Ref<Prompt.Trajectory>;
+  prompt(prompt: Prompt.Prompt): Stream.Stream<Response.StreamPartEncoded, HarnessError>;
 }>;
 
 const makeAgentSession = Effect.fn(function* (
   agent: Agent.Agent,
 ): Effect.fn.Return<AgentSession, HarnessError> {
   return {
-    trajectory: agent.trajectory.pipe(Effect.mapError(HarnessError.agent)),
-    prompt: (prompt) => agent.prompt(prompt).pipe(Stream.mapError(HarnessError.agent)),
+    trajectory: agent.trajectory,
+    prompt: (prompt) =>
+      agent.prompt(prompt).pipe(
+        Stream.mapEffect(Prompt.encodeResponseStreamPartEncoded),
+        Stream.mapError((error) =>
+          error instanceof Agent.AgentError
+            ? HarnessError.agent(error)
+            : HarnessError.agent(Agent.AgentError.stream(error)),
+        ),
+      ),
   } satisfies AgentSession;
 });
 
@@ -100,7 +108,7 @@ export class Service extends Context.Service<Service, Harness>()("harness/Servic
             .acquireSnapshot({ template, cache: cacheTaskSnapshot })
             .pipe(Effect.mapError(HarnessError.snapshotAcquire(template)));
 
-          const derived = yield* agentProvider.snapshotExtension.pipe(
+          const extended = yield* agentProvider.snapshotExtension.pipe(
             Option.match({
               onNone: () => Effect.succeed(snapshot),
               onSome: ({ instructions, context }) =>
@@ -120,7 +128,7 @@ export class Service extends Context.Service<Service, Harness>()("harness/Servic
             cache = true,
           } = {}) {
             const sandbox = yield* sandboxProvider
-              .runSandbox({ snapshot: derived, resources, cache })
+              .runSandbox({ snapshot: extended, resources, cache })
               .pipe(Effect.mapError(HarnessError.sandbox));
 
             const runAgent = Effect.fn("HarnessService.runAgent")(function* () {
@@ -133,7 +141,7 @@ export class Service extends Context.Service<Service, Harness>()("harness/Servic
             return { sandbox, runAgent: runAgent } satisfies SandboxSession;
           }) satisfies SnapshotSession["runSandbox"];
 
-          return { snapshot: derived, runSandbox } satisfies SnapshotSession;
+          return { snapshot: extended, runSandbox } satisfies SnapshotSession;
         }) satisfies Harness["runSnapshot"];
 
         return { metadata, runSnapshot: build } satisfies Harness;

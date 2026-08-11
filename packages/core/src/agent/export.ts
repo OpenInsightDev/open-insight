@@ -2,6 +2,7 @@ export { AgentError, ErrorReason, StreamError, TrajectoryError } from "./error.t
 export {
   type Agent,
   type Provider,
+  type PromptFn,
   ProviderService,
   type SnapshotExtension,
   make,

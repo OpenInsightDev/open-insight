@@ -1,10 +1,12 @@
-import { Harness, Sandbox, type Prompt } from "@open-insight/core/internal";
-import { Effect, Stream, type Scope } from "effect";
+import { Harness, Sandbox } from "@open-insight/core/internal";
+import { Effect, Ref, Stream } from "effect";
 import * as Bench from "#/bench/index.ts";
 import * as Event from "#/event/index.ts";
 import * as Task from "#/task/index.ts";
 import type { Config } from "./config.ts";
 import { EvalError } from "./error.ts";
+
+export type TrailEventStream = (trailIdx: number) => Stream.Stream<Event.EvalEvent, EvalError>;
 
 export type Options = Readonly<{
   task: Task.AnyTask;
@@ -27,7 +29,7 @@ export const createTrail = Effect.fn(function* ({
   const benchId = bench.metadata.id;
 
   const { metrics: taskMetrics, trajMetrics, sandboxConfig } = task;
-  const { verifMode, graderMaxRetries: maxRetries } = config;
+  const { verifMode } = config;
 
   const offer = Event.offerTo(eventQueue);
 
@@ -41,13 +43,17 @@ export const createTrail = Effect.fn(function* ({
     const ctx = yield* Sandbox.asPromise(sbxSession.sandbox);
   });
 
-  const runSession = Effect.fn(function* ({
+  const runSession = ({
     session,
-    prompt,
+    sandbox,
   }: {
     session: Harness.AgentSession;
-    prompt: Task.PromptFn;
-  }) {});
+    sandbox: Sandbox.Sandbox;
+  }) =>
+    Effect.fn(function* (prompt: Task.PromptFn) {
+      const traj = yield* Ref.get(session.trajectory);
+      const promptCtx = { ...sandbox };
+    });
 
   return (trailIdx) =>
     Effect.logDebug(`Trail ${trailIdx} started`)

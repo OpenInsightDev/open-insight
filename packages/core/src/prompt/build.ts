@@ -1,10 +1,12 @@
-import { Prompt, Sandbox } from "@open-insight/core/internal";
 import { Effect } from "effect";
-import { TaskError } from "./error.ts";
+import { Prompt } from "effect/unstable/ai";
+import * as Sandbox from "#/sandbox/index.ts";
+import { PromptError } from "./error.ts";
+import type { Trajectory } from "./traj.ts";
 
 export type PromptInit = Prompt.RawInput;
 
-export type Context = Sandbox.ReadonlySandboxPromise & Readonly<{ trajectory: Prompt.Trajectory }>;
+export type Context = Sandbox.ReadonlySandboxPromise & Readonly<{ trajectory: Trajectory }>;
 
 /**
  * Creates a fresh prompt iterable for one stage execution.
@@ -34,7 +36,7 @@ export type PromptOptions =
  * Returning `null` completes the prompt. Raw input is converted to a
  * trajectory immediately before it is returned.
  */
-export type PromptFn = (context: Context) => Effect.Effect<Prompt.Prompt | null, Error>;
+export type PromptFn = (context: Context) => Effect.Effect<Prompt.Prompt | null, PromptError>;
 
 const makeStaticPromptFn = (init: PromptInit): PromptFn => {
   let pending: Prompt.RawInput | null = init;
@@ -66,7 +68,7 @@ const makeGeneratedPromptFn = (factory: PromptFactory, init?: PromptInit): Promp
         }
         return iterator.next(context);
       },
-      catch: TaskError.prompt,
+      catch: PromptError.generation,
     });
 
     return next.done ? null : Prompt.make(next.value);
@@ -78,7 +80,7 @@ export const makePromptFn = (options: PromptOptions): PromptFn => {
     return Effect.fn((context: Context) =>
       Effect.tryPromise({
         try: () => options(context),
-        catch: TaskError.prompt,
+        catch: PromptError.generation,
       }).pipe(Effect.map((next) => (next === null ? null : Prompt.make(next)))),
     );
   }

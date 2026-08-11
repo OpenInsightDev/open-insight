@@ -13,7 +13,6 @@ export {
   type Harness,
   type SnapshotSessionConfig,
   type SnapshotSession,
-  type AgentSessionConfig,
   type AgentSession,
   type SandboxSessionConfig,
   type SandboxSession,
