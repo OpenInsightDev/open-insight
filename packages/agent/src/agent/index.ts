@@ -76,7 +76,13 @@ const makeSession = <Tools extends Record<string, Tool.Any>>({
               responded: Prompt.fromResponseParts(parts),
             });
             yield* Ref.set(history, Prompt.concat(after.trajectory, after.responded));
-          }).pipe(Effect.ensuring(semaphore.release(1))),
+          }).pipe(
+            // The stream has already terminated when this finalizer runs, so a
+            // middleware failure cannot surface through the stream's error
+            // channel; raise it as a defect instead of dropping it silently.
+            Effect.orDie,
+            Effect.ensuring(semaphore.release(1)),
+          ),
         ),
         Stream.withSpan("Agent.prompt", { captureStackTrace: false }),
       );

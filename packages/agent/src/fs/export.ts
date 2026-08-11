@@ -5,6 +5,7 @@ export {
   MakeDirectory,
   ReadDirectory,
   ReadFile,
+  Search,
   Remove,
   Rename,
   WriteFile,

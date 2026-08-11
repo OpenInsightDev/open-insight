@@ -4,6 +4,7 @@ import * as Grade from "#/grade/index.ts";
 import { Harness, Sandbox, type Snapshot } from "@open-insight/core/internal";
 import type { BivariantFn } from "#/utils/variant.ts";
 import { TaskError } from "./error.ts";
+import { makePromptFn, type PromptFn, type PromptOptions } from "./prompt.ts";
 
 export type TypeId = "~open-insight/eval/task";
 export const TypeId: TypeId = "~open-insight/eval/task";
@@ -32,6 +33,9 @@ export type Task<G extends Grade.AnyResult = never> = Readonly<{
   metrics: ReadonlyArray<Metric.Task.Metric>;
   trajMetrics: ReadonlyArray<Metric.Traj.Metric>;
 
+  prompt: PromptFn;
+  grader: Grade.Grader<G>;
+
   sandboxConfig: Harness.SandboxSessionConfig;
 
   [TypeId]: TypeId;
@@ -39,26 +43,31 @@ export type Task<G extends Grade.AnyResult = never> = Readonly<{
 
 export type AnyTask = Task<any>;
 
-type Options = BaseMetadataEncoded &
+type Options<G extends Grade.AnyResult> = BaseMetadataEncoded &
   Partial<Harness.SandboxSessionConfig> &
   Readonly<{
     snapshot: Snapshot.Template;
+    prompt: PromptOptions;
+    grader: Grade.Grader<G>;
     trajMetrics?: ReadonlyArray<Metric.Traj.Metric>;
   }>;
 
 export const make = Effect.fn(function* <G extends Grade.AnyResult>(
-  options: Options,
+  options: Options<G>,
 ): Effect.fn.Return<Task<G>, TaskError> {
-  const { snapshot, trajMetrics = [] } = options;
+  const { snapshot, prompt: promptOptions, grader, trajMetrics = [] } = options;
   const metadata = yield* Schema.decodeEffect(BaseMetadata)(options).pipe(
     Effect.mapError(TaskError.metadata),
   );
+  const prompt = makePromptFn(promptOptions);
 
   return {
     metadata,
     snapshot,
     trajMetrics,
     metrics: [],
+    prompt,
+    grader,
     sandboxConfig: {
       ...Harness.DefaultSandboxSessionConfig,
       ...options,

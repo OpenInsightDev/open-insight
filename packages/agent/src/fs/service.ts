@@ -1,16 +1,3 @@
-/**
- * `FileSystem.FileSystem` implementation backed by an in-memory `memfs`
- * volume.
- *
- * Every operation is translated into the `memfs` promises API and failures are
- * normalized to `PlatformError` (e.g. `ENOENT` becomes `NotFound`), matching
- * the semantics of the Node.js implementation in `@effect/platform-node`.
- *
- * The layers build a **fresh, isolated volume per build**, so each
- * `Effect.provide` boundary gets its own file system. Use `layerWith` to seed
- * the volume with a JSON directory structure, or provide `MemFs` separately
- * (via `Layer.provideMerge`) to inspect the volume after the fact.
- */
 import { Effect, FileSystem, Layer, Option, PlatformError, Random, Stream, pipe } from "effect";
 import { posix as Path } from "node:path";
 import type { IFs, MemfsOptions, NestedDirectoryJSON } from "memfs";

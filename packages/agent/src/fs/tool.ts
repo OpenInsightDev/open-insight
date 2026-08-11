@@ -1,10 +1,18 @@
-import { Effect, FileSystem, Schema, Stream } from "effect";
+import { Effect, FileSystem, Path, Schema, Stream } from "effect";
 import { Tool, Toolkit } from "effect/unstable/ai";
 
 const failure = Schema.String;
 
 const pathResult = Schema.Struct({
   path: Schema.String,
+});
+
+const searchMatch = Schema.Struct({
+  path: Schema.String,
+  line: Schema.Int,
+  column: Schema.Int,
+  match: Schema.String,
+  lineText: Schema.String,
 });
 
 /** Read a UTF-8 text file. */
@@ -21,6 +29,23 @@ export const ReadFile = Tool.make("ReadFile", {
   failure,
   failureMode: "return",
   dependencies: [FileSystem.FileSystem],
+});
+
+const searchParameters = Schema.Struct({
+  path: Schema.String,
+  pattern: Schema.String,
+  flags: Schema.optionalKey(Schema.String),
+});
+
+/** Search a file or every file below a directory with a JavaScript regular expression. */
+export const Search = Tool.make("Search", {
+  description:
+    "Search a UTF-8 text file, or recursively search all files in a directory, using a JavaScript regular expression. Returns every match with its 1-based line and column. The global flag is enabled automatically.",
+  parameters: searchParameters,
+  success: Schema.Array(searchMatch),
+  failure,
+  failureMode: "return",
+  dependencies: [FileSystem.FileSystem, Path.Path],
 });
 
 /** Write (or replace) a UTF-8 file. */
@@ -116,6 +141,7 @@ const errorMessage = (error: unknown): string =>
 
 export const toolkit = Toolkit.make(
   ReadFile,
+  Search,
   WriteFile,
   MakeDirectory,
   ReadDirectory,
@@ -125,6 +151,60 @@ export const toolkit = Toolkit.make(
 );
 
 export type Tools = Toolkit.Tools<typeof toolkit>;
+
+type SearchParameters = Schema.Schema.Type<typeof searchParameters>;
+
+const searchFile = Effect.fn("Fs.SearchFile")(function* (file: string, expression: RegExp) {
+  const fs = yield* FileSystem.FileSystem;
+  const content = yield* fs.readFileString(file).pipe(Effect.mapError(errorMessage));
+  const matches = [];
+  for (const found of content.matchAll(new RegExp(expression.source, expression.flags))) {
+    const index = found.index ?? 0;
+    const lineStart = content.lastIndexOf("\n", index - 1) + 1;
+    const lineEnd = content.indexOf("\n", index);
+    matches.push({
+      path: file,
+      line: content.slice(0, index).split("\n").length,
+      column: index - lineStart + 1,
+      match: found[0],
+      lineText: content.slice(lineStart, lineEnd === -1 ? content.length : lineEnd),
+    });
+  }
+  return matches;
+});
+
+const search = Effect.fn("Fs.Search")(function* ({ path: root, pattern, flags }: SearchParameters) {
+  const fs = yield* FileSystem.FileSystem;
+  const path = yield* Path.Path;
+  const expression = yield* Effect.try({
+    try: () => new RegExp(pattern, flags?.includes("g") === true ? flags : `${flags ?? ""}g`),
+    catch: (error) => `Invalid regular expression: ${errorMessage(error)}`,
+  });
+  const info = yield* fs.stat(root).pipe(Effect.mapError(errorMessage));
+  const files =
+    info.type === "File"
+      ? [root]
+      : yield* fs.readDirectory(root, { recursive: true }).pipe(
+          Effect.map((entries) => entries.map((entry) => path.join(root, entry))),
+          Effect.flatMap((entries) =>
+            Effect.forEach(
+              entries,
+              (entry) =>
+                fs.stat(entry).pipe(
+                  Effect.map((stat) => (stat.type === "File" ? entry : undefined)),
+                  Effect.mapError(errorMessage),
+                ),
+              { concurrency: "unbounded" },
+            ),
+          ),
+          Effect.map((entries) => entries.filter((entry): entry is string => entry !== undefined)),
+          Effect.mapError(errorMessage),
+        );
+  const perFile = yield* Effect.forEach(files, (file) => searchFile(file, expression), {
+    concurrency: "unbounded",
+  });
+  return perFile.flat();
+});
 
 export const layer = toolkit.toLayer({
   ReadFile: Effect.fn(function* ({ path, startLine, endLine, maxBytes }) {
@@ -149,6 +229,7 @@ export const layer = toolkit.toLayer({
     const to = endLine ?? lines.length;
     return lines.slice(from, to).join("\n");
   }),
+  Search: search,
   WriteFile: Effect.fn(function* ({ path, content, append }) {
     const fs = yield* FileSystem.FileSystem;
     const nextContent =

@@ -1,7 +1,8 @@
 import { assert, describe, it, layer } from "@effect/vitest";
-import { Effect, Fiber, FileSystem, Option, Stream } from "effect";
+import { Effect, Fiber, FileSystem, Layer, Option, Path, Stream } from "effect";
 import { MemFs } from "./memfs.ts";
 import * as Fs from "./service.ts";
+import { toolkit, layer as toolLayer } from "./tool.ts";
 
 describe("MemFs FileSystem", () => {
   layer(Fs.layer)((it) => {
@@ -476,4 +477,29 @@ describe("MemFs FileSystem", () => {
       ),
     ),
   );
+});
+
+describe("filesystem Search tool", () => {
+  layer(Fs.layer)((it) => {
+    it.effect("searches files recursively with JavaScript regex flags", () =>
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        yield* fs.makeDirectory("/workspace/src", { recursive: true });
+        yield* fs.writeFileString("/workspace/a.js", "const Foo = 1;\nfoo();");
+        yield* fs.writeFileString("/workspace/src/b.ts", "FOO + foo");
+        const tools = yield* toolkit.pipe(
+          Effect.provide(toolLayer.pipe(Layer.provide(Path.layer))),
+        );
+        const results = yield* tools
+          .handle("Search", { path: "/workspace", pattern: "foo", flags: "i" })
+          .pipe(Effect.flatMap(Stream.runCollect));
+        assert.deepStrictEqual(Array.from(results)[0]?.result, [
+          { path: "/workspace/a.js", line: 1, column: 7, match: "Foo", lineText: "const Foo = 1;" },
+          { path: "/workspace/a.js", line: 2, column: 1, match: "foo", lineText: "foo();" },
+          { path: "/workspace/src/b.ts", line: 1, column: 1, match: "FOO", lineText: "FOO + foo" },
+          { path: "/workspace/src/b.ts", line: 1, column: 7, match: "foo", lineText: "FOO + foo" },
+        ]);
+      }).pipe(Effect.provide(Path.layer)),
+    );
+  });
 });
