@@ -110,9 +110,7 @@ export type Context = SandboxContext &
     trajectory: Prompt.Trajectory;
   }>;
 
-export type Exec<R extends AnyResult = AnyResult> = BivariantFn<
-  (ctx: Context) => PromiseLike<R["Encoded"]>
->;
+export type Exec<R extends AnyResult = AnyResult> = BivariantFn<(ctx: Context) => PromiseLike<R>>;
 
 type Config = Readonly<{
   scope: SandboxScope;

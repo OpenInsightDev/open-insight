@@ -66,7 +66,7 @@ describe("StreamPart schema", () => {
 
   it("round-trips a full TrailStreamEvent in encoded form", () => {
     const part = { type: "tool-result", id: "r", name: "read", isFailure: false, result: "x" };
-    const event = Schema.decodeUnknownSync(Event.TrailStreamEvent)({
+    const event = Schema.decodeUnknownSync(Event.SessionStreamEvent)({
       _tag: "TrailStreamEvent",
       bench: "b",
       harness: "h",
@@ -74,7 +74,7 @@ describe("StreamPart schema", () => {
       trailIdx: 0,
       part,
     });
-    const encoded = Schema.encodeSync(Event.TrailStreamEvent)(event);
+    const encoded = Schema.encodeSync(Event.SessionStreamEvent)(event);
     expect(encoded.part).toEqual(part);
   });
 });

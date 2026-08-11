@@ -4,13 +4,21 @@ import { Data, Formatter, Schema } from "effect";
 /**
  * A grader requested another attempt by the agent.
  *
- * Not an error: thrown by graders as a control-flow signal to retry with a new prompt.
+ * Thrown by graders as a control-flow signal to retry with a new prompt.
  */
 export class Retry extends Data.TaggedError("Retry")<{
   readonly prompt: Prompt.RawInput;
+  newSession: boolean;
 }> {}
 
-export const retry = (prompt: Prompt.RawInput): Retry => new Retry({ prompt });
+export const retry = (
+  prompt: Prompt.RawInput,
+  {
+    newSession = false,
+  }: Readonly<{
+    newSession?: boolean;
+  }>,
+): Retry => new Retry({ prompt, newSession });
 
 /** The grader execution failed. */
 export class ExecutionFailed extends Schema.TaggedError<ExecutionFailed>(

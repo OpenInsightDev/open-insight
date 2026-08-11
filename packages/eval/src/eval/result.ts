@@ -1,12 +1,12 @@
 import * as Bench from "#/bench/index.ts";
-import { TimestampSchema, type Timestamp } from "#/utils/schema.ts";
+import { Timestamp } from "#/utils/schema.ts";
 import { Prompt } from "@open-insight/core/internal";
 import { Schema } from "effect";
 import { Response } from "effect/unstable/ai";
 
 export const TrailResult = Schema.Struct({
-  startedAt: TimestampSchema,
-  finishedAt: TimestampSchema,
+  startedAt: Timestamp,
+  finishedAt: Timestamp,
   grade: Schema.Unknown,
   trajectory: Prompt.Trajectory,
   usage: Schema.NullOr(Response.Usage),
@@ -20,8 +20,8 @@ export type TrailResult<G = unknown> = Readonly<{
 }>;
 
 export const TaskResult = Schema.Struct({
-  startedAt: TimestampSchema,
-  finishedAt: TimestampSchema,
+  startedAt: Timestamp,
+  finishedAt: Timestamp,
   trails: Schema.Array(TrailResult),
 });
 export type TaskResult<G = unknown> = Readonly<{
@@ -31,8 +31,8 @@ export type TaskResult<G = unknown> = Readonly<{
 }>;
 
 export const BenchResult = Schema.Struct({
-  startedAt: TimestampSchema,
-  finishedAt: TimestampSchema,
+  startedAt: Timestamp,
+  finishedAt: Timestamp,
   tasks: Schema.Record(Schema.String, TaskResult),
 });
 export type BenchResult<G = unknown> = Readonly<{
@@ -42,9 +42,9 @@ export type BenchResult<G = unknown> = Readonly<{
 }>;
 
 export const Result = Schema.Struct({
-  startedAt: TimestampSchema,
-  finishedAt: TimestampSchema,
-  updatedAt: TimestampSchema,
+  startedAt: Timestamp,
+  finishedAt: Timestamp,
+  updatedAt: Timestamp,
   benchMetadata: Bench.Metadata,
   result: BenchResult,
 });

@@ -1,17 +1,20 @@
 import * as Chart from "#/chart/index.ts";
-import { Schema } from "effect";
-import * as Bench from "#/bench/index.ts";
 import { Response } from "effect/unstable/ai";
-import { Prompt } from "@open-insight/core/internal";
+import { Schema } from "effect";
+import { Prompt, Harness } from "@open-insight/core/internal";
+import * as Bench from "#/bench/index.ts";
+import * as Eval from "#/eval/index.ts";
+import * as Task from "#/task/index.ts";
+import { Timestamp } from "../utils/schema.ts";
 
 const EvalFields = {
-  bench: Schema.String,
-  harness: Schema.String,
+  benchId: Schema.String,
+  harnessId: Schema.String,
 };
 
 const taskFields = {
   ...EvalFields,
-  task: Schema.String,
+  taskId: Schema.String,
 };
 
 const TrailFields = {
@@ -19,62 +22,123 @@ const TrailFields = {
   trailIdx: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
 };
 
-export class InitEvent extends Schema.TaggedClass<InitEvent>()("InitEvent", {
-  ...EvalFields,
-  benchMetadata: Bench.Metadata,
-}) {}
-export type InitEventEncoded = Schema.Codec.Encoded<typeof InitEvent>;
-
-const ScheduleOpSchema = Schema.Union([
-  Schema.Literal("start"),
-  Schema.Literal("stop"),
-  Schema.Literal("pause"),
-]);
-
-export class EvalScheduleEvent extends Schema.TaggedClass<EvalScheduleEvent>()(
-  "EvalScheduleEvent",
-  {
-    ...EvalFields,
-    op: ScheduleOpSchema,
-  },
-) {}
-export type EvalScheduleEventEncoded = Schema.Codec.Encoded<typeof EvalScheduleEvent>;
-
-export class TaskScheduleEvent extends Schema.TaggedClass<TaskScheduleEvent>()(
-  "TaskScheduleEvent",
-  {
-    ...taskFields,
-    op: ScheduleOpSchema,
-  },
-) {}
-export type TaskScheduleEventEncoded = Schema.Codec.Encoded<typeof TaskScheduleEvent>;
-
-export class TrailScheduleEvent extends Schema.TaggedClass<TrailScheduleEvent>()(
-  "TrailScheduleEvent",
-  {
-    ...TrailFields,
-    op: ScheduleOpSchema,
-  },
-) {}
-export type TrailScheduleEventEncoded = Schema.Codec.Encoded<typeof TrailScheduleEvent>;
-
-export class TrailStagedEvent extends Schema.TaggedClass<TrailStagedEvent>()("TrailStagedEvent", {
+const SessionFields = {
   ...TrailFields,
-  stage: Schema.String,
+  sessionIdx: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
+};
+
+export class EvalStartEvent extends Schema.TaggedClass<EvalStartEvent>()("EvalStartEvent", {
+  ...EvalFields,
+  bench: Bench.Metadata,
+  harness: Harness.Metadata,
+  eval: Eval.Metadata,
+  startAt: Timestamp,
+}) {}
+export type EvalStartEventEncoded = Schema.Codec.Encoded<typeof EvalStartEvent>;
+
+export class EvalEndEvent extends Schema.TaggedClass<EvalEndEvent>()("EvalEndEvent", {
+  ...EvalFields,
+  endAt: Timestamp,
+}) {}
+export type EvalEndEventEncoded = Schema.Codec.Encoded<typeof EvalEndEvent>;
+
+export class EvalErrorEvent extends Schema.TaggedClass<EvalErrorEvent>()("EvalErrorEvent", {
+  ...EvalFields,
+  error: Schema.Defect(),
+  endAt: Timestamp,
+}) {}
+
+export class TaskStartEvent extends Schema.TaggedClass<TaskStartEvent>()("TaskStartEvent", {
+  ...taskFields,
+  task: Task.Metadata,
+  startAt: Timestamp,
+}) {}
+export type TaskStartEventEncoded = Schema.Codec.Encoded<typeof TaskStartEvent>;
+
+export class TaskEndEvent extends Schema.TaggedClass<TaskEndEvent>()("TaskEndEvent", {
+  ...taskFields,
+  endAt: Timestamp,
+}) {}
+export type TaskEndEventEncoded = Schema.Codec.Encoded<typeof TaskEndEvent>;
+
+export class TaskErrorEvent extends Schema.TaggedClass<TaskErrorEvent>()("TaskErrorEvent", {
+  ...taskFields,
+  error: Schema.Defect(),
+  endAt: Timestamp,
+}) {}
+
+export class TrailStartEvent extends Schema.TaggedClass<TrailStartEvent>()("TrailStartEvent", {
+  ...TrailFields,
+  startAt: Timestamp,
+}) {}
+export type TrailStartEventEncoded = Schema.Codec.Encoded<typeof TrailStartEvent>;
+
+export class TrailEndEvent extends Schema.TaggedClass<TrailEndEvent>()("TrailEndEvent", {
+  ...TrailFields,
   grade: Schema.Unknown,
   usage: Schema.NullOr(Response.Usage),
+  endAt: Timestamp,
 }) {}
-export type TrailStagedEventEncoded = Schema.Codec.Encoded<typeof TrailStagedEvent>;
+export type TrailEndEventEncoded = Schema.Codec.Encoded<typeof TrailEndEvent>;
 
-export class TrailStreamEvent extends Schema.TaggedClass<TrailStreamEvent>()("TrailStreamEvent", {
+export class TrailErrorEvent extends Schema.TaggedClass<TrailErrorEvent>()("TrailErrorEvent", {
   ...TrailFields,
-  part: Prompt.AnyStreamPart,
+  error: Schema.Defect(),
+  endAt: Timestamp,
 }) {}
-export type TrailStreamEventEncoded = Schema.Codec.Encoded<typeof TrailStreamEvent>;
+
+export class SessionStartEvent extends Schema.TaggedClass<SessionStartEvent>()(
+  "SessionStartEvent",
+  {
+    ...SessionFields,
+    prompt: Prompt.Prompt,
+    startAt: Timestamp,
+  },
+) {}
+
+export class SessionPromptEvent extends Schema.TaggedClass<SessionPromptEvent>()(
+  "SessionPromptEvent",
+  {
+    ...SessionFields,
+    prompt: Prompt.Prompt,
+  },
+) {}
+
+export class SessionStreamEvent extends Schema.TaggedClass<SessionStreamEvent>()(
+  "SessionStreamEvent",
+  {
+    ...SessionFields,
+    part: Prompt.AnyStreamPart,
+  },
+) {}
+export type SessionStreamEventEncoded = Schema.Codec.Encoded<typeof SessionStreamEvent>;
+
+export class SessionRetryEvent extends Schema.TaggedClass<SessionRetryEvent>()(
+  "SessionRetryEvent",
+  {
+    ...SessionFields,
+    reason: Schema.NullOr(Schema.String),
+  },
+) {}
+
+export class SessionEndEvent extends Schema.TaggedClass<SessionEndEvent>()("SessionEndEvent", {
+  ...SessionFields,
+  reason: Response.FinishReason,
+  endAt: Timestamp,
+}) {}
+
+export class SessionErrorEvent extends Schema.TaggedClass<SessionErrorEvent>()(
+  "SessionErrorEvent",
+  {
+    ...SessionFields,
+    error: Schema.Defect(),
+    endAt: Timestamp,
+  },
+) {}
 
 const MetricFields = {
   id: Schema.String,
-  result: Schema.Record(Schema.String, Schema.Json),
+  result: Schema.Json,
   chart: Schema.NullOr(Chart.DataPoints),
 };
 
@@ -97,20 +161,24 @@ export class BenchMetricEvent extends Schema.TaggedClass<BenchMetricEvent>()("Be
 export type BenchMetricEventEncoded = Schema.Codec.Encoded<typeof BenchMetricEvent>;
 
 export const EvalEvent = Schema.Union([
-  InitEvent,
-  EvalScheduleEvent,
-  TaskScheduleEvent,
-  TrailScheduleEvent,
-  TrailStagedEvent,
-  TrailStreamEvent,
+  EvalStartEvent,
+  EvalEndEvent,
+  EvalErrorEvent,
+  TaskStartEvent,
+  TaskEndEvent,
+  TaskErrorEvent,
+  TrailStartEvent,
+  TrailEndEvent,
+  TrailErrorEvent,
+  SessionStartEvent,
+  SessionPromptEvent,
+  SessionStreamEvent,
+  SessionRetryEvent,
+  SessionEndEvent,
+  SessionErrorEvent,
   TrajMetricEvent,
   TaskMetricEvent,
   BenchMetricEvent,
 ]);
 export type EvalEvent = Schema.Schema.Type<typeof EvalEvent>;
 export type EvalEventEncoded = Schema.Codec.Encoded<typeof EvalEvent>;
-
-/** Backward-compatible alias for the plain (non-toolkit-parameterized) event schema. */
-export const Event = EvalEvent;
-export type Event = Schema.Schema.Type<typeof Event>;
-export type EventEncoded = Schema.Codec.Encoded<typeof Event>;

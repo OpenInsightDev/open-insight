@@ -11,9 +11,7 @@ export type Context = Sandbox.SandboxPromise &
     trajectory: Prompt.Trajectory;
   }>;
 
-export type Exec<R extends AnyResult = AnyResult> = BivariantFn<
-  (ctx: Context) => PromiseLike<R["Encoded"]>
->;
+export type Exec<R extends AnyResult = AnyResult> = BivariantFn<(ctx: Context) => PromiseLike<R>>;
 
 export type Grader<R extends AnyResult = AnyResult> = Readonly<{
   schema: R;

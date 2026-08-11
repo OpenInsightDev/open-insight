@@ -1,13 +1,13 @@
 import { type Cause, Effect, Queue, type Stream } from "effect";
-import { Event } from "./schema.ts";
+import { EvalEvent } from "./schema.ts";
 import type { EventError } from "./error.ts";
 
-export type EventQueue = Queue.Queue<Event, EventError | Cause.Done>;
-export type EventEnqueue = Queue.Enqueue<Event, EventError | Cause.Done>;
-export type EventStream = Stream.Stream<Event, EventError>;
+export type EventQueue = Queue.Queue<EvalEvent, EventError | Cause.Done>;
+export type EventEnqueue = Queue.Enqueue<EvalEvent, EventError | Cause.Done>;
+export type EventStream = Stream.Stream<EvalEvent, EventError>;
 
 export const makeQueue = (capacity: number = 1024) =>
-  Queue.make<Event, EventError | Cause.Done>({ capacity });
+  Queue.make<EvalEvent, EventError | Cause.Done>({ capacity });
 
-export const offerTo = (enqueue: EventEnqueue) => (event: Effect.Effect<Event, unknown>) =>
+export const offerTo = (enqueue: EventEnqueue) => (event: Effect.Effect<EvalEvent, unknown>) =>
   event.pipe(Effect.flatMap((event) => Queue.offer(enqueue, event))).pipe(Effect.orDie); // HACK for internal use only

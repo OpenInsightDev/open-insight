@@ -23,18 +23,24 @@ const encoder = new TextEncoder();
  */
 export const primaryKey = (event: Event): string => {
   switch (event._tag) {
-    case "InitEvent":
-    case "EvalScheduleEvent":
+    case "EvalStartEvent":
+    case "EvalEndEvent":
+    case "EvalErrorEvent":
     case "BenchMetricEvent":
-      return `${event.bench}:${event.harness}`;
-    case "TaskScheduleEvent":
+      return `${event.benchId}:${event.harnessId}`;
+    case "TaskStartEvent":
+    case "TaskEndEvent":
+    case "TaskErrorEvent":
     case "TaskMetricEvent":
-      return `${event.bench}:${event.harness}:${event.task}`;
-    case "TrailScheduleEvent":
-    case "TrailStagedEvent":
-    case "TrailStreamEvent":
+      return `${event.benchId}:${event.harnessId}:${event.taskId}`;
+    case "TrailStartEvent":
+    case "TrailEndEvent":
+    case "TrailErrorEvent":
+    case "SessionPromptEvent":
+    case "SessionErrorEvent":
+    case "SessionStreamEvent":
     case "TrajMetricEvent":
-      return `${event.bench}:${event.harness}:${event.task}:${event.trailIdx}`;
+      return `${event.benchId}:${event.harnessId}:${event.taskId}:${event.trailIdx}`;
   }
 };
 

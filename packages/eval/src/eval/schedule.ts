@@ -7,7 +7,7 @@ import * as Task from "#/task/index.ts";
 import type { Config } from "./config.ts";
 import { EvalError } from "./error.ts";
 import * as Event from "#/event/index.ts";
-import { createTrail, type RunTrail } from "./trail.ts";
+import { createTrail, type RunTrail } from "./trail.archive.ts";
 import { BenchResult, TaskResult } from "./result.ts";
 
 type ScheduledTask = Readonly<{

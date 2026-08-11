@@ -1,15 +1,22 @@
 export {
   BenchMetricEvent,
+  ErrorReason,
   EventError,
   Event,
-  EvalScheduleEvent,
-  InitEvent,
+  EvalStartEvent,
+  EvalEndEvent,
+  EvalErrorEvent,
+  TaskStartEvent,
+  TaskEndEvent,
+  TaskErrorEvent,
+  TrailStartEvent,
+  TrailEndEvent,
+  TrailErrorEvent,
   TaskMetricEvent,
-  TaskScheduleEvent,
-  TrailScheduleEvent,
-  TrailStagedEvent,
-  TrailStreamEvent,
   TrajMetricEvent,
+  SessionPromptEvent,
+  SessionErrorEvent,
+  SessionStreamEvent,
 } from "./index.ts";
 export type {
   BenchMetricEventEncoded,
@@ -17,15 +24,18 @@ export type {
   EventEnqueue,
   EventQueue,
   EventStream,
-  EvalScheduleEventEncoded,
-  InitEventEncoded,
+  EvalStartEventEncoded,
+  EvalEndEventEncoded,
+  TaskStartEventEncoded,
+  TaskEndEventEncoded,
+  TrailStartEventEncoded,
+  TrailEndEventEncoded,
   TaskMetricEventEncoded,
-  TaskScheduleEventEncoded,
-  TrailScheduleEventEncoded,
-  TrailStagedEventEncoded,
-  TrailStreamEventEncoded,
   TrajMetricEventEncoded,
+  SessionStreamEventEncoded,
 } from "./index.ts";
+
 export * as Persist from "./persist/export.ts";
 export * as Transport from "./transport/export.ts";
+
 export * as Internal from "./index.ts";
