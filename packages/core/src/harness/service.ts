@@ -5,7 +5,6 @@ import * as Sandbox from "#/sandbox/index.ts";
 import * as Snapshot from "#/snapshot/index.ts";
 import { HarnessError } from "./error.ts";
 import * as Prompt from "#/prompt/index.ts";
-import { Response } from "effect/unstable/ai";
 
 export class Metadata extends Schema.Class<Metadata>("HarnessMetadata")({
   id: Schema.String,
@@ -16,7 +15,7 @@ type MetadataEncoded = Schema.Codec.Encoded<typeof Metadata>;
 
 export type AgentSession = Readonly<{
   trajectory: Ref.Ref<Prompt.Trajectory>;
-  prompt(prompt: Prompt.Prompt): Stream.Stream<Response.StreamPartEncoded, HarnessError>;
+  prompt(prompt: Prompt.Prompt): Stream.Stream<Prompt.AnyStreamPart, HarnessError>;
 }>;
 
 const makeAgentSession = Effect.fn(function* (
@@ -25,14 +24,15 @@ const makeAgentSession = Effect.fn(function* (
   return {
     trajectory: agent.trajectory,
     prompt: (prompt) =>
-      agent.prompt(prompt).pipe(
-        Stream.mapEffect(Prompt.encodeResponseStreamPartEncoded),
-        Stream.mapError((error) =>
-          error instanceof Agent.AgentError
-            ? HarnessError.agent(error)
-            : HarnessError.agent(Agent.AgentError.stream(error)),
+      agent
+        .prompt(prompt)
+        .pipe(
+          Stream.mapError((error) =>
+            error instanceof Agent.AgentError
+              ? HarnessError.agent(error)
+              : HarnessError.agent(Agent.AgentError.stream(error)),
+          ),
         ),
-      ),
   } satisfies AgentSession;
 });
 

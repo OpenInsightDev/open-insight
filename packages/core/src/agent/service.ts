@@ -32,7 +32,9 @@ export class ProviderService extends Context.Service<ProviderService, Provider>(
   "agent/AgentService",
 ) {}
 
-export type PromptFn = (prompt: Prompt.Prompt) => Stream.Stream<Response.StreamPartEncoded, AgentError>;
+export type PromptFn = (
+  prompt: Prompt.Prompt,
+) => Stream.Stream<Response.StreamPartEncoded, AgentError>;
 
 type PromptAsyncFn = (prompt: Prompt.Prompt) => AsyncIterable<Response.StreamPartEncoded>;
 
@@ -50,9 +52,7 @@ type PromptAsyncFn = (prompt: Prompt.Prompt) => AsyncIterable<Response.StreamPar
  * never races. Concurrent calls queue up and run one at a time, each
  * accumulating its own prompt + response into the history in lock-grant order.
  */
-const makeAgent = Effect.fn(function* (
-  run: PromptFn,
-): Effect.fn.Return<Agent, AgentError> {
+const makeAgent = Effect.fn(function* (run: PromptFn): Effect.fn.Return<Agent, AgentError> {
   const history = yield* Ref.make<Prompt.Prompt>(Prompt.empty);
   const semaphore = Semaphore.makeUnsafe(1);
 

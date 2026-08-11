@@ -49,7 +49,7 @@ A `SandboxSession` exposes the live `Sandbox` plus `runAgent()`, which opens an 
 An `AgentSession` exposes:
 
 - `trajectory`, a `Ref.Ref<Prompt.Trajectory>` holding the accumulated agent history,
-- and `prompt(prompt)`, a `Stream` of `Response.StreamPartEncoded` parts.
+- and `prompt(prompt)`, a `Stream` of `Prompt.AnyStreamPart` parts.
 
 ## Errors
 

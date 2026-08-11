@@ -14,13 +14,17 @@ The module re-exports the `Prompt` type and part constructors from `effect/unsta
 - `Prompt.encodeResponseStreamPartEncoded(part)` is the inverse, encoding a typed part back into its wire form.
 - `Prompt.fromResponsePartEncodedStream(stream)` folds encoded stream parts into `Prompt.Part`s, accumulating `text` and `reasoning` deltas between their `-start` and `-end` markers.
 
-## Building a Prompt Function
+## Building a Prompt Stream
 
-`Prompt.makePromptFn(options)` produces a `PromptFn` — an `Effect` that returns the next `Prompt` (or `null` when the prompt completes) for a given `Context` (sandbox state plus trajectory). The `options` argument selects the behavior:
+`Prompt.makeStream(options, input)` returns a `Stream.Stream<Prompt.Prompt, PromptError>` — a fresh, pull-based prompt stream for one stage execution. `input` carries the runtime session state (`Prompt.Input`: the session `trajectory` `Ref` plus the sandbox). Every element the stream generates `Ref.get`s the latest trajectory and hands it to the prompt function as part of its `Prompt.Context`, so prompts always reflect the most recent agent response. Each call produces a fresh stream, so no state leaks between stage runs.
+
+The `options` argument selects the behavior:
 
 - pass a `Prompt.RawInput` to send it once and then complete,
-- pass a `(context) => Promise<RawInput | null>` to derive each next prompt from the trajectory and sandbox state,
+- pass an `async (context) => Promise<RawInput | null>` to derive each next prompt from the trajectory and sandbox state; returning `null` completes the stream,
 - or pass `{ init?, followUp }` to optionally send an `init` message first, then feed each `Context` into the `followUp` async-iterator factory.
+
+The `followUp` factory receives the context of its first pull (async iterators ignore the argument to the first `next` call). Each later pull passes its freshly `Ref.get`-ed context through `iterator.next(context)`; the factory must read it from the value of its `yield` expression, e.g. `const latest = yield message` in an `async function*`.
 
 ## Templates
 
