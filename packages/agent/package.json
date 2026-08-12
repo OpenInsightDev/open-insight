@@ -52,6 +52,7 @@
     "ajv": "catalog:",
     "immer": "catalog:",
     "memfs": "catalog:",
+    "ripgrep": "catalog:",
     "yaml": "catalog:"
   },
   "devDependencies": {

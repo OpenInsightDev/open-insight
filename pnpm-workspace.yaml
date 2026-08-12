@@ -89,6 +89,7 @@ catalog:
   '@computesdk/provider': ^2.1.4
   '@effect/sql-sqlite-node': 4.0.0-beta.105
   ajv: ^8.20.0
+  ripgrep: ^0.3.1
 overrides:
   vite: "catalog:"
   vitest: "catalog:"

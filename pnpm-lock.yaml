@@ -325,6 +325,9 @@ catalogs:
     picomatch:
       specifier: ^4.0.5
       version: 4.0.5
+    ripgrep:
+      specifier: ^0.3.1
+      version: 0.3.1
     semver:
       specifier: ^7.8.5
       version: 7.8.5
@@ -476,6 +479,9 @@ importers:
       memfs:
         specifier: 'catalog:'
         version: 4.66.0
+      ripgrep:
+        specifier: 'catalog:'
+        version: 0.3.1
       yaml:
         specifier: 'catalog:'
         version: 2.9.0
@@ -4184,6 +4190,10 @@ packages:
 
   rfc4648@1.5.4:
     resolution: {integrity: sha512-rRg/6Lb+IGfJqO05HZkN50UtY7K/JhxJag1kP23+zyMfrvoB0B7RWv06MbOzoc79RgCdNTiUaNsTT1AJZ7Z+cg==}
+
+  ripgrep@0.3.1:
+    resolution: {integrity: sha512-6bDtNIBh1qPviVIU685/4uv0Ap5t8eS4wiJhy/tR2LdIeIey9CVasENlGS+ul3HnTmGANIp7AjnfsztsRmALfQ==}
+    hasBin: true
 
   rolldown@1.1.5:
     resolution: {integrity: sha512-t9z29cJjXf/vxQ8dyhCSpt6H6aSwHTk8cT5I3iy6SMXuFpk5mB6PL6XfC8PCwrPTx93udwKUm9HRteAlTGBLiA==}
@@ -7923,6 +7933,8 @@ snapshots:
   reusify@1.1.0: {}
 
   rfc4648@1.5.4: {}
+
+  ripgrep@0.3.1: {}
 
   rolldown@1.1.5:
     dependencies:
