@@ -1,8 +1,9 @@
-import { Sandbox, type Prompt, type Snapshot } from "@open-insight/core/internal";
+import { Prompt, Resource, Sandbox, type Snapshot } from "@open-insight/core/internal";
 import type { BivariantFn } from "#/utils/variant.ts";
-import type { AnyResult } from "./base.ts";
+import { decodeResult, type AnyResult } from "./result.ts";
 import type { Verif } from "./verif.ts";
 import { Effect, FiberSet, FileSystem, Path } from "effect";
+import * as Retry from "./retry.ts";
 
 export type SandboxScope = "per-task" | "per-trail";
 
@@ -13,13 +14,15 @@ type TransferOptions = Readonly<{
   gradePath?: string;
 }>;
 
-type SandboxContext = Sandbox.SandboxPromise &
+export type Context = Sandbox.SandboxPromise &
   Readonly<{
     /** The sandbox in which the agent performed the task. */
     agent: Sandbox.SandboxPromise;
 
     /** Trasfer a file or directory from the agent sandbox to the grade sandbox. */
     transfer(options: TransferOptions): Promise<void>;
+
+    trajectory: Prompt.Trajectory;
   }>;
 
 const makeTransfer = ({ agent, grade }: { agent: Sandbox.Sandbox; grade: Sandbox.Sandbox }) =>
@@ -75,13 +78,13 @@ const makeTransfer = ({ agent, grade }: { agent: Sandbox.Sandbox; grade: Sandbox
     (effect) => effect.pipe(Effect.scoped),
   );
 
-export const makeSandboxContext = Effect.fn(function* ({
-  agent,
-  grade,
-}: {
+export type MakeContextOptions = Readonly<{
   agent: Sandbox.Sandbox;
   grade: Sandbox.Sandbox;
-}) {
+  trajectory: Prompt.Trajectory;
+}>;
+
+export const makeContext = Effect.fn(function* ({ agent, grade, trajectory }: MakeContextOptions) {
   const runPromise = yield* FiberSet.makeRuntimePromise();
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
@@ -102,46 +105,34 @@ export const makeSandboxContext = Effect.fn(function* ({
     ...gradeSandbox,
     agent: agentSandbox,
     transfer: transferPromise,
-  };
+    trajectory,
+  } satisfies Context;
 });
 
-export type Context = SandboxContext &
-  Readonly<{
-    trajectory: Prompt.Trajectory;
-  }>;
-
 export type Exec<R extends AnyResult = AnyResult> = BivariantFn<(ctx: Context) => PromiseLike<R>>;
-
-type Config = Readonly<{
-  scope: SandboxScope;
-}>;
 
 export type Grader<R extends AnyResult = AnyResult> = Readonly<{
   schema: R;
   grade: Exec<R>;
   snapshot: Snapshot.Template;
+  resources: Resource.Resources;
   verif: Verif<R> | null;
-  config: Config;
+  scope: SandboxScope;
+  concurrency: number;
 }>;
 
-type Options<R extends AnyResult> = Readonly<{
-  scope?: SandboxScope;
-  verif?: Verif<R> | null;
-}> &
-  Partial<Config>;
+export const makeSandbox = Effect.fn(function* ({ snapshot: template, resources }: Grader) {
+  const sbxProvider = yield* Sandbox.ProviderService;
+  const snapshot = yield* sbxProvider.acquireSnapshot({ template, cache: true });
+  return yield* sbxProvider.runSandbox({ snapshot, resources, cache: true });
+});
 
-export const make =
-  <R extends AnyResult>(schema: R) =>
-  (
-    grade: Exec<R>,
-    snapshot: Snapshot.Template,
-    { verif = null, scope = "per-trail" }: Options<R> = {},
-  ): Grader<R> => ({
-    schema,
-    grade,
-    snapshot,
-    verif,
-    config: {
-      scope,
-    },
+export const run = <R extends AnyResult = AnyResult>(grader: Grader<R>) =>
+  Effect.fn(function* (options: MakeContextOptions) {
+    const ctx = yield* makeContext(options);
+    const result = yield* Effect.tryPromise({
+      try: () => grader.grade(ctx),
+      catch: Retry.mapError,
+    });
+    return yield* decodeResult(grader.schema, result);
   });

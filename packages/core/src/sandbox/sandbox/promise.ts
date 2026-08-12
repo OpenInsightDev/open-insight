@@ -1,4 +1,4 @@
-import { Effect, FiberSet } from "effect";
+import { Effect, FiberSet, Scope } from "effect";
 import { Bash } from "#/utils/index.ts";
 import type { Sandbox, Handle, Command } from "./index.ts";
 
@@ -55,7 +55,9 @@ export type SandboxPromise = Readonly<{
 }>;
 export type ReadonlySandboxPromise = Omit<SandboxPromise, "writeFile" | "upload" | "expose">;
 
-export const asPromise = Effect.fn(function* (sandbox: Sandbox) {
+export const asPromise = Effect.fn(function* (
+  sandbox: Sandbox,
+): Effect.fn.Return<SandboxPromise, never, Scope.Scope> {
   const runPromise = yield* FiberSet.makeRuntimePromise();
 
   const runShell = async (
@@ -63,7 +65,7 @@ export const asPromise = Effect.fn(function* (sandbox: Sandbox) {
     values: ReadonlyArray<ShellTemplateExpression>,
     options?: ShellOptions,
   ) => {
-    const handle = await runPromise(sandbox.cmd(makeShellCommand(strings, values, options)));
+    const handle = await runPromise(sandbox.spawn(makeShellCommand(strings, values, options)));
     return handle.stdout ?? "";
   };
 
@@ -93,7 +95,7 @@ export const asPromise = Effect.fn(function* (sandbox: Sandbox) {
   }
 
   const cmd: SandboxPromise["cmd"] = ({ command, args, cwd, env }) =>
-    runPromise(sandbox.cmd({ command, args, cwd, env }));
+    runPromise(sandbox.spawn({ command, args, cwd, env }));
 
   const readFile: SandboxPromise["readFile"] = (options) => runPromise(sandbox.readFile(options));
 

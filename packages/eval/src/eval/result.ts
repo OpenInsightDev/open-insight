@@ -4,19 +4,25 @@ import { Prompt } from "@open-insight/core/internal";
 import { Schema } from "effect";
 import { Response } from "effect/unstable/ai";
 
+export const SessionResult = Schema.Struct({
+  startedAt: Timestamp,
+  finishedAt: Timestamp,
+  usage: Schema.NullOr(Response.Usage),
+  trajectory: Prompt.Trajectory,
+});
+export type SessionResult = Schema.Schema.Type<typeof SessionResult>;
+
 export const TrailResult = Schema.Struct({
   startedAt: Timestamp,
   finishedAt: Timestamp,
   grade: Schema.Unknown,
-  trajectory: Prompt.Trajectory,
-  usage: Schema.NullOr(Response.Usage),
+  sessions: Schema.Array(SessionResult),
 });
 export type TrailResult<G = unknown> = Readonly<{
   startedAt: Timestamp;
   finishedAt: Timestamp;
   grade: G;
-  trajectory: Prompt.Trajectory;
-  usage: Response.Usage | null;
+  sessions: ReadonlyArray<SessionResult>;
 }>;
 
 export const TaskResult = Schema.Struct({
@@ -55,5 +61,3 @@ export type Result<G = unknown> = Readonly<{
   benchMetadata: Bench.Metadata;
   result: BenchResult<G>;
 }>;
-
-// TODO accumulate event stream into Result

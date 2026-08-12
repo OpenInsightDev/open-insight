@@ -1,7 +1,7 @@
 import { Prompt, type Sandbox } from "@open-insight/core/internal";
 import { Effect, Equal, Schema } from "effect";
 import { GradeError } from "./error.ts";
-import type { AnyResult } from "./index.ts";
+import type { AnyResult } from "./result.ts";
 
 export type Context = Sandbox.SandboxPromise &
   Readonly<{

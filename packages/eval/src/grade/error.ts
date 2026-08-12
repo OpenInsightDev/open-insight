@@ -1,24 +1,5 @@
-import { Prompt } from "@open-insight/core/internal";
-import { Data, Formatter, Schema } from "effect";
-
-/**
- * A grader requested another attempt by the agent.
- *
- * Thrown by graders as a control-flow signal to retry with a new prompt.
- */
-export class Retry extends Data.TaggedError("Retry")<{
-  readonly prompt: Prompt.RawInput;
-  newSession: boolean;
-}> {}
-
-export const retry = (
-  prompt: Prompt.RawInput,
-  {
-    newSession = false,
-  }: Readonly<{
-    newSession?: boolean;
-  }>,
-): Retry => new Retry({ prompt, newSession });
+import { Sandbox } from "@open-insight/core/internal";
+import { Formatter, Schema } from "effect";
 
 /** The grader execution failed. */
 export class ExecutionFailed extends Schema.TaggedError<ExecutionFailed>(
@@ -53,7 +34,12 @@ export class InvalidResult extends Schema.TaggedError<InvalidResult>(
   }
 }
 
-export const ErrorReason = Schema.Union([ExecutionFailed, VerificationFailed, InvalidResult]);
+export const ErrorReason = Schema.Union([
+  ExecutionFailed,
+  VerificationFailed,
+  InvalidResult,
+  Sandbox.SandboxError,
+]);
 export type ErrorReason = Schema.Schema.Type<typeof ErrorReason>;
 
 /** The normalized error exposed by grader execution. */
@@ -79,4 +65,6 @@ export class GradeError extends Schema.TaggedError<GradeError>("open-insight/eva
 
   static result = (cause: unknown): GradeError =>
     GradeError.make({ reason: InvalidResult.make({ cause }) });
+
+  static sandbox = (cause: Sandbox.SandboxError): GradeError => GradeError.make({ reason: cause });
 }

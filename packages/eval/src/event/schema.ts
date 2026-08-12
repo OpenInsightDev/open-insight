@@ -91,7 +91,6 @@ export class SessionStartEvent extends Schema.TaggedClass<SessionStartEvent>()(
   "SessionStartEvent",
   {
     ...SessionFields,
-    prompt: Prompt.Prompt,
     startAt: Timestamp,
   },
 ) {}

@@ -1,10 +1,10 @@
-import { Prompt, type Sandbox } from "@open-insight/core/internal";
+import { Prompt, Sandbox } from "@open-insight/core/internal";
 import type { BivariantFn } from "#/utils/variant.ts";
-import { Effect, Schema } from "effect";
-import { GradeError, Retry } from "./error.ts";
+import { Effect, Scope } from "effect";
+import { GradeError } from "./error.ts";
 import { type Verif } from "./verif.ts";
-
-export type AnyResult = Schema.ConstraintCodec<unknown, object>;
+import * as Retry from "./retry.ts";
+import { decodeResult, type AnyResult } from "./result.ts";
 
 export type Context = Sandbox.SandboxPromise &
   Readonly<{
@@ -23,15 +23,30 @@ export const make =
   <R extends AnyResult>(schema: R) =>
   (grade: Exec<R>, verif?: Verif<R>) => ({ schema, grade, verif });
 
-export const run = <R extends AnyResult>(grader: Grader<R>) =>
-  Effect.fn(function* (
-    ctx: Context,
-  ): Effect.fn.Return<R["Type"], GradeError | Retry, R["DecodingServices"]> {
-    const result = yield* Effect.tryPromise({
-      try: () => grader.grade(ctx),
-      catch: (cause) => (cause instanceof Retry ? cause : GradeError.exec(cause)),
-    });
-    return yield* Schema.decodeEffect(grader.schema)(result).pipe(
-      Effect.mapError(GradeError.result),
-    );
-  });
+export type MakeContextOptions = Readonly<{
+  sandbox: Sandbox.Sandbox;
+  trajectory: Prompt.Trajectory;
+}>;
+
+export const makeContext = Effect.fn(function* ({
+  sandbox,
+  trajectory,
+}: MakeContextOptions): Effect.fn.Return<Context, never, Scope.Scope> {
+  const promise = yield* Sandbox.asPromise(sandbox);
+  return { ...promise, trajectory };
+});
+
+export const run = <R extends AnyResult = AnyResult>(grader: Grader<R>) =>
+  Effect.fn(
+    function* (
+      options: MakeContextOptions,
+    ): Effect.fn.Return<R["Type"], GradeError | Retry.Retry, R["DecodingServices"] | Scope.Scope> {
+      const ctx = yield* makeContext(options);
+      const result = yield* Effect.tryPromise({
+        try: () => grader.grade(ctx),
+        catch: Retry.mapError,
+      });
+      return yield* decodeResult(grader.schema, result);
+    },
+    (effect) => effect.pipe(Effect.scoped),
+  );
