@@ -36,12 +36,11 @@ export const createTrail = Effect.fn(function* ({
     harnessId: harness.metadata.id,
     taskId: task.metadata.id,
   };
-
   const { sandboxConfig, grader, prompt, snapshot: taskTemplate } = task;
-
   const snapSession = yield* harness
     .runSnapshot(taskTemplate, config)
     .pipe((effect) => snapSem.withPermit(effect));
+
   const runGrader = yield* Grade.createRunner(grader).pipe(Effect.mapError(EvalError.grade));
 
   const runTrail = Effect.fn(function* ({
