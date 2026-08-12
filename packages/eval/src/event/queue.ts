@@ -4,6 +4,7 @@ import type { EventError } from "./error.ts";
 
 export type EventQueue = Queue.Queue<EvalEvent, EventError | Cause.Done>;
 export type EventEnqueue = Queue.Enqueue<EvalEvent, EventError | Cause.Done>;
+export type EventDequeue = Queue.Dequeue<EvalEvent, EventError | Cause.Done>;
 export type EventStream = Stream.Stream<EvalEvent, EventError>;
 
 export const makeQueue = (capacity: number = 1024) =>

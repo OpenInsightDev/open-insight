@@ -21,6 +21,7 @@ export {
 export type {
   BenchMetricEventEncoded,
   EventEncoded,
+  EventDequeue,
   EventEnqueue,
   EventQueue,
   EventStream,

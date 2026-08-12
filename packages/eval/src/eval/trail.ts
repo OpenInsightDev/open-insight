@@ -39,12 +39,7 @@ export const createTrail = Effect.fn(function* ({
   const { metrics: taskMetrics, trajMetrics, sandboxConfig, grader, snapshot: taskTemplate } = task;
   const { verifMode } = config;
 
-  const offer = Event.offerTo(eventQueue);
-
-  const scope = yield* Scope.Scope;
-
   const snapSession = yield* harness.runSnapshot(taskTemplate).pipe(snapSem.withPermit);
-
   const runGrader = yield* Grade.createRunner(grader).pipe(Effect.mapError(EvalError.grade));
 
   const runTrail = Effect.fn(function* ({
@@ -53,8 +48,9 @@ export const createTrail = Effect.fn(function* ({
   }: {
     sbxSession: Harness.SandboxSession;
     trailIdx: number;
-  }) {
+  }): Effect.fn.Return<Stream.Stream<Event.EvalEvent, EvalError>, EvalError, Scope.Scope> {
     const trailFields = { ...taskFields, trailIdx };
+    throw new Error("Not implemented yet");
   });
 
   const runSession = Effect.fn(function* ({
@@ -67,7 +63,7 @@ export const createTrail = Effect.fn(function* ({
     session: Harness.AgentSession;
     trailIdx: number;
     sessionIdx: number;
-  }): Effect.fn.Return<Queue.Dequeue<Event.EvalEvent, EvalError>, EvalError, Scope.Scope> {
+  }): Effect.fn.Return<Stream.Stream<Event.EvalEvent, EvalError>, EvalError, Scope.Scope> {
     const sessionFields = { ...taskFields, trailIdx, sessionIdx };
 
     const queue = yield* Event.makeQueue();
@@ -120,7 +116,7 @@ export const createTrail = Effect.fn(function* ({
 
     yield* Event.SessionEndEvent.makeEffect({ ...sessionFields, reason }).pipe(offer);
 
-    return Queue.asDequeue(queue);
+    return Stream.fromQueue(queue).pipe(Stream.mapError((error) => EvalError.event(error)));
   });
 
   return (trailIdx) =>
