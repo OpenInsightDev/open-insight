@@ -1,4 +1,4 @@
-export * from "./metadata.ts";
+export * from "./schema.ts";
 export * from "./error.ts";
 export * as Bench from "./bench/index.ts";
 export * as Task from "./task/index.ts";

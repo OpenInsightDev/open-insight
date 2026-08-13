@@ -60,3 +60,6 @@ export const DataPoints = Schema.Array(DataPoint);
 export type DataPoints<Point extends DataPoint = DataPoint> = Point extends DataPoint
   ? Array<Point>
   : never;
+
+export const Points = Schema.Union([DataPoints, ComposablePoints]);
+export type Points = Schema.Schema.Type<typeof Points>;

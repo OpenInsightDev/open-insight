@@ -10,7 +10,7 @@ import {
   SubscriptionRef,
   SynchronizedRef,
 } from "effect";
-import { Metadata, type MetadataEncoded } from "../metadata.ts";
+import { Metadata, Result, type MetadataEncoded } from "../schema.ts";
 import type { BivariantFn } from "#/utils/variant.ts";
 import * as Chart from "#/chart/index.ts";
 import { MetricError } from "../error.ts";
@@ -65,7 +65,7 @@ export const make = Effect.fn(function* <R extends Schema.Json = Schema.Json>(op
 });
 
 export const register = Effect.fn(function* ({
-  metric: { exec, when, metadata },
+  metric: { exec, when, metadata, chart },
   sandbox: _sandbox,
   contextRef,
   enqueue,
@@ -73,7 +73,7 @@ export const register = Effect.fn(function* ({
   metric: Metric;
   sandbox: Sandbox.Sandbox;
   contextRef: SubscriptionRef.SubscriptionRef<Context>;
-  enqueue: Queue.Enqueue<Schema.Json, MetricError | Cause.Done>;
+  enqueue: Queue.Enqueue<Result, MetricError | Cause.Done>;
 }): Effect.fn.Return<Fiber.Fiber<void, MetricError>, MetricError, Scope.Scope> {
   const prevRef = yield* SynchronizedRef.make<Schema.Json | null>(null);
 
@@ -91,7 +91,14 @@ export const register = Effect.fn(function* ({
       ),
     );
 
-    yield* Queue.offer(enqueue, next);
+    yield* Queue.offer(
+      enqueue,
+      Result.make({
+        id: metadata.id,
+        value: next,
+        chart: chart?.(next) ?? null,
+      }),
+    );
   });
 
   return yield* SubscriptionRef.changes(contextRef)

@@ -1,46 +1,40 @@
 import * as Chart from "#/chart/index.ts";
-import type { TrailResult } from "#/eval/result.ts";
 import type { BivariantFn } from "#/utils/variant.ts";
-import * as Task from "#/task/index.ts";
-import { Effect, Ref, Schema } from "effect";
-import { Metadata, type MetadataEncoded } from "../metadata.ts";
-import { Result, type StreamResult } from "../result.ts";
+import { Effect, Schema, SynchronizedRef } from "effect";
+import { Metadata, Result, type MetadataEncoded } from "../schema.ts";
 import { MetricError } from "../error.ts";
+import type { TaskResult } from "../task/index.ts";
 
-export type Delta<G = unknown> = TrailResult<G> & Readonly<{ task: Task.ID }>;
-export type Results<G = unknown> = Readonly<Record<Task.ID, ReadonlyArray<TrailResult<G>>>>;
+export type BenchResult<G = unknown> = Readonly<Record<string, TaskResult<G>>>;
 
 /**
- * Computes a benchmark metric whenever a new task trail result is available.
+ * Computes a benchmark metric whenever a new task result is available.
  *
  * @param results All benchmark results collected so far, including the current `delta`.
- * @param delta The task trail result that triggered this computation.
+ * @param delta The task result that triggered this computation.
  * @param prev The previous output of this metric, or `null` on its first execution.
- *
- * Note that the function needs to be explicitly return-type annotated.
  */
-export type Exec<G = unknown, R extends Schema.JsonObject = Schema.JsonObject> = (
-  results: Results<G>,
-  delta: Delta<G>,
+export type Exec<G = unknown, R extends Schema.Json = Schema.Json> = (
+  results: BenchResult<G>,
+  delta: TaskResult<G>,
   prev: R | null,
 ) => R | Promise<R>;
 
-export type Metric<G = unknown, R extends Schema.JsonObject = Schema.JsonObject> = Readonly<{
+export type Metric<G = unknown, R extends Schema.Json = Schema.Json> = Readonly<{
   exec: BivariantFn<Exec<G, R>>;
   chart: BivariantFn<Chart.Chart<R>> | null;
   metadata: Metadata;
 }>;
 
-export type Options<G = unknown, R extends Schema.JsonObject = Schema.JsonObject> = Readonly<{
+export type Options<G = unknown, R extends Schema.Json = Schema.Json> = Readonly<{
   exec: Exec<G, R>;
   chart?: Chart.Chart<R> | null;
 }> &
   MetadataEncoded;
 
-export const make = Effect.fn(function* <
-  G = unknown,
-  R extends Schema.JsonObject = Schema.JsonObject,
->(options: Options<G, R>) {
+export const make = Effect.fn(function* <G = unknown, R extends Schema.Json = Schema.Json>(
+  options: Options<G, R>,
+) {
   const { exec, chart = null } = options;
   const metadata = yield* Schema.decodeEffect(Metadata)(options).pipe(
     Effect.mapError(MetricError.metadata),
@@ -48,43 +42,47 @@ export const make = Effect.fn(function* <
   return { exec, chart, metadata } satisfies Metric<G, R>;
 });
 
-export const run = Effect.fn("metric/bench/run")(function* <G, R extends Schema.JsonObject>(
-  metric: Metric<G, R>,
-) {
-  const state = yield* Ref.make<
-    Readonly<{
-      results: Results<G>;
-      prev: R | null;
-    }>
-  >({ results: {}, prev: null });
+export const creates = Effect.fn(function* (metrics: ReadonlyArray<Metric>) {
+  const resultRef = yield* SynchronizedRef.make<BenchResult>({});
 
-  return Effect.fn(function* (delta: Delta<G>): Effect.fn.Return<StreamResult, MetricError> {
-    const current = yield* Ref.get(state);
-    const results = {
-      ...current.results,
-      [delta.task]: [...(current.results[delta.task] ?? []), delta],
-    };
+  const create = Effect.fn(function* ({ exec, metadata, chart }: Metric) {
+    const prevRef = yield* SynchronizedRef.make<Schema.Json | null>(null);
 
-    const rawResult = yield* Effect.tryPromise(() =>
-      Promise.resolve(metric.exec(results, delta, current.prev)),
-    ).pipe(Effect.mapError(MetricError.exec(metric.metadata.id)));
-    const result = yield* Schema.decodeEffect(Result)(rawResult).pipe(
-      Effect.mapError(MetricError.result(metric.metadata.id)),
-      Effect.as(rawResult),
-    );
+    return (results: BenchResult, result: TaskResult) =>
+      prevRef.pipe(
+        SynchronizedRef.modifyEffect(
+          Effect.fn(function* (prev) {
+            const next = yield* Effect.tryPromise({
+              try: () => Promise.resolve(exec(results, result, prev)),
+              catch: MetricError.exec(metadata.id),
+            });
 
-    yield* Ref.set(state, { results, prev: result });
-
-    const chart = yield* Effect.try(() => (metric.chart ? metric.chart(result) : null)).pipe(
-      Effect.mapError(MetricError.chart(metric.metadata.id)),
-    );
-
-    return {
-      id: metric.metadata.id,
-      result,
-      chart,
-    } satisfies StreamResult;
+            return [
+              Result.make({
+                id: metadata.id,
+                value: next,
+                chart: chart?.(next) ?? null,
+              }),
+              next,
+            ];
+          }),
+        ),
+      );
   });
-});
 
-export * from "./builtin/index.ts";
+  const runs = yield* Effect.all(metrics.map(create));
+
+  return (result: TaskResult & Readonly<{ task: string }>) =>
+    resultRef.pipe(
+      SynchronizedRef.modifyEffect(
+        Effect.fn(function* (prev) {
+          const next = {
+            ...prev,
+            [result.task]: result,
+          };
+          const metricResults = yield* Effect.all(runs.map((run) => run(next, result)));
+          return [metricResults, next];
+        }),
+      ),
+    );
+});

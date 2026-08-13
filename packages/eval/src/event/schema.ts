@@ -3,8 +3,8 @@ import { Response } from "effect/unstable/ai";
 import { Schema } from "effect";
 import { Prompt, Harness } from "@open-insight/core/internal";
 import * as Bench from "#/bench/index.ts";
-import * as Eval from "#/eval/index.ts";
 import * as Task from "#/task/index.ts";
+import * as Metric from "#/metric/index.ts";
 import { Timestamp } from "../utils/schema.ts";
 
 const EvalFields = {
@@ -31,7 +31,7 @@ export class EvalStartEvent extends Schema.TaggedClass<EvalStartEvent>()("EvalSt
   ...EvalFields,
   bench: Bench.Metadata,
   harness: Harness.Metadata,
-  eval: Eval.Metadata,
+  metrics: Schema.Array(Metric.Metadata),
   startAt: Timestamp,
 }) {}
 export type EvalStartEventEncoded = Schema.Codec.Encoded<typeof EvalStartEvent>;
@@ -51,6 +51,7 @@ export class EvalErrorEvent extends Schema.TaggedClass<EvalErrorEvent>()("EvalEr
 export class TaskStartEvent extends Schema.TaggedClass<TaskStartEvent>()("TaskStartEvent", {
   ...taskFields,
   task: Task.Metadata,
+  metrics: Schema.Array(Metric.Metadata),
   startAt: Timestamp,
 }) {}
 export type TaskStartEventEncoded = Schema.Codec.Encoded<typeof TaskStartEvent>;
@@ -69,6 +70,8 @@ export class TaskErrorEvent extends Schema.TaggedClass<TaskErrorEvent>()("TaskEr
 
 export class TrailStartEvent extends Schema.TaggedClass<TrailStartEvent>()("TrailStartEvent", {
   ...TrailFields,
+  trajMetrics: Schema.Array(Metric.Metadata),
+  schedMetrics: Schema.Array(Metric.Metadata),
   startAt: Timestamp,
 }) {}
 export type TrailStartEventEncoded = Schema.Codec.Encoded<typeof TrailStartEvent>;

@@ -1,7 +1,7 @@
 import * as Chart from "#/chart/index.ts";
 import type { BivariantFn } from "#/utils/variant.ts";
 import { Sandbox } from "@open-insight/core/internal";
-import { Metadata, type MetadataEncoded } from "../metadata.ts";
+import { Metadata, Result, type MetadataEncoded } from "../schema.ts";
 import { Cause, Effect, Fiber, Queue, Schedule, Schema, Scope, SynchronizedRef } from "effect";
 import { MetricError } from "../error.ts";
 
@@ -46,13 +46,13 @@ export const make = Effect.fn(function* <R extends Schema.Json = Schema.Json>(
 });
 
 export const register = Effect.fn(function* ({
-  metric: { exec, repeat, retry, metadata },
+  metric: { exec, repeat, retry, metadata, chart },
   sandbox,
   enqueue,
 }: {
   metric: Metric;
   sandbox: Sandbox.Sandbox;
-  enqueue: Queue.Enqueue<unknown, MetricError | Cause.Done>;
+  enqueue: Queue.Enqueue<Result, MetricError | Cause.Done>;
 }): Effect.fn.Return<Fiber.Fiber<Schema.Json, MetricError>, MetricError, Scope.Scope> {
   const sbxPromise = yield* Sandbox.asPromise(sandbox).pipe(Effect.mapError(MetricError.sandbox));
 
@@ -64,7 +64,14 @@ export const register = Effect.fn(function* ({
       catch: MetricError.exec(metadata.id),
     }).pipe(Effect.retry(retry));
 
-    yield* Queue.offer(enqueue, next);
+    yield* Queue.offer(
+      enqueue,
+      Result.make({
+        id: metadata.id,
+        value: next,
+        chart: chart?.(next) ?? null,
+      }),
+    );
 
     return next;
   });

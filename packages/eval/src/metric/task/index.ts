@@ -1,7 +1,7 @@
 import * as Chart from "#/chart/index.ts";
 import type { BivariantFn } from "#/utils/variant.ts";
-import { Effect, Ref, Schema } from "effect";
-import { Metadata, type MetadataEncoded } from "../metadata.ts";
+import { Effect, Schema, SynchronizedRef } from "effect";
+import { Metadata, Result, type MetadataEncoded } from "../schema.ts";
 import { MetricError } from "../error.ts";
 import type { Prompt } from "@open-insight/core/internal";
 import { Response } from "effect/unstable/ai";
@@ -54,51 +54,43 @@ export const make = Effect.fn(function* <G = unknown, R extends Schema.Json = Sc
 });
 
 export const creates = Effect.fn(function* (metrics: ReadonlyArray<Metric>) {
-  const taskResultRef = yield* Ref.make<ReadonlyArray<TrailResult>>([]);
+  const taskResultRef = yield* SynchronizedRef.make<Array<TrailResult>>([]);
 
-  const create = Effect.fn(function* (metric: Metric) {
-    const prevRef = yield* Ref.make<unknown | null>(null);
+  const create = Effect.fn(function* ({ exec, metadata, chart }: Metric) {
+    const prevRef = yield* SynchronizedRef.make<Schema.Json | null>(null);
 
-    return Effect.fn(function* (trailResult: TrailResult) {});
+    return (results: Array<TrailResult>, result: TrailResult) =>
+      prevRef.pipe(
+        SynchronizedRef.modifyEffect(
+          Effect.fn(function* (prev) {
+            const next = yield* Effect.tryPromise({
+              try: () => Promise.resolve(exec(results, result, prev)),
+              catch: MetricError.exec(metadata.id),
+            });
+
+            return [
+              Result.make({
+                id: metadata.id,
+                value: next,
+                chart: chart?.(next) ?? null,
+              }),
+              next,
+            ];
+          }),
+        ),
+      );
   });
 
-  return Effect.fn(function* (trailResult: TrailResult) {});
+  const runs = yield* Effect.all(metrics.map(create));
+
+  return (trailResult: TrailResult) =>
+    taskResultRef.pipe(
+      SynchronizedRef.modifyEffect(
+        Effect.fn(function* (prev) {
+          const next = [...prev, trailResult];
+          const metricResults = yield* Effect.all(runs.map((run) => run(next, trailResult)));
+          return [metricResults, next];
+        }),
+      ),
+    );
 });
-
-// export const run = Effect.fn("metric/task/run")(function* <G, R extends Schema.Json>(
-//   metric: Metric<G, R>,
-// ) {
-//   const state = yield* Ref.make<
-//     Readonly<{
-//       results: ReadonlyArray<TrailResult<G>>;
-//       prev: R | null;
-//     }>
-//   >({ results: [], prev: null });
-
-//   return Effect.fn(function* (delta: TrailResult<G>): Effect.fn.Return<StreamResult, MetricError> {
-//     const current = yield* Ref.get(state);
-//     const results = [...current.results, delta];
-
-//     const rawResult = yield* Effect.tryPromise(() =>
-//       Promise.resolve(metric.exec(results, delta, current.prev)),
-//     ).pipe(Effect.mapError(MetricError.exec(metric.metadata.id)));
-//     const result = yield* Schema.decodeEffect(Result)(rawResult).pipe(
-//       Effect.mapError(MetricError.result(metric.metadata.id)),
-//       Effect.as(rawResult),
-//     );
-
-//     yield* Ref.set(state, { results, prev: result });
-
-//     const chart = yield* Effect.try(() => (metric.chart ? metric.chart(result) : null)).pipe(
-//       Effect.mapError(MetricError.chart(metric.metadata.id)),
-//     );
-
-//     return {
-//       id: metric.metadata.id,
-//       result,
-//       chart,
-//     } satisfies StreamResult;
-//   });
-// });
-
-// export * from "./builtin/index.ts";
