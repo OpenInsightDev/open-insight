@@ -38,7 +38,7 @@ export const makeSidecar =
   ) => {
     const options = { schema, grade, snapshot, resources, verif, scope, concurrency };
     return Match.value(scope).pipe(
-      Match.when("per-task", () => Grader.TaskSideCar(options)),
+      Match.when("per-task", () => Grader.TaskSidecar(options)),
       Match.when("per-trail", () => Grader.TrailSidecar(options)),
       Match.exhaustive,
     );
@@ -51,11 +51,7 @@ type RunOptions = Readonly<{
 
 export type RunGrader<R extends AnyResult = AnyResult> = (
   options: RunOptions,
-) => Effect.Effect<
-  R["Type"],
-  GradeError | Retry.Retry,
-  FileSystem.FileSystem | Path.Path | Scope.Scope
->;
+) => Effect.Effect<R["Type"], GradeError | Retry.Retry, FileSystem.FileSystem | Path.Path>;
 
 export const createRunner = Effect.fn(function* <R extends AnyResult = AnyResult>(
   grader: Grader<R>,

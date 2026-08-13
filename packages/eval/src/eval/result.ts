@@ -4,7 +4,7 @@ import { Prompt } from "@open-insight/core/internal";
 import { Schema } from "effect";
 import { Response } from "effect/unstable/ai";
 
-export const SessionResult = Schema.Struct({
+export const SessionResult = Schema.TaggedStruct("SessionResult", {
   startedAt: Timestamp,
   finishedAt: Timestamp,
   usage: Schema.NullOr(Response.Usage),
@@ -12,7 +12,7 @@ export const SessionResult = Schema.Struct({
 });
 export type SessionResult = Schema.Schema.Type<typeof SessionResult>;
 
-export const TrailResult = Schema.Struct({
+export const TrailResult = Schema.TaggedStruct("TrailResult", {
   startedAt: Timestamp,
   finishedAt: Timestamp,
   grade: Schema.Unknown,
@@ -25,7 +25,7 @@ export type TrailResult<G = unknown> = Readonly<{
   sessions: ReadonlyArray<SessionResult>;
 }>;
 
-export const TaskResult = Schema.Struct({
+export const TaskResult = Schema.TaggedStruct("TaskResult", {
   startedAt: Timestamp,
   finishedAt: Timestamp,
   trails: Schema.Array(TrailResult),
@@ -36,7 +36,7 @@ export type TaskResult<G = unknown> = Readonly<{
   trails: ReadonlyArray<TrailResult<G>>;
 }>;
 
-export const BenchResult = Schema.Struct({
+export const BenchResult = Schema.TaggedStruct("BenchResult", {
   startedAt: Timestamp,
   finishedAt: Timestamp,
   tasks: Schema.Record(Schema.String, TaskResult),

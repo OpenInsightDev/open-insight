@@ -2,8 +2,9 @@ import { Prompt, Resource, Sandbox, type Snapshot } from "@open-insight/core/int
 import type { BivariantFn } from "#/utils/variant.ts";
 import { decodeResult, type AnyResult } from "./result.ts";
 import type { Verif } from "./verif.ts";
-import { Effect, FiberSet, FileSystem, Path } from "effect";
+import { Effect, FiberSet, FileSystem, Path, Scope } from "effect";
 import * as Retry from "./retry.ts";
+import type { GradeError } from "./error.ts";
 
 export type SandboxScope = "per-task" | "per-trail";
 
@@ -84,7 +85,15 @@ export type MakeContextOptions = Readonly<{
   trajectory: Prompt.Trajectory;
 }>;
 
-export const makeContext = Effect.fn(function* ({ agent, grade, trajectory }: MakeContextOptions) {
+export const makeContext = Effect.fn(function* ({
+  agent,
+  grade,
+  trajectory,
+}: MakeContextOptions): Effect.fn.Return<
+  Context,
+  never,
+  Scope.Scope | FileSystem.FileSystem | Path.Path
+> {
   const runPromise = yield* FiberSet.makeRuntimePromise();
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
@@ -121,15 +130,11 @@ export type Grader<R extends AnyResult = AnyResult> = Readonly<{
   concurrency: number;
 }>;
 
-export const makeSandbox = Effect.fn(function* ({ snapshot: template, resources }: Grader) {
-  const sbxProvider = yield* Sandbox.ProviderService;
-  const snapshot = yield* sbxProvider.acquireSnapshot({ template, cache: true });
-  return yield* sbxProvider.runSandbox({ snapshot, resources, cache: true });
-});
-
 export const run = <R extends AnyResult = AnyResult>(grader: Grader<R>) =>
-  Effect.fn(function* (options: MakeContextOptions) {
-    const ctx = yield* makeContext(options);
+  Effect.fn(function* (
+    options: MakeContextOptions,
+  ): Effect.fn.Return<R["Type"], GradeError | Retry.Retry, FileSystem.FileSystem | Path.Path> {
+    const ctx = yield* makeContext(options).pipe(Effect.scoped);
     const result = yield* Effect.tryPromise({
       try: () => grader.grade(ctx),
       catch: Retry.mapError,

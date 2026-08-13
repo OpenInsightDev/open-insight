@@ -52,6 +52,8 @@ export class TaskStartEvent extends Schema.TaggedClass<TaskStartEvent>()("TaskSt
   ...taskFields,
   task: Task.Metadata,
   metrics: Schema.Array(Metric.Metadata),
+  trajMetrics: Schema.Array(Metric.Metadata),
+  schedMetrics: Schema.Array(Metric.Metadata),
   startAt: Timestamp,
 }) {}
 export type TaskStartEventEncoded = Schema.Codec.Encoded<typeof TaskStartEvent>;
@@ -70,8 +72,6 @@ export class TaskErrorEvent extends Schema.TaggedClass<TaskErrorEvent>()("TaskEr
 
 export class TrailStartEvent extends Schema.TaggedClass<TrailStartEvent>()("TrailStartEvent", {
   ...TrailFields,
-  trajMetrics: Schema.Array(Metric.Metadata),
-  schedMetrics: Schema.Array(Metric.Metadata),
   startAt: Timestamp,
 }) {}
 export type TrailStartEventEncoded = Schema.Codec.Encoded<typeof TrailStartEvent>;
