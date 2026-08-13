@@ -36,7 +36,15 @@ export const createTrail = Effect.fn(function* ({
     harnessId: harness.metadata.id,
     taskId: task.metadata.id,
   };
-  const { sandboxConfig, grader, prompt, snapshot: taskTemplate } = task;
+  const {
+    sandboxConfig,
+    grader,
+    prompt,
+    snapshot: taskTemplate,
+    metrics,
+    trajMetrics,
+    schedMetrics,
+  } = task;
   const snapSession = yield* harness
     .runSnapshot(taskTemplate, config)
     .pipe((effect) => snapSem.withPermit(effect));
@@ -180,9 +188,13 @@ export const createTrail = Effect.fn(function* ({
         )
         .pipe(Stream.unwrap);
 
-      return Stream.succeed(Event.TrailStartEvent.make({ ...trailFields })).pipe(
-        Stream.concat(attemptStream),
-      );
+      return Stream.succeed(
+        Event.TrailStartEvent.make({
+          ...trailFields,
+          trajMetrics: trajMetrics.map((metric) => metric.metadata),
+          schedMetrics: schedMetrics.map((metric) => metric.metadata),
+        }),
+      ).pipe(Stream.concat(attemptStream));
     })
       .pipe(trailSem.withPermit)
       .pipe(Stream.unwrap);

@@ -31,6 +31,7 @@ export type Task<G extends Grade.AnyResult = never> = Readonly<{
 
   metrics: ReadonlyArray<Metric.Task.Metric>;
   trajMetrics: ReadonlyArray<Metric.Traj.Metric>;
+  schedMetrics: ReadonlyArray<Metric.Sched.Metric>;
 
   prompt: Prompt.Options;
   grader: Grade.Grader<G>;
@@ -49,12 +50,13 @@ type Options<G extends Grade.AnyResult> = BaseMetadataEncoded &
     prompt: Prompt.Options;
     grader: Grade.Grader<G>;
     trajMetrics?: ReadonlyArray<Metric.Traj.Metric>;
+    schedMetrics?: ReadonlyArray<Metric.Sched.Metric>;
   }>;
 
 export const make = Effect.fn(function* <G extends Grade.AnyResult>(
   options: Options<G>,
 ): Effect.fn.Return<Task<G>, TaskError> {
-  const { snapshot, prompt, grader, trajMetrics = [] } = options;
+  const { snapshot, prompt, grader, trajMetrics = [], schedMetrics = [] } = options;
   const metadata = yield* Schema.decodeEffect(BaseMetadata)(options).pipe(
     Effect.mapError(TaskError.metadata),
   );
@@ -63,6 +65,7 @@ export const make = Effect.fn(function* <G extends Grade.AnyResult>(
     metadata,
     snapshot,
     trajMetrics,
+    schedMetrics,
     metrics: [],
     prompt,
     grader,
