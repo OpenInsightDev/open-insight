@@ -1,5 +1,15 @@
 import type { Prompt } from "@open-insight/core/internal";
-import type { ToolCallContext, TrajPred } from "../index.ts";
+import type { TrajPred } from "../index.ts";
+
+type ToolCallPart = Extract<Prompt.Part, { type: "tool-call" }>;
+type ToolResultPart = Extract<Prompt.Part, { type: "tool-result" }>;
+export type ToolCallContext = Readonly<{
+  call: ToolCallPart;
+  result: ToolResultPart;
+}>;
+type ToolCallOptions = Readonly<{
+  pred?: (context: ToolCallContext) => boolean;
+}>;
 
 type PartType = Prompt.Part["type"];
 type PartOptions<Part extends Prompt.Part = Prompt.Part> = Readonly<{
@@ -8,10 +18,6 @@ type PartOptions<Part extends Prompt.Part = Prompt.Part> = Readonly<{
 type PartsOf<Types extends ReadonlyArray<PartType>> = Types extends readonly []
   ? Prompt.Part
   : Extract<Prompt.Part, { type: Types[number] }>;
-type ToolCallPart = Extract<Prompt.Part, { type: "tool-call" }>;
-type ToolCallOptions = Readonly<{
-  pred?: (context: ToolCallContext) => boolean;
-}>;
 
 /**
  * Use this trajectory predicate when the metric should react to a specific kind of
@@ -94,12 +100,12 @@ export function parts(types: ReadonlyArray<PartType> = [], options: PartOptions 
  */
 export const toolCall =
   (name?: string, options: ToolCallOptions = {}): TrajPred =>
-  (part, parts) => {
+  (part, { response }) => {
     if (part.type !== "tool-result") {
       return false;
     }
 
-    const call = parts.findLast(
+    const call = response.findLast(
       (candidate): candidate is ToolCallPart =>
         candidate.type === "tool-call" && candidate.id === part.id,
     );

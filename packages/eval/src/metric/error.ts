@@ -1,3 +1,4 @@
+import { Sandbox } from "@open-insight/core/internal";
 import { Formatter, Schema } from "effect";
 
 /** The metadata describing a metric is invalid. */
@@ -48,6 +49,7 @@ export class ChartFailed extends Schema.TaggedError<ChartFailed>(
 }
 
 export const ErrorReason = Schema.Union([
+  Sandbox.SandboxError,
   InvalidMetadata,
   ExecutionFailed,
   InvalidResult,
@@ -87,4 +89,7 @@ export class MetricError extends Schema.TaggedError<MetricError>("open-insight/e
     (metric: string) =>
     (cause: unknown): MetricError =>
       MetricError.make({ reason: ChartFailed.make({ metric, cause }) });
+
+  static sandbox = (cause: Sandbox.SandboxError): MetricError =>
+    MetricError.make({ reason: cause });
 }

@@ -1,5 +1,9 @@
 # ONBOARD
 
+## durable
+
+- 技术路线：effect workflow + deno celld 
+
 ## Tools 管理
 
 - agent 应当接受如下几种 tools 设置：
