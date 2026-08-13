@@ -2,7 +2,7 @@ import * as Chart from "#/chart/index.ts";
 import type { BivariantFn } from "#/utils/variant.ts";
 import { Sandbox } from "@open-insight/core/internal";
 import { Metadata, type MetadataEncoded } from "../metadata.ts";
-import { Effect, Schedule, Schema, Scope, SynchronizedRef } from "effect";
+import { Cause, Effect, Fiber, Queue, Schedule, Schema, Scope, SynchronizedRef } from "effect";
 import { MetricError } from "../error.ts";
 
 export type Exec<R extends Schema.Json = Schema.Json> = (
@@ -45,21 +45,33 @@ export const make = Effect.fn(function* <R extends Schema.Json = Schema.Json>(
   } satisfies Metric<R>;
 });
 
-export const register = ({ exec, repeat, retry, metadata }: Metric) =>
-  Effect.fn(function* (sandbox: Sandbox.Sandbox): Effect.fn.Return<void, MetricError, Scope.Scope> {
-    const sbxPromise = yield* Sandbox.asPromise(sandbox).pipe(Effect.mapError(MetricError.sandbox));
+export const register = Effect.fn(function* ({
+  metric: { exec, repeat, retry, metadata },
+  sandbox,
+  enqueue,
+}: {
+  metric: Metric;
+  sandbox: Sandbox.Sandbox;
+  enqueue: Queue.Enqueue<unknown, MetricError | Cause.Done>;
+}): Effect.fn.Return<Fiber.Fiber<Schema.Json, MetricError>, MetricError, Scope.Scope> {
+  const sbxPromise = yield* Sandbox.asPromise(sandbox).pipe(Effect.mapError(MetricError.sandbox));
 
-    const prevRef = yield* SynchronizedRef.make<Schema.Json | null>(null);
+  const prevRef = yield* SynchronizedRef.make<Schema.Json | null>(null);
 
-    yield* prevRef
-      .pipe(
-        SynchronizedRef.getAndUpdateEffect((prev) =>
-          Effect.tryPromise({
-            try: () => Promise.resolve(exec(sbxPromise, prev)),
-            catch: MetricError.exec(metadata.id),
-          }).pipe(Effect.retry(retry)),
-        ),
-      )
-      .pipe(Effect.repeat(repeat))
-      .pipe(Effect.forkScoped);
+  const run = Effect.fn(function* (prev: Schema.Json | null) {
+    const next = yield* Effect.tryPromise({
+      try: () => Promise.resolve(exec(sbxPromise, prev)),
+      catch: MetricError.exec(metadata.id),
+    }).pipe(Effect.retry(retry));
+
+    yield* Queue.offer(enqueue, next);
+
+    return next;
   });
+
+  return yield* prevRef
+    .pipe(SynchronizedRef.getAndUpdateEffect(run))
+    .pipe(Effect.repeat(repeat))
+    .pipe(Effect.ensuring(Queue.end(enqueue)))
+    .pipe(Effect.forkScoped);
+});
