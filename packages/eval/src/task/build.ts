@@ -11,22 +11,17 @@ export const TypeId: TypeId = "~open-insight/eval/task";
 export const ID = Schema.String;
 export type ID = Schema.Schema.Type<typeof ID>;
 
-export class BaseMetadata extends Schema.Class<BaseMetadata>("BaseMetadata")({
+export class Metadata extends Schema.Class<Metadata>("Metadata")({
   id: Schema.String,
   name: Schema.OptionFromOptionalNullOr(Schema.String),
   description: Schema.OptionFromOptionalNullOr(Schema.String),
   keywords: Schema.OptionFromOptionalNullOr(Schema.Array(Schema.String)),
   authors: Schema.OptionFromOptionalNullOr(Schema.Array(Schema.String)),
 }) {}
-type BaseMetadataEncoded = Schema.Codec.Encoded<typeof BaseMetadata>;
-
-export class Metadata extends Schema.Class<Metadata>("Metadata")({
-  base: BaseMetadata,
-  extras: Schema.Record(Schema.String, Schema.Json),
-}) {}
+export type MetadataEncoded = Schema.Codec.Encoded<typeof Metadata>;
 
 export type Task<G extends Grade.AnyResult = never> = Readonly<{
-  metadata: BaseMetadata;
+  metadata: Metadata;
   snapshot: Snapshot.Template;
 
   metrics: ReadonlyArray<Metric.Task.Metric>;
@@ -43,7 +38,7 @@ export type Task<G extends Grade.AnyResult = never> = Readonly<{
 
 export type AnyTask = Task<any>;
 
-type Options<G extends Grade.AnyResult> = BaseMetadataEncoded &
+type Options<G extends Grade.AnyResult> = MetadataEncoded &
   Partial<Harness.SandboxSessionConfig> &
   Readonly<{
     snapshot: Snapshot.Template;
@@ -57,7 +52,7 @@ export const make = Effect.fn(function* <G extends Grade.AnyResult>(
   options: Options<G>,
 ): Effect.fn.Return<Task<G>, TaskError> {
   const { snapshot, prompt, grader, trajMetrics = [], schedMetrics = [] } = options;
-  const metadata = yield* Schema.decodeEffect(BaseMetadata)(options).pipe(
+  const metadata = yield* Schema.decodeEffect(Metadata)(options).pipe(
     Effect.mapError(TaskError.metadata),
   );
 

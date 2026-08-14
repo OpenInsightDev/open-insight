@@ -1,54 +1,46 @@
 import { Harness, Prompt, Sandbox } from "@open-insight/core/internal";
 import { Response } from "effect/unstable/ai";
-import {
-  Cause,
-  Effect,
-  FileSystem,
-  Match,
-  Path,
-  Pull,
-  Ref,
-  Scope,
-  Semaphore,
-  Stream,
-} from "effect";
+import { Effect, FileSystem, Path, Ref, Scope, Semaphore, Stream, Array } from "effect";
 import * as Bench from "#/bench/index.ts";
 import * as Grade from "#/grade/index.ts";
 import * as Event from "#/event/index.ts";
 import * as Task from "#/task/index.ts";
 import type { Config } from "./config.ts";
 import { EvalError } from "./error.ts";
-import { SessionResult, TrailResult, type TaskResult } from "./result.ts";
+import { SessionResult, TrailResult } from "./result.ts";
+import { TaskResult } from "../event/result.ts";
 
-export type TrailEventStream = (trailIdx: number) => Stream.Stream<Event.EvalEvent, EvalError>;
+export type TrailStream = Stream.Stream<Event.EvalEvent, TrailResult>;
 
 export type Options = Readonly<{
   task: Task.AnyTask;
   bench: Bench.Bench;
   config: Config;
+  snapSession: Harness.SnapshotSession;
 
-  trailSem: Semaphore.Semaphore;
   snapSem: Semaphore.Semaphore;
+  trailSem: Semaphore.Semaphore;
+
+  trailCount: number;
 }>;
 
 export const run = Effect.fn(function* ({
   task,
   bench,
   config,
-  trailSem,
+  snapSession,
   snapSem,
+  trailSem,
+  trailCount,
 }: Options): Effect.fn.Return<
-  Stream.Stream<Event.EvalEvent | TaskResult>,
+  Stream.Stream<Event.EvalEvent, TaskResult>,
   EvalError,
-  Harness.Service | Sandbox.ProviderService | Scope.Scope
+  FileSystem.FileSystem | Path.Path | Harness.Service | Sandbox.ProviderService | Scope.Scope
 > {
+  const fs = yield* FileSystem.FileSystem;
+  const path = yield* Path.Path;
   const harness = yield* Harness.Service;
 
-  const taskFields = {
-    benchId: bench.metadata.id,
-    harnessId: harness.metadata.id,
-    taskId: task.metadata.id,
-  };
   const {
     sandboxConfig,
     grader,
@@ -58,107 +50,110 @@ export const run = Effect.fn(function* ({
     trajMetrics,
     schedMetrics,
   } = task;
-  const snapSession = yield* harness
-    .runSnapshot(taskTemplate, config)
-    .pipe((effect) => snapSem.withPermit(effect))
-    .pipe(Effect.mapError(EvalError.harness));
+
+  const { trailConcurrency } = config;
+
+  const taskFields = {
+    benchId: bench.metadata.id,
+    harnessId: harness.metadata.id,
+    taskId: task.metadata.id,
+  };
 
   const runGrader = yield* Grade.createRunner(grader).pipe(Effect.mapError(EvalError.grade));
 
-  const runTrail = Effect.fn(function* ({
-    sbxSession,
-    trailIdx,
-  }: {
-    sbxSession: Harness.SandboxSession;
-    trailIdx: number;
-  }): Effect.fn.Return<
-    Stream.Stream<Event.EvalEvent | TrailResult>,
-    EvalError,
-    Scope.Scope | FileSystem.FileSystem | Path.Path
-  > {
-    const fs = yield* FileSystem.FileSystem;
-    const path = yield* Path.Path;
+  const createTrailStream = Effect.fn(
+    function* (trailIdx: number) {
+      const trailFields = { ...taskFields, trailIdx };
 
-    const trailFields = { ...taskFields, trailIdx };
+      const sbxSession = yield* snapSession
+        .runSandbox(sandboxConfig)
+        .pipe(Effect.mapError(EvalError.harness));
 
-    const usageRef = yield* Ref.make<Response.Usage | null>(null);
+      const fs = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
 
-    const runSession = Effect.fn(function* ({
-      session,
-      sessionIdx,
-      prompt,
-    }: Readonly<{
-      session: Harness.AgentSession;
-      sessionIdx: number;
-      prompt: Prompt.Options;
-    }>): Effect.fn.Return<Stream.Stream<Event.EvalEvent | SessionResult>, never, Scope.Scope> {
-      const sessionFields = { ...trailFields, sessionIdx };
+      const usageRef = yield* Ref.make<Response.Usage | null>(null);
 
-      const finishRef = yield* Ref.make<Response.FinishReason>("unknown");
+      const runSession = Effect.fn(function* ({
+        session,
+        sessionIdx,
+        prompt,
+      }: Readonly<{
+        session: Harness.AgentSession;
+        sessionIdx: number;
+        prompt: Prompt.Options;
+      }>): Effect.fn.Return<Stream.Stream<Event.EvalEvent, SessionResult>> {
+        const sessionFields = { ...trailFields, sessionIdx };
 
-      const makeRespStream = (prompt: Prompt.Prompt): Stream.Stream<Event.EvalEvent, EvalError> =>
-        session
-          .prompt(prompt)
-          .pipe(Stream.mapError(EvalError.harness))
+        const finishRef = yield* Ref.make<Response.FinishReason>("unknown");
+
+        const makeRespStream = (prompt: Prompt.Prompt): Stream.Stream<Event.EvalEvent, EvalError> =>
+          session
+            .prompt(prompt)
+            .pipe(Stream.mapError(EvalError.harness))
+            .pipe(
+              Stream.tap((part) => {
+                if (part.type !== "finish") {
+                  return Effect.void;
+                }
+                return Effect.all([Ref.set(finishRef, part.reason), Ref.set(usageRef, part.usage)]);
+              }),
+              Stream.map((part) => Event.SessionStreamEvent.make({ ...sessionFields, part })),
+            );
+
+        const promptEvent = Prompt.makeStream(prompt, {
+          sandbox: yield* Sandbox.asPromise(sbxSession.sandbox),
+          trajectory: session.trajectory,
+        }).pipe(Stream.mapError(EvalError.taskExec(task, trailIdx)));
+
+        const trajEvents = promptEvent
           .pipe(
-            Stream.tap((part) => {
-              if (part.type !== "finish") {
-                return Effect.void;
-              }
-              return Effect.all([Ref.set(finishRef, part.reason), Ref.set(usageRef, part.usage)]);
-            }),
-            Stream.map((part) => Event.SessionStreamEvent.make({ ...sessionFields, part })),
+            Stream.flatMap((prompt) =>
+              Stream.succeed(Event.SessionPromptEvent.make({ ...sessionFields, prompt })).pipe(
+                Stream.concat(makeRespStream(prompt)),
+              ),
+            ),
+          )
+          .pipe(
+            Stream.catch((error) =>
+              Stream.succeed(Event.SessionErrorEvent.make({ ...sessionFields, error })),
+            ),
           );
 
-      const promptEvent = Prompt.makeStream(prompt, {
-        sandbox: yield* Sandbox.asPromise(sbxSession.sandbox),
-        trajectory: session.trajectory,
-      }).pipe(Stream.mapError(EvalError.taskExec(task, trailIdx)));
+        const startEvent = Stream.succeed(Event.SessionStartEvent.make({ ...sessionFields }));
 
-      const trajEvents = promptEvent.pipe(
-        Stream.flatMap((prompt) =>
-          Stream.succeed(Event.SessionPromptEvent.make({ ...sessionFields, prompt })).pipe(
-            Stream.concat(makeRespStream(prompt)),
-          ),
-        ),
-      );
+        const endEvent = Ref.get(finishRef)
+          .pipe(Effect.map((reason) => Event.SessionEndEvent.make({ ...sessionFields, reason })))
+          .pipe(Stream.fromEffect);
 
-      const startEvent = Stream.succeed(Event.SessionStartEvent.make({ ...sessionFields }));
+        const result = Effect.all({
+          usage: Ref.get(usageRef),
+          trajectory: Ref.get(session.trajectory),
+        })
+          .pipe(
+            Effect.map(({ usage, trajectory }) =>
+              Stream.fail(SessionResult.make({ usage, trajectory })),
+            ),
+          )
+          .pipe(Stream.unwrap);
 
-      const endEvent = Ref.get(finishRef)
-        .pipe(Effect.map((reason) => Event.SessionEndEvent.make({ ...sessionFields, reason })))
-        .pipe(Stream.fromEffect);
+        return startEvent
+          .pipe(Stream.concat(trajEvents))
+          .pipe(Stream.concat(endEvent))
+          .pipe(Stream.concat(result)) satisfies Stream.Stream<Event.EvalEvent, SessionResult>;
+      });
 
-      const result = Effect.all({
-        usage: Ref.get(usageRef),
-        trajectory: Ref.get(session.trajectory),
-      })
-        .pipe(Effect.map(({ usage, trajectory }) => SessionResult.make({ usage, trajectory })))
-        .pipe(Stream.fromEffect);
+      const sessionResultsRef = yield* Ref.make<SessionResult[]>([]);
 
-      return startEvent
-        .pipe(Stream.concat(trajEvents))
-        .pipe(Stream.concat(endEvent))
-        .pipe(Stream.concat(result))
-        .pipe(
-          Stream.catch((error) =>
-            Stream.succeed(Event.SessionErrorEvent.make({ ...sessionFields, error })),
-          ),
-        );
-    });
-
-    const sessionResultsRef = yield* Ref.make<SessionResult[]>([]);
-
-    const runAttempt = Effect.fn(
-      function* (
-        session: Harness.AgentSession,
-        prompt: Prompt.Options,
-        sessionIdx: number,
-      ): Effect.fn.Return<
-        Stream.Stream<Event.EvalEvent | TrailResult>,
-        EvalError,
-        FileSystem.FileSystem | Path.Path
-      > {
+      const runAttempt = ({
+        session,
+        prompt,
+        sessionIdx,
+      }: {
+        session: Harness.AgentSession;
+        prompt: Prompt.Options;
+        sessionIdx: number;
+      }): Stream.Stream<Event.EvalEvent, EvalError | TrailResult> => {
         const sessionStream = runSession({
           session,
           sessionIdx,
@@ -166,27 +161,34 @@ export const run = Effect.fn(function* ({
         })
           .pipe(Stream.unwrap)
           .pipe(
-            Stream.tap(
-              Effect.fn(function* (result) {
-                if (result._tag !== "SessionResult") {
-                  return;
-                }
-                yield* sessionResultsRef.pipe(Ref.update((results) => [...results, result]));
-              }),
+            Stream.catchTag(
+              "SessionResult",
+              Effect.fn(
+                function* (result) {
+                  yield* sessionResultsRef.pipe(Ref.update((results) => [...results, result]));
+                  return Stream.empty;
+                },
+                (effect) => effect.pipe(Stream.unwrap),
+              ),
             ),
           );
 
-        const trajectory = yield* Ref.get(session.trajectory);
-        const usage = yield* Ref.get(usageRef);
-
-        const gradeEvent = runGrader({ sandbox: sbxSession.sandbox, trajectory })
-          .pipe(
+        const gradeResultStream = Effect.gen(function* () {
+          const trajectory = yield* Ref.get(session.trajectory);
+          const usage = yield* Ref.get(usageRef);
+          const grade = yield* runGrader({ sandbox: sbxSession.sandbox, trajectory }).pipe(
             Effect.mapError((error) =>
               error instanceof Grade.Retry ? error : EvalError.grade(error),
             ),
-          )
-          .pipe(Effect.map((grade) => Event.TrailEndEvent.make({ ...trailFields, grade, usage })))
-          .pipe(Stream.fromEffect);
+          );
+
+          const sessions = yield* Ref.get(sessionResultsRef);
+          const result = Stream.fail(TrailResult.make({ grade, sessions }));
+
+          const event = Stream.succeed(Event.TrailEndEvent.make({ ...trailFields, grade, usage }));
+
+          return event.pipe(Stream.concat(result));
+        }).pipe(Stream.unwrap);
 
         const createRetryStream = Effect.fn(
           function* (retry: Grade.Retry) {
@@ -199,70 +201,98 @@ export const run = Effect.fn(function* ({
                 ? yield* sbxSession.runAgent().pipe(Effect.mapError(EvalError.harness))
                 : session;
 
-            const nextAttempt = yield* runAttempt(nextSession, retry.prompt, sessionIdx + 1);
-
-            const retryEvent = Event.SessionRetryEvent.make({
-              ...trailFields,
-              sessionIdx,
-              reason: retry.reason,
+            const nextAttempt = runAttempt({
+              session: nextSession,
+              prompt: retry.prompt ?? prompt,
+              sessionIdx: sessionIdx + 1,
             });
 
-            return Stream.succeed(retryEvent).pipe(Stream.concat(nextAttempt));
+            const retryEvent = Stream.succeed(
+              Event.SessionRetryEvent.make({
+                ...trailFields,
+                sessionIdx,
+                reason: retry.reason,
+              }),
+            );
+
+            return retryEvent.pipe(Stream.concat(nextAttempt));
           },
           (effect) => effect.pipe(Stream.unwrap),
         );
 
-        const gradeStream = gradeEvent.pipe(Stream.catchTag("Retry", createRetryStream));
-
-        return sessionStream
-          .pipe(Stream.concat(gradeStream))
+        const gradeStream = gradeResultStream
+          .pipe(Stream.catchTag("Retry", createRetryStream))
           .pipe(
-            Stream.catch((error) =>
-              Stream.succeed(Event.TrailErrorEvent.make({ ...trailFields, error })),
-            ),
+            Stream.provideService(FileSystem.FileSystem, fs),
+            Stream.provideService(Path.Path, path),
           );
-      },
-      (effect) =>
-        effect.pipe(
-          Effect.provideService(FileSystem.FileSystem, fs),
-          Effect.provideService(Path.Path, path),
-        ),
-    );
 
-    const agentSession = yield* sbxSession.runAgent().pipe(Effect.mapError(EvalError.harness));
-    return yield* runAttempt(agentSession, prompt, 0);
-  });
+        return sessionStream.pipe(Stream.concat(gradeStream));
+      };
 
-  return (trailIdx: number) => {
-    const trailFields = { ...taskFields, trailIdx };
+      const agentSession = yield* sbxSession.runAgent().pipe(Effect.mapError(EvalError.harness));
 
-    const trailStream = Effect.gen(function* () {
-      yield* Effect.logDebug(`Trail ${trailIdx} started`);
-
-      const attemptStream = snapSession
-        .runSandbox(sandboxConfig)
+      return runAttempt({ session: agentSession, prompt, sessionIdx: 0 })
         .pipe(
-          Effect.mapError(EvalError.harness),
-          Effect.flatMap((sbxSession) => runTrail({ sbxSession, trailIdx })),
+          Stream.provideService(FileSystem.FileSystem, fs),
+          Stream.provideService(Path.Path, path),
         )
-        .pipe(Stream.unwrap);
-
-      return Stream.succeed(Event.TrailStartEvent.make({ ...trailFields })).pipe(
-        Stream.concat(attemptStream),
-      );
-    })
-      .pipe(trailSem.withPermit)
-      .pipe(Stream.unwrap);
-
-    return trailStream
-      .pipe(
-        Stream.catch((error) =>
-          Stream.succeed(Event.TrailErrorEvent.make({ ...trailFields, error })).pipe(
-            Stream.concat(Stream.fail(error)),
+        .pipe(
+          Stream.catch((error) =>
+            Stream.succeed(Event.TrailErrorEvent.make({ ...taskFields, trailIdx, error })),
           ),
-        ),
-      )
-      .pipe(Stream.onEnd(Effect.logDebug(`Completed trail ${trailIdx}`)))
-      .pipe(Stream.scoped);
-  };
+        );
+    },
+    (effect) => effect.pipe(Stream.unwrap),
+  );
+
+  const trailResultsRef = yield* Ref.make<Array<TrailResult>>([]);
+
+  const startEvent = Stream.succeed(
+    Event.TaskStartEvent.make({
+      ...taskFields,
+      metrics: metrics.map((metric) => metric.metadata),
+      trajMetrics: trajMetrics.map((metric) => metric.metadata),
+      schedMetrics: schedMetrics.map((metric) => metric.metadata),
+      task: task.metadata,
+    }),
+  );
+
+  // TODO 公平调度策略，trailSem
+  const trailStreams = Array.range(0, trailCount).map(
+    Effect.fn(
+      function* (trailIdx) {
+        const stream = createTrailStream(trailIdx).pipe(
+          Stream.catchTag(
+            "TrailResult",
+            Effect.fn(
+              function* (result) {
+                yield* trailResultsRef.pipe(Ref.update((results) => [...results, result]));
+                return Stream.empty;
+              },
+              (effect) => effect.pipe(Stream.unwrap),
+            ),
+          ),
+        );
+        return stream;
+      },
+      (effect) => effect.pipe(Stream.unwrap),
+    ),
+  );
+  const mergedTrailStream = Stream.mergeAll(trailStreams, { concurrency: trailConcurrency });
+
+  const endStream = Effect.gen(function* () {
+    const event = Stream.succeed(Event.TaskEndEvent.make({ ...taskFields }));
+    const trails = yield* Ref.get(trailResultsRef);
+    const result = Stream.fail(TaskResult.make({ trails }));
+    return event.pipe(Stream.concat(result));
+  }).pipe(Stream.unwrap);
+
+  return startEvent
+    .pipe(Stream.concat(mergedTrailStream))
+    .pipe(Stream.concat(endStream))
+    .pipe(Stream.provideService(FileSystem.FileSystem, fs), Stream.provideService(Path.Path, path))
+    .pipe(
+      Stream.catch((error) => Stream.succeed(Event.TaskErrorEvent.make({ ...taskFields, error }))),
+    );
 });
