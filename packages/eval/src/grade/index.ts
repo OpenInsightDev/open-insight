@@ -53,7 +53,7 @@ export type RunGrader<R extends AnyResult = AnyResult> = (
   options: RunOptions,
 ) => Effect.Effect<R["Type"], GradeError | Retry.Retry, FileSystem.FileSystem | Path.Path>;
 
-export const createRunner = Effect.fn(function* <R extends AnyResult = AnyResult>(
+export const makeRunner = Effect.fn(function* <R extends AnyResult = AnyResult>(
   grader: Grader<R>,
 ): Effect.fn.Return<RunGrader<R>, GradeError, Scope.Scope | Sandbox.ProviderService> {
   const scope = yield* Scope.Scope;
