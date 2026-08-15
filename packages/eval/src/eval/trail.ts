@@ -11,6 +11,7 @@ import {
   Cause,
   Queue,
   FiberSet,
+  SubscriptionRef,
 } from "effect";
 import * as Bench from "#/bench/index.ts";
 import * as Grade from "#/grade/index.ts";
@@ -54,7 +55,7 @@ export const makeStream = Effect.fn(
       grader,
       prompt,
       snapshot: taskTemplate,
-      metrics,
+      metrics: taskMetrics,
       trajMetrics,
       schedMetrics,
     } = task;
@@ -285,12 +286,9 @@ export const makeStream = Effect.fn(
         const agentSession = yield* sbxSession.runAgent().pipe(Effect.mapError(EvalError.harness));
         const trailStream = makeAttemptStream({ session: agentSession, prompt, sessionIdx: 0 });
 
-        const mergedSchedMetricStreams = Stream.mergeAll(schedMetricStreams, {
+        const schedMetricEvents = Stream.mergeAll(schedMetricStreams, {
           concurrency: "unbounded",
-        });
-        const schedMetricEvents = mergedSchedMetricStreams.pipe(
-          Stream.map((result) => Event.TrailMetricEvent.make({ ...trailFields, ...result })),
-        );
+        }).pipe(Stream.map((result) => Event.TrailMetricEvent.make({ ...trailFields, ...result })));
 
         return Stream.empty.pipe(Stream.concat(trailStream), Stream.merge(schedMetricEvents));
       },
@@ -304,12 +302,12 @@ export const makeStream = Effect.fn(
         ),
     );
 
-    const trailResultsRef = yield* Ref.make<Array<TrailResult>>([]);
+    const trailResultsRef = yield* SubscriptionRef.make<Array<TrailResult>>([]);
 
     const startEvent = Stream.succeed(
       Event.TaskStartEvent.make({
         ...taskFields,
-        metrics: metrics.map((metric) => metric.metadata),
+        metrics: taskMetrics.map((metric) => metric.metadata),
         trajMetrics: trajMetrics.map((metric) => metric.metadata),
         schedMetrics: schedMetrics.map((metric) => metric.metadata),
         task: task.metadata,
@@ -328,7 +326,7 @@ export const makeStream = Effect.fn(
         .pipe(
           Stream.catchTag("Done", ({ value: result }) =>
             trailResultsRef
-              .pipe(Ref.update((results) => [...results, result]))
+              .pipe(SubscriptionRef.update((results) => [...results, result]))
               .pipe(() => Stream.empty),
           ),
         )
@@ -342,17 +340,26 @@ export const makeStream = Effect.fn(
 
     const endEvent = Stream.succeed(Event.TaskEndEvent.make({ ...taskFields }));
 
-    const result = Ref.get(trailResultsRef)
+    const result = SubscriptionRef.get(trailResultsRef)
       .pipe(Effect.flatMap((trails) => Cause.done(TaskResult.make({ trails }))))
       .pipe(Stream.fromEffect);
 
-    const mergedTrailStream = Stream.fromQueue(trailQueue);
+    const trailEvents = Stream.fromQueue(trailQueue);
+
+    const trailResultsStream = SubscriptionRef.changes(trailResultsRef);
+    const taskMetricStreams = taskMetrics
+      .map(Metric.Task.makeStream(trailResultsStream))
+      .map(Stream.mapError(EvalError.metric));
+    const taskMetricEvents = Stream.mergeAll(taskMetricStreams, {
+      concurrency: "unbounded",
+    }).pipe(Stream.map((result) => Event.TaskMetricEvent.make({ ...taskFields, ...result })));
 
     return Stream.empty.pipe(
       Stream.concat(startEvent),
-      Stream.concat(mergedTrailStream),
+      Stream.concat(trailEvents),
       Stream.concat(endEvent),
       Stream.concat(result),
+      Stream.merge(taskMetricEvents),
     );
   },
   (effect, options) =>

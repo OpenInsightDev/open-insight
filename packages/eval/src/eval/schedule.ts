@@ -1,4 +1,4 @@
-import { Cause, Effect, FileSystem, Path, Ref, Semaphore, Stream } from "effect";
+import { Cause, Effect, FileSystem, Path, Semaphore, Stream, SubscriptionRef } from "effect";
 import * as Bench from "#/bench/index.ts";
 import type { Config } from "./config.ts";
 import { Harness } from "@open-insight/core";
@@ -25,7 +25,7 @@ export const makeStream = Effect.fn(function* (bench: Bench.Bench, config: Confi
   const path = yield* Path.Path;
   const sbxProvider = yield* Sandbox.ProviderService;
 
-  const taskResultsRef = yield* Ref.make<Record<string, TaskResult>>({});
+  const taskResultsRef = yield* SubscriptionRef.make<Record<string, TaskResult>>({});
 
   const trailSem = yield* Semaphore.make(trailConcurrency);
   const snapSem = yield* Semaphore.make(snapshotConcurrency);
@@ -41,7 +41,7 @@ export const makeStream = Effect.fn(function* (bench: Bench.Bench, config: Confi
     })
       .pipe(
         Stream.catchTag("Done", ({ value: result }) =>
-          Ref.update(
+          SubscriptionRef.update(
             taskResultsRef,
             produce((results) => {
               results[task.metadata.id] = castDraft(result);
@@ -71,7 +71,7 @@ export const makeStream = Effect.fn(function* (bench: Bench.Bench, config: Confi
 
   const endEvent = Stream.succeed(Event.BenchEndEvent.make({ ...benchFields }));
 
-  const result = Ref.get(taskResultsRef)
+  const result = SubscriptionRef.get(taskResultsRef)
     .pipe(Effect.flatMap((results) => Cause.done(BenchResult.make({ tasks: results }))))
     .pipe(Stream.fromEffect);
 

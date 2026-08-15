@@ -56,21 +56,25 @@ export const makeStream =
     return stream.pipe(
       Stream.mapAccumEffect(
         () => ({ response: [] as Prompt.ResponsePart[], prev: null as Schema.Json | null }),
-        ({ response, prev }, delta) =>
+        (state, delta) =>
           Effect.tryPromise({
-            try: () => Promise.resolve(respExec(response, delta, prev)),
+            try: () => Promise.resolve(respExec(state.response, delta, state.prev)),
             catch: MetricError.exec(metadata.id),
           }).pipe(
-            Effect.map((next) => [
-              { response: [...response, delta], prev: next },
-              [
-                Result.make({
-                  id: metadata.id,
-                  value: next,
-                  chart: chart?.(next) ?? null,
-                }),
-              ],
-            ]),
+            Effect.map((next) =>
+              next === null
+                ? [state, []] // skip
+                : [
+                    { response: [...state.response, delta], prev: next },
+                    [
+                      Result.make({
+                        id: metadata.id,
+                        value: next,
+                        chart: chart?.(next) ?? null,
+                      }),
+                    ],
+                  ],
+            ),
           ),
       ),
     );
