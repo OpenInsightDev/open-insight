@@ -23,9 +23,9 @@ const encoder = new TextEncoder();
  */
 export const primaryKey = (event: Event): string => {
   switch (event._tag) {
-    case "EvalStartEvent":
-    case "EvalEndEvent":
-    case "EvalErrorEvent":
+    case "BenchStartEvent":
+    case "BenchEndEvent":
+    case "BenchErrorEvent":
     case "BenchMetricEvent":
       return `${event.benchId}:${event.harnessId}`;
     case "TaskStartEvent":

@@ -61,7 +61,7 @@ export const makeStream = Effect.fn(function* (bench: Bench.Bench, config: Confi
   const benchFields = yield* makeBenchFields(bench);
 
   const startEvent = Stream.succeed(
-    Event.EvalStartEvent.make({
+    Event.BenchStartEvent.make({
       ...benchFields,
       bench: bench.metadata,
       harness: harness.metadata,
@@ -69,7 +69,7 @@ export const makeStream = Effect.fn(function* (bench: Bench.Bench, config: Confi
     }),
   );
 
-  const endEvent = Stream.succeed(Event.EvalEndEvent.make({ ...benchFields }));
+  const endEvent = Stream.succeed(Event.BenchEndEvent.make({ ...benchFields }));
 
   const result = Ref.get(taskResultsRef)
     .pipe(Effect.flatMap((results) => Cause.done(BenchResult.make({ tasks: results }))))

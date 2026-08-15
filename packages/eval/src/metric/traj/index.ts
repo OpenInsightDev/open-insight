@@ -1,15 +1,5 @@
-import type { Prompt, Sandbox } from "@open-insight/core/internal";
-import {
-  Cause,
-  Effect,
-  Fiber,
-  Queue,
-  Schema,
-  Scope,
-  Stream,
-  SubscriptionRef,
-  SynchronizedRef,
-} from "effect";
+import { Prompt } from "@open-insight/core/internal";
+import { Effect, Schema, Stream } from "effect";
 import { Metadata, Result, type MetadataEncoded } from "../schema.ts";
 import type { BivariantFn } from "#/utils/variant.ts";
 import * as Chart from "#/chart/index.ts";
@@ -17,92 +7,71 @@ import { MetricError } from "../error.ts";
 
 export type Context = Readonly<{
   prompt: Prompt.Prompt;
-  response: Prompt.Parts;
   trajectory: Prompt.Trajectory;
 }>;
 
-/**
- * Computes a trajectory metric whenever its trigger matches.
- *
- * @param context The sandbox, previous trajectory, and current response parts observed so far.
- * @param prev The previous output of this metric, or `null` on its first execution.
- */
-export type Exec<R extends Schema.Json = Schema.Json> = (
-  context: Context,
-  prev: R | null,
-) => R | Promise<R>;
+export type Delta = Prompt.ResponsePart;
 
-export type When = (context: Context) => boolean;
+type Nullable<T> = T | null;
+export type RespExec<R extends Schema.Json = Schema.Json> = (
+  response: ReadonlyArray<Prompt.ResponsePart>,
+  delta: Prompt.ResponsePart,
+  prev: R | null,
+) => Nullable<R> | Promise<Nullable<R>>;
+
+export type Exec<R extends Schema.Json = Schema.Json> = (context: Context) => RespExec<R>;
 
 export type Metric<R extends Schema.Json = Schema.Json> = Readonly<{
   metadata: Metadata;
   exec: BivariantFn<Exec<R>>;
-
-  when: When | null;
   chart: BivariantFn<Chart.Chart<R>> | null;
 }>;
 
 export type Options<R extends Schema.Json = Schema.Json> = Readonly<{
   exec: Exec<R>;
-  when?: When;
   chart?: Chart.Chart<R> | null;
 }> &
   MetadataEncoded;
 
 export const make = Effect.fn(function* <R extends Schema.Json = Schema.Json>(options: Options<R>) {
-  const { exec, when = null, chart = null } = options;
+  const { exec, chart = null } = options;
 
   const metadata = yield* Schema.decodeEffect(Metadata)(options).pipe(
     Effect.mapError(MetricError.metadata),
   );
 
-  return {
-    metadata,
-    exec,
-    when,
-    chart,
-  } satisfies Metric<R>;
+  return { metadata, exec, chart } satisfies Metric<R>;
 });
 
-export const register = Effect.fn(function* ({
-  metric: { exec, when, metadata, chart },
-  sandbox: _sandbox,
-  contextRef,
-  enqueue,
-}: {
-  metric: Metric;
-  sandbox: Sandbox.Sandbox;
-  contextRef: SubscriptionRef.SubscriptionRef<Context>;
-  enqueue: Queue.Enqueue<Result, MetricError | Cause.Done>;
-}): Effect.fn.Return<Fiber.Fiber<void, MetricError>, MetricError, Scope.Scope> {
-  const prevRef = yield* SynchronizedRef.make<Schema.Json | null>(null);
+type StreamOptions<E, R> = Context &
+  Readonly<{
+    stream: Stream.Stream<Prompt.ResponsePart, E, R>;
+  }>;
 
-  const run = Effect.fn(function* (context: Context) {
-    if (when !== null && !when(context)) {
-      return;
-    }
+export const makeStream =
+  <E, R>({ trajectory, prompt, stream }: StreamOptions<E, R>) =>
+  ({ exec, metadata, chart }: Metric): Stream.Stream<Result, E | MetricError, R> => {
+    const respExec = exec({ trajectory, prompt });
 
-    const next = yield* prevRef.pipe(
-      SynchronizedRef.getAndUpdateEffect((prev) =>
-        Effect.tryPromise({
-          try: () => Promise.resolve(exec(context, prev)),
-          catch: MetricError.exec(metadata.id),
-        }),
+    return stream.pipe(
+      Stream.mapAccumEffect(
+        () => ({ response: [] as Prompt.ResponsePart[], prev: null as Schema.Json | null }),
+        ({ response, prev }, delta) =>
+          Effect.tryPromise({
+            try: () => Promise.resolve(respExec(response, delta, prev)),
+            catch: MetricError.exec(metadata.id),
+          }).pipe(
+            Effect.map((next) => [
+              { response: [...response, delta], prev: next },
+              [
+                Result.make({
+                  id: metadata.id,
+                  value: next,
+                  chart: chart?.(next) ?? null,
+                }),
+              ],
+            ]),
+          ),
       ),
     );
-
-    yield* Queue.offer(
-      enqueue,
-      Result.make({
-        id: metadata.id,
-        value: next,
-        chart: chart?.(next) ?? null,
-      }),
-    );
-  });
-
-  return yield* SubscriptionRef.changes(contextRef)
-    .pipe(Stream.runForEach(run))
-    .pipe(Effect.ensuring(Queue.end(enqueue)))
-    .pipe(Effect.forkScoped);
-});
+  };

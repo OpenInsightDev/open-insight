@@ -1,5 +1,6 @@
 import { Match, Stream } from "effect";
 import { Prompt, Response } from "effect/unstable/ai";
+import type { AnyStreamPart, ResponsePart } from "./schema.ts";
 
 type State = Readonly<{
   text: Map<string, string>;
@@ -11,14 +12,14 @@ const initialState = (): State => ({
   reasoning: new Map(),
 });
 
-const noParts = (state: State): readonly [State, ReadonlyArray<Prompt.Part>] => [state, []];
+const noParts = (state: State): readonly [State, ReadonlyArray<ResponsePart>] => [state, []];
 
 const accumulate = (
   state: State,
-  part: Response.StreamPartEncoded,
-): readonly [State, ReadonlyArray<Prompt.Part>] =>
+  part: Response.StreamPartEncoded | AnyStreamPart,
+): readonly [State, ReadonlyArray<ResponsePart>] =>
   Match.value(part).pipe(
-    Match.withReturnType<readonly [State, ReadonlyArray<Prompt.Part>]>(),
+    Match.withReturnType<readonly [State, ReadonlyArray<ResponsePart>]>(),
     Match.discriminator("type")("text-start", (part) => {
       state.text.set(part.id, "");
       return noParts(state);
@@ -99,6 +100,16 @@ const accumulate = (
 /**
  * Converts a stream of encoded response stream parts into prompt parts.
  */
-export const fromResponsePartEncodedStream = <E, R>(
+export const fromStreamPartEncodedStream = <E, R>(
   stream: Stream.Stream<Response.StreamPartEncoded, E, R>,
-): Stream.Stream<Prompt.Part, E, R> => stream.pipe(Stream.mapAccum(initialState, accumulate));
+): Stream.Stream<ResponsePart, E, R> => stream.pipe(Stream.mapAccum(initialState, accumulate));
+
+/**
+ * Converts a stream of decoded response stream parts into prompt parts.
+ *
+ * Unlike {@link fromStreamPartEncodedStream}, this preserves decoded tool
+ * parameters and results without serializing them again.
+ */
+export const fromStreamPartStream = <E, R>(
+  stream: Stream.Stream<AnyStreamPart, E, R>,
+): Stream.Stream<ResponsePart, E, R> => stream.pipe(Stream.mapAccum(initialState, accumulate));

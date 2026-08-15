@@ -1,4 +1,5 @@
 import { Formatter, Schema } from "effect";
+import * as Metric from "#/metric/index.ts";
 import * as Grade from "#/grade/index.ts";
 import * as Tasks from "#/tasks/index.ts";
 import * as Task from "#/task/index.ts";
@@ -115,6 +116,7 @@ export const ErrorReason = Schema.Union([
   Event.EventError,
   Grade.GradeError,
   Harness.HarnessError,
+  Metric.MetricError,
   SnapshotFailed,
   TaskInitFailed,
   TaskExecFailed,
@@ -155,6 +157,8 @@ export class EvalError extends Schema.TaggedError<EvalError>("open-insight/eval/
   static grade = (cause: Grade.GradeError): EvalError => EvalError.make({ reason: cause });
 
   static harness = (cause: Harness.HarnessError): EvalError => EvalError.make({ reason: cause });
+
+  static metric = (cause: Metric.MetricError): EvalError => EvalError.make({ reason: cause });
 
   static snapshot =
     (task: ExecTask) =>

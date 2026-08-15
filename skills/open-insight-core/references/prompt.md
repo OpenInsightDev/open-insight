@@ -13,6 +13,7 @@ The module re-exports the `Prompt` type and part constructors from `effect/unsta
 - `Prompt.decodeResponseStream(stream)` decodes a stream of `Response.StreamPartEncoded` into typed `AnyStreamPart` parts; each part is decoded individually with `Schema.decodeUnknownEffect`, so a malformed part surfaces as a `Schema.SchemaError` in the stream error channel.
 - `Prompt.encodeResponseStreamPartEncoded(part)` is the inverse, encoding a typed part back into its wire form.
 - `Prompt.fromResponsePartEncodedStream(stream)` folds encoded stream parts into `Prompt.Part`s, accumulating `text` and `reasoning` deltas between their `-start` and `-end` markers.
+- `Prompt.fromResponsePartStream(stream)` folds decoded `AnyStreamPart` values into `Prompt.Part`s, preserving decoded tool-call parameters and tool-result values.
 
 ## Building a Prompt Stream
 

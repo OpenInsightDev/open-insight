@@ -27,22 +27,22 @@ const SessionFields = {
   sessionIdx: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
 };
 
-export class EvalStartEvent extends Schema.TaggedClass<EvalStartEvent>()("EvalStartEvent", {
+export class BenchStartEvent extends Schema.TaggedClass<BenchStartEvent>()("BenchStartEvent", {
   ...EvalFields,
   bench: Bench.Metadata,
   harness: Harness.Metadata,
   metrics: Schema.Array(Metric.Metadata),
   startAt: Timestamp,
 }) {}
-export type EvalStartEventEncoded = Schema.Codec.Encoded<typeof EvalStartEvent>;
+export type BenchStartEventEncoded = Schema.Codec.Encoded<typeof BenchStartEvent>;
 
-export class EvalEndEvent extends Schema.TaggedClass<EvalEndEvent>()("EvalEndEvent", {
+export class BenchEndEvent extends Schema.TaggedClass<BenchEndEvent>()("BenchEndEvent", {
   ...EvalFields,
   endAt: Timestamp,
 }) {}
-export type EvalEndEventEncoded = Schema.Codec.Encoded<typeof EvalEndEvent>;
+export type BenchEndEventEncoded = Schema.Codec.Encoded<typeof BenchEndEvent>;
 
-export class EvalErrorEvent extends Schema.TaggedClass<EvalErrorEvent>()("EvalErrorEvent", {
+export class BenchErrorEvent extends Schema.TaggedClass<BenchErrorEvent>()("BenchErrorEvent", {
   ...EvalFields,
   error: Schema.Defect(),
   endAt: Timestamp,
@@ -140,15 +140,25 @@ export class SessionErrorEvent extends Schema.TaggedClass<SessionErrorEvent>()(
 
 const MetricFields = {
   id: Schema.String,
-  result: Schema.Json,
-  chart: Schema.NullOr(Chart.DataPoints),
+  value: Schema.Json,
+  chart: Schema.NullOr(Chart.Points),
 };
 
-export class TrajMetricEvent extends Schema.TaggedClass<TrajMetricEvent>()("TrajMetricEvent", {
+export class TrailMetricEvent extends Schema.TaggedClass<TrailMetricEvent>()("TrailMetricEvent", {
   ...TrailFields,
   ...MetricFields,
 }) {}
-export type TrajMetricEventEncoded = Schema.Codec.Encoded<typeof TrajMetricEvent>;
+export type TrailMetricEventEncoded = Schema.Codec.Encoded<typeof TrailMetricEvent>;
+
+export class TrailMetricErrorEvent extends Schema.TaggedClass<TrailMetricErrorEvent>()(
+  "TrailMetricErrorEvent",
+  {
+    ...TrailFields,
+    id: Schema.String,
+    error: Schema.Defect(),
+  },
+) {}
+export type TrailMetricErrorEventEncoded = Schema.Codec.Encoded<typeof TrailMetricErrorEvent>;
 
 export class TaskMetricEvent extends Schema.TaggedClass<TaskMetricEvent>()("TaskMetricEvent", {
   ...taskFields,
@@ -156,31 +166,54 @@ export class TaskMetricEvent extends Schema.TaggedClass<TaskMetricEvent>()("Task
 }) {}
 export type TaskMetricEventEncoded = Schema.Codec.Encoded<typeof TaskMetricEvent>;
 
+export class TaskMetricErrorEvent extends Schema.TaggedClass<TaskMetricErrorEvent>()(
+  "TaskMetricErrorEvent",
+  {
+    ...taskFields,
+    id: Schema.String,
+    error: Schema.Defect(),
+  },
+) {}
+export type TaskMetricErrorEventEncoded = Schema.Codec.Encoded<typeof TaskMetricErrorEvent>;
+
 export class BenchMetricEvent extends Schema.TaggedClass<BenchMetricEvent>()("BenchMetricEvent", {
   ...EvalFields,
   ...MetricFields,
 }) {}
 export type BenchMetricEventEncoded = Schema.Codec.Encoded<typeof BenchMetricEvent>;
 
+export class BenchMetricErrorEvent extends Schema.TaggedClass<BenchMetricErrorEvent>()(
+  "BenchMetricErrorEvent",
+  {
+    ...EvalFields,
+    id: Schema.String,
+    error: Schema.Defect(),
+  },
+) {}
+export type BenchMetricErrorEventEncoded = Schema.Codec.Encoded<typeof BenchMetricErrorEvent>;
+
 export const EvalEvent = Schema.Union([
-  EvalStartEvent,
-  EvalEndEvent,
-  EvalErrorEvent,
+  BenchStartEvent,
+  BenchEndEvent,
+  BenchErrorEvent,
+  BenchMetricEvent,
+  BenchMetricErrorEvent,
   TaskStartEvent,
   TaskEndEvent,
   TaskErrorEvent,
+  TaskMetricEvent,
+  TaskMetricErrorEvent,
   TrailStartEvent,
   TrailEndEvent,
   TrailErrorEvent,
+  TrailMetricEvent,
+  TrailMetricErrorEvent,
   SessionStartEvent,
   SessionPromptEvent,
   SessionStreamEvent,
   SessionRetryEvent,
   SessionEndEvent,
   SessionErrorEvent,
-  TrajMetricEvent,
-  TaskMetricEvent,
-  BenchMetricEvent,
 ]);
 export type EvalEvent = Schema.Schema.Type<typeof EvalEvent>;
 export type EvalEventEncoded = Schema.Codec.Encoded<typeof EvalEvent>;

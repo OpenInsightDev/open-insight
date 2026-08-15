@@ -1,10 +1,16 @@
 import { assert, it } from "@effect/vitest";
-import { Effect, Stream } from "effect";
+import { Effect, Schema, Stream } from "effect";
 import { Response } from "effect/unstable/ai";
-import { fromResponsePartEncodedStream } from "./stream.ts";
+import { AnyStreamPart } from "./schema.ts";
+import { fromStreamPartEncodedStream, fromStreamPartStream } from "./stream.ts";
 
 const run = (parts: ReadonlyArray<Response.StreamPartEncoded>) =>
-  Stream.fromIterable(parts).pipe(fromResponsePartEncodedStream, Stream.runCollect);
+  Stream.fromIterable(parts).pipe(fromStreamPartEncodedStream, Stream.runCollect);
+
+const runDecoded = (parts: ReadonlyArray<AnyStreamPart>) =>
+  Stream.fromIterable(parts).pipe(fromStreamPartStream, Stream.runCollect);
+
+const decode = (part: unknown): AnyStreamPart => Schema.decodeUnknownSync(AnyStreamPart)(part);
 
 it("accumulates text delta parts into a single text part", () =>
   Effect.gen(function* () {
@@ -163,4 +169,37 @@ it("ignores unknown part types", () =>
     ]);
 
     assert.deepStrictEqual(parts, []);
+  }).pipe(Effect.runPromise));
+
+it("converts decoded stream parts while preserving tool values", () =>
+  Effect.gen(function* () {
+    const params = { city: "Paris" };
+    const result = { temperature: 21 };
+    const parts = yield* runDecoded([
+      decode({ type: "text-start", id: "t1" }),
+      decode({ type: "text-delta", id: "t1", delta: "Hello" }),
+      decode({ type: "text-end", id: "t1" }),
+      decode({
+        type: "tool-call",
+        id: "tc1",
+        name: "get_weather",
+        params,
+        providerExecuted: false,
+      }),
+      decode({
+        type: "tool-result",
+        id: "tc1",
+        name: "get_weather",
+        isFailure: false,
+        result,
+        providerExecuted: false,
+      }),
+    ]);
+
+    assert.deepStrictEqual(
+      parts.map((part) => part.type),
+      ["text", "tool-call", "tool-result"],
+    );
+    assert.strictEqual(parts[1]?.type === "tool-call" && parts[1].params, params);
+    assert.strictEqual(parts[2]?.type === "tool-result" && parts[2].result, result);
   }).pipe(Effect.runPromise));
