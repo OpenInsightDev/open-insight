@@ -61,18 +61,13 @@ export type Harness = Readonly<{
   ): Effect.Effect<SnapshotSession, HarnessError, Scope.Scope>;
 }>;
 
-export type ConfigOptions = Omit<MetadataEncoded, "id"> &
-  Readonly<{
-    snapshotConcurrency?: number;
-  }>;
+export type ConfigOptions = Omit<MetadataEncoded, "id"> & Readonly<{}>;
 
 export class Service extends Context.Service<Service, Harness>()("harness/Service") {
   static layer = (
     id: string,
     config: ConfigOptions = {},
   ): Layer.Layer<Service, HarnessError, Agent.ProviderService | Sandbox.ProviderService> => {
-    const { snapshotConcurrency = 32 } = config;
-
     return Layer.effect(
       this,
       Effect.gen(function* () {

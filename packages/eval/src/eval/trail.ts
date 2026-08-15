@@ -43,7 +43,7 @@ export const makeTaskFields = Effect.fn(function* ({ bench, task }: Options) {
   };
 });
 
-export const make = Effect.fn(
+export const makeStream = Effect.fn(
   function* (options: Options) {
     const harness = yield* Harness.Service;
 
@@ -139,17 +139,18 @@ export const make = Effect.fn(
             trajectory: Ref.get(session.trajectory),
           })
             .pipe(
-              Effect.map(({ usage, trajectory }) =>
-                Cause.done(SessionResult.make({ usage, trajectory })).pipe(Stream.fromEffect),
+              Effect.flatMap(({ usage, trajectory }) =>
+                Cause.done(SessionResult.make({ usage, trajectory })),
               ),
             )
-            .pipe(Stream.unwrap);
+            .pipe(Stream.fromEffect);
 
-          return Stream.empty
-            .pipe(Stream.concat(startEvent))
-            .pipe(Stream.concat(trajEvents))
-            .pipe(Stream.concat(endEvent))
-            .pipe(Stream.concat(result));
+          return Stream.empty.pipe(
+            Stream.concat(startEvent),
+            Stream.concat(trajEvents),
+            Stream.concat(endEvent),
+            Stream.concat(result),
+          );
         }, Stream.unwrap);
 
         const sessionResultsRef = yield* Ref.make<SessionResult[]>([]);
@@ -284,17 +285,19 @@ export const make = Effect.fn(
     }
 
     const endEvent = Stream.succeed(Event.TaskEndEvent.make({ ...taskFields }));
+
     const result = Ref.get(trailResultsRef)
-      .pipe(Effect.map((trails) => Cause.done(TaskResult.make({ trails })).pipe(Stream.fromEffect)))
-      .pipe(Stream.unwrap);
+      .pipe(Effect.flatMap((trails) => Cause.done(TaskResult.make({ trails }))))
+      .pipe(Stream.fromEffect);
 
     const mergedTrailStream = Stream.fromQueue(trailQueue);
 
-    return Stream.empty
-      .pipe(Stream.concat(startEvent))
-      .pipe(Stream.concat(mergedTrailStream))
-      .pipe(Stream.concat(endEvent))
-      .pipe(Stream.concat(result));
+    return Stream.empty.pipe(
+      Stream.concat(startEvent),
+      Stream.concat(mergedTrailStream),
+      Stream.concat(endEvent),
+      Stream.concat(result),
+    );
   },
   (effect, options) =>
     effect.pipe(Stream.unwrap).pipe(

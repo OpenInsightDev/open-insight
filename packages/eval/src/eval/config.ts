@@ -4,41 +4,36 @@ import { Env } from "@open-insight/core";
 import { EvalError } from "./error.ts";
 
 /** Runtime configuration for an evaluation run. */
-export type Config =
-  Readonly<{
-      /** Configuration for the OpenTelemetry Node SDK. Defaults to an empty configuration. */
-      otel: NodeSdk.Configuration;
+export type Config = Readonly<{
+  /** Configuration for the OpenTelemetry Node SDK. Defaults to an empty configuration. */
+  otel: NodeSdk.Configuration;
 
-      /** Maximum number of task snapshots prepared concurrently. Defaults to `32`. */
-      snapshotConcurrency: number;
+  /** Maximum number of snapshot builds executed concurrently. Defaults to `1`. */
+  snapshotConcurrency: number;
 
-      /** Maximum number of tasks processed concurrently. Defaults to `32`. */
-      taskConcurrency: number;
+  /** Maximum number of evaluation trails executed concurrently. Defaults to `32`. */
+  trailConcurrency: number;
 
-      /** Maximum number of evaluation trails executed concurrently. Defaults to `32`. */
-      trailConcurrency: number;
+  /** Number of independent evaluation trails run for each task. Defaults to `1`. */
+  trailCount: number;
 
-      /** Number of independent evaluation trails run for each task. Defaults to `1`. */
-      trailCount: number;
+  /** Whether to run verification instead of run agent. Defaults to `false`. */
+  verify: boolean;
 
-      /** Whether to run stages with verifier agents and validate their expected grades. Defaults to `false`. */
-      verifMode: boolean;
+  /** Whether to emit Effect log output to the console during the run. Defaults to `true`. */
+  console: boolean;
 
-      /** Whether to emit Effect log output to the console during the run. Defaults to `true`. */
-      console: boolean;
-
-      /** Minimum severity for log output. Defaults to `"Info"`. Ignored when `console` is `false`. */
-      logLevel: LogLevel.LogLevel;
-    }>;
+  /** Minimum severity for log output. Defaults to `"Info"`. Ignored when `console` is `false`. */
+  logLevel: LogLevel.LogLevel;
+}>;
 
 /** Default runtime configuration used when no evaluation overrides are provided. */
 export const DefaultConfig: Required<Config> = {
   otel: {},
   snapshotConcurrency: 32,
-  taskConcurrency: 32,
   trailConcurrency: 32,
   trailCount: 1,
-  verifMode: false,
+  verify: false,
   console: true,
   logLevel: "Info",
 };
