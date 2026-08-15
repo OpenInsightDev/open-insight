@@ -31,8 +31,7 @@ export type Options =
     }>;
 
 /**
- * The runtime inputs a prompt stream is built from: the session trajectory
- * `Ref` and the sandbox.
+ * The runtime inputs a prompt stream is built from.
  */
 export type Input = Readonly<{
   trajectory: Ref.Ref<Trajectory>;

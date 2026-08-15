@@ -1,14 +1,12 @@
 import { Effect } from "effect";
 import * as Bench from "#/bench/index.ts";
-import * as Event from "#/event/index.ts";
 import type { Config } from "./config.ts";
 
 type Options = Readonly<{
   bench: Bench.Bench;
-  eventQueue: Event.EventEnqueue;
 }>;
 
-export const run = Effect.fn(function* ({ bench, eventQueue }: Options, config: Config) {});
+export const run = Effect.fn(function* ({ bench }: Options, config: Config) {});
 
 // import { Array, Crypto, DateTime, Effect, Ref, Scope, Stream } from "effect";
 // import { castDraft, produce } from "immer";
