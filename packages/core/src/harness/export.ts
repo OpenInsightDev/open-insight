@@ -11,7 +11,6 @@ export {
 export {
   Service,
   type Harness,
-  type SnapshotSessionConfig,
   type SnapshotSession,
   type AgentSession,
   type SandboxSessionConfig,

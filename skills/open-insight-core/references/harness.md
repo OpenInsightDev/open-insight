@@ -2,8 +2,8 @@
 
 `Harness` runs a task inside a sandbox with an agent attached. Given a `Snapshot.Template`, a harness:
 
-1. acquires a task snapshot from the sandbox provider (cached per `cacheTaskSnapshot`),
-2. derives a run snapshot from the agent provider's `snapshotExtension` when one is declared (cached per `cacheAgentSnapshot`),
+1. acquires a task snapshot from the sandbox provider,
+2. derives a run snapshot from the agent provider's `snapshotExtension` when one is declared,
 3. starts the sandbox with the run snapshot and the given `Resource.Resources`,
 4. and exposes a `runAgent()` that opens an `AgentSession` bound to that sandbox.
 
@@ -25,13 +25,10 @@ provides `Harness.Service` to downstream consumers.
 
 ## Building and Running a Task
 
-`harness.runSnapshot(template, options?)` acquires and derives the run snapshot inside a `Scope`, returning a `SnapshotSession`:
+`harness.runSnapshot(template)` acquires and derives the run snapshot inside a `Scope`, returning a `SnapshotSession`. Snapshot sessions are cached by template equality: repeated calls with an equivalent template share one snapshot handle and release it when the last referencing scope closes.
 
 ```ts
-const snapSession = yield* harness.runSnapshot(task.snapshot, {
-  cacheTaskSnapshot: true,
-  cacheAgentSnapshot: false,
-});
+const snapSession = yield* harness.runSnapshot(task.snapshot);
 ```
 
 A `SnapshotSession` exposes the `snapshot` used to run the sandbox, plus a `runSandbox(options?)` method that starts the sandbox with it and the given `Resource.Resources`:

@@ -1,14 +1,11 @@
 import { Effect, LogLevel } from "effect";
 import type { NodeSdk } from "@effect/opentelemetry";
 import { Env } from "@open-insight/core";
-import { Harness } from "@open-insight/core/internal";
 import { EvalError } from "./error.ts";
 
 /** Runtime configuration for an evaluation run. */
 export type Config =
-  /** Configuration for harness to run Snapshot. */
-  Harness.SnapshotSessionConfig &
-    Readonly<{
+  Readonly<{
       /** Configuration for the OpenTelemetry Node SDK. Defaults to an empty configuration. */
       otel: NodeSdk.Configuration;
 
@@ -36,7 +33,6 @@ export type Config =
 
 /** Default runtime configuration used when no evaluation overrides are provided. */
 export const DefaultConfig: Required<Config> = {
-  ...Harness.DefaultSnapshotSessionConfig,
   otel: {},
   snapshotConcurrency: 32,
   taskConcurrency: 32,

@@ -23,3 +23,13 @@ Docs are local at `node_modules/vite-plus/docs` or online at https://viteplus.de
 
 - Do not run `vp test` from the repository root. Run tests only from the specified project directory.
 - When debugging type-related issues, STRICTLY FORBIDDEN to annotate types manually just to make the type checker happy. Instead, fix the real underlying type issue. If you are unsure how to fix it, ask for help.
+
+# Learning more about the Effect
+
+This repository uses the Effect Typescript library.
+
+Before writing any Effect code, first read `node_modules/effect/AGENTS.md`
+**completely**, and follow the links in the file when required.
+
+If you need to learn more about particular Effect apis and concepts that the
+guide doesn't cover, search through the source code in `node_modules/effect/src`.

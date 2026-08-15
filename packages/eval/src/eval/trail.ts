@@ -9,7 +9,6 @@ import {
   Stream,
   Array,
   Cause,
-  Scope,
   Queue,
   FiberSet,
 } from "effect";
@@ -47,13 +46,7 @@ export const makeTaskFields = Effect.fn(function* ({ bench, task }: Options) {
 });
 
 export const make = Effect.fn(
-  function* (
-    options: Options,
-  ): Effect.fn.Return<
-    Stream.Stream<Event.EvalEvent, Cause.Done<TaskResult>>,
-    EvalError,
-    Harness.Service | FileSystem.FileSystem | Path.Path | Sandbox.ProviderService | Scope.Scope
-  > {
+  function* (options: Options) {
     const fs = yield* FileSystem.FileSystem;
     const path = yield* Path.Path;
     const harness = yield* Harness.Service;
@@ -187,10 +180,9 @@ export const make = Effect.fn(
             prompt,
           }).pipe(
             Stream.catchTag("Done", ({ value: result }) =>
-              Effect.gen(function* () {
-                yield* sessionResultsRef.pipe(Ref.update((results) => [...results, result]));
-                return Stream.empty;
-              }).pipe(Stream.unwrap),
+              sessionResultsRef
+                .pipe(Ref.update((results) => [...results, result]))
+                .pipe(() => Stream.empty),
             ),
           );
 
@@ -280,24 +272,23 @@ export const make = Effect.fn(
       }),
     );
 
-    const trailQueue = yield* Queue.make<Event.EvalEvent>();
+    const trailQueue = yield* Queue.make<Event.EvalEvent, Cause.Done>();
     // join all fibers instead of interrupt when releasing
-    const trailFibers = yield* Effect.acquireRelease(FiberSet.make<void, never>(), FiberSet.join);
+    const trailFibers = yield* Effect.acquireRelease(
+      FiberSet.make<void, never>(),
+      FiberSet.awaitEmpty,
+    );
 
-    for (const trailIdx of Array.range(0, trailCount)) {
-      yield* Effect.gen(function* () {
-        yield* makeTrailStream(trailIdx)
-          // drain stream manually since `Stream.runIntoQueue` hardcoded `Cause.Done`
-          .pipe(
-            Stream.catchTag("Done", ({ value: result }) =>
-              Effect.gen(function* () {
-                yield* trailResultsRef.pipe(Ref.update((results) => [...results, result]));
-                return Stream.empty;
-              }).pipe(Stream.unwrap),
-            ),
-          )
-          .pipe(Stream.runForEach((event) => Queue.offer(trailQueue, event)));
-      })
+    for (const trailIdx of Array.range(0, trailCount - 1)) {
+      yield* makeTrailStream(trailIdx)
+        .pipe(
+          Stream.catchTag("Done", ({ value: result }) =>
+            trailResultsRef
+              .pipe(Ref.update((results) => [...results, result]))
+              .pipe(() => Stream.empty),
+          ),
+        )
+        .pipe(Stream.runIntoQueue(trailQueue))
         .pipe(trailSem.withPermit)
         .pipe(FiberSet.run(trailFibers));
 
@@ -327,10 +318,9 @@ export const make = Effect.fn(
       Stream.catchIf(
         (error) => !Cause.isDone(error),
         (error) =>
-          Effect.gen(function* () {
-            const taskFields = yield* makeTaskFields(options);
-            return Stream.succeed(Event.TaskErrorEvent.make({ ...taskFields, error }));
-          }).pipe(Stream.unwrap),
+          makeTaskFields(options)
+            .pipe(Effect.map((taskFields) => Event.TaskErrorEvent.make({ ...taskFields, error })))
+            .pipe(Stream.fromEffect),
       ),
     ),
 );

@@ -280,7 +280,7 @@ const serveEnv = envify({
 const main = Effect.gen(function* () {
   const result = yield* makeBench()
     .pipe(Bench.sample("5%"))
-    .pipe(Eval.run({ cacheTaskSnapshot: true, trailCount: 2 }))
+    .pipe(Eval.run({ trailCount: 2 }))
     .pipe(
       Effect.provide(
         Acp.layerFrom(
