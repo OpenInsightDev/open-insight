@@ -2,7 +2,7 @@ import * as Chart from "#/chart/index.ts";
 import type { BivariantFn } from "#/utils/variant.ts";
 import { Sandbox } from "@open-insight/core/internal";
 import { Metadata, Result, type MetadataEncoded } from "../schema.ts";
-import { Cause, Effect, Fiber, Queue, Schedule, Schema, Scope, SynchronizedRef } from "effect";
+import { Effect, Schedule, Schema, Scope, Stream, SynchronizedRef } from "effect";
 import { MetricError } from "../error.ts";
 
 export type Exec<R extends Schema.Json = Schema.Json> = (
@@ -16,11 +16,11 @@ export type Metric<R extends Schema.Json = Schema.Json> = Readonly<{
   metadata: Metadata;
   exec: BivariantFn<Exec<R>>;
   chart: BivariantFn<Chart.Chart<R>> | null;
-  repeat: Effect.Repeat.Options<unknown>;
+  repeat: Effect.Repeat.Options<R>;
   retry: Effect.Retry.Options<unknown>;
 }>;
 
-export type Options<R extends Schema.Json = Schema.Json> = Effect.Repeat.Options<unknown> &
+export type Options<R extends Schema.Json = Schema.Json> = Effect.Repeat.Options<R> &
   Readonly<{
     exec: Exec<R>;
     retry?: Effect.Retry.Options<unknown>;
@@ -45,45 +45,62 @@ export const make = Effect.fn(function* <R extends Schema.Json = Schema.Json>(
   } satisfies Metric<R>;
 });
 
-export const register = ({
-  sandbox,
-  enqueue,
-}: {
-  sandbox: Sandbox.Sandbox;
-  enqueue: Queue.Enqueue<Result, MetricError | Cause.Done>;
-}) =>
-  Effect.fn(function* ({
+const repeatSchedule = <A>(options: Effect.Repeat.Options<A>) => {
+  const fallback = Schedule.forever.pipe(Schedule.setInputType<A>());
+  let schedule = Schedule.passthrough(options.schedule ?? fallback);
+
+  if (options.while) {
+    schedule = schedule.pipe(Schedule.while(({ input }) => options.while!(input)));
+  }
+  if (options.until) {
+    schedule = schedule.pipe(
+      Schedule.while(({ input }) => {
+        const done = options.until!(input);
+        return Effect.isEffect(done) ? Effect.map(done, (value) => !value) : !done;
+      }),
+    );
+  }
+  if (options.times !== undefined) {
+    schedule = schedule.pipe(Schedule.while(({ attempt }) => attempt <= options.times!));
+  }
+
+  return schedule;
+};
+
+export const makeStream =
+  ({ sandbox }: { sandbox: Sandbox.Sandbox }) =>
+  ({
     exec,
     repeat,
     retry,
     metadata,
     chart,
-  }: Metric): Effect.fn.Return<Fiber.Fiber<Schema.Json, MetricError>, MetricError, Scope.Scope> {
-    const sbxPromise = yield* Sandbox.asPromise(sandbox).pipe(Effect.mapError(MetricError.sandbox));
-
-    const prevRef = yield* SynchronizedRef.make<Schema.Json | null>(null);
-
-    const run = Effect.fn(function* (prev: Schema.Json | null) {
-      const next = yield* Effect.tryPromise({
-        try: () => Promise.resolve(exec(sbxPromise, prev)),
-        catch: MetricError.exec(metadata.id),
-      }).pipe(Effect.retry(retry));
-
-      yield* Queue.offer(
-        enqueue,
-        Result.make({
-          id: metadata.id,
-          value: next,
-          chart: chart?.(next) ?? null,
-        }),
+  }: Metric): Stream.Stream<Result, MetricError, Scope.Scope> =>
+    Effect.gen(function* () {
+      const sbxPromise = yield* Sandbox.asPromise(sandbox).pipe(
+        Effect.mapError(MetricError.sandbox),
       );
 
-      return next;
-    });
+      const prevRef = yield* SynchronizedRef.make<Schema.Json | null>(null);
 
-    return yield* prevRef
-      .pipe(SynchronizedRef.getAndUpdateEffect(run))
-      .pipe(Effect.repeat(repeat))
-      .pipe(Effect.ensuring(Queue.end(enqueue)))
-      .pipe(Effect.forkScoped);
-  });
+      const run = Effect.fn(function* (prev: Schema.Json | null) {
+        const next = yield* Effect.tryPromise({
+          try: () => Promise.resolve(exec(sbxPromise, prev)),
+          catch: MetricError.exec(metadata.id),
+        }).pipe(Effect.retry(retry));
+
+        return next;
+      });
+
+      return prevRef.pipe(
+        SynchronizedRef.updateAndGetEffect(run),
+        (effect) => Stream.fromEffectSchedule(effect, repeatSchedule(repeat)),
+        Stream.map((next) =>
+          Result.make({
+            id: metadata.id,
+            value: next,
+            chart: chart?.(next) ?? null,
+          }),
+        ),
+      );
+    }).pipe(Stream.unwrap);

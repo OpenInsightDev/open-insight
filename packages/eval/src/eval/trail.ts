@@ -77,14 +77,9 @@ export const makeStream = Effect.fn(
         const sandbox = sbxSession.sandbox;
         const sbxPromise = yield* Sandbox.asPromise(sbxSession.sandbox);
 
-        const metricQueue = yield* Queue.make<Metric.Result, Cause.Done | Metric.MetricError>();
-        const metricEnqueue = Queue.asEnqueue(metricQueue);
-
-        yield* Effect.all(
-          schedMetrics
-            .map(Metric.Sched.register({ sandbox, enqueue: metricEnqueue }))
-            .map((eff) => eff.pipe(Effect.mapError(EvalError.metric))),
-        );
+        const schedMetricStreams = schedMetrics
+          .map(Metric.Sched.makeStream({ sandbox }))
+          .map(Stream.mapError(EvalError.metric));
 
         const usageRef = yield* Ref.make<Response.Usage | null>(null);
 
@@ -110,15 +105,17 @@ export const makeStream = Effect.fn(
               .prompt(prompt)
               .pipe(Stream.mapError(EvalError.harness))
               .pipe(
-                Stream.tap((part) => {
-                  if (part.type !== "finish") {
-                    return Effect.void;
-                  }
-                  return Effect.all([
-                    Ref.set(finishRef, part.reason),
-                    Ref.set(usageRef, part.usage),
-                  ]);
-                }),
+                Stream.tap(
+                  Effect.fn(function* (part) {
+                    if (part.type !== "finish") {
+                      return;
+                    }
+                    yield* Effect.all([
+                      Ref.set(finishRef, part.reason),
+                      Ref.set(usageRef, part.usage),
+                    ]);
+                  }),
+                ),
               );
 
           const prompts = Prompt.makeStream(prompt, {
@@ -128,11 +125,11 @@ export const makeStream = Effect.fn(
 
           const makeTrajStream = (prompt: Prompt.Prompt) =>
             Effect.gen(function* () {
-              const [respStream, metricRespStream] = yield* makeRespStream(prompt).pipe(
+              const [respStreamForEvent, respStreamForMetric] = yield* makeRespStream(prompt).pipe(
                 Stream.broadcastN({ n: 2, capacity: "unbounded" }),
               );
 
-              const promptPartStream = yield* Prompt.fromStreamPartStream(metricRespStream).pipe(
+              const promptPartStream = yield* Prompt.fromStreamPartStream(respStreamForMetric).pipe(
                 // shared by each traj metric
                 Stream.share({ capacity: "unbounded" }),
               );
@@ -144,13 +141,20 @@ export const makeStream = Effect.fn(
                   ),
                 );
               const metricEventStreams = metricStreams.map(
-                Stream.map((result) => Event.TrailMetricEvent.make({ ...trailFields, ...result })),
+                Stream.map((result) =>
+                  Event.TrailMetricEvent.make({
+                    ...trailFields,
+                    id: result.id,
+                    value: result.value,
+                    chart: result.chart,
+                  }),
+                ),
               );
 
               const promptEvent = Stream.succeed(
                 Event.SessionPromptEvent.make({ ...sessionFields, prompt }),
               );
-              const streamEvents = respStream.pipe(
+              const streamEvents = respStreamForEvent.pipe(
                 Stream.map((part) => Event.SessionStreamEvent.make({ ...sessionFields, part })),
               );
               const metricEvents = Stream.mergeAll(metricEventStreams, {
@@ -199,7 +203,7 @@ export const makeStream = Effect.fn(
 
         const sessionResultsRef = yield* Ref.make<SessionResult[]>([]);
 
-        const runAttempt = ({
+        const makeAttemptStream = ({
           session,
           prompt,
           sessionIdx,
@@ -256,7 +260,7 @@ export const makeStream = Effect.fn(
                   ? yield* sbxSession.runAgent().pipe(Effect.mapError(EvalError.harness))
                   : session;
 
-              const nextAttempt = runAttempt({
+              const nextAttempt = makeAttemptStream({
                 session: nextSession,
                 prompt: retry.prompt ?? prompt,
                 sessionIdx: sessionIdx + 1,
@@ -279,15 +283,16 @@ export const makeStream = Effect.fn(
         };
 
         const agentSession = yield* sbxSession.runAgent().pipe(Effect.mapError(EvalError.harness));
+        const trailStream = makeAttemptStream({ session: agentSession, prompt, sessionIdx: 0 });
 
-        const metricStream = Stream.fromQueue(metricQueue)
-          .pipe(Stream.mapError(EvalError.metric))
-          .pipe(Stream.map((result) => Event.TrailMetricEvent.make({ ...trailFields, ...result })));
-
-        return Stream.empty.pipe(
-          Stream.concat(runAttempt({ session: agentSession, prompt, sessionIdx: 0 })),
-          Stream.merge(metricStream),
+        const mergedSchedMetricStreams = Stream.mergeAll(schedMetricStreams, {
+          concurrency: "unbounded",
+        });
+        const schedMetricEvents = mergedSchedMetricStreams.pipe(
+          Stream.map((result) => Event.TrailMetricEvent.make({ ...trailFields, ...result })),
         );
+
+        return Stream.empty.pipe(Stream.concat(trailStream), Stream.merge(schedMetricEvents));
       },
       (effect, trailIdx) =>
         effect.pipe(Stream.unwrap).pipe(
