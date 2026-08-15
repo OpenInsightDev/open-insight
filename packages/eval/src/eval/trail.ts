@@ -18,8 +18,7 @@ import * as Event from "#/event/index.ts";
 import * as Task from "#/task/index.ts";
 import type { Config } from "./config.ts";
 import { EvalError } from "./error.ts";
-import { SessionResult, TrailResult } from "./result.ts";
-import { TaskResult } from "#/event/result.ts";
+import { SessionResult, TaskResult, TrailResult } from "./result.ts";
 
 export type TrailStream = Stream.Stream<Event.EvalEvent, Cause.Done<TrailResult>>;
 export type TaskStream = Stream.Stream<Event.EvalEvent, Cause.Done<TaskResult>>;
@@ -28,7 +27,6 @@ export type Options = Readonly<{
   task: Task.AnyTask;
   bench: Bench.Bench;
   config: Config;
-  snapSession: Harness.SnapshotSession;
 
   snapSem: Semaphore.Semaphore;
   trailSem: Semaphore.Semaphore;
