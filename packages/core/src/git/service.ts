@@ -3,8 +3,8 @@ import { ChildProcess as CP } from "effect/unstable/process";
 import * as Spawn from "#/utils/spawn.ts";
 import { GitError } from "./error.ts";
 
-export class GitService extends Context.Service<
-  GitService,
+export class Service extends Context.Service<
+  Service,
   {
     readonly commitHash: string;
     readonly remoteOrigin: string;
@@ -13,7 +13,7 @@ export class GitService extends Context.Service<
   }
 >()("packages/core/git/GitService") {
   static readonly layer = Layer.effect(
-    GitService,
+    Service,
     Effect.gen(function* () {
       const spawner = yield* Spawn.Service;
       const cwd = process.cwd();
@@ -43,7 +43,7 @@ export class GitService extends Context.Service<
         { concurrency: "unbounded" },
       ).pipe(Effect.mapError(mapSpawnError()));
 
-      return GitService.of({ commitHash, remoteOrigin, isDirty, isInitialized: true });
+      return Service.of({ commitHash, remoteOrigin, isDirty, isInitialized: true });
     }),
   );
 }

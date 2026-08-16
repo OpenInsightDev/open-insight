@@ -14,5 +14,7 @@ export type Persist = Readonly<{
   persist<E, R>(stream: Stream.Stream<EvalEvent, E, R>): Effect.Effect<void, EventError | E, R>;
 }>;
 
+// TODO add a git-based default impl
+
 /** Provides the event stream persistence sink. */
 export class Service extends Context.Service<Service, Persist>()("event/Persist") {}
