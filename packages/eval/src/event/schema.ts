@@ -7,25 +7,33 @@ import * as Task from "#/task/index.ts";
 import * as Metric from "#/metric/index.ts";
 import { Timestamp } from "#/utils/schema.ts";
 
-const EvalFields = {
+export const EvalFields = {
   benchId: Schema.String,
   harnessId: Schema.String,
 };
+export const BenchID = Schema.Struct(EvalFields);
+export type BenchID = Schema.Schema.Type<typeof BenchID>;
 
-const taskFields = {
+export const taskFields = {
   ...EvalFields,
   taskId: Schema.String,
 };
+export const TaskID = Schema.Struct(taskFields);
+export type TaskID = Schema.Schema.Type<typeof TaskID>;
 
-const TrailFields = {
+export const TrailFields = {
   ...taskFields,
   trailIdx: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
 };
+export const TrailID = Schema.Struct(TrailFields);
+export type TrailID = Schema.Schema.Type<typeof TrailID>;
 
-const SessionFields = {
+export const SessionFields = {
   ...TrailFields,
   sessionIdx: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
 };
+export const SessionID = Schema.Struct(SessionFields);
+export type SessionID = Schema.Schema.Type<typeof SessionID>;
 
 export class BenchStartEvent extends Schema.TaggedClass<BenchStartEvent>()("BenchStartEvent", {
   ...EvalFields,
