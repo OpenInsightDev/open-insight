@@ -22,7 +22,7 @@ const eventStream = (stream: EventStream): Stream.Stream<Uint8Array, EventError>
         Effect.mapError(EventError.invalid),
       ),
     ),
-    Stream.map((event) => Sse.encoder.write(event)),
+    Stream.map(Sse.encoder.write),
     Stream.encodeText,
     Stream.provideContext(Context.empty()),
   );

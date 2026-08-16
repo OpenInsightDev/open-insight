@@ -14,15 +14,15 @@ export const EvalFields = {
 export const BenchID = Schema.Struct(EvalFields);
 export type BenchID = Schema.Schema.Type<typeof BenchID>;
 
-export const taskFields = {
+export const TaskFields = {
   ...EvalFields,
   taskId: Schema.String,
 };
-export const TaskID = Schema.Struct(taskFields);
+export const TaskID = Schema.Struct(TaskFields);
 export type TaskID = Schema.Schema.Type<typeof TaskID>;
 
 export const TrailFields = {
-  ...taskFields,
+  ...TaskFields,
   trailIdx: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
 };
 export const TrailID = Schema.Struct(TrailFields);
@@ -57,7 +57,7 @@ export class BenchErrorEvent extends Schema.TaggedClass<BenchErrorEvent>()("Benc
 }) {}
 
 export class TaskStartEvent extends Schema.TaggedClass<TaskStartEvent>()("TaskStartEvent", {
-  ...taskFields,
+  ...TaskFields,
   task: Task.Metadata,
   metrics: Schema.Array(Metric.Metadata),
   trajMetrics: Schema.Array(Metric.Metadata),
@@ -67,13 +67,13 @@ export class TaskStartEvent extends Schema.TaggedClass<TaskStartEvent>()("TaskSt
 export type TaskStartEventEncoded = Schema.Codec.Encoded<typeof TaskStartEvent>;
 
 export class TaskEndEvent extends Schema.TaggedClass<TaskEndEvent>()("TaskEndEvent", {
-  ...taskFields,
+  ...TaskFields,
   endAt: Timestamp,
 }) {}
 export type TaskEndEventEncoded = Schema.Codec.Encoded<typeof TaskEndEvent>;
 
 export class TaskErrorEvent extends Schema.TaggedClass<TaskErrorEvent>()("TaskErrorEvent", {
-  ...taskFields,
+  ...TaskFields,
   error: Schema.Defect(),
   endAt: Timestamp,
 }) {}
@@ -169,7 +169,7 @@ export class TrailMetricErrorEvent extends Schema.TaggedClass<TrailMetricErrorEv
 export type TrailMetricErrorEventEncoded = Schema.Codec.Encoded<typeof TrailMetricErrorEvent>;
 
 export class TaskMetricEvent extends Schema.TaggedClass<TaskMetricEvent>()("TaskMetricEvent", {
-  ...taskFields,
+  ...TaskFields,
   ...MetricFields,
 }) {}
 export type TaskMetricEventEncoded = Schema.Codec.Encoded<typeof TaskMetricEvent>;
@@ -177,7 +177,7 @@ export type TaskMetricEventEncoded = Schema.Codec.Encoded<typeof TaskMetricEvent
 export class TaskMetricErrorEvent extends Schema.TaggedClass<TaskMetricErrorEvent>()(
   "TaskMetricErrorEvent",
   {
-    ...taskFields,
+    ...TaskFields,
     id: Schema.String,
     error: Schema.Defect(),
   },
