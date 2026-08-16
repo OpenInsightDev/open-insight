@@ -110,7 +110,7 @@ export class SessionStreamEvent extends Schema.TaggedClass<SessionStreamEvent>()
   "SessionStreamEvent",
   {
     ...SessionFields,
-    part: Prompt.AnyStreamPart,
+    part: Response.Part,
   },
 ) {}
 export type SessionStreamEventEncoded = Schema.Codec.Encoded<typeof SessionStreamEvent>;

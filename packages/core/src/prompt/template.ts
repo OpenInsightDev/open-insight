@@ -5,8 +5,10 @@ import { PromptError } from "./error.ts";
 
 const eta = new Eta();
 
-/** Loads an Eta template from disk and creates a text user message from it. */
-export const fromEta = Effect.fn("Prompt.fromEta")(function* (filePath: string, data: object = {}) {
+export const fromEta = Effect.fn("Prompt.fromEta")(function* (
+  filePath: string,
+  data: object = {},
+): Effect.fn.Return<Prompt.UserMessage, PromptError, FileSystem.FileSystem> {
   const fs = yield* FileSystem.FileSystem;
   const template = yield* fs
     .readFileString(filePath)

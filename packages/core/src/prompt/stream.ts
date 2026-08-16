@@ -1,6 +1,7 @@
 import { Match, Stream } from "effect";
 import { Prompt, Response } from "effect/unstable/ai";
-import type { AnyStreamPart, ResponsePart } from "./schema.ts";
+import type { ResponseMessagePart } from "./schema.ts";
+import type { AnyStreamPart } from "#/response/index.ts";
 
 type State = Readonly<{
   text: Map<string, string>;
@@ -12,14 +13,14 @@ const initialState = (): State => ({
   reasoning: new Map(),
 });
 
-const noParts = (state: State): readonly [State, ReadonlyArray<ResponsePart>] => [state, []];
+const noParts = (state: State): readonly [State, ReadonlyArray<ResponseMessagePart>] => [state, []];
 
 const accumulate = (
   state: State,
   part: Response.StreamPartEncoded | AnyStreamPart,
-): readonly [State, ReadonlyArray<ResponsePart>] =>
+): readonly [State, ReadonlyArray<ResponseMessagePart>] =>
   Match.value(part).pipe(
-    Match.withReturnType<readonly [State, ReadonlyArray<ResponsePart>]>(),
+    Match.withReturnType<readonly [State, ReadonlyArray<ResponseMessagePart>]>(),
     Match.discriminator("type")("text-start", (part) => {
       state.text.set(part.id, "");
       return noParts(state);
@@ -102,7 +103,8 @@ const accumulate = (
  */
 export const fromStreamPartEncodedStream = <E, R>(
   stream: Stream.Stream<Response.StreamPartEncoded, E, R>,
-): Stream.Stream<ResponsePart, E, R> => stream.pipe(Stream.mapAccum(initialState, accumulate));
+): Stream.Stream<ResponseMessagePart, E, R> =>
+  stream.pipe(Stream.mapAccum(initialState, accumulate));
 
 /**
  * Converts a stream of decoded response stream parts into prompt parts.
@@ -112,4 +114,5 @@ export const fromStreamPartEncodedStream = <E, R>(
  */
 export const fromStreamPartStream = <E, R>(
   stream: Stream.Stream<AnyStreamPart, E, R>,
-): Stream.Stream<ResponsePart, E, R> => stream.pipe(Stream.mapAccum(initialState, accumulate));
+): Stream.Stream<ResponseMessagePart, E, R> =>
+  stream.pipe(Stream.mapAccum(initialState, accumulate));

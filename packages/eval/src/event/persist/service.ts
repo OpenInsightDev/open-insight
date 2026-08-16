@@ -1,5 +1,6 @@
 import { Context } from "effect";
-import type { Persist } from "./schema.ts";
+
+export type Persist = Readonly<{}>;
 
 /** Provides the event stream persistence sink. */
 export class Service extends Context.Service<Service, Persist>()("event/Persist") {}

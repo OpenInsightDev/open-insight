@@ -1,9 +1,9 @@
-import { Effect, Schema, Stream } from "effect";
-import type { Transport } from "#/event/transport/schema.ts";
+import { Context, Effect, Schema, Stream } from "effect";
+import type { Transport } from "#/event/transport/service.ts";
 import { EventError } from "#/event/error.ts";
 import { HttpBody, HttpClient, HttpClientResponse } from "effect/unstable/http";
 import { Sse } from "effect/unstable/encoding";
-import { Event } from "#/event/schema.ts";
+import { EvalEvent } from "#/event/schema.ts";
 import { type EventStream } from "#/event/queue.ts";
 
 const joinUrl = (baseURL: string, path: string): string =>
@@ -12,7 +12,7 @@ const joinUrl = (baseURL: string, path: string): string =>
 const eventStream = (stream: EventStream): Stream.Stream<Uint8Array, EventError> =>
   stream.pipe(
     Stream.mapEffect((value) =>
-      Schema.encode(Event)(value).pipe(
+      Schema.encodeEffect(EvalEvent)(value).pipe(
         Effect.map((data) => ({
           _tag: "Event" as const,
           event: value._tag,
@@ -24,6 +24,7 @@ const eventStream = (stream: EventStream): Stream.Stream<Uint8Array, EventError>
     ),
     Stream.map((event) => Sse.encoder.write(event)),
     Stream.encodeText,
+    Stream.provideContext(Context.empty()),
   );
 
 export const make = Effect.fn(function* ({
