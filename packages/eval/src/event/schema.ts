@@ -200,37 +200,37 @@ export class BenchMetricErrorEvent extends Schema.TaggedClass<BenchMetricErrorEv
 ) {}
 export type BenchMetricErrorEventEncoded = Schema.Codec.Encoded<typeof BenchMetricErrorEvent>;
 
-export const EvalEvent = Schema.Union([
+export const EvalErrorEvent = Schema.Union([
+  BenchErrorEvent,
+  TaskErrorEvent,
+  TrailErrorEvent,
+  SessionErrorEvent,
+  TrailMetricErrorEvent,
+  TaskMetricErrorEvent,
+  BenchMetricErrorEvent,
+]);
+export type EvalErrorEvent = Schema.Schema.Type<typeof EvalErrorEvent>;
+
+export const EvalSuccessEvent = Schema.Union([
   BenchStartEvent,
   BenchEndEvent,
-  BenchErrorEvent,
-  BenchMetricEvent,
-  BenchMetricErrorEvent,
   TaskStartEvent,
   TaskEndEvent,
-  TaskErrorEvent,
-  TaskMetricEvent,
-  TaskMetricErrorEvent,
   TrailStartEvent,
   TrailEndEvent,
-  TrailErrorEvent,
-  TrailMetricEvent,
-  TrailMetricErrorEvent,
   SessionStartEvent,
   SessionPromptEvent,
   SessionStreamEvent,
   SessionRetryEvent,
   SessionEndEvent,
-  SessionErrorEvent,
+  TrailMetricEvent,
+  TaskMetricEvent,
+  BenchMetricEvent,
 ]);
+export type EvalSuccessEvent = Schema.Schema.Type<typeof EvalSuccessEvent>;
+
+export const EvalEvent = Schema.Union([EvalSuccessEvent, EvalErrorEvent]);
 export type EvalEvent = Schema.Schema.Type<typeof EvalEvent>;
 export type EvalEventEncoded = Schema.Codec.Encoded<typeof EvalEvent>;
 
-export type EvalErrorEvent =
-  | BenchErrorEvent
-  | TaskErrorEvent
-  | TrailErrorEvent
-  | SessionErrorEvent
-  | TrailMetricErrorEvent
-  | TaskMetricErrorEvent
-  | BenchMetricErrorEvent;
+export const makeJsonSchema = () => Schema.toJsonSchemaDocument(EvalEvent);

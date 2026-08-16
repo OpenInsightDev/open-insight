@@ -22,7 +22,6 @@ import * as Task from "#/task/index.ts";
 import * as Metric from "#/metric/index.ts";
 import type { Config } from "./config.ts";
 import { EvalError } from "./error.ts";
-import { SessionResult, TaskResult, TrailResult } from "./result.ts";
 
 export type Options = Readonly<{
   task: Task.AnyTask;
@@ -188,7 +187,7 @@ export const make = Effect.fn(
           })
             .pipe(
               Effect.flatMap(({ usage, trajectory }) =>
-                Cause.done(SessionResult.make({ usage, trajectory })),
+                Cause.done(Event.SessionResult.make({ usage, trajectory })),
               ),
             )
             .pipe(Stream.fromEffect);
@@ -201,7 +200,7 @@ export const make = Effect.fn(
           );
         }, Stream.unwrap);
 
-        const sessionResultsQueue = yield* Queue.make<SessionResult, Cause.Done>();
+        const sessionResultsQueue = yield* Queue.make<Event.SessionResult, Cause.Done>();
 
         const makeAttemptStream = ({
           session,
@@ -213,7 +212,7 @@ export const make = Effect.fn(
           sessionIdx: number;
         }): Stream.Stream<
           Event.EvalEvent,
-          EvalError | Cause.Done<TrailResult>,
+          EvalError | Cause.Done<Event.TrailResult>,
           FileSystem.FileSystem | Path.Path
         > => {
           const sessionStream = makeSessionStream({
@@ -335,7 +334,7 @@ export const make = Effect.fn(
 
     const endEvent = Stream.succeed(Event.TaskEndEvent.make({ ...taskFields }));
 
-    const trailResultPubsub = yield* PubSub.unbounded<TrailResult>();
+    const trailResultPubsub = yield* PubSub.unbounded<Event.TrailResult>();
     const trailResultsFiber = yield* Stream.fromPubSub(trailResultPubsub).pipe(
       Stream.runCollect,
       Effect.forkScoped,
@@ -343,7 +342,7 @@ export const make = Effect.fn(
     const result = Effect.gen(function* () {
       yield* PubSub.shutdown(trailResultPubsub);
       const results = yield* trailResultsFiber.pipe(Fiber.join);
-      return yield* Cause.done(TaskResult.make({ trails: results }));
+      return yield* Cause.done(Event.TaskResult.make({ trails: results }));
     }).pipe(Stream.fromEffect);
 
     const trailEvents = Stream.fromQueue(trailQueue);
@@ -378,7 +377,7 @@ export const make = Effect.fn(
       ),
     ) satisfies Stream.Stream<
       Event.EvalEvent,
-      Event.EvalErrorEvent | Cause.Done<TaskResult>,
+      Event.EvalErrorEvent | Cause.Done<Event.TaskResult>,
       FileSystem.FileSystem | Path.Path | Harness.Service | Sandbox.ProviderService
     >,
 );

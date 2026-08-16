@@ -1,15 +1,17 @@
-import { Cause, Context, Effect, Stream } from "effect";
-import { BenchID, TaskID, TrailID } from "../schema.ts";
+import { Cause, Context, Effect, Option, Stream } from "effect";
+import { BenchID, EvalErrorEvent, EvalSuccessEvent, TaskID, TrailID } from "../schema.ts";
 import type { EventError } from "../error.ts";
 import type { BenchResult, TaskResult, TrailResult } from "../result.ts";
 import { EvalEvent } from "../schema.ts";
 
-export type Persist = Readonly<{
-  getBench(id: BenchID): Stream.Stream<EvalEvent, EventError | Cause.Done<BenchResult>>;
-  getTask(id: TaskID): Stream.Stream<EvalEvent, EventError | Cause.Done<TaskResult>>;
-  getTrail(id: TrailID): Stream.Stream<EvalEvent, EventError | Cause.Done<TrailResult>>;
+type EventStream<R> = Stream.Stream<EvalSuccessEvent, EventError | EvalErrorEvent | Cause.Done<R>>;
 
-  persist(stream: Stream.Stream<EvalEvent, EventError>): Effect.Effect<void, EventError>;
+export type Persist = Readonly<{
+  getBench(id: BenchID): Option.Option<EventStream<BenchResult>>;
+  getTask(id: TaskID): Option.Option<EventStream<TaskResult>>;
+  getTrail(id: TrailID): Option.Option<EventStream<TrailResult>>;
+
+  persist<E, R>(stream: Stream.Stream<EvalEvent, E, R>): Effect.Effect<void, EventError | E, R>;
 }>;
 
 /** Provides the event stream persistence sink. */
