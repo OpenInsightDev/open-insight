@@ -26,11 +26,7 @@ const runExperiment = (yieldAfterFork: boolean) =>
     }),
   );
 
-const runForkStartExperiment = (
-  deferred: boolean,
-  parentCount = 2,
-  trailsPerParent = 2,
-) =>
+const runForkStartExperiment = (deferred: boolean, parentCount = 2, trailsPerParent = 2) =>
   Effect.scoped(
     Effect.gen(function* () {
       const events = yield* Ref.make<string[]>([]);

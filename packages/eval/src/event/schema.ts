@@ -5,7 +5,7 @@ import { Prompt, Harness } from "@open-insight/core/internal";
 import * as Bench from "#/bench/index.ts";
 import * as Task from "#/task/index.ts";
 import * as Metric from "#/metric/index.ts";
-import { Timestamp } from "../utils/schema.ts";
+import { Timestamp } from "#/utils/schema.ts";
 
 const EvalFields = {
   benchId: Schema.String,
@@ -217,3 +217,12 @@ export const EvalEvent = Schema.Union([
 ]);
 export type EvalEvent = Schema.Schema.Type<typeof EvalEvent>;
 export type EvalEventEncoded = Schema.Codec.Encoded<typeof EvalEvent>;
+
+export type EvalErrorEvent =
+  | BenchErrorEvent
+  | TaskErrorEvent
+  | TrailErrorEvent
+  | SessionErrorEvent
+  | TrailMetricErrorEvent
+  | TaskMetricErrorEvent
+  | BenchMetricErrorEvent;

@@ -1,4 +1,3 @@
-import * as Bench from "#/bench/index.ts";
 import { Timestamp } from "#/utils/schema.ts";
 import { Prompt } from "@open-insight/core/internal";
 import { Schema } from "effect";
@@ -45,19 +44,4 @@ export type BenchResult<G = unknown> = Readonly<{
   startedAt: Timestamp;
   finishedAt: Timestamp;
   tasks: Record<string, TaskResult<G>>;
-}>;
-
-export const Result = Schema.Struct({
-  startedAt: Timestamp,
-  finishedAt: Timestamp,
-  updatedAt: Timestamp,
-  benchMetadata: Bench.Metadata,
-  result: BenchResult,
-});
-export type Result<G = unknown> = Readonly<{
-  startedAt: Timestamp;
-  updatedAt: Timestamp;
-  finishedAt: Timestamp;
-  benchMetadata: Bench.Metadata;
-  result: BenchResult<G>;
 }>;

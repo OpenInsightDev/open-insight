@@ -37,6 +37,7 @@ export type Task<G extends Grade.AnyResult = never> = Readonly<{
 }> & { _G?: G };
 
 export type AnyTask = Task<any>;
+export type GradeOf<T> = T extends Task<infer G> ? G : never;
 
 type Options<G extends Grade.AnyResult> = MetadataEncoded &
   Partial<Harness.SandboxSessionConfig> &

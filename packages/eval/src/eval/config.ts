@@ -1,7 +1,4 @@
-import { Effect, LogLevel } from "effect";
 import type { NodeSdk } from "@effect/opentelemetry";
-import { Env } from "@open-insight/core";
-import { EvalError } from "./error.ts";
 
 /** Runtime configuration for an evaluation run. */
 export type Config = Readonly<{
@@ -19,12 +16,6 @@ export type Config = Readonly<{
 
   /** Whether to run verification instead of run agent. Defaults to `false`. */
   verify: boolean;
-
-  /** Whether to emit Effect log output to the console during the run. Defaults to `true`. */
-  console: boolean;
-
-  /** Minimum severity for log output. Defaults to `"Info"`. Ignored when `console` is `false`. */
-  logLevel: LogLevel.LogLevel;
 }>;
 
 /** Default runtime configuration used when no evaluation overrides are provided. */
@@ -34,22 +25,10 @@ export const DefaultConfig: Required<Config> = {
   trailConcurrency: 32,
   trailCount: 1,
   verify: false,
-  console: true,
-  logLevel: "Info",
 };
 
 /** Creates an evaluation configuration by applying overrides to {@link DefaultConfig}. */
 export const make = (options: Partial<Config> = {}): Config => ({
   ...DefaultConfig,
   ...options,
-});
-
-/**
- * Resolves an evaluation configuration from run options, falling back to the
- * `OPENINSIGHT_LOG_LEVEL` environment variable for `logLevel` when no explicit
- * option is provided.
- */
-export const resolveConfig = Effect.fn(function* (options: Partial<Config> = {}) {
-  const envLogLevel = yield* Env.resolveLogLevel().pipe(Effect.mapError(EvalError.init));
-  return make(options.logLevel === undefined ? { ...options, logLevel: envLogLevel } : options);
 });

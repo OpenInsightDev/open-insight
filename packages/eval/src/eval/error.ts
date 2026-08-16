@@ -108,6 +108,17 @@ export class SnapshotFailed extends Schema.TaggedError<SnapshotFailed>(
   }
 }
 
+export class NoResult extends Schema.TaggedError<NoResult>("open-insight/eval/EvalError/NoResult")(
+  "NoResult",
+  {
+    error: Schema.Defect(),
+  },
+) {
+  override get message(): string {
+    return `Evaluation does not produce any result, error: ${Formatter.format(this.error)}`;
+  }
+}
+
 export const ErrorReason = Schema.Union([
   InitFailed,
   Utils.Git.GitError,

@@ -24,9 +24,6 @@ import type { Config } from "./config.ts";
 import { EvalError } from "./error.ts";
 import { SessionResult, TaskResult, TrailResult } from "./result.ts";
 
-export type TrailStream = Stream.Stream<Event.EvalEvent, Cause.Done<TrailResult>>;
-export type TaskStream = Stream.Stream<Event.EvalEvent, Cause.Done<TaskResult>>;
-
 export type Options = Readonly<{
   task: Task.AnyTask;
   bench: Bench.Bench;
@@ -38,7 +35,7 @@ export type Options = Readonly<{
   trailCount: number;
 }>;
 
-export const makeTaskFields = Effect.fn(function* ({ bench, task }: Options) {
+const makeTaskFields = Effect.fn(function* ({ bench, task }: Options) {
   const harness = yield* Harness.Service;
   return {
     benchId: bench.metadata.id,
@@ -47,7 +44,7 @@ export const makeTaskFields = Effect.fn(function* ({ bench, task }: Options) {
   };
 });
 
-export const makeStream = Effect.fn(
+export const make = Effect.fn(
   function* (options: Options) {
     const harness = yield* Harness.Service;
 
