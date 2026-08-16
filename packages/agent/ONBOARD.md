@@ -2,7 +2,7 @@
 
 ## durable
 
-- 技术路线：effect workflow + deno celld 
+- 技术路线：effect workflow + deno celld
 
 ## Tools 管理
 

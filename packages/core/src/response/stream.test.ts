@@ -15,12 +15,10 @@ it.effect("merges text stream parts into a text part", () =>
         { type: "text-delta", id: "1", delta: "Hello" } as any,
         { type: "text-delta", id: "1", delta: " world" } as any,
         { type: "text-end", id: "1" } as any,
-      ])
+      ]),
     );
-    assert.deepStrictEqual(result, [
-      Response.makePart("text", { text: "Hello world" }),
-    ]);
-  })
+    assert.deepStrictEqual(result, [Response.makePart("text", { text: "Hello world" })]);
+  }),
 );
 
 it.effect("merges reasoning stream parts into a reasoning part", () =>
@@ -31,12 +29,10 @@ it.effect("merges reasoning stream parts into a reasoning part", () =>
         { type: "reasoning-delta", id: "1", delta: "Thinking" } as any,
         { type: "reasoning-delta", id: "1", delta: "..." } as any,
         { type: "reasoning-end", id: "1" } as any,
-      ])
+      ]),
     );
-    assert.deepStrictEqual(result, [
-      Response.makePart("reasoning", { text: "Thinking..." }),
-    ]);
-  })
+    assert.deepStrictEqual(result, [Response.makePart("reasoning", { text: "Thinking..." })]);
+  }),
 );
 
 it.effect("merges tool params stream parts into a tool-call part", () =>
@@ -47,7 +43,7 @@ it.effect("merges tool params stream parts into a tool-call part", () =>
         { type: "tool-params-delta", id: "1", delta: '{"key":' } as any,
         { type: "tool-params-delta", id: "1", delta: '"value"}' } as any,
         { type: "tool-params-end", id: "1" } as any,
-      ])
+      ]),
     );
     assert.deepStrictEqual(result, [
       Response.makePart("tool-call", {
@@ -57,7 +53,7 @@ it.effect("merges tool params stream parts into a tool-call part", () =>
         providerExecuted: false,
       }),
     ]);
-  })
+  }),
 );
 
 it.effect("handles invalid JSON in tool params gracefully", () =>
@@ -67,7 +63,7 @@ it.effect("handles invalid JSON in tool params gracefully", () =>
         { type: "tool-params-start", id: "1", name: "test-tool", providerExecuted: true } as any,
         { type: "tool-params-delta", id: "1", delta: "invalid json" } as any,
         { type: "tool-params-end", id: "1" } as any,
-      ])
+      ]),
     );
     assert.deepStrictEqual(result, [
       Response.makePart("tool-call", {
@@ -77,7 +73,7 @@ it.effect("handles invalid JSON in tool params gracefully", () =>
         providerExecuted: true,
       }),
     ]);
-  })
+  }),
 );
 
 it.effect("passes through non-stream parts unchanged", () =>
@@ -85,21 +81,17 @@ it.effect("passes through non-stream parts unchanged", () =>
     const result = yield* collectStream(
       Stream.fromIterable<AnyStreamPart>([
         { type: "file", url: "test.txt", mediaType: "text/plain" } as any,
-      ])
+      ]),
     );
-    assert.deepStrictEqual(result, [
-      { type: "file", url: "test.txt", mediaType: "text/plain" },
-    ]);
-  })
+    assert.deepStrictEqual(result, [{ type: "file", url: "test.txt", mediaType: "text/plain" }]);
+  }),
 );
 
 it.effect("handles empty stream", () =>
   Effect.gen(function* () {
-    const result = yield* collectStream(
-      Stream.fromIterable<AnyStreamPart>([])
-    );
+    const result = yield* collectStream(Stream.fromIterable<AnyStreamPart>([]));
     assert.deepStrictEqual(result, []);
-  })
+  }),
 );
 
 it.effect("handles multiple text sequences", () =>
@@ -112,13 +104,13 @@ it.effect("handles multiple text sequences", () =>
         { type: "text-start", id: "2" } as any,
         { type: "text-delta", id: "2", delta: "Second" } as any,
         { type: "text-end", id: "2" } as any,
-      ])
+      ]),
     );
     assert.deepStrictEqual(result, [
       Response.makePart("text", { text: "First" }),
       Response.makePart("text", { text: "Second" }),
     ]);
-  })
+  }),
 );
 
 it.effect("handles providerExecuted true in tool params", () =>
@@ -126,9 +118,9 @@ it.effect("handles providerExecuted true in tool params", () =>
     const result = yield* collectStream(
       Stream.fromIterable<AnyStreamPart>([
         { type: "tool-params-start", id: "1", name: "exec-tool", providerExecuted: true } as any,
-        { type: "tool-params-delta", id: "1", delta: '{}' } as any,
+        { type: "tool-params-delta", id: "1", delta: "{}" } as any,
         { type: "tool-params-end", id: "1" } as any,
-      ])
+      ]),
     );
     assert.deepStrictEqual(result, [
       Response.makePart("tool-call", {
@@ -138,5 +130,5 @@ it.effect("handles providerExecuted true in tool params", () =>
         providerExecuted: true,
       }),
     ]);
-  })
+  }),
 );

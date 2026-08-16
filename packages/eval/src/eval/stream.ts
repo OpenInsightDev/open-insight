@@ -373,6 +373,8 @@ export const makeTask = Effect.fn(
       FiberSet.awaitEmpty,
     );
 
+    const trailResultPubsub = yield* PubSub.unbounded<Event.TrailResult>();
+
     for (const trailIdx of Array.range(0, trailCount - 1)) {
       yield* makeTrailStream(trailIdx)
         .pipe(
@@ -390,7 +392,6 @@ export const makeTask = Effect.fn(
 
     const endEvent = Stream.succeed(Event.TaskEndEvent.make({ ...taskFields }));
 
-    const trailResultPubsub = yield* PubSub.unbounded<Event.TrailResult>();
     const trailResultsFiber = yield* Stream.fromPubSub(trailResultPubsub).pipe(
       Stream.runCollect,
       Effect.forkScoped,

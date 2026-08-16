@@ -10,3 +10,4 @@ export * as Acp from "./acp/index.ts";
 export * as Env from "./env.ts";
 export * as Harness from "./harness/index.ts";
 export * as Utils from "./utils/index.ts";
+export * as Git from "./git/index.ts";
