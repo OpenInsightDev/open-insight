@@ -100,13 +100,15 @@ export const make = Effect.fn(
         (error) => !Cause.isDone(error),
         (error) =>
           makeBenchFields(bench).pipe(
-            Effect.map((fields) => Event.BenchErrorEvent.make({ ...fields, error })),
+            Effect.flatMap((fields) =>
+              Effect.fail(Event.BenchErrorEvent.make({ ...fields, error })),
+            ),
             Stream.fromEffect,
           ),
       ),
     ) satisfies Stream.Stream<
       Event.EvalEvent,
-      Cause.Done<BenchResult>,
+      Event.EvalErrorEvent | Cause.Done<BenchResult>,
       FileSystem.FileSystem | Path.Path | Sandbox.ProviderService | Harness.Service
     >,
 );

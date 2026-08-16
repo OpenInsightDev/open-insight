@@ -296,8 +296,7 @@ export const make = Effect.fn(
         effect.pipe(Stream.unwrap).pipe(
           Stream.catchIf(
             (error) => !Cause.isDone(error),
-            (error) =>
-              Stream.succeed(Event.TrailErrorEvent.make({ ...taskFields, trailIdx, error })),
+            (error) => Stream.fail(Event.TrailErrorEvent.make({ ...taskFields, trailIdx, error })),
           ),
         ),
     );
@@ -312,7 +311,7 @@ export const make = Effect.fn(
       }),
     );
 
-    const trailQueue = yield* Queue.make<Event.EvalEvent, Cause.Done>();
+    const trailQueue = yield* Queue.make<Event.EvalEvent, Event.EvalErrorEvent | Cause.Done>();
     // join all fibers instead of interrupt when releasing
     const trailFibers = yield* Effect.acquireRelease(
       FiberSet.make<void, never>(),
@@ -370,12 +369,16 @@ export const make = Effect.fn(
         (error) => !Cause.isDone(error),
         (error) =>
           makeTaskFields(options)
-            .pipe(Effect.map((taskFields) => Event.TaskErrorEvent.make({ ...taskFields, error })))
+            .pipe(
+              Effect.flatMap((taskFields) =>
+                Effect.fail(Event.TaskErrorEvent.make({ ...taskFields, error })),
+              ),
+            )
             .pipe(Stream.fromEffect),
       ),
     ) satisfies Stream.Stream<
       Event.EvalEvent,
-      Cause.Done<TaskResult>,
+      Event.EvalErrorEvent | Cause.Done<TaskResult>,
       FileSystem.FileSystem | Path.Path | Harness.Service | Sandbox.ProviderService
     >,
 );
