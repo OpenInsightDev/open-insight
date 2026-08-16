@@ -1,4 +1,4 @@
-import { Cause, Effect, Fiber, Match, Option, pipe, PubSub, Semaphore, Stream } from "effect";
+import { Cause, Effect, Fiber, Option, pipe, PubSub, Semaphore, Stream } from "effect";
 import * as Task from "#/task/index.ts";
 import * as Bench from "#/bench/index.ts";
 import * as Event from "#/event/index.ts";
@@ -59,14 +59,8 @@ export const make = Effect.fn(function* (bench: Bench.Bench, config: Config) {
     const stream = persist.value.getBench(Event.BenchID.make(benchFields));
     if (Option.isSome(stream)) {
       return stream.value.pipe(
-        Stream.mapError((error) =>
-          Match.value(error).pipe(
-            Match.tag("EventError", (error) =>
-              Event.BenchErrorEvent.make({ ...benchFields, error }),
-            ),
-            Match.tag("Done", (done) => done),
-            Match.orElse((error) => error),
-          ),
+        Stream.catchTag("EventError", (error) =>
+          Stream.fail(Event.BenchErrorEvent.make({ ...benchFields, error })),
         ),
       );
     }

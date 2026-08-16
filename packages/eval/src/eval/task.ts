@@ -14,6 +14,7 @@ import {
   PubSub,
   Fiber,
   Match,
+  Option,
 } from "effect";
 import * as Bench from "#/bench/index.ts";
 import * as Grade from "#/grade/index.ts";
@@ -60,6 +61,16 @@ export const make = Effect.fn(
 
     const taskFields = yield* makeTaskFields(options);
 
+    const persist = yield* Effect.serviceOption(Event.Persist.Service);
+    if (Option.isSome(persist)) {
+      const stream = persist.value.getTask(Event.TaskID.make(taskFields));
+      if (Option.isSome(stream)) {
+        return stream.value.pipe(
+          Stream.catchTag("EventError", (error) => Stream.fail(EvalError.event(error))),
+        );
+      }
+    }
+
     const runGrader = yield* Grade.makeRunner(grader).pipe(Effect.mapError(EvalError.grade));
     const snapSession = yield* harness
       .runSnapshot(taskTemplate)
@@ -69,6 +80,18 @@ export const make = Effect.fn(
     const makeTrailStream = Effect.fn(
       function* (trailIdx: number) {
         const trailFields = { ...taskFields, trailIdx };
+        if (Option.isSome(persist)) {
+          const stream = persist.value.getTrail(Event.TrailID.make(trailFields));
+          if (Option.isSome(stream)) {
+            yield* Effect.logInfo(
+              `Trail ${trailIdx} for task ${task.metadata.id} already exists in persist, skipping execution`,
+            );
+
+            return stream.value.pipe(
+              Stream.catchTag("EventError", (error) => Stream.fail(EvalError.event(error))),
+            );
+          }
+        }
 
         const sbxSession = yield* snapSession
           .runSandbox(sandboxConfig)
@@ -237,7 +260,11 @@ export const make = Effect.fn(
             yield* Queue.end(sessionResultsQueue);
 
             const result = Queue.collect(sessionResultsQueue)
-              .pipe(Effect.flatMap((sessions) => Cause.done(TrailResult.make({ grade, sessions }))))
+              .pipe(
+                Effect.flatMap((sessions) =>
+                  Cause.done(Event.TrailResult.make({ grade, sessions })),
+                ),
+              )
               .pipe(Stream.fromEffect);
 
             const endEvent = Stream.succeed(
@@ -291,8 +318,8 @@ export const make = Effect.fn(
 
         return Stream.empty.pipe(Stream.concat(trailStream), Stream.merge(schedMetricEvents));
       },
-      (effect, trailIdx) =>
-        effect.pipe(Stream.unwrap).pipe(
+      (eff, trailIdx) =>
+        eff.pipe(Stream.unwrap).pipe(
           Stream.catchIf(
             (error) => !Cause.isDone(error),
             (error) => Stream.fail(Event.TrailErrorEvent.make({ ...taskFields, trailIdx, error })),
