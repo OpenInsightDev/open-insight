@@ -4,10 +4,10 @@ import type { BivariantFn } from "#/utils/variant.ts";
 import { Effect, Schema, Stream } from "effect";
 import { Metadata, Result, type MetadataEncoded } from "../schema.ts";
 import { MetricError } from "../error.ts";
-import type { TaskResult } from "../task/index.ts";
+import type { TrailResults } from "../task/index.ts";
 
-export type BenchResult<G = unknown> = Readonly<Record<string, TaskResult<G>>>;
-export type Delta<G = unknown> = Readonly<Record<Task.ID, TaskResult<G>>>;
+export type BenchResult<G = unknown> = Readonly<Record<Task.ID, TrailResults<G>>>;
+export type Delta<G = unknown> = [Task.ID, TrailResults<G>];
 
 /**
  * Computes a benchmark metric whenever a new task result is available.
@@ -45,47 +45,31 @@ export const make = Effect.fn(function* <G = unknown, R extends Schema.Json = Sc
 });
 
 export const makeStream =
-  <G = unknown, E = never, R = never>(stream: Stream.Stream<BenchResult<G>, E, R>) =>
+  <G = unknown, E = never, R = never>(taskResultStream: Stream.Stream<Delta<G>, E, R>) =>
   <MR extends Schema.Json>({
     exec,
     metadata,
     chart,
   }: Metric<G, MR>): Stream.Stream<Result, E | MetricError, R> =>
-    stream.pipe(
+    taskResultStream.pipe(
       Stream.mapAccumEffect(
         () => ({ results: {} as BenchResult<G>, prev: null as MR | null }),
-        (state, nextResults) => {
-          const changes = Object.entries(nextResults).filter(
-            ([task, result]) => state.results[task] !== result,
-          );
-
-          if (changes.length === 0) {
-            return Effect.succeed([state, [] as ReadonlyArray<Result>] as const);
-          }
-
-          return Effect.gen(function* () {
-            let current = state;
-            const outputs: Array<Result> = [];
-
-            for (const [task, delta] of changes) {
-              const results = { ...current.results, [task]: delta };
-              const next = yield* Effect.tryPromise({
-                try: () => Promise.resolve(exec(results, delta, current.prev)),
-                catch: MetricError.exec(metadata.id),
-              });
-
-              outputs.push(
-                Result.make({
-                  id: metadata.id,
-                  value: next,
-                  chart: chart?.(next) ?? null,
-                }),
-              );
-              current = { results, prev: next };
-            }
-
-            return [current, outputs] as const;
+        Effect.fn(function* ({ results, prev }, delta) {
+          const next = yield* Effect.tryPromise({
+            try: () => Promise.resolve(exec(results, delta, prev)),
+            catch: MetricError.exec(metadata.id),
           });
-        },
+
+          return [
+            { results, prev: next },
+            [
+              Result.make({
+                id: metadata.id,
+                value: next,
+                chart: chart?.(next) ?? null,
+              }),
+            ],
+          ] as const;
+        }),
       ),
     );

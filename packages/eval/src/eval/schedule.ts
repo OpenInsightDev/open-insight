@@ -1,4 +1,5 @@
-import { Cause, Effect, FileSystem, Path, Queue, Semaphore, Stream, SubscriptionRef } from "effect";
+import { Cause, Effect, Fiber, pipe, PubSub, Semaphore, Stream } from "effect";
+import * as Task from "#/task/index.ts";
 import * as Bench from "#/bench/index.ts";
 import type { Config } from "./config.ts";
 import { Harness } from "@open-insight/core";
@@ -6,8 +7,6 @@ import * as Event from "#/event/index.ts";
 import * as Metric from "#/metric/index.ts";
 import { BenchResult, TaskResult } from "./result.ts";
 import * as Trail from "./trail.ts";
-import { Sandbox } from "@open-insight/core/internal";
-import { castDraft, produce } from "immer";
 import { EvalError } from "./error.ts";
 
 const makeBenchFields = Effect.fn(function* (bench: Bench.Bench) {
@@ -23,57 +22,34 @@ export const makeStream = Effect.fn(function* (bench: Bench.Bench, config: Confi
   const { trailConcurrency, snapshotConcurrency, trailCount } = config;
 
   const harness = yield* Harness.Service;
-  const fs = yield* FileSystem.FileSystem;
-  const path = yield* Path.Path;
-  const sbxProvider = yield* Sandbox.ProviderService;
-
-  const taskResultsRef = yield* SubscriptionRef.make<Record<string, TaskResult>>({});
-  const taskMetricResultsRef = yield* SubscriptionRef.make<Metric.Bench.BenchResult>({});
-  const taskMetricQueue = yield* Queue.unbounded<Metric.Bench.BenchResult, Cause.Done>();
 
   const trailSem = yield* Semaphore.make(trailConcurrency);
   const snapSem = yield* Semaphore.make(snapshotConcurrency);
+
+  const taskResultPubsub = yield* PubSub.unbounded<[Task.ID, Metric.Task.TrailResults]>();
+  const taskResultsFiber = yield* Stream.fromPubSub(taskResultPubsub).pipe(
+    Stream.runCollect,
+    Effect.forkScoped,
+  );
 
   const taskStreams = tasks.map((task) =>
     Trail.makeStream({
       bench,
       task,
       config,
-      trailSem,
       snapSem,
+      trailSem,
       trailCount,
-    })
-      .pipe(
-        Stream.catchTag("Done", ({ value: result }) =>
-          Stream.fromEffect(
-            Effect.gen(function* () {
-              yield* SubscriptionRef.update(
-                taskResultsRef,
-                produce((results) => {
-                  results[task.metadata.id] = castDraft(result);
-                }),
-              );
-              const metricResults = yield* SubscriptionRef.updateAndGet(
-                taskMetricResultsRef,
-                (results) => ({
-                  ...results,
-                  [task.metadata.id]: result.trails,
-                }),
-              );
-              yield* Queue.offer(taskMetricQueue, metricResults);
-            }),
-          ).pipe(Stream.drain),
+    }).pipe(
+      Stream.catchTag("Done", ({ value: result }) =>
+        PubSub.publish(taskResultPubsub, [task.metadata.id, result.trails]).pipe(
+          () => Stream.empty,
         ),
-      )
-      .pipe(
-        Stream.provideService(Harness.Service, harness),
-        Stream.provideService(FileSystem.FileSystem, fs),
-        Stream.provideService(Path.Path, path),
-        Stream.provideService(Sandbox.ProviderService, sbxProvider),
       ),
+    ),
   );
-  const mergedTaskStream = Stream.mergeAll(taskStreams, { concurrency: tasks.length }).pipe(
-    Stream.ensuring(Queue.end(taskMetricQueue)),
+  const mergedTaskEvents = Stream.mergeAll(taskStreams, { concurrency: tasks.length }).pipe(
+    Stream.ensuring(PubSub.shutdown(taskResultPubsub)),
   );
 
   const benchFields = yield* makeBenchFields(bench);
@@ -89,28 +65,30 @@ export const makeStream = Effect.fn(function* (bench: Bench.Bench, config: Confi
 
   const endEvent = Stream.succeed(Event.BenchEndEvent.make({ ...benchFields }));
 
-  const result = SubscriptionRef.get(taskResultsRef)
-    .pipe(Effect.flatMap((results) => Cause.done(BenchResult.make({ tasks: results }))))
-    .pipe(Stream.fromEffect);
+  const result = taskResultsFiber.pipe(
+    Fiber.join,
+    Effect.map((entries) =>
+      pipe(
+        entries.map(([id, trails]) => [id, TaskResult.make({ trails })] as const),
+        Object.fromEntries<TaskResult>,
+      ),
+    ),
+    Effect.flatMap((tasks) => Cause.done(BenchResult.make({ tasks }))),
+    Stream.fromEffect,
+  );
 
-  const taskMetricResultsStreams =
-    metrics.length === 0
-      ? []
-      : yield* Stream.fromQueue(taskMetricQueue).pipe(
-          Stream.broadcastN({ n: metrics.length, capacity: "unbounded" }),
-        );
   const benchMetricStreams = metrics
-    .map((metric, index) => Metric.Bench.makeStream(taskMetricResultsStreams[index]!)(metric))
+    .map(Metric.Bench.makeStream(Stream.fromPubSub(taskResultPubsub)))
     .map(Stream.mapError(EvalError.metric));
   const benchMetricEvents = Stream.mergeAll(benchMetricStreams, {
     concurrency: "unbounded",
   }).pipe(Stream.map((result) => Event.BenchMetricEvent.make({ ...benchFields, ...result })));
-  const taskAndMetricEvents = mergedTaskStream.pipe(Stream.merge(benchMetricEvents));
 
   return Stream.empty.pipe(
     Stream.concat(startEvent),
-    Stream.concat(taskAndMetricEvents),
+    Stream.concat(mergedTaskEvents),
     Stream.concat(endEvent),
     Stream.concat(result),
+    Stream.merge(benchMetricEvents),
   );
 }, Stream.unwrap);

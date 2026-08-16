@@ -15,11 +15,10 @@ export type TrailResult<G = unknown> = Readonly<{
   grade: G;
   sessions: ReadonlyArray<SessionResult>;
 }>;
-
-export type TaskResult<G = unknown> = ReadonlyArray<TrailResult<G>>;
+export type TrailResults<G = unknown> = ReadonlyArray<TrailResult<G>>;
 
 export type Exec<G = unknown, R extends Schema.Json = Schema.Json> = (
-  results: TaskResult<G>,
+  results: TrailResults<G>,
   delta: TrailResult<G>,
   prev: R | null,
 ) => R | Promise<R>;
@@ -47,13 +46,13 @@ export const make = Effect.fn(function* <G = unknown, R extends Schema.Json = Sc
 });
 
 export const makeStream =
-  <G = unknown, E = never, R = never>(stream: Stream.Stream<TrailResult<G>, E, R>) =>
+  <G = unknown, E = never, R = never>(trailResultStream: Stream.Stream<TrailResult<G>, E, R>) =>
   <M extends Schema.Json>({
     exec,
     metadata,
     chart,
   }: Metric<G, M>): Stream.Stream<Result, E | MetricError, R> =>
-    stream.pipe(
+    trailResultStream.pipe(
       Stream.mapAccumEffect(
         () => ({ results: [] as TrailResult<G>[], prev: null as M | null }),
         (state, delta) => {

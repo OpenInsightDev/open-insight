@@ -298,6 +298,9 @@ catalogs:
     bumpp:
       specifier: ^12.0.0
       version: 12.0.0
+    cloudflare:
+      specifier: ^7.0.0
+      version: 7.0.0
     computesdk:
       specifier: ^4.1.4
       version: 4.1.4
@@ -470,6 +473,9 @@ importers:
       ajv:
         specifier: 'catalog:'
         version: 8.20.0
+      cloudflare:
+        specifier: 'catalog:'
+        version: 7.0.0
       effect:
         specifier: 'catalog:'
         version: 4.0.0-beta.105
@@ -3108,6 +3114,10 @@ packages:
   chownr@3.0.0:
     resolution: {integrity: sha512-+IxzY9BZOQd/XuYPRmrvEVjF/nqj5kgT4kEq7VofrDoM1MxoRjEWkrCC3EtLi59TVawxTAn+orJwFQcrqEN1+g==}
     engines: {node: '>=18'}
+
+  cloudflare@7.0.0:
+    resolution: {integrity: sha512-ZU8Yp1biaRRf+i1Hlap/VUwSBeKnOa4kkygIU9naE07JILnHdgLr9Wq/iPEeEf2in0N5m1giTp1ohY+cNQZEGQ==}
+    hasBin: true
 
   cluster-key-slot@1.1.1:
     resolution: {integrity: sha512-rwHwUfXL40Chm1r08yrhU3qpUvdVlgkKNeyeGPOxnW8/SyVDvgRaed/Uz54AqWNaTCAThlj6QAs3TZcKI0xDEw==}
@@ -6672,6 +6682,8 @@ snapshots:
     optional: true
 
   chownr@3.0.0: {}
+
+  cloudflare@7.0.0: {}
 
   cluster-key-slot@1.1.1: {}
 

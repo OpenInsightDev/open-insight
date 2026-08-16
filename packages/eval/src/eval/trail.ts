@@ -11,8 +11,9 @@ import {
   Cause,
   Queue,
   FiberSet,
-  SubscriptionRef,
   PubSub,
+  Fiber,
+  Match,
 } from "effect";
 import * as Bench from "#/bench/index.ts";
 import * as Grade from "#/grade/index.ts";
@@ -203,7 +204,7 @@ export const makeStream = Effect.fn(
           );
         }, Stream.unwrap);
 
-        const sessionResultsRef = yield* Ref.make<SessionResult[]>([]);
+        const sessionResultsQueue = yield* Queue.make<SessionResult, Cause.Done>();
 
         const makeAttemptStream = ({
           session,
@@ -224,9 +225,7 @@ export const makeStream = Effect.fn(
             prompt,
           }).pipe(
             Stream.catchTag("Done", ({ value: result }) =>
-              sessionResultsRef
-                .pipe(Ref.update((results) => [...results, result]))
-                .pipe(() => Stream.empty),
+              Queue.offer(sessionResultsQueue, result).pipe(() => Stream.empty),
             ),
           );
 
@@ -239,32 +238,35 @@ export const makeStream = Effect.fn(
               ),
             );
 
-            const sessions = yield* Ref.get(sessionResultsRef);
-            const result = Cause.done(TrailResult.make({ grade, sessions })).pipe(
-              Stream.fromEffect,
-            );
+            yield* Queue.end(sessionResultsQueue);
 
-            const event = Stream.succeed(
+            const result = Queue.collect(sessionResultsQueue)
+              .pipe(Effect.flatMap((sessions) => Cause.done(TrailResult.make({ grade, sessions }))))
+              .pipe(Stream.fromEffect);
+
+            const endEvent = Stream.succeed(
               Event.TrailEndEvent.make({ ...trailFields, grade, usage }),
             );
 
-            return event.pipe(Stream.concat(result));
+            return Stream.empty.pipe(Stream.concat(endEvent), Stream.concat(result));
           }).pipe(Stream.unwrap);
 
           const makeRetryStream = (retry: Grade.Retry) =>
             Effect.gen(function* () {
               yield* Effect.logDebug(
-                `Grader requested a "${retry.type}" retry for trail ${trailIdx}: ${retry.reason ?? "no reason"}`,
+                `Grader requested a "${retry.type}" retry for trail ${trailIdx}: ${retry.reason ?? "unknown reason"}`,
               );
 
-              const nextSession =
-                retry.type === "restart"
-                  ? yield* sbxSession.runAgent().pipe(Effect.mapError(EvalError.harness))
-                  : session;
-
+              const nextSession = yield* Match.value(retry.type).pipe(
+                Match.when("restart", () =>
+                  sbxSession.runAgent().pipe(Effect.mapError(EvalError.harness)),
+                ),
+                Match.when("continue", () => Effect.succeed(session)),
+                Match.exhaustive,
+              );
               const nextAttempt = makeAttemptStream({
                 session: nextSession,
-                prompt: retry.prompt ?? prompt,
+                prompt: retry.prompt,
                 sessionIdx: sessionIdx + 1,
               });
 
@@ -276,7 +278,7 @@ export const makeStream = Effect.fn(
                 }),
               );
 
-              return retryEvent.pipe(Stream.concat(nextAttempt));
+              return Stream.empty.pipe(Stream.concat(retryEvent), Stream.concat(nextAttempt));
             }).pipe(Stream.unwrap);
 
           const gradeStream = gradeResultStream.pipe(Stream.catchTag("Retry", makeRetryStream));
@@ -302,8 +304,6 @@ export const makeStream = Effect.fn(
           ),
         ),
     );
-
-    const trailResultPubsub = yield* PubSub.unbounded<TrailResult>({ replay: 0 });
 
     const startEvent = Stream.succeed(
       Event.TaskStartEvent.make({
@@ -339,15 +339,21 @@ export const makeStream = Effect.fn(
 
     const endEvent = Stream.succeed(Event.TaskEndEvent.make({ ...taskFields }));
 
-    const result = SubscriptionRef.get(trailResultsRef)
-      .pipe(Effect.flatMap((trails) => Cause.done(TaskResult.make({ trails }))))
-      .pipe(Stream.fromEffect);
+    const trailResultPubsub = yield* PubSub.unbounded<TrailResult>();
+    const trailResultsFiber = yield* Stream.fromPubSub(trailResultPubsub).pipe(
+      Stream.runCollect,
+      Effect.forkScoped,
+    );
+    const result = Effect.gen(function* () {
+      yield* PubSub.shutdown(trailResultPubsub);
+      const results = yield* trailResultsFiber.pipe(Fiber.join);
+      return yield* Cause.done(TaskResult.make({ trails: results }));
+    }).pipe(Stream.fromEffect);
 
     const trailEvents = Stream.fromQueue(trailQueue);
 
-    const trailResultsStream = SubscriptionRef.changes(trailResultsRef);
     const taskMetricStreams = taskMetrics
-      .map(Metric.Task.makeStream(trailResultsStream))
+      .map(Metric.Task.makeStream(Stream.fromPubSub(trailResultPubsub)))
       .map(Stream.mapError(EvalError.metric));
     const taskMetricEvents = Stream.mergeAll(taskMetricStreams, {
       concurrency: "unbounded",
