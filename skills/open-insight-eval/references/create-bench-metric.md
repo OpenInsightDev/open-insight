@@ -1,6 +1,6 @@
 # Create a Bench Metric
 
-A bench metric is a computation over completed trails across the tasks in one benchmark. It produces a JSON object whenever another task trail result becomes available.
+A bench metric is a computation over completed trails across the tasks in one benchmark. It produces a JSON object whenever another task completes.
 
 This document covers `BenchMetric`: defining and composing that computation. Attaching metrics to a benchmark with `Bench.metric(...)` is a separate benchmark-building concern.
 
@@ -25,8 +25,8 @@ The executor has this shape:
 
 It may return the result directly or as a Promise.
 
-- `results` contains completed trails grouped by task ID, including `delta`;
-- `delta` is the newly completed trail together with its `task` ID;
+- `results` contains completed trails grouped by task ID, including the newly completed task;
+- `delta` is the newly completed task's trail results;
 - `prev` is this metric's previous result, or `null` on its first execution.
 
 Each trail contains its final decoded `grade`, `trajectory`, token `usage`, and start and finish times. When a grader uses a `Schema.Class`, `trail.grade` is the class instance rather than the schema constructor. The metric must return a JSON object.
@@ -39,7 +39,12 @@ const usageSummary = BenchMetric.exec((results) => ({
     (benchTotal, trails) =>
       benchTotal +
       trails.reduce(
-        (taskTotal, { usage }) => taskTotal + (usage.outputTokens.total ?? 0),
+        (taskTotal, { sessions }) =>
+          taskTotal +
+          sessions.reduce(
+            (sessionTotal, { usage }) => sessionTotal + (usage?.outputTokens.total ?? 0),
+            0,
+          ),
         0,
       ),
     0,
@@ -56,7 +61,17 @@ const usageSummary = BenchMetric.exec((_results, delta, prev) => {
 
   return {
     completed: completed + 1,
-    outputTokens: outputTokens + (delta.usage.outputTokens.total ?? 0),
+    outputTokens:
+      outputTokens +
+      delta.reduce(
+        (taskTotal, { sessions }) =>
+          taskTotal +
+          sessions.reduce(
+            (sessionTotal, { usage }) => sessionTotal + (usage?.outputTokens.total ?? 0),
+            0,
+          ),
+        0,
+      ),
   };
 });
 ```

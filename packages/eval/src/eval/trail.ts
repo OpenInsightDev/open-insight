@@ -12,6 +12,7 @@ import {
   Queue,
   FiberSet,
   SubscriptionRef,
+  PubSub,
 } from "effect";
 import * as Bench from "#/bench/index.ts";
 import * as Grade from "#/grade/index.ts";
@@ -302,7 +303,7 @@ export const makeStream = Effect.fn(
         ),
     );
 
-    const trailResultsRef = yield* SubscriptionRef.make<Array<TrailResult>>([]);
+    const trailResultPubsub = yield* PubSub.unbounded<TrailResult>({ replay: 0 });
 
     const startEvent = Stream.succeed(
       Event.TaskStartEvent.make({
@@ -325,9 +326,7 @@ export const makeStream = Effect.fn(
       yield* makeTrailStream(trailIdx)
         .pipe(
           Stream.catchTag("Done", ({ value: result }) =>
-            trailResultsRef
-              .pipe(SubscriptionRef.update((results) => [...results, result]))
-              .pipe(() => Stream.empty),
+            trailResultPubsub.pipe(PubSub.publish(result)).pipe(() => Stream.empty),
           ),
         )
         .pipe(Stream.runIntoQueue(trailQueue))

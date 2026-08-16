@@ -1,11 +1,13 @@
 import * as Chart from "#/chart/index.ts";
+import * as Task from "#/task/index.ts";
 import type { BivariantFn } from "#/utils/variant.ts";
-import { Effect, Schema, SynchronizedRef } from "effect";
+import { Effect, Schema, Stream } from "effect";
 import { Metadata, Result, type MetadataEncoded } from "../schema.ts";
 import { MetricError } from "../error.ts";
 import type { TaskResult } from "../task/index.ts";
 
 export type BenchResult<G = unknown> = Readonly<Record<string, TaskResult<G>>>;
+export type Delta<G = unknown> = Readonly<Record<Task.ID, TaskResult<G>>>;
 
 /**
  * Computes a benchmark metric whenever a new task result is available.
@@ -16,7 +18,7 @@ export type BenchResult<G = unknown> = Readonly<Record<string, TaskResult<G>>>;
  */
 export type Exec<G = unknown, R extends Schema.Json = Schema.Json> = (
   results: BenchResult<G>,
-  delta: TaskResult<G>,
+  delta: Delta,
   prev: R | null,
 ) => R | Promise<R>;
 
@@ -42,47 +44,48 @@ export const make = Effect.fn(function* <G = unknown, R extends Schema.Json = Sc
   return { exec, chart, metadata } satisfies Metric<G, R>;
 });
 
-export const creates = Effect.fn(function* (metrics: ReadonlyArray<Metric>) {
-  const resultRef = yield* SynchronizedRef.make<BenchResult>({});
+export const makeStream =
+  <G = unknown, E = never, R = never>(stream: Stream.Stream<BenchResult<G>, E, R>) =>
+  <MR extends Schema.Json>({
+    exec,
+    metadata,
+    chart,
+  }: Metric<G, MR>): Stream.Stream<Result, E | MetricError, R> =>
+    stream.pipe(
+      Stream.mapAccumEffect(
+        () => ({ results: {} as BenchResult<G>, prev: null as MR | null }),
+        (state, nextResults) => {
+          const changes = Object.entries(nextResults).filter(
+            ([task, result]) => state.results[task] !== result,
+          );
 
-  const create = Effect.fn(function* ({ exec, metadata, chart }: Metric) {
-    const prevRef = yield* SynchronizedRef.make<Schema.Json | null>(null);
+          if (changes.length === 0) {
+            return Effect.succeed([state, [] as ReadonlyArray<Result>] as const);
+          }
 
-    return (results: BenchResult, result: TaskResult) =>
-      prevRef.pipe(
-        SynchronizedRef.modifyEffect(
-          Effect.fn(function* (prev) {
-            const next = yield* Effect.tryPromise({
-              try: () => Promise.resolve(exec(results, result, prev)),
-              catch: MetricError.exec(metadata.id),
-            });
+          return Effect.gen(function* () {
+            let current = state;
+            const outputs: Array<Result> = [];
 
-            return [
-              Result.make({
-                id: metadata.id,
-                value: next,
-                chart: chart?.(next) ?? null,
-              }),
-              next,
-            ];
-          }),
-        ),
-      );
-  });
+            for (const [task, delta] of changes) {
+              const results = { ...current.results, [task]: delta };
+              const next = yield* Effect.tryPromise({
+                try: () => Promise.resolve(exec(results, delta, current.prev)),
+                catch: MetricError.exec(metadata.id),
+              });
 
-  const runs = yield* Effect.all(metrics.map(create));
+              outputs.push(
+                Result.make({
+                  id: metadata.id,
+                  value: next,
+                  chart: chart?.(next) ?? null,
+                }),
+              );
+              current = { results, prev: next };
+            }
 
-  return (result: TaskResult & Readonly<{ task: string }>) =>
-    resultRef.pipe(
-      SynchronizedRef.modifyEffect(
-        Effect.fn(function* (prev) {
-          const next = {
-            ...prev,
-            [result.task]: result,
-          };
-          const metricResults = yield* Effect.all(runs.map((run) => run(next, result)));
-          return [metricResults, next];
-        }),
+            return [current, outputs] as const;
+          });
+        },
       ),
     );
-});

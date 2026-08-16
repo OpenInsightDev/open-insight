@@ -47,25 +47,20 @@ export const make = Effect.fn(function* <G = unknown, R extends Schema.Json = Sc
 });
 
 export const makeStream =
-  <G = unknown, E = never, R = never>(stream: Stream.Stream<TrailResult<G>[], E, R>) =>
-  <MR extends Schema.Json>({
+  <G = unknown, E = never, R = never>(stream: Stream.Stream<TrailResult<G>, E, R>) =>
+  <M extends Schema.Json>({
     exec,
     metadata,
     chart,
-  }: Metric<G, MR>): Stream.Stream<Result, E | MetricError, R> =>
+  }: Metric<G, M>): Stream.Stream<Result, E | MetricError, R> =>
     stream.pipe(
       Stream.mapAccumEffect(
-        () => ({ results: [] as TaskResult<G>, prev: null as MR | null }),
+        () => ({ results: [] as TrailResult<G>[], prev: null as M | null }),
         (state, delta) => {
-          if (delta.length === 0) {
-            return Effect.succeed([state, [] as ReadonlyArray<Result>] as const);
-          }
-
-          const results = [...state.results, ...delta];
-          const trail = delta[delta.length - 1]!;
+          const results = [...state.results, delta];
 
           return Effect.tryPromise({
-            try: () => Promise.resolve(exec(results, trail, state.prev)),
+            try: () => Promise.resolve(exec(results, delta, state.prev)),
             catch: MetricError.exec(metadata.id),
           }).pipe(
             Effect.map(

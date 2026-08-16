@@ -1,7 +1,7 @@
 import * as Grade from "#/grade/index.ts";
 import * as Metric from "#/metric/index.ts";
 import type * as Task from "#/task/index.ts";
-import type { TrailResult } from "#/eval/result.ts";
+import type { TrailResult } from "#/metric/task/index.ts";
 import { Effect, Schema } from "effect";
 import { castDraft, produce } from "immer";
 import type { Bench } from "./build.ts";
@@ -21,7 +21,7 @@ const mapBenchExec = <G extends Grade.AnyResult, M, R extends Schema.JsonObject>
       Object.fromEntries(
         Object.entries(results).map(([task, trails]) => [task, trails.map(mapTrail)]),
       ),
-      { ...mapTrail(delta), task: delta.task },
+      delta.map(mapTrail),
       prev,
     );
 };

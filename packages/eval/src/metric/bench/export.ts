@@ -1,6 +1,6 @@
 export {
   make,
-  creates,
+  makeStream,
   type BenchResult,
   type Exec,
   type Metric,
