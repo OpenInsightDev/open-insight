@@ -363,7 +363,10 @@ export const makeTask = Effect.fn(
       }),
     );
 
-    const trailQueue = yield* Queue.make<Event.EvalEvent, Event.EvalErrorEvent | Cause.Done>();
+    const trailQueue = yield* Queue.make<
+      Event.EvalSuccessEvent,
+      Event.EvalErrorEvent | Cause.Done
+    >();
     // join all fibers instead of interrupt when releasing
     const trailFibers = yield* Effect.acquireRelease(
       FiberSet.make<void, never>(),
@@ -427,129 +430,127 @@ export const makeTask = Effect.fn(
           .pipe(Stream.fromEffect),
       ),
     ) satisfies Stream.Stream<
-      Event.EvalEvent,
+      Event.EvalSuccessEvent,
       Event.EvalErrorEvent | Cause.Done<Event.TaskResult>,
       FileSystem.FileSystem | Path.Path | Harness.Service | Sandbox.ProviderService
     >,
 );
 
-export const make = Effect.fn(function* (bench: Bench.Bench, config: Config) {
-  const { tasks, metrics } = bench;
-  const { trailConcurrency, snapshotConcurrency, trailCount } = config;
+export const make = Effect.fn(
+  function* (bench: Bench.Bench, config: Config) {
+    const { tasks, metrics } = bench;
+    const { trailConcurrency, snapshotConcurrency, trailCount } = config;
 
-  const harness = yield* Harness.Service;
+    const harness = yield* Harness.Service;
 
-  const trailSem = yield* Semaphore.make(trailConcurrency);
-  const snapSem = yield* Semaphore.make(snapshotConcurrency);
+    const trailSem = yield* Semaphore.make(trailConcurrency);
+    const snapSem = yield* Semaphore.make(snapshotConcurrency);
 
-  const taskResultPubsub = yield* PubSub.unbounded<[Task.ID, Metric.Task.TrailResults]>();
-  const taskResultsFiber = yield* Stream.fromPubSub(taskResultPubsub).pipe(
-    Stream.runCollect,
-    Effect.forkScoped,
-  );
+    const taskResultPubsub = yield* PubSub.unbounded<[Task.ID, Metric.Task.TrailResults]>();
+    const taskResultsFiber = yield* Stream.fromPubSub(taskResultPubsub)
+      .pipe(Stream.runCollect)
+      .pipe(Effect.forkScoped);
 
-  const taskStreams = tasks.map((task) =>
-    makeTask({
-      bench,
-      task,
-      config,
-      snapSem,
-      trailSem,
-      trailCount,
-    }).pipe(
-      Stream.catchTag("Done", ({ value: result }) =>
-        PubSub.publish(taskResultPubsub, [task.metadata.id, result.trails] as const).pipe(
-          () => Stream.empty,
-        ),
-      ),
-    ),
-  );
-  const mergedTaskEvents = Stream.mergeAll(taskStreams, { concurrency: tasks.length }).pipe(
-    Stream.ensuring(PubSub.shutdown(taskResultPubsub)),
-  );
-
-  const benchFields = yield* makeBenchFields(bench);
-
-  const persist = yield* Effect.serviceOption(Event.Persist.Service);
-
-  if (Option.isSome(persist)) {
-    const stream = persist.value.getBench(Event.BenchID.make(benchFields));
-    if (Option.isSome(stream)) {
-      return stream.value.pipe(
-        Stream.catchTag("EventError", (error) =>
-          Stream.fail(
-            Event.BenchErrorEvent.make({ ...benchFields, error: EvalError.event(error) }),
+    const taskStreams = tasks.map((task) =>
+      makeTask({
+        bench,
+        task,
+        config,
+        snapSem,
+        trailSem,
+        trailCount,
+      }).pipe(
+        Stream.catchTag("Done", ({ value: result }) =>
+          PubSub.publish(taskResultPubsub, [task.metadata.id, result.trails] as const).pipe(
+            () => Stream.empty,
           ),
         ),
-      );
-    }
-  }
-
-  const startEvent = Stream.succeed(
-    Event.BenchStartEvent.make({
-      ...benchFields,
-      bench: bench.metadata,
-      harness: harness.metadata,
-      metrics: metrics.map((metric) => metric.metadata),
-    }),
-  );
-
-  const endEvent = Stream.succeed(Event.BenchEndEvent.make({ ...benchFields }));
-
-  const result = taskResultsFiber.pipe(
-    Fiber.join,
-    Effect.map((entries) =>
-      pipe(
-        entries.map(([id, trails]) => [id, Event.TaskResult.make({ trails })] as const),
-        Object.fromEntries<Event.TaskResult>,
       ),
-    ),
-    Effect.flatMap((tasks) => Cause.done(Event.BenchResult.make({ tasks }))),
-    Stream.fromEffect,
-  );
-
-  const benchMetricStreams = metrics
-    .map(Metric.Bench.makeStream(Stream.fromPubSub(taskResultPubsub)))
-    .map(Stream.mapError(EvalError.metric));
-  const benchMetricEvents = Stream.mergeAll(benchMetricStreams, {
-    concurrency: "unbounded",
-  }).pipe(Stream.map((result) => Event.BenchMetricEvent.make({ ...benchFields, ...result })));
-
-  const stream = Stream.empty.pipe(
-    Stream.concat(startEvent),
-    Stream.concat(mergedTaskEvents),
-    Stream.concat(endEvent),
-    Stream.concat(result),
-    Stream.merge(benchMetricEvents),
-    Stream.catchIf(
-      (error) => !Cause.isDone(error),
-      (error) =>
-        makeBenchFields(bench).pipe(
-          Effect.flatMap((fields) => Effect.fail(Event.BenchErrorEvent.make({ ...fields, error }))),
-          Stream.fromEffect,
-        ),
-    ),
-  );
-
-  if (Option.isSome(persist)) {
-    const [mainStream, persistStream] = yield* stream.pipe(
-      Stream.broadcastN({ n: 2, capacity: "unbounded" }),
+    );
+    const mergedTaskEvents = Stream.mergeAll(taskStreams, { concurrency: tasks.length }).pipe(
+      Stream.ensuring(PubSub.shutdown(taskResultPubsub)),
     );
 
-    const fiber = yield* Effect.gen(function* () {
-      yield* persist.value
-        .persist(persistStream)
-        .pipe(
-          Effect.catchTag("EventError", (error) =>
-            Effect.fail(
-              Event.BenchErrorEvent.make({ ...benchFields, error: EvalError.event(error) }),
-            ),
-          ),
+    const benchFields = yield* makeBenchFields(bench);
+
+    const persist = yield* Effect.serviceOption(Event.Persist.Service);
+
+    if (Option.isSome(persist)) {
+      const stream = persist.value.getBench(Event.BenchID.make(benchFields));
+      if (Option.isSome(stream)) {
+        return stream.value.pipe(
+          Stream.catchTag("EventError", (error) => Stream.fail(EvalError.event(error))),
         );
-    }).pipe(Effect.forkScoped);
+      }
+    }
 
-    return mainStream.pipe(Stream.onEnd(Fiber.join(fiber)));
-  }
+    const startEvent = Stream.succeed(
+      Event.BenchStartEvent.make({
+        ...benchFields,
+        bench: bench.metadata,
+        harness: harness.metadata,
+        metrics: metrics.map((metric) => metric.metadata),
+      }),
+    );
 
-  return stream;
-}, Stream.unwrap);
+    const endEvent = Stream.succeed(Event.BenchEndEvent.make({ ...benchFields }));
+
+    const result = taskResultsFiber.pipe(Fiber.join).pipe(
+      Effect.map((entries) =>
+        pipe(
+          entries.map(([id, trails]) => [id, Event.TaskResult.make({ trails })] as const),
+          Object.fromEntries<Event.TaskResult>,
+        ),
+      ),
+      Effect.flatMap((tasks) => Cause.done(Event.BenchResult.make({ tasks }))),
+      Stream.fromEffect,
+    );
+
+    const benchMetricStreams = metrics
+      .map(Metric.Bench.makeStream(Stream.fromPubSub(taskResultPubsub)))
+      .map(Stream.mapError(EvalError.metric));
+    const benchMetricEvents = Stream.mergeAll(benchMetricStreams, {
+      concurrency: "unbounded",
+    }).pipe(Stream.map((result) => Event.BenchMetricEvent.make({ ...benchFields, ...result })));
+
+    const stream = Stream.empty.pipe(
+      Stream.concat(startEvent),
+      Stream.concat(mergedTaskEvents),
+      Stream.concat(endEvent),
+      Stream.concat(result),
+      Stream.merge(benchMetricEvents),
+    );
+
+    if (Option.isSome(persist)) {
+      const [mainStream, persistStream] = yield* stream.pipe(
+        Stream.broadcastN({ n: 2, capacity: "unbounded" }),
+      );
+
+      const fiber = yield* persist.value
+        .persist(persistStream)
+        .pipe(Effect.catchTag("EventError", (error) => Effect.fail(EvalError.event(error))))
+        .pipe(Effect.forkScoped);
+
+      return mainStream.pipe(Stream.onEnd(Fiber.join(fiber)));
+    }
+
+    return stream;
+  },
+  (eff, bench) =>
+    eff.pipe(
+      Stream.unwrap,
+      Stream.catchTag("EvalError", (error) =>
+        makeBenchFields(bench)
+          .pipe(
+            Effect.flatMap((fields) =>
+              Effect.fail(Event.BenchErrorEvent.make({ ...fields, error })),
+            ),
+          )
+          .pipe(Stream.fromEffect),
+      ),
+    ) satisfies Stream.Stream<
+      Event.EvalSuccessEvent,
+      Event.EvalErrorEvent | Cause.Done<Event.BenchResult>,
+      FileSystem.FileSystem | Path.Path | Harness.Service | Sandbox.ProviderService
+    >,
+);
