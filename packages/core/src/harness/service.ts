@@ -5,6 +5,7 @@ import * as Sandbox from "#/sandbox/index.ts";
 import * as Snapshot from "#/snapshot/index.ts";
 import { HarnessError } from "./error.ts";
 import * as Prompt from "#/prompt/index.ts";
+import { Response } from "@open-insight/core/internal";
 
 export class Metadata extends Schema.Class<Metadata>("HarnessMetadata")({
   id: Schema.String,
@@ -15,7 +16,7 @@ type MetadataEncoded = Schema.Codec.Encoded<typeof Metadata>;
 
 export type AgentSession = Readonly<{
   trajectory: Ref.Ref<Prompt.Trajectory>;
-  prompt(prompt: Prompt.Prompt): Stream.Stream<Prompt.AnyStreamPart, HarnessError>;
+  prompt(prompt: Prompt.Prompt): Stream.Stream<Response.AnyStreamPart, HarnessError>;
 }>;
 
 const makeAgentSession = Effect.fn(function* (
