@@ -14,10 +14,24 @@ export type Grader<R extends AnyResult = AnyResult> = Data.TaggedEnum<{
 }>;
 export const Grader = Data.taggedEnum<Grader>();
 
+export type Options<R extends AnyResult = AnyResult> = Readonly<{
+  grade: Base.Exec<R>;
+  verif?: Verif<R> | null;
+}>;
 export const make =
   <R extends AnyResult>(schema: R) =>
   (grade: Base.Exec<R>, verif: Verif<R> | null = null) =>
     Grader.Base({ schema, grade, verif });
+
+export type SidecarOptions<R extends AnyResult = AnyResult> = Readonly<{
+  grade: Sidecar.Exec<R>;
+  snapshot: Snapshot.Template;
+
+  scope?: Sidecar.SandboxScope | null;
+  resources?: Resource.Resources | null;
+  verif?: Verif<R> | null;
+  concurrency?: number | null;
+}>;
 
 export const makeSidecar =
   <R extends AnyResult>(schema: R) =>
@@ -112,4 +126,3 @@ export * from "./result.ts";
 export * as Base from "./base.ts";
 export * as Sidecar from "./sidecar.ts";
 export * as Verif from "./verif.ts";
-export * from "./builtin/index.ts";

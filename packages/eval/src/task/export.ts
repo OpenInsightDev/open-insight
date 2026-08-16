@@ -1,5 +1,4 @@
 export {
-  BaseMetadata,
   ID,
   Metadata,
   TypeId,
@@ -10,5 +9,6 @@ export {
   type Init,
   type Task,
 } from "./index.ts";
+export { type Template, make as makeTemplate } from "./template.ts";
 
 export * as Internal from "./index.ts";
