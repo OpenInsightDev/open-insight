@@ -1,19 +1,15 @@
 import { Context, Effect, Layer } from "effect";
 import { ContextError } from "./error.ts";
-import * as Middle from "./middleware.ts";
-
-export * from "./error.ts";
+import * as MW from "./middleware.ts";
 
 export type ContextManagement = Readonly<{
-  middlewares: Set<Middle.Middleware>;
+  middlewares: Set<MW.Middleware>;
 
   applyAfterRespond: (
-    state: Middle.AfterRespondState,
-  ) => Effect.Effect<Middle.AfterRespondResult, ContextError>;
+    state: MW.AfterRespondState,
+  ) => Effect.Effect<MW.AfterRespondResult, ContextError>;
 
-  applyPrePrompt: (
-    state: Middle.PrePromptState,
-  ) => Effect.Effect<Middle.PrePromptResult, ContextError>;
+  applyPrePrompt: (state: MW.PrePromptState) => Effect.Effect<MW.PrePromptResult, ContextError>;
 }>;
 
 export class Service extends Context.Service<Service, ContextManagement>()(
@@ -21,16 +17,16 @@ export class Service extends Context.Service<Service, ContextManagement>()(
 ) {}
 
 export const make = Effect.fn(function* (): Effect.fn.Return<ContextManagement> {
-  const middlewares = new Set<Middle.Middleware>();
+  const middlewares = new Set<MW.Middleware>();
 
   const applyAfterRespond = (
-    state: Middle.AfterRespondState,
-  ): Effect.Effect<Middle.AfterRespondResult, ContextError> =>
+    state: MW.AfterRespondState,
+  ): Effect.Effect<MW.AfterRespondResult, ContextError> =>
     Effect.reduce(
       [...middlewares],
       () => ({ trajectory: state.trajectory, responded: state.responded }),
       (acc, middleware) =>
-        Middle.Fn.$match(middleware.fn, {
+        MW.Fn.$match(middleware.fn, {
           AfterRespond: ({ fn }) =>
             fn({ ...state, ...acc }).pipe(
               Effect.mapError((cause) =>
@@ -42,13 +38,13 @@ export const make = Effect.fn(function* (): Effect.fn.Return<ContextManagement> 
     );
 
   const applyPrePrompt = (
-    state: Middle.PrePromptState,
-  ): Effect.Effect<Middle.PrePromptResult, ContextError> =>
+    state: MW.PrePromptState,
+  ): Effect.Effect<MW.PrePromptResult, ContextError> =>
     Effect.reduce(
       [...middlewares],
       () => ({ trajectory: state.trajectory, prompt: state.prompt }),
       (acc, middleware) =>
-        Middle.Fn.$match(middleware.fn, {
+        MW.Fn.$match(middleware.fn, {
           PrePrompt: ({ fn }) =>
             fn({ ...state, ...acc }).pipe(
               Effect.mapError((cause) =>
@@ -67,22 +63,24 @@ export const make = Effect.fn(function* (): Effect.fn.Return<ContextManagement> 
 });
 
 export const register =
-  (fn: Middle.Fn, options: Middle.MetadataEncoded) =>
+  (fn: MW.Fn, options: MW.MetadataEncoded) =>
   <A, E, R>(self: Effect.Effect<A, E, R>) =>
     self.pipe(
       Effect.tap(() =>
         Effect.flatMap(Service, (ctx) =>
-          Effect.map(Middle.make(fn, options), (middleware) => {
+          Effect.map(MW.make(fn, options), (middleware) => {
             ctx.middlewares.add(middleware);
           }),
         ),
       ),
     );
 
-export const registerAfterRespond = (fn: Middle.AfterRespondFn, options: Middle.MetadataEncoded) =>
-  register(Middle.Fn.AfterRespond({ fn }), options);
+export const registerAfterRespond = (fn: MW.AfterRespondFn, options: MW.MetadataEncoded) =>
+  register(MW.Fn.AfterRespond({ fn }), options);
 
-export const registerPrePrompt = (fn: Middle.PrePromptFn, options: Middle.MetadataEncoded) =>
-  register(Middle.Fn.PrePrompt({ fn }), options);
+export const registerPrePrompt = (fn: MW.PrePromptFn, options: MW.MetadataEncoded) =>
+  register(MW.Fn.PrePrompt({ fn }), options);
 
 export const layer = Layer.effect(Service, make());
+
+export * from "./error.ts";
