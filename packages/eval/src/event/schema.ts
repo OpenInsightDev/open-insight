@@ -1,5 +1,5 @@
 import * as Chart from "#/chart/index.ts";
-import { Response } from "effect/unstable/ai";
+import { Response } from "@open-insight/core/internal";
 import { Schema } from "effect";
 import { Prompt, Harness } from "@open-insight/core/internal";
 import * as Bench from "#/bench/index.ts";
@@ -110,7 +110,7 @@ export class SessionStreamEvent extends Schema.TaggedClass<SessionStreamEvent>()
   "SessionStreamEvent",
   {
     ...SessionFields,
-    part: Response.Part,
+    part: Response.AnyPart,
   },
 ) {}
 export type SessionStreamEventEncoded = Schema.Codec.Encoded<typeof SessionStreamEvent>;

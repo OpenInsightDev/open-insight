@@ -1,5 +1,5 @@
 import { Harness, Prompt, Sandbox } from "@open-insight/core/internal";
-import { Response } from "effect/unstable/ai";
+import { Response } from "@open-insight/core/internal";
 import {
   Effect,
   FileSystem,
@@ -100,7 +100,7 @@ export const make = Effect.fn(
 
           const makeRespStream = (
             prompt: Prompt.Prompt,
-          ): Stream.Stream<Prompt.AnyStreamPart, EvalError> =>
+          ): Stream.Stream<Response.AnyStreamPart, EvalError> =>
             session
               .prompt(prompt)
               .pipe(Stream.mapError(EvalError.harness))
