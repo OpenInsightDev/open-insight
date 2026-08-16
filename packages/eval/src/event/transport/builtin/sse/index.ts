@@ -12,7 +12,7 @@ const joinUrl = (baseURL: string, path: string): string =>
 const eventStream = (stream: EventStream): Stream.Stream<Uint8Array, EventError> =>
   stream.pipe(
     Stream.mapEffect((value) =>
-      Schema.encodeEffect(Event)(value).pipe(
+      Schema.encode(Event)(value).pipe(
         Effect.map((data) => ({
           _tag: "Event" as const,
           event: value._tag,
