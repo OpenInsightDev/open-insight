@@ -6,6 +6,4 @@ export { make as task } from "./task/index.ts";
 export * as Traj from "./traj/export.ts";
 export { make as traj } from "./traj/index.ts";
 
-export * as When from "./when/export.ts";
-
 export * as Internal from "./index.ts";

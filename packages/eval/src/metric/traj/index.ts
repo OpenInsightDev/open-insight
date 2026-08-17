@@ -13,27 +13,27 @@ export type Context = Readonly<{
 export type Delta = Prompt.ResponseMessagePart;
 
 type Nullable<T> = T | null;
-export type RespExec<R extends Schema.Json = Schema.Json> = (
+export type RespExec<R extends Schema.Json = any> = (
   response: ReadonlyArray<Prompt.ResponseMessagePart>,
   delta: Prompt.ResponseMessagePart,
   prev: R | null,
 ) => Nullable<R> | Promise<Nullable<R>>;
 
-export type Exec<R extends Schema.Json = Schema.Json> = (context: Context) => RespExec<R>;
+export type Exec<R extends Schema.Json = any> = (context: Context) => RespExec<R>;
 
-export type Metric<R extends Schema.Json = Schema.Json> = Readonly<{
+export type Metric<R extends Schema.Json = any> = Readonly<{
   metadata: Metadata;
   exec: BivariantFn<Exec<R>>;
   chart: BivariantFn<Chart.Chart<R>> | null;
 }>;
 
-export type Options<R extends Schema.Json = Schema.Json> = Readonly<{
+export type Options<R extends Schema.Json = any> = Readonly<{
   exec: Exec<R>;
   chart?: Chart.Chart<R> | null;
 }> &
   MetadataEncoded;
 
-export const make = Effect.fn(function* <R extends Schema.Json = Schema.Json>(options: Options<R>) {
+export const make = Effect.fn(function* <R extends Schema.Json = any>(options: Options<R>) {
   const { exec, chart = null } = options;
 
   const metadata = yield* Schema.decodeEffect(Metadata)(options).pipe(

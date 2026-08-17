@@ -16,7 +16,7 @@ export type ID = Schema.Schema.Type<typeof ID>;
 
 export type Init = BivariantFn<(sandbox: Sandbox.SandboxPromise) => PromiseLike<void>>;
 
-export type Task<G extends Grade.AnyResult, E extends Schema.Constraint> = Readonly<{
+export type Task<G extends Grade.AnyResult = any, E extends Schema.Constraint = any> = Readonly<{
   gradeSchema: G;
   extraSchema: E;
 

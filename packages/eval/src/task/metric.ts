@@ -70,7 +70,7 @@ export const trajMetric =
           );
 
           return produce(task, (draft) => {
-            draft.trajMetrics.push(castDraft(metric));
+            draft.trajMetrics.push(metric);
           });
         }),
       ),

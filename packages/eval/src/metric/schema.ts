@@ -1,9 +1,9 @@
-import { IDSchema } from "#/utils/schema.ts";
+import { ID } from "#/utils/schema.ts";
 import { Schema } from "effect";
 import * as Chart from "#/chart/index.ts";
 
 export class Metadata extends Schema.Class<Metadata>("Metadata")({
-  id: IDSchema,
+  id: ID,
   name: Schema.OptionFromOptionalNullOr(Schema.String),
   description: Schema.OptionFromOptionalNullOr(Schema.String),
 }) {}

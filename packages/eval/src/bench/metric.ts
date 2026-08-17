@@ -7,25 +7,6 @@ import { castDraft, produce } from "immer";
 import type { Bench } from "./build.ts";
 import { BenchError } from "./error.ts";
 
-const mapBenchExec = <G extends Grade.AnyResult, M, R extends Schema.JsonObject>(
-  mapper: (grade: G["Type"]) => M,
-  exec: Metric.Bench.Exec<M, R>,
-): Metric.Bench.Exec<G["Type"], R> => {
-  const mapTrail = (trail: TrailResult<G["Type"]>): TrailResult<M> => ({
-    ...trail,
-    grade: mapper(trail.grade),
-  });
-
-  return (results, delta, prev) =>
-    exec(
-      Object.fromEntries(
-        Object.entries(results).map(([task, trails]) => [task, trails.map(mapTrail)]),
-      ),
-      delta.map(mapTrail),
-      prev,
-    );
-};
-
 const mapTaskExec = <G extends Grade.AnyResult, M, R extends Schema.JsonObject>(
   mapper: (grade: G["Type"]) => M,
   exec: Metric.Task.Exec<M, R>,
@@ -46,24 +27,6 @@ export const metric =
   <E, R>(bench: Effect.Effect<Bench<Task.Task<G>>, E, R>) =>
     Effect.flatMap(bench, (bench) =>
       Metric.Bench.make({ ...options, exec }).pipe(
-        Effect.mapError(BenchError.init),
-        Effect.map((metric) =>
-          produce(bench, (draft) => {
-            draft.metrics.push(castDraft(metric));
-          }),
-        ),
-      ),
-    );
-
-export const mapMetric =
-  <G extends Grade.AnyResult, M, MR extends Schema.JsonObject>(
-    mapper: (grade: G["Type"]) => M,
-    exec: Metric.Bench.Exec<M, MR>,
-    options: Omit<Metric.Bench.Options<G["Type"], MR>, "exec"> = {},
-  ) =>
-  <E, R>(bench: Effect.Effect<Bench<Task.Task<G>>, E, R>) =>
-    Effect.flatMap(bench, (bench) =>
-      Metric.Bench.make({ ...options, exec: mapBenchExec(mapper, exec) }).pipe(
         Effect.mapError(BenchError.init),
         Effect.map((metric) =>
           produce(bench, (draft) => {

@@ -8,7 +8,9 @@ import { EvalEvent } from "#/event/schema.ts";
 const joinUrl = (baseURL: string, path: string): string =>
   new URL(path, baseURL.endsWith("/") ? baseURL : `${baseURL}/`).toString();
 
-const eventStream = (stream: EventStream): Stream.Stream<Uint8Array, EventError> =>
+const eventStream = <E, R>(
+  stream: Stream.Stream<EvalEvent, E, R>,
+): Stream.Stream<Uint8Array, EventError | E, R> =>
   stream.pipe(
     Stream.mapEffect((value) =>
       Schema.encodeEffect(EvalEvent)(value).pipe(

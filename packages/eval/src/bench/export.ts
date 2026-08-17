@@ -1,7 +1,6 @@
 export {
   BenchError,
   make,
-  mapMetric,
   mapTaskMetric,
   metric,
   taskMetric,

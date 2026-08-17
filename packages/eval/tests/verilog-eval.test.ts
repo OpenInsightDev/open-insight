@@ -3,6 +3,7 @@ import { readdir, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { Effect, Schema } from "effect";
 import { Acp, Sandbox } from "@open-insight/core";
+import { NodeServices } from "@effect/platform-node";
 
 export class GradeResult extends Schema.Class<GradeResult>("GradeResult")({
   /**
@@ -278,41 +279,6 @@ const main = Effect.gen(function* () {
     .pipe(Effect.provide(Sandbox.Docker.layerFrom({ ports: [7689] })));
 
   console.log(result);
-});
+}).pipe(Effect.scoped, Effect.provide(NodeServices.layer));
 
-// const main = Effect.gen(function* () {
-//   const result = yield* makeBench()
-//     .pipe(Bench.sample("5%"))
-//     .pipe(Eval.run({ trailCount: 2 }))
-//     .pipe(
-//       Effect.provide(
-//         Acp.layerFrom(
-//           "codex-acp",
-//           // Bake the DeepSeek-compatible endpoint into the derived agent
-//           // snapshot so `acp-agent serve codex-acp` and the codex process it
-//           // spawns inherit the credentials and model selection.
-//           { serveEnv },
-//         ),
-//       ),
-//     )
-//     .pipe(Effect.provide(Sandbox.Docker.layerFrom({ ports: [7689] })))
-//     .pipe(Effect.provide(Event.Transport.Console.layer));
-
-//   console.log(result);
-
-//   for (const [taskId, taskResult] of Object.entries(result.tasks)) {
-//     for (const trail of taskResult.trails) {
-//       console.log(
-//         `TASK ${taskId}: grade=${JSON.stringify(trail.grade)} usage=${JSON.stringify(trail.usage)}`,
-//       );
-//       if (envExists("VERILOG_EVAL_DEBUG")) {
-//         console.log(`TASK ${taskId} trajectory:`);
-//         console.dir(trail.trajectory, { depth: 6 });
-//       }
-//     }
-//   }
-// })
-//   .pipe(Effect.scoped)
-//   .pipe(Effect.provide(NodeServices.layer));
-
-// it.live("runs the VerilogEval benchmark", () => main, 15 * 60 * 1000);
+await Effect.runPromise(main);

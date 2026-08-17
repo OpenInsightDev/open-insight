@@ -14,19 +14,21 @@ type EventStream<T extends Task.AnyTask = Task.AnyTask, R = never> = Stream.Stre
 >;
 
 export const make =
-  (configOptions: Partial<Config.Config> = {}) =>
-  <T extends Task.AnyTask>(bench: Bench.Bench<T>) =>
+  <T extends Task.AnyTask>(configOptions: Partial<Config.Config> = {}) =>
+  (
+    bench: Bench.Bench<T>,
+  ): EventStream<
+    T,
+    FileSystem.FileSystem | Path.Path | Harness.Service | Sandbox.ProviderService
+  > =>
     makeStream<T>(bench, Config.make(configOptions)).pipe(
       Stream.mapError((done) => done as Cause.Done<Event.BenchResult<Task.GradeOf<T>>>),
-    ) satisfies EventStream<
-      T,
-      FileSystem.FileSystem | Path.Path | Harness.Service | Sandbox.ProviderService
-    >;
+    );
 
 export const run = <T extends Task.AnyTask>(
   bench: Bench.Bench<T>,
   configOptions: Partial<Config.Config> = {},
-) => make(configOptions)(bench);
+) => make<T>(configOptions)(bench);
 
 export const stream = <T extends Task.AnyTask, R>(
   stream: EventStream<T, R>,
