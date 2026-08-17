@@ -17,7 +17,6 @@ export { MetricError } from "#/metric/export.ts";
 export * as TrajMetric from "#/metric/traj/export.ts";
 export * as TaskMetric from "#/metric/task/export.ts";
 export * as BenchMetric from "#/metric/bench/export.ts";
-export * as When from "#/metric/when/export.ts";
 
 export * as Task from "#/task/export.ts";
 export * as Tasks from "#/tasks/export.ts";

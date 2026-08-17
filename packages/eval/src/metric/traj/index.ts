@@ -1,4 +1,4 @@
-import { Prompt, Response } from "@open-insight/core/internal";
+import { Prompt } from "@open-insight/core/internal";
 import { Effect, Schema, Stream } from "effect";
 import { Metadata, Result, type MetadataEncoded } from "../schema.ts";
 import type { BivariantFn } from "#/utils/variant.ts";

@@ -13,5 +13,5 @@ export {
   Scatter,
   Standalone,
 } from "./index.ts";
-export type { Chart, Return } from "./index.ts";
+export type { Chart } from "./index.ts";
 export * as Internal from "./index.ts";

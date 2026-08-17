@@ -1,7 +1,7 @@
 import type * as Task from "#/task/index.ts";
 import { ChildProcess as CP } from "effect/unstable/process";
 import { Crypto, Effect, Encoding, FileSystem, Path } from "effect";
-import { Spawn } from "@open-insight/core/utils";
+import { Spawn } from "@open-insight/core";
 import * as Cache from "../cache.ts";
 import type { Load } from "../index.ts";
 import { TasksError } from "../error.ts";

@@ -4,7 +4,6 @@ import { EventError } from "#/event/error.ts";
 import { HttpBody, HttpClient, HttpClientResponse } from "effect/unstable/http";
 import { Sse } from "effect/unstable/encoding";
 import { EvalEvent } from "#/event/schema.ts";
-import { type EventStream } from "#/event/queue.ts";
 
 const joinUrl = (baseURL: string, path: string): string =>
   new URL(path, baseURL.endsWith("/") ? baseURL : `${baseURL}/`).toString();

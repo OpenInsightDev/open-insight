@@ -27,7 +27,7 @@ export const matches =
     Effect.all([
       Schema.decodeEffect(schema)(result),
       // Preserve result fields while overriding the fields declared by expect
-      Schema.decodeEffect(schema)({ ...result, ...expect }),
+      Schema.decodeEffect(schema)(Object.assign({}, result, expect)),
     ]).pipe(
       Effect.map(([actual, expected]) => Equal.equals(actual, expected)),
       Effect.mapError(GradeError.result),

@@ -1,6 +1,5 @@
 import * as Grade from "#/grade/index.ts";
 import * as Metric from "#/metric/index.ts";
-import type { TrailResult } from "#/eval/result.ts";
 import { Effect, Schema } from "effect";
 import { castDraft, produce } from "immer";
 import type { Task } from "./build.ts";
@@ -10,7 +9,7 @@ const mapExec = <G extends Grade.AnyResult, M, R extends Schema.JsonObject>(
   mapper: (grade: G["Type"]) => M,
   exec: Metric.Task.Exec<M, R>,
 ): Metric.Task.Exec<G["Type"], R> => {
-  const mapTrail = (trail: TrailResult<G["Type"]>): TrailResult<M> => ({
+  const mapTrail = (trail: Metric.Task.TrailResult<G["Type"]>): Metric.Task.TrailResult<M> => ({
     ...trail,
     grade: mapper(trail.grade),
   });
