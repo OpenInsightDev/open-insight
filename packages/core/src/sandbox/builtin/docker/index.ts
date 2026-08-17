@@ -278,10 +278,7 @@ export const make = Effect.fn("sandbox/provider/docker")(
 
         return {
           ...sandboxSpawner,
-          spawn: (command) =>
-            sandboxSpawner
-              .spawn(command)
-              .pipe(Effect.mapError(SandboxError.sandboxExec(name, formatSandboxCommand(command)))),
+          spawn: (command) => sandboxSpawner.spawn(command),
           expose: Effect.fn(function* ({ sandboxPort }) {
             yield* Effect.logDebug("Exposing Docker sandbox port", {
               containerName: name,

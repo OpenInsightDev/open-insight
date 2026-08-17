@@ -54,7 +54,9 @@ const makeBenchFields = Effect.fn(function* (bench: Bench.Bench) {
 });
 
 export const makeTask = Effect.fn(
-  function* <T extends Task.AnyTask = Task.AnyTask>(options: Options<T>) {
+  function* <T extends Task.AnyTask>(options: Options<T>) {
+    type Grade = Task.GradeOf<T>;
+
     const harness = yield* Harness.Service;
 
     const { task, snapSem, trailSem, trailCount } = options;
@@ -255,7 +257,7 @@ export const makeTask = Effect.fn(
         }): Stream.Stream<
           Event.EvalSuccessEvent,
           Event.EvalErrorEvent | Cause.Done<Event.TrailResult>,
-          FileSystem.FileSystem | Path.Path
+          FileSystem.FileSystem | Path.Path | Grade["DecodingService"]
         > => {
           const sessionStream = makeSessionStream({
             session,
@@ -438,7 +440,7 @@ export const makeTask = Effect.fn(
 );
 
 export const make = Effect.fn(
-  function* (bench: Bench.Bench, config: Config) {
+  function* <T extends Task.AnyTask>(bench: Bench.Bench<T>, config: Config) {
     const { tasks, metrics } = bench;
     const { trailConcurrency, snapshotConcurrency, trailCount } = config;
 
@@ -453,7 +455,7 @@ export const make = Effect.fn(
       .pipe(Effect.forkScoped);
 
     const taskStreams = tasks.map((task) =>
-      makeTask({
+      makeTask<T>({
         bench,
         task,
         config,

@@ -2,7 +2,7 @@ import { Effect, Layer } from "effect";
 import { ChildProcess as CP } from "effect/unstable/process";
 import * as Sandbox from "#/sandbox/export.ts";
 import * as Runtime from "./runtime.ts";
-import { Spawn } from "#/utils/export.ts";
+import * as Spawn from "#/spawn/export.ts";
 
 export const makeSandboxSpawner = Effect.fn(function* (
   sandboxName: string,

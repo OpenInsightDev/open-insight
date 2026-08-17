@@ -1,8 +1,8 @@
 import { SandboxError } from "#/sandbox/export.ts";
 import * as Snapshot from "#/snapshot/export.ts";
-import { Spawn } from "#/utils/export.ts";
 import { Effect } from "effect";
 import { ChildProcess as CP } from "effect/unstable/process";
+import * as Spawn from "#/spawn/export.ts";
 
 const imageExists = Effect.fn(function* (snapshot: Snapshot.Snapshot) {
   const spawner = yield* Spawn.Service;

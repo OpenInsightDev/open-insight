@@ -16,7 +16,7 @@ type EventStream<T extends Task.AnyTask = Task.AnyTask, R = never> = Stream.Stre
 export const make =
   (configOptions: Partial<Config.Config> = {}) =>
   <T extends Task.AnyTask>(bench: Bench.Bench<T>) =>
-    makeStream(bench, Config.make(configOptions)).pipe(
+    makeStream<T>(bench, Config.make(configOptions)).pipe(
       Stream.mapError((done) => done as Cause.Done<Event.BenchResult<Task.GradeOf<T>>>),
     ) satisfies EventStream<
       T,

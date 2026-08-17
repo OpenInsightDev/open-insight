@@ -1,5 +1,5 @@
 import { Context, Effect, Layer } from "effect";
-import { Spawn } from "#/utils/index.ts";
+import * as Spawner from "#/spawn/index.ts";
 
 export type Command = Readonly<{
   command: string;
@@ -8,23 +8,23 @@ export type Command = Readonly<{
   env?: Record<string, string>;
 }>;
 
-export type Handle = Spawn.ExecHandle;
+export type Handle = Spawner.ExecHandle;
 
 export type Fn = (
   command: Command,
-  options?: Spawn.Options,
-) => Effect.Effect<Spawn.ExecHandle, Spawn.SpawnError>;
+  options?: Spawner.Options,
+) => Effect.Effect<Spawner.ExecHandle, Spawner.SpawnError>;
 
 export type Spawn = Readonly<{
   spawn: Fn;
 
-  exitCode(command: Command): Effect.Effect<number, Spawn.SpawnError>;
+  exitCode(command: Command): Effect.Effect<number, Spawner.SpawnError>;
 
-  success(command: Command): Effect.Effect<void, Spawn.SpawnError>;
+  success(command: Command): Effect.Effect<void, Spawner.SpawnError>;
 
-  stdout(command: Command, options?: Spawn.Options): Effect.Effect<string, Spawn.SpawnError>;
+  stdout(command: Command, options?: Spawner.Options): Effect.Effect<string, Spawner.SpawnError>;
 
-  stderr(command: Command, options?: Spawn.Options): Effect.Effect<string, Spawn.SpawnError>;
+  stderr(command: Command, options?: Spawner.Options): Effect.Effect<string, Spawner.SpawnError>;
 }>;
 
 /**

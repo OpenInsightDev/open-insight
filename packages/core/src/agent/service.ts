@@ -1,16 +1,16 @@
 import * as Sandbox from "#/sandbox/index.ts";
 import * as Snapshot from "#/snapshot/index.ts";
 import * as Prompt from "#/prompt/index.ts";
+import * as Response from "#/response/index.ts";
 import { Context, Effect, Layer, Option, Ref, Scope, Semaphore, Stream } from "effect";
 import { AgentError } from "./error.ts";
-import { Response } from "effect/unstable/ai";
 
 export type Agent = Readonly<{
   /**
    * Current trajectory of the agent.
    */
   trajectory: Ref.Ref<Prompt.Trajectory>;
-  prompt(prompt: Prompt.Prompt): Stream.Stream<Prompt.AnyStreamPart, AgentError>;
+  prompt(prompt: Prompt.Prompt): Stream.Stream<Response.AnyStreamPart, AgentError>;
 }>;
 
 export type SnapshotExtension = Readonly<{
@@ -56,7 +56,7 @@ const makeAgent = Effect.fn(function* (run: PromptFn): Effect.fn.Return<Agent, A
   const history = yield* Ref.make<Prompt.Prompt>(Prompt.empty);
   const semaphore = Semaphore.makeUnsafe(1);
 
-  const promptStream = (prompt: Prompt.Prompt): Stream.Stream<Prompt.AnyStreamPart, AgentError> =>
+  const promptStream = (prompt: Prompt.Prompt): Stream.Stream<Response.AnyStreamPart, AgentError> =>
     Effect.gen(function* () {
       const current = yield* semaphore.take(1).pipe(Effect.flatMap(() => Ref.get(history)));
       const trajectory = Prompt.concat(current, prompt);
@@ -64,7 +64,7 @@ const makeAgent = Effect.fn(function* (run: PromptFn): Effect.fn.Return<Agent, A
       const parts: Array<Response.AnyPart> = [];
 
       return run(trajectory).pipe(
-        Prompt.decodeResponseStream,
+        Response.decodeStream,
         Stream.mapError(AgentError.stream),
         Stream.tap((part) =>
           Effect.sync(() => {

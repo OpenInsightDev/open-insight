@@ -1,6 +1,6 @@
 import * as Sandbox from "#/sandbox/export.ts";
 import { SandboxError } from "#/sandbox/export.ts";
-import { Spawn } from "#/utils/export.ts";
+import * as Spawn from "#/spawn/export.ts";
 import { Crypto, Duration, Effect, FileSystem, Layer } from "effect";
 import { ChildProcess as CP } from "effect/unstable/process";
 import { ChildProcessSpawner } from "effect/unstable/process/ChildProcessSpawner";

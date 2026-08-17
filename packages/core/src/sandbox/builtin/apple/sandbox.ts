@@ -2,7 +2,8 @@ import { SandboxError } from "#/sandbox/export.ts";
 import * as Sandbox from "#/sandbox/export.ts";
 import * as Resource from "#/resource/index.ts";
 import * as Snapshot from "#/snapshot/export.ts";
-import { Bash, Spawn } from "#/utils/export.ts";
+import { Bash } from "#/utils/export.ts";
+import * as Spawn from "#/spawn/export.ts";
 import { Duration, Effect, FileSystem, Option } from "effect";
 import { ChildProcess as CP } from "effect/unstable/process";
 import { makeSandboxSpawner } from "./spawn.ts";
@@ -166,10 +167,8 @@ export const runSandbox = Effect.fn(
 
     return {
       ...sandboxSpawner,
-      cmd: Effect.fn(function* (command) {
-        return yield* sandboxSpawner
-          .spawn(command)
-          .pipe(Effect.mapError(SandboxError.sandboxExec(name, formatSandboxCommand(command))));
+      spawn: Effect.fn(function* (command) {
+        return yield* sandboxSpawner.spawn(command);
       }),
       expose: Effect.fn(function* ({ sandboxPort }) {
         yield* Effect.logDebug("Exposing Apple container sandbox port", {
