@@ -152,6 +152,25 @@ const MetricFields = {
   chart: Schema.NullOr(Chart.Points),
 };
 
+export class SessionMetricEvent extends Schema.TaggedClass<SessionMetricEvent>()(
+  "SessionMetricEvent",
+  {
+    ...SessionFields,
+    ...MetricFields,
+  },
+) {}
+export type SessionMetricEventEncoded = Schema.Codec.Encoded<typeof SessionMetricEvent>;
+
+export class SessionMetricErrorEvent extends Schema.TaggedClass<SessionMetricErrorEvent>()(
+  "SessionMetricErrorEvent",
+  {
+    ...SessionFields,
+    id: Schema.String,
+    error: Schema.Defect(),
+  },
+) {}
+export type SessionMetricErrorEventEncoded = Schema.Codec.Encoded<typeof SessionMetricErrorEvent>;
+
 export class TrailMetricEvent extends Schema.TaggedClass<TrailMetricEvent>()("TrailMetricEvent", {
   ...TrailFields,
   ...MetricFields,
@@ -205,9 +224,10 @@ export const EvalErrorEvent = Schema.Union([
   TaskErrorEvent,
   TrailErrorEvent,
   SessionErrorEvent,
-  TrailMetricErrorEvent,
-  TaskMetricErrorEvent,
   BenchMetricErrorEvent,
+  TaskMetricErrorEvent,
+  TrailMetricErrorEvent,
+  SessionMetricErrorEvent,
 ]);
 export type EvalErrorEvent = Schema.Schema.Type<typeof EvalErrorEvent>;
 
@@ -223,9 +243,10 @@ export const EvalSuccessEvent = Schema.Union([
   SessionStreamEvent,
   SessionRetryEvent,
   SessionEndEvent,
-  TrailMetricEvent,
-  TaskMetricEvent,
   BenchMetricEvent,
+  TaskMetricEvent,
+  TrailMetricEvent,
+  SessionMetricEvent,
 ]);
 export type EvalSuccessEvent = Schema.Schema.Type<typeof EvalSuccessEvent>;
 
