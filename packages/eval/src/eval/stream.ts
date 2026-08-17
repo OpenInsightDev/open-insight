@@ -40,7 +40,6 @@ const makeSession = Effect.fn(
 
     const session = yield* Harness.AgentService;
 
-    const trajectory = yield* Ref.get(session.trajectory);
     const usageRef = yield* Ref.make<Response.Usage | null>(null);
     const finishRef = yield* Ref.make<Response.FinishReason>("unknown");
 
@@ -64,73 +63,58 @@ const makeSession = Effect.fn(
       sandbox: sbxPromise,
     }).pipe(Stream.mapError(EvalError.taskExec(task, id.trailIdx)));
 
-    const makeTrajStream = (prompt: Prompt.Prompt) =>
-      Effect.gen(function* () {
-        const [respStreamForEvent, respStreamForMetric] = yield* makeRespStream(prompt).pipe(
-          Stream.broadcastN({ n: 2, capacity: "unbounded" }),
-        );
-
-        const promptPartStream = yield* Prompt.fromStreamPartStream(respStreamForMetric).pipe(
-          // shared by each traj metric
-          Stream.share({ capacity: "unbounded" }),
-        );
-        const metricStreams = trajMetrics
-          .map(Metric.Traj.makeStream({ prompt, trajectory, stream: promptPartStream }))
-          .map(
-            Stream.mapError((error) =>
-              error instanceof Metric.MetricError ? EvalError.metric(error) : error,
-            ),
+    const turns = yield* prompts.pipe(
+      Stream.flatMap((prompt) =>
+        Effect.gen(function* () {
+          const [respStreamForEvent, respStreamForMetric] = yield* makeRespStream(prompt).pipe(
+            Stream.broadcastN({ n: 2, capacity: "unbounded" }),
           );
-        const metricEventStreams = metricStreams.map(
-          Stream.map((result) => Event.SessionMetricEvent.make({ ...id, ...result })),
-        );
 
-        const promptEvent = Stream.succeed(Event.SessionPromptEvent.make({ ...id, prompt }));
-        const streamEvents = respStreamForEvent.pipe(
-          Stream.map((part) => Event.SessionStreamEvent.make({ ...id, part })),
-        );
-        const metricEvents = Stream.mergeAll(metricEventStreams, {
-          concurrency: "unbounded",
-        });
+          const promptEvent = Stream.succeed(Event.SessionPromptEvent.make({ ...id, prompt }));
+          const respEvents = respStreamForEvent.pipe(
+            Stream.map((part) => Event.SessionStreamEvent.make({ ...id, part })),
+          );
+          const events = Stream.empty.pipe(Stream.concat(promptEvent), Stream.concat(respEvents));
 
-        return Stream.empty.pipe(
-          Stream.concat(promptEvent),
-          Stream.concat(streamEvents),
-          Stream.merge(metricEvents),
-        );
-      }).pipe((eff) =>
-        eff.pipe(
-          Stream.unwrap,
-          Stream.catchTag("EvalError", (error) =>
-            Stream.fail(Event.SessionErrorEvent.make({ ...id, error })),
-          ),
-        ),
-      );
+          const respParts = Prompt.foldResponseStream(respStreamForMetric);
+          const deltas = Stream.concat(Stream.succeed(prompt), respParts);
+
+          return { events, deltas };
+        }).pipe(Stream.fromEffect),
+      ),
+      Stream.share({ capacity: "unbounded" }),
+    );
+
+    const turnDeltas = yield* turns
+      .pipe(Stream.flatMap(({ deltas }) => deltas))
+      .pipe(Stream.share({ capacity: "unbounded" }));
+    const metricEventStreams = trajMetrics
+      .map(Metric.Traj.makeStream({ stream: turnDeltas }))
+      .map(Stream.catchTag("MetricError", (error) => Stream.fail(EvalError.metric(error))))
+      .map(Stream.map((result) => Event.SessionMetricEvent.make({ ...id, ...result })));
+    const metricEvents = Stream.mergeAll(metricEventStreams, { concurrency: "unbounded" });
 
     const startEvent = Stream.succeed(Event.SessionStartEvent.make(id));
-
-    const trajEvents = prompts.pipe(Stream.flatMap(makeTrajStream));
-
+    const turnEvents = turns.pipe(Stream.flatMap(({ events }) => events));
     const endEvent = Ref.get(finishRef)
       .pipe(Effect.map((reason) => Event.SessionEndEvent.make({ ...id, reason })))
       .pipe(Stream.fromEffect);
-
     const result = Effect.all({
       usage: Ref.get(usageRef),
       trajectory: Ref.get(session.trajectory),
-    })
-      .pipe(
-        Effect.flatMap(({ usage, trajectory }) =>
-          Cause.done(Event.SessionResult.make({ usage, trajectory })),
-        ),
-      )
-      .pipe(Stream.fromEffect);
+    }).pipe(
+      Effect.flatMap(({ usage, trajectory }) =>
+        Cause.done(Event.SessionResult.make({ usage, trajectory })),
+      ),
+      Stream.fromEffect,
+    );
 
     return Stream.empty.pipe(
       Stream.concat(startEvent),
-      Stream.concat(trajEvents),
+      Stream.concat(turnEvents),
       Stream.concat(endEvent),
       Stream.concat(result),
+      Stream.merge(metricEvents),
     );
   },
   (eff, { id }) =>

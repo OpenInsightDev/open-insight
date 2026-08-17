@@ -1,25 +1,24 @@
 import { Prompt } from "@open-insight/core/internal";
-import { Effect, Schema, Stream } from "effect";
+import { Effect, Match, Schema, Stream } from "effect";
 import { Metadata, Result, type MetadataEncoded } from "../schema.ts";
 import type { BivariantFn } from "#/utils/variant.ts";
 import * as Chart from "#/chart/index.ts";
 import { MetricError } from "../error.ts";
 
-export type Context = Readonly<{
-  prompt: Prompt.Prompt;
+type State = Readonly<{
   trajectory: Prompt.Trajectory;
+  prompt: Prompt.Prompt;
+  response: Prompt.ResponseMessagePart[];
 }>;
 
-export type Delta = Prompt.ResponseMessagePart;
+export type Delta = Prompt.ResponseMessagePart | Prompt.Prompt;
 
 type Nullable<T> = T | null;
-export type RespExec<R extends Schema.Json = any> = (
-  response: ReadonlyArray<Prompt.ResponseMessagePart>,
-  delta: Prompt.ResponseMessagePart,
+export type Exec<R extends Schema.Json = any> = (
+  state: State,
+  delta: Delta,
   prev: R | null,
-) => Nullable<R> | Promise<Nullable<R>>;
-
-export type Exec<R extends Schema.Json = any> = (context: Context) => RespExec<R>;
+) => Nullable<R> | PromiseLike<Nullable<R>>;
 
 export type Metric<R extends Schema.Json = any> = Readonly<{
   metadata: Metadata;
@@ -33,6 +32,9 @@ export type Options<R extends Schema.Json = any> = Readonly<{
 }> &
   MetadataEncoded;
 
+/**
+ *
+ */
 export const make = Effect.fn(function* <R extends Schema.Json = any>(options: Options<R>) {
   const { exec, chart = null } = options;
 
@@ -43,29 +45,66 @@ export const make = Effect.fn(function* <R extends Schema.Json = any>(options: O
   return { metadata, exec, chart } satisfies Metric<R>;
 });
 
-type StreamOptions<E, R> = Context &
+type StreamOptions<E, R> = Readonly<{
+  stream: Stream.Stream<Prompt.Prompt | Prompt.ResponseMessagePart, E, R>;
+}>;
+
+type Accum = State &
   Readonly<{
-    stream: Stream.Stream<Prompt.ResponseMessagePart, E, R>;
+    prev: Schema.Json | null;
   }>;
 
-export const makeStream =
-  <E, R>({ trajectory, prompt, stream }: StreamOptions<E, R>) =>
-  ({ exec, metadata, chart }: Metric): Stream.Stream<Result, E | MetricError, R> => {
-    const respExec = exec({ trajectory, prompt });
+const foldPrompt = (state: Accum, prompt: Prompt.Prompt): Accum => {
+  const assistant: Prompt.AssistantMessagePart[] = [];
+  const tool: Prompt.ToolMessagePart[] = [];
 
+  for (const part of state.response) {
+    Match.value(part).pipe(
+      Match.whenOr({ type: "tool-result" }, { type: "tool-approval-response" }, (toolPart) =>
+        tool.push(toolPart),
+      ),
+      Match.orElse((part) => assistant.push(part)),
+    );
+  }
+
+  const messages: Prompt.Message[] = [];
+  if (assistant.length > 0) {
+    messages.push(Prompt.makeMessage("assistant", { content: assistant }));
+  }
+  if (tool.length > 0) {
+    messages.push(Prompt.makeMessage("tool", { content: tool }));
+  }
+
+  const trajectory = state.trajectory.pipe(Prompt.concat(prompt), Prompt.concat(messages));
+
+  return {
+    trajectory,
+    prompt,
+    response: [],
+    prev: state.prev,
+  };
+};
+
+export const makeStream =
+  <E, R>({ stream }: StreamOptions<E, R>) =>
+  ({ exec, metadata, chart }: Metric): Stream.Stream<Result, E | MetricError, R> => {
     return stream.pipe(
       Stream.mapAccumEffect(
-        () => ({ response: [] as Prompt.ResponseMessagePart[], prev: null as Schema.Json | null }),
-        (state, delta) =>
-          Effect.tryPromise({
-            try: () => Promise.resolve(respExec(state.response, delta, state.prev)),
+        (): Accum => ({ trajectory: Prompt.empty, prompt: Prompt.empty, response: [], prev: null }),
+        (state, delta) => {
+          const nextState = Prompt.isPrompt(delta)
+            ? foldPrompt(state, delta)
+            : { ...state, response: [...state.response, delta] };
+
+          return Effect.tryPromise({
+            try: () => Promise.resolve(exec(nextState, delta, state.prev)),
             catch: MetricError.exec(metadata.id),
           }).pipe(
             Effect.map((next) =>
               next === null
-                ? [state, []] // skip
+                ? [{ ...nextState, prev: state.prev }, []] // skip: keep the previous result
                 : [
-                    { response: [...state.response, delta], prev: next },
+                    { ...nextState, prev: next },
                     [
                       Result.make({
                         id: metadata.id,
@@ -75,7 +114,8 @@ export const makeStream =
                     ],
                   ],
             ),
-          ),
+          );
+        },
       ),
     );
   };

@@ -98,12 +98,12 @@ const accumulate = (
     Match.orElse(() => noParts(state)),
   );
 
-export const fromStreamPartEncodedStream = <E, R>(
+export const foldResponseEncodedStream = <E, R>(
   stream: Stream.Stream<Response.StreamPartEncoded, E, R>,
 ): Stream.Stream<ResponseMessagePart, E, R> =>
   stream.pipe(Stream.mapAccum(initialState, accumulate));
 
-export const fromStreamPartStream = <E, R>(
+export const foldResponseStream = <E, R>(
   stream: Stream.Stream<Response.AnyStreamPart, E, R>,
 ): Stream.Stream<ResponseMessagePart, E, R> =>
   stream.pipe(Stream.mapAccum(initialState, accumulate));
