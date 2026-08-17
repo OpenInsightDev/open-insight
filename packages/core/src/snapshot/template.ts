@@ -176,3 +176,5 @@ export const makeTemplateWith = ({
   });
 
 export const Scratch = makeTemplate("scratch");
+export const Alpine = makeTemplate("alpine:latest");
+export const Debian = makeTemplate("debian:latest");

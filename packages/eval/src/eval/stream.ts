@@ -25,8 +25,8 @@ import * as Metric from "#/metric/index.ts";
 import type { Config } from "./config.ts";
 import { EvalError } from "./error.ts";
 
-export type Options = Readonly<{
-  task: Task.AnyTask;
+export type Options<T extends Task.AnyTask = Task.AnyTask> = Readonly<{
+  task: T;
   bench: Bench.Bench;
   config: Config;
 
@@ -54,7 +54,7 @@ const makeBenchFields = Effect.fn(function* (bench: Bench.Bench) {
 });
 
 export const makeTask = Effect.fn(
-  function* (options: Options) {
+  function* <T extends Task.AnyTask = Task.AnyTask>(options: Options<T>) {
     const harness = yield* Harness.Service;
 
     const { task, snapSem, trailSem, trailCount } = options;

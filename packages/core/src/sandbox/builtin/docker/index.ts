@@ -1,7 +1,8 @@
 import { SandboxError } from "#/sandbox/export.ts";
 import * as Sandbox from "#/sandbox/export.ts";
 import * as Snapshot from "#/snapshot/export.ts";
-import { Spawn, Bash } from "#/utils/export.ts";
+import * as Spawn from "#/spawn/export.ts";
+import { Bash } from "#/utils/export.ts";
 import { Crypto, Duration, Effect, FileSystem, Layer, Match } from "effect";
 import { ChildProcessSpawner, ChildProcess as CP } from "effect/unstable/process";
 import { formatPorts, formatResources, hasPort } from "./utils.ts";
@@ -277,7 +278,7 @@ export const make = Effect.fn("sandbox/provider/docker")(
 
         return {
           ...sandboxSpawner,
-          cmd: (command) =>
+          spawn: (command) =>
             sandboxSpawner
               .spawn(command)
               .pipe(Effect.mapError(SandboxError.sandboxExec(name, formatSandboxCommand(command)))),

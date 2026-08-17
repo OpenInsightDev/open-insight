@@ -1,30 +1,31 @@
 import { Schema } from "effect";
 
-export const ID = Schema.String;
-export type ID = Schema.Schema.Type<typeof ID>;
+export class Empty extends Schema.Class<Empty>("Empty")({}) {}
 
-export class Metadata extends Schema.Class<Metadata>("Metadata")({
-  id: Schema.String,
-  name: Schema.OptionFromOptionalNullOr(Schema.String),
-  description: Schema.OptionFromOptionalNullOr(Schema.String),
-  keywords: Schema.OptionFromOptionalNullOr(Schema.Array(Schema.String)),
-  authors: Schema.OptionFromOptionalNullOr(Schema.Array(Schema.String)),
-}) {}
-export type MetadataEncoded = Schema.Codec.Encoded<typeof Metadata>;
-
-export type Template<G extends Schema.Constraint, M extends Metadata> = Readonly<{
+export type Template<
+  G extends Schema.Constraint = any,
+  E extends Schema.Constraint = any,
+> = Readonly<{
   Grade: G;
-  Metadata: M;
+  Extra: E;
 }>;
+export type GradeOf<T> = T extends Template<infer G, infer _> ? G : never;
+export type ExtraOf<T> = T extends Template<infer _, infer E> ? E : never;
 
-export function make<G extends Schema.Constraint>(Grade: G): Template<G, Metadata>;
-export function make<G extends Schema.Constraint, M extends Metadata>(
+export function make<G extends Schema.Constraint>(Grade: G): Template<G, typeof Empty>;
+export function make<G extends Schema.Constraint, E extends Schema.Constraint>({
+  Grade,
+  Extra,
+}: {
+  Grade: G;
+  Extra: E;
+}): Template<G, E>;
+export function make<G extends Schema.Constraint, E extends Schema.Constraint>(
   Grade: G,
-  Metadata: M,
-): Template<G, M>;
-export function make<G extends Schema.Constraint, M extends Metadata>(Grade: G, Metadata?: M) {
+  Extra?: E,
+) {
   return {
     Grade,
-    Metadata: Metadata ?? Schema.Any,
+    Extra: Extra ?? Empty,
   };
 }

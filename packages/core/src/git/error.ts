@@ -12,16 +12,6 @@ export class NotARepo extends Schema.TaggedError<NotARepo>("open-insight/GitErro
   }
 }
 
-export class DirtyWorkingTree extends Schema.TaggedError<DirtyWorkingTree>(
-  "open-insight/GitError/DirtyWorkingTree",
-)("DirtyWorkingTree", {
-  cwd: Schema.String,
-}) {
-  override get message(): string {
-    return `Git working tree at "${this.cwd}" is dirty; commit or stash changes before running the operation`;
-  }
-}
-
 export class GitUnavailable extends Schema.TaggedError<GitUnavailable>(
   "open-insight/GitError/GitUnavailable",
 )("GitUnavailable", {}) {
@@ -40,7 +30,7 @@ export class CheckFailed extends Schema.TaggedError<CheckFailed>(
   }
 }
 
-export const ErrorReason = Schema.Union([NotARepo, DirtyWorkingTree, GitUnavailable, CheckFailed]);
+export const ErrorReason = Schema.Union([NotARepo, GitUnavailable, CheckFailed]);
 export type ErrorReason = Schema.Schema.Type<typeof ErrorReason>;
 
 export class GitError extends Schema.TaggedError<GitError>("open-insight/GitError")("GitError", {
@@ -55,9 +45,6 @@ export class GitError extends Schema.TaggedError<GitError>("open-insight/GitErro
   }
 
   static notGitRepo = (cwd: string): GitError => GitError.make({ reason: NotARepo.make({ cwd }) });
-
-  static dirtyWorkingTree = (cwd: string): GitError =>
-    GitError.make({ reason: DirtyWorkingTree.make({ cwd }) });
 
   static gitUnavailable = GitError.make({ reason: GitUnavailable.make({}) });
 

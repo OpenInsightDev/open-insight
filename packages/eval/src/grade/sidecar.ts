@@ -1,6 +1,6 @@
 import { Prompt, Resource, Sandbox, type Snapshot } from "@open-insight/core/internal";
 import type { BivariantFn } from "#/utils/variant.ts";
-import { decodeResult, type AnyResult } from "./result.ts";
+import { type AnyResult } from "./result.ts";
 import type { Verif } from "./verif.ts";
 import { Effect, FiberSet, FileSystem, Path, Scope } from "effect";
 import * as Retry from "./retry.ts";
@@ -118,10 +118,11 @@ export const makeContext = Effect.fn(function* ({
   } satisfies Context;
 });
 
-export type Exec<R extends AnyResult = AnyResult> = BivariantFn<(ctx: Context) => PromiseLike<R>>;
+export type Exec<R extends AnyResult = AnyResult> = BivariantFn<
+  (ctx: Context) => PromiseLike<R["Encoded"]>
+>;
 
 export type Grader<R extends AnyResult = AnyResult> = Readonly<{
-  schema: R;
   grade: Exec<R>;
   snapshot: Snapshot.Template;
   resources: Resource.Resources;
@@ -133,11 +134,10 @@ export type Grader<R extends AnyResult = AnyResult> = Readonly<{
 export const run = <R extends AnyResult = AnyResult>(grader: Grader<R>) =>
   Effect.fn(function* (
     options: MakeContextOptions,
-  ): Effect.fn.Return<R["Type"], GradeError | Retry.Retry, FileSystem.FileSystem | Path.Path> {
+  ): Effect.fn.Return<R["Encoded"], GradeError | Retry.Retry, FileSystem.FileSystem | Path.Path> {
     const ctx = yield* makeContext(options).pipe(Effect.scoped);
-    const result = yield* Effect.tryPromise({
+    return yield* Effect.tryPromise({
       try: () => grader.grade(ctx),
       catch: Retry.mapError,
     });
-    return yield* decodeResult(grader.schema, result);
   });

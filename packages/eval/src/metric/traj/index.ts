@@ -1,4 +1,4 @@
-import { Prompt } from "@open-insight/core/internal";
+import { Prompt, Response } from "@open-insight/core/internal";
 import { Effect, Schema, Stream } from "effect";
 import { Metadata, Result, type MetadataEncoded } from "../schema.ts";
 import type { BivariantFn } from "#/utils/variant.ts";
@@ -10,12 +10,12 @@ export type Context = Readonly<{
   trajectory: Prompt.Trajectory;
 }>;
 
-export type Delta = Prompt.ResponsePart;
+export type Delta = Prompt.ResponseMessagePart;
 
 type Nullable<T> = T | null;
 export type RespExec<R extends Schema.Json = Schema.Json> = (
-  response: ReadonlyArray<Prompt.ResponsePart>,
-  delta: Prompt.ResponsePart,
+  response: ReadonlyArray<Prompt.ResponseMessagePart>,
+  delta: Prompt.ResponseMessagePart,
   prev: R | null,
 ) => Nullable<R> | Promise<Nullable<R>>;
 
@@ -45,7 +45,7 @@ export const make = Effect.fn(function* <R extends Schema.Json = Schema.Json>(op
 
 type StreamOptions<E, R> = Context &
   Readonly<{
-    stream: Stream.Stream<Prompt.ResponsePart, E, R>;
+    stream: Stream.Stream<Prompt.ResponseMessagePart, E, R>;
   }>;
 
 export const makeStream =
@@ -55,7 +55,7 @@ export const makeStream =
 
     return stream.pipe(
       Stream.mapAccumEffect(
-        () => ({ response: [] as Prompt.ResponsePart[], prev: null as Schema.Json | null }),
+        () => ({ response: [] as Prompt.ResponseMessagePart[], prev: null as Schema.Json | null }),
         (state, delta) =>
           Effect.tryPromise({
             try: () => Promise.resolve(respExec(state.response, delta, state.prev)),

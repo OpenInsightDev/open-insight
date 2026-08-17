@@ -94,7 +94,7 @@ export const makeStream =
 
       return prevRef.pipe(
         SynchronizedRef.updateAndGetEffect(run),
-        (effect) => Stream.fromEffectSchedule(effect, repeatSchedule(repeat)),
+        (eff) => Stream.fromEffectSchedule(eff, repeatSchedule(repeat)),
         Stream.map((next) =>
           Result.make({
             id: metadata.id,

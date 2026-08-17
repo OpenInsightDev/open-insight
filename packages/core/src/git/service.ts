@@ -1,16 +1,7 @@
-import { Context, Effect, Layer } from "effect";
+import { Context, Effect, Layer, Match } from "effect";
 import { ChildProcess as CP } from "effect/unstable/process";
 import * as Spawn from "#/spawn/index.ts";
 import { GitError } from "./error.ts";
-
-const catchUnavailable = <A, E, R>(eff: Effect.Effect<A, E | Spawn.SpawnError, R>) =>
-  eff.pipe(
-    Effect.catchTag("SpawnError", (err) =>
-      err.reason._tag === "NonZeroExit"
-        ? Effect.fail(GitError.gitUnavailable)
-        : Effect.fail(GitError.checkFailed(err)),
-    ),
-  );
 
 export class Service extends Context.Service<
   Service,
@@ -18,17 +9,26 @@ export class Service extends Context.Service<
     readonly commitHash: string;
     readonly remoteOrigin: string;
     readonly isDirty: boolean;
-    readonly isInitialized: boolean;
   }
 >()("packages/core/git/GitService") {
-  static readonly layer = Layer.effect(
+  static readonly layer: Layer.Layer<Service, GitError, Spawn.Service> = Layer.effect(
     Service,
     Effect.gen(function* () {
       const spawner = yield* Spawn.Service;
+      const cwd = process.cwd();
 
-      yield* catchUnavailable(spawner.success(CP.make`command -v git`));
+      const mapErrorTo = (exitError: GitError) =>
+        Effect.mapError((error: Spawn.SpawnError) =>
+          Match.value(error.reason).pipe(
+            Match.tag("NonZeroExit", () => exitError),
+            Match.tag("Platform", () => GitError.checkFailed(error)),
+            Match.exhaustive,
+          ),
+        );
+      const mapError = mapErrorTo(GitError.notGitRepo(cwd));
 
-      yield* catchUnavailable(spawner.success(CP.make`git status`));
+      yield* spawner.success(CP.make`command -v git`).pipe(mapErrorTo(GitError.gitUnavailable));
+      yield* spawner.success(CP.make`git status`).pipe(mapError);
 
       const [commitHash, remoteOrigin, isDirty] = yield* Effect.all(
         [
@@ -39,9 +39,9 @@ export class Service extends Context.Service<
             .pipe(Effect.map((r) => r.trim().length > 0)),
         ],
         { concurrency: "unbounded" },
-      ).pipe(Effect.catchTag("SpawnError", (err) => Effect.fail(GitError.checkFailed(err))));
+      ).pipe(mapError);
 
-      return Service.of({ commitHash, remoteOrigin, isDirty, isInitialized: true });
+      return Service.of({ commitHash, remoteOrigin, isDirty });
     }),
   );
 }

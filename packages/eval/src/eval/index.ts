@@ -23,6 +23,11 @@ export const make =
       FileSystem.FileSystem | Path.Path | Harness.Service | Sandbox.ProviderService
     >;
 
+export const run = <T extends Task.AnyTask>(
+  bench: Bench.Bench<T>,
+  configOptions: Partial<Config.Config> = {},
+) => make(configOptions)(bench);
+
 export const stream = <T extends Task.AnyTask, R>(
   stream: EventStream<T, R>,
 ): Stream.Stream<Event.EvalEvent, never, R> =>

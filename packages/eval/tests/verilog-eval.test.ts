@@ -34,6 +34,12 @@ export class GradeResult extends Schema.Class<GradeResult>("GradeResult")({
   category: Schema.String,
 }) {}
 
+export class Extra extends Schema.Class<Extra>("Extra")({
+  category: Schema.String,
+}) {}
+
+const template = Task.makeTemplate({ Grade: GradeResult, Extra });
+
 /**
  * Port of scripts/sv-iv-analyze's analyze_result() over the combined
  * compile + simulation log, preserving the classification order and the
@@ -140,12 +146,13 @@ async function* loadTasks(repoPath: string) {
     const refPath = resolve(datasetDir, `${id}_ref.sv`);
     const testPath = resolve(datasetDir, `${id}_test.sv`);
 
-    yield* Task.make({
+    yield* Task.make(template)({
       id,
       name: id.toLocaleUpperCase(),
       snapshot,
       prompt: `${prompt.trimEnd()}. Complete the task by writing the full Verilog solution to /workspace/top.v.`,
-      grader: Grade.make(GradeResult)(
+      category: "VerilogEval",
+      grader: Grade.embed(
         async ({ upload, $ }) => {
           await $`mkdir -p /tmp/verilog-eval`;
           await upload({
@@ -195,39 +202,42 @@ async function* loadTasks(repoPath: string) {
           return { simPass, category };
         },
         {
-          verif: async ({ upload, $ }) => {
-            await upload({ hostPath: refPath, sandboxPath: "/tmp/ref.sv" });
-            await $`sed 's/RefModule/TopModule/g' /tmp/ref.sv > top.v`;
-            return null;
+          verif: {
+            exec: async ({ upload, $ }) => {
+              await upload({ hostPath: refPath, sandboxPath: "/tmp/ref.sv" });
+              await $`sed 's/RefModule/TopModule/g' /tmp/ref.sv > top.v`;
+              return null;
+            },
+            expect: { simPass: true, category: "." },
           },
-          expect: { simPass: true, category: "." },
         },
       ),
-    }).pipe(
-      Task.mapMetric(({ simPass }) => ({ pass: simPass }), TaskMetric.passAtK(1), {
-        name: "Pass@1",
-        description: "Whether the task was solved in the first trial.",
-        chart: ({ "pass@k": pass }) => [
-          Chart.Pie.make({ legend: "Pass", value: pass }),
-          Chart.Pie.make({ legend: "Fail", value: 1 - pass }),
-        ],
-      }),
-      Task.trajMetric(TrajMetric.toolCallCount(), {
-        name: "Tool call count",
-        description: "Cumulative number of tool calls made while solving the task.",
-        chart: ({ count }) => [Chart.Bar.make({ legend: "Tool calls", x: "Completed", y: count })],
-        when: When.traj(When.toolCall()),
-      }),
-      Task.trajMetric(TrajMetric.toolCallSuccessRate(), {
-        when: When.traj(When.toolCall()),
-        name: "Tool call success rate",
-        description: "Share of completed tool calls that succeeded.",
-        chart: ({ rate }) => [
-          Chart.Pie.make({ legend: "Succeeded", value: rate }),
-          Chart.Pie.make({ legend: "Failed", value: 1 - rate }),
-        ],
-      }),
-    );
+    });
+    // .pipe(
+    //   Task.mapMetric(({ simPass }) => ({ pass: simPass }), TaskMetric.passAtK(1), {
+    //     name: "Pass@1",
+    //     description: "Whether the task was solved in the first trial.",
+    //     chart: ({ "pass@k": pass }) => [
+    //       Chart.Pie.make({ legend: "Pass", value: pass }),
+    //       Chart.Pie.make({ legend: "Fail", value: 1 - pass }),
+    //     ],
+    //   }),
+    //   Task.trajMetric(TrajMetric.toolCallCount(), {
+    //     name: "Tool call count",
+    //     description: "Cumulative number of tool calls made while solving the task.",
+    //     chart: ({ count }) => [Chart.Bar.make({ legend: "Tool calls", x: "Completed", y: count })],
+    //     when: When.traj(When.toolCall()),
+    //   }),
+    //   Task.trajMetric(TrajMetric.toolCallSuccessRate(), {
+    //     when: When.traj(When.toolCall()),
+    //     name: "Tool call success rate",
+    //     description: "Share of completed tool calls that succeeded.",
+    //     chart: ({ rate }) => [
+    //       Chart.Pie.make({ legend: "Succeeded", value: rate }),
+    //       Chart.Pie.make({ legend: "Failed", value: 1 - rate }),
+    //     ],
+    //   }),
+    // );
   }
 }
 
@@ -238,16 +248,17 @@ export const makeBench = Effect.fn("verilog-eval/makeBench")(function* () {
       branch: "main",
       commit: "c498220d0a52248f8e3fdffe279075215bde2da6",
     })((repoPath) => Tasks.fromAsyncIter(loadTasks(repoPath))),
-  ).pipe(
-    Bench.mapMetric(({ simPass }) => ({ pass: simPass }), BenchMetric.avgPassAtK(1), {
-      name: "Average pass@1",
-      description: "Mean pass@1 estimate across evaluated tasks.",
-      chart: (result) => [
-        Chart.Pie.make({ legend: "Pass", value: result["pass@k"] }),
-        Chart.Pie.make({ legend: "Fail", value: 1 - result["pass@k"] }),
-      ],
-    }),
   );
+  // .pipe(
+  //   Bench.mapMetric(({ simPass }) => ({ pass: simPass }), BenchMetric.avgPassAtK(1), {
+  //     name: "Average pass@1",
+  //     description: "Mean pass@1 estimate across evaluated tasks.",
+  //     chart: (result) => [
+  //       Chart.Pie.make({ legend: "Pass", value: result["pass@k"] }),
+  //       Chart.Pie.make({ legend: "Fail", value: 1 - result["pass@k"] }),
+  //     ],
+  //   }),
+  // );
 });
 
 const envPath = new URL("../../../.env", import.meta.url);
@@ -278,38 +289,48 @@ const serveEnv = envify({
 });
 
 const main = Effect.gen(function* () {
-  const result = yield* makeBench()
-    .pipe(Bench.sample("5%"))
-    .pipe(Eval.run({ trailCount: 2 }))
-    .pipe(
-      Effect.provide(
-        Acp.layerFrom(
-          "codex-acp",
-          // Bake the DeepSeek-compatible endpoint into the derived agent
-          // snapshot so `acp-agent serve codex-acp` and the codex process it
-          // spawns inherit the credentials and model selection.
-          { serveEnv },
-        ),
-      ),
-    )
-    .pipe(Effect.provide(Sandbox.Docker.layerFrom({ ports: [7689] })))
-    .pipe(Effect.provide(Event.Transport.Console.layer));
+  const bench = yield* makeBench().pipe(Bench.sample("5%"));
+  const result = yield* Eval.run(bench, { trailCount: 2 })
+    .pipe(Eval.result)
+    .pipe(Effect.provide(Acp.layerFrom("codex-acp", { serveEnv })))
+    .pipe(Effect.provide(Sandbox.Docker.layerFrom({ ports: [7689] })));
 
   console.log(result);
+});
 
-  for (const [taskId, taskResult] of Object.entries(result.tasks)) {
-    for (const trail of taskResult.trails) {
-      console.log(
-        `TASK ${taskId}: grade=${JSON.stringify(trail.grade)} usage=${JSON.stringify(trail.usage)}`,
-      );
-      if (envExists("VERILOG_EVAL_DEBUG")) {
-        console.log(`TASK ${taskId} trajectory:`);
-        console.dir(trail.trajectory, { depth: 6 });
-      }
-    }
-  }
-})
-  .pipe(Effect.scoped)
-  .pipe(Effect.provide(NodeServices.layer));
+// const main = Effect.gen(function* () {
+//   const result = yield* makeBench()
+//     .pipe(Bench.sample("5%"))
+//     .pipe(Eval.run({ trailCount: 2 }))
+//     .pipe(
+//       Effect.provide(
+//         Acp.layerFrom(
+//           "codex-acp",
+//           // Bake the DeepSeek-compatible endpoint into the derived agent
+//           // snapshot so `acp-agent serve codex-acp` and the codex process it
+//           // spawns inherit the credentials and model selection.
+//           { serveEnv },
+//         ),
+//       ),
+//     )
+//     .pipe(Effect.provide(Sandbox.Docker.layerFrom({ ports: [7689] })))
+//     .pipe(Effect.provide(Event.Transport.Console.layer));
 
-it.live("runs the VerilogEval benchmark", () => main, 15 * 60 * 1000);
+//   console.log(result);
+
+//   for (const [taskId, taskResult] of Object.entries(result.tasks)) {
+//     for (const trail of taskResult.trails) {
+//       console.log(
+//         `TASK ${taskId}: grade=${JSON.stringify(trail.grade)} usage=${JSON.stringify(trail.usage)}`,
+//       );
+//       if (envExists("VERILOG_EVAL_DEBUG")) {
+//         console.log(`TASK ${taskId} trajectory:`);
+//         console.dir(trail.trajectory, { depth: 6 });
+//       }
+//     }
+//   }
+// })
+//   .pipe(Effect.scoped)
+//   .pipe(Effect.provide(NodeServices.layer));
+
+// it.live("runs the VerilogEval benchmark", () => main, 15 * 60 * 1000);
