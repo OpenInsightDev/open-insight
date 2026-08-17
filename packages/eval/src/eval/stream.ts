@@ -55,8 +55,6 @@ const makeBenchFields = Effect.fn(function* (bench: Bench.Bench) {
 
 export const makeTask = Effect.fn(
   function* <T extends Task.AnyTask>(options: Options<T>) {
-    type gradeSchema = Task.GradeOf<T>;
-
     const harness = yield* Harness.Service;
 
     const { task, snapSem, trailSem, trailCount } = options;
@@ -82,7 +80,8 @@ export const makeTask = Effect.fn(
       }
     }
 
-    const runGrader = yield* Grade.makeRunner(grader).pipe(Effect.mapError(EvalError.grade));
+    const runGrader = Grade.RunService.layerFrom<Task.GradeOf<T>>(grader);
+
     const snapSession = yield* harness
       .runSnapshot(taskTemplate)
       .pipe(snapSem.withPermit)
@@ -91,6 +90,8 @@ export const makeTask = Effect.fn(
     const makeTrailStream = Effect.fn(
       function* (trailIdx: number) {
         const trailFields = { ...taskFields, trailIdx };
+        const { run: runGrader } = yield* Grade.RunService;
+
         if (Option.isSome(persist)) {
           const stream = persist.value.getTrail(Event.TrailID.make(trailFields));
           if (Option.isSome(stream)) {
@@ -256,8 +257,8 @@ export const makeTask = Effect.fn(
           sessionIdx: number;
         }): Stream.Stream<
           Event.EvalSuccessEvent,
-          Event.EvalErrorEvent | Cause.Done<Event.TrailResult>,
-          FileSystem.FileSystem | Path.Path | gradeSchema["DecodingService"]
+          Event.EvalErrorEvent | EvalError | Cause.Done<Event.TrailResult>,
+          FileSystem.FileSystem | Path.Path | Grade.RunService
         > => {
           const sessionStream = makeSessionStream({
             session,
@@ -272,10 +273,13 @@ export const makeTask = Effect.fn(
           const gradeResultStream = Effect.gen(function* () {
             const trajectory = yield* Ref.get(session.trajectory);
             const usage = yield* Ref.get(usageRef);
-            const grade = yield* runGrader({ sandbox: sbxSession.sandbox, trajectory }).pipe(
-              Effect.mapError((error) =>
-                error instanceof Grade.Retry ? error : EvalError.grade(error),
-              ),
+
+            const grade = yield* runGrader<Task.GradeOf<T>>({
+              sandbox: sbxSession.sandbox,
+              trajectory,
+            }).pipe(
+              Effect.catchTag("Retry", (retry) => Effect.fail(retry)),
+              Effect.catchTag("GradeError", (error) => Effect.fail(EvalError.grade(error))),
             );
 
             yield* Queue.end(sessionResultQueue);
@@ -327,13 +331,7 @@ export const makeTask = Effect.fn(
 
           const gradeStream = gradeResultStream.pipe(Stream.catchTag("Retry", makeRetryStream));
 
-          return Stream.empty
-            .pipe(Stream.concat(sessionStream), Stream.concat(gradeStream))
-            .pipe(
-              Stream.catchTag("EvalError", (error) =>
-                Stream.fail(Event.TrailErrorEvent.make({ ...trailFields, trailIdx, error })),
-              ),
-            );
+          return Stream.empty.pipe(Stream.concat(sessionStream), Stream.concat(gradeStream));
         };
 
         const agentSession = yield* sbxSession.runAgent().pipe(Effect.mapError(EvalError.harness));
@@ -367,7 +365,7 @@ export const makeTask = Effect.fn(
 
     const trailQueue = yield* Queue.make<
       Event.EvalSuccessEvent,
-      Event.EvalErrorEvent | Cause.Done
+      EvalError | Event.EvalErrorEvent | Cause.Done
     >();
     // join all fibers instead of interrupt when releasing
     const trailFibers = yield* Effect.acquireRelease(
@@ -379,7 +377,9 @@ export const makeTask = Effect.fn(
 
     for (const trailIdx of Array.range(0, trailCount - 1)) {
       yield* makeTrailStream(trailIdx)
+        .pipe(Stream.provide(runGrader))
         .pipe(
+          Stream.catchTag("GradeError", (error) => Stream.fail(EvalError.grade(error))),
           Stream.catchTag("Done", ({ value: result }) =>
             trailResultPubsub.pipe(PubSub.publish(result)).pipe(() => Stream.empty),
           ),
@@ -432,11 +432,7 @@ export const makeTask = Effect.fn(
           )
           .pipe(Stream.fromEffect),
       ),
-    ) satisfies Stream.Stream<
-      Event.EvalSuccessEvent,
-      Event.EvalErrorEvent | Cause.Done<Event.TaskResult>,
-      FileSystem.FileSystem | Path.Path | Harness.Service | Sandbox.ProviderService
-    >,
+    ),
 );
 
 export const make = Effect.fn(
@@ -455,7 +451,7 @@ export const make = Effect.fn(
       .pipe(Effect.forkScoped);
 
     const taskStreams = tasks.map((task) =>
-      makeTask({
+      makeTask<T>({
         bench,
         task,
         config,

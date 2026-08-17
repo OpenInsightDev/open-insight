@@ -23,6 +23,7 @@ Docs are local at `node_modules/vite-plus/docs` or online at https://viteplus.de
 
 - Do not run `vp test` from the repository root. Run tests only from the specified project directory.
 - When debugging type-related issues, STRICTLY FORBIDDEN to annotate types manually just to make the type checker happy. Instead, fix the real underlying type issue. If you are unsure how to fix it, ask for help.
+- **Effect Task Rule (MANDATORY)**: Follow `effect-ts` skill first. All Effect answers MUST include source landing (file path + code). **STRICTLY FORBIDDEN** to fabricate APIs from memory — always read source first.
 
 # Learning more about the Effect
 
