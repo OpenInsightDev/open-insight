@@ -87,10 +87,11 @@ export const makeTask = Effect.fn(
       .pipe(snapSem.withPermit)
       .pipe(Effect.mapError(EvalError.harness));
 
-    const makeTrailStream = Effect.fn(
+    const makeTrail = Effect.fn(
       function* (trailIdx: number) {
         const trailFields = { ...taskFields, trailIdx };
         const { run: runGrader } = yield* Grade.RunService;
+        const snapSession = yield* Harness.SnapService;
 
         if (Option.isSome(persist)) {
           const stream = persist.value.getTrail(Event.TrailID.make(trailFields));
@@ -376,8 +377,8 @@ export const makeTask = Effect.fn(
     const trailResultPubsub = yield* PubSub.unbounded<Event.TrailResult>();
 
     for (const trailIdx of Array.range(0, trailCount - 1)) {
-      yield* makeTrailStream(trailIdx)
-        .pipe(Stream.provide(runGrader))
+      yield* makeTrail(trailIdx)
+        .pipe(Stream.provide(runGrader), Stream.provideService(Harness.SnapService, snapSession))
         .pipe(
           Stream.catchTag("GradeError", (error) => Stream.fail(EvalError.grade(error))),
           Stream.catchTag("Done", ({ value: result }) =>

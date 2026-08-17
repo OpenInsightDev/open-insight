@@ -19,6 +19,8 @@ export type AgentSession = Readonly<{
   prompt(prompt: Prompt.Prompt): Stream.Stream<Response.AnyStreamPart, HarnessError>;
 }>;
 
+export const AgentService = Context.Service<AgentSession>("AgentService");
+
 const makeAgentSession = Effect.fn(function* (
   agent: Agent.Agent,
 ): Effect.fn.Return<AgentSession, HarnessError> {
@@ -32,6 +34,8 @@ export type SandboxSession = Readonly<{
   sandbox: Sandbox.Sandbox;
   runAgent(): Effect.Effect<AgentSession, HarnessError, Scope.Scope>;
 }>;
+
+export const SandboxService = Context.Service<SandboxSession>("SandboxService");
 
 export type SandboxSessionConfig = Readonly<{
   /** The resources to provide to the sandbox. */
@@ -54,6 +58,8 @@ export type SnapshotSession = Readonly<{
     options?: Partial<SandboxSessionConfig>,
   ): Effect.Effect<SandboxSession, HarnessError, Scope.Scope>;
 }>;
+
+export const SnapService = Context.Service<SnapshotSession>("SnapService");
 
 export type Harness = Readonly<{
   metadata: Metadata;
