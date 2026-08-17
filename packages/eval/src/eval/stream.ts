@@ -55,7 +55,7 @@ const makeBenchFields = Effect.fn(function* (bench: Bench.Bench) {
 
 export const makeTask = Effect.fn(
   function* <T extends Task.AnyTask>(options: Options<T>) {
-    type Grade = Task.GradeOf<T>;
+    type gradeSchema = Task.GradeOf<T>;
 
     const harness = yield* Harness.Service;
 
@@ -244,7 +244,7 @@ export const makeTask = Effect.fn(
             ),
         );
 
-        const sessionResultsQueue = yield* Queue.make<Event.SessionResult, Cause.Done>();
+        const sessionResultQueue = yield* Queue.make<Event.SessionResult, Cause.Done>();
 
         const makeAttemptStream = ({
           session,
@@ -257,7 +257,7 @@ export const makeTask = Effect.fn(
         }): Stream.Stream<
           Event.EvalSuccessEvent,
           Event.EvalErrorEvent | Cause.Done<Event.TrailResult>,
-          FileSystem.FileSystem | Path.Path | Grade["DecodingService"]
+          FileSystem.FileSystem | Path.Path | gradeSchema["DecodingService"]
         > => {
           const sessionStream = makeSessionStream({
             session,
@@ -265,7 +265,7 @@ export const makeTask = Effect.fn(
             prompt,
           }).pipe(
             Stream.catchTag("Done", ({ value: result }) =>
-              Queue.offer(sessionResultsQueue, result).pipe(() => Stream.empty),
+              Queue.offer(sessionResultQueue, result).pipe(() => Stream.empty),
             ),
           );
 
@@ -278,9 +278,9 @@ export const makeTask = Effect.fn(
               ),
             );
 
-            yield* Queue.end(sessionResultsQueue);
+            yield* Queue.end(sessionResultQueue);
 
-            const result = Queue.collect(sessionResultsQueue)
+            const result = Queue.collect(sessionResultQueue)
               .pipe(
                 Effect.flatMap((sessions) =>
                   Cause.done(Event.TrailResult.make({ grade, sessions })),
@@ -455,7 +455,7 @@ export const make = Effect.fn(
       .pipe(Effect.forkScoped);
 
     const taskStreams = tasks.map((task) =>
-      makeTask<T>({
+      makeTask({
         bench,
         task,
         config,
@@ -551,9 +551,5 @@ export const make = Effect.fn(
           )
           .pipe(Stream.fromEffect),
       ),
-    ) satisfies Stream.Stream<
-      Event.EvalSuccessEvent,
-      Event.EvalErrorEvent | Cause.Done<Event.BenchResult>,
-      FileSystem.FileSystem | Path.Path | Harness.Service | Sandbox.ProviderService
-    >,
+    ),
 );
