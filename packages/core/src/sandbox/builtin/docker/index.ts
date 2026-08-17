@@ -181,7 +181,7 @@ export const make = Effect.fn("sandbox/provider/docker")(
 
         const containerfilePath = yield* Snapshot.writeInstructions(
           Snapshot.extend(instructions)(
-            Snapshot.makeTemplateWith({ image: snapshot.name, instructions: [], context }),
+            Snapshot.makeTemplate({ image: snapshot.name, instructions: [], context }),
           ),
         );
 

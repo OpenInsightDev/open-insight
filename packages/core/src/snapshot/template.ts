@@ -156,7 +156,7 @@ export type MakeOptions = {
 };
 
 /** Create a template from an OCI image reference without build instructions. */
-export const makeTemplate = (image: string): InstructionsTemplate =>
+export const fromImage = (image: string): InstructionsTemplate =>
   new InstructionsTemplate({
     image: makeImage(image),
     context: "/tmp",
@@ -164,7 +164,7 @@ export const makeTemplate = (image: string): InstructionsTemplate =>
   });
 
 /** Create a template from an OCI image reference and provider-independent instructions. */
-export const makeTemplateWith = ({
+export const makeTemplate = ({
   image,
   context = "/tmp",
   instructions,
@@ -175,6 +175,6 @@ export const makeTemplateWith = ({
     instructions: [...instructions, defaultCommand],
   });
 
-export const Scratch = makeTemplate("scratch");
-export const Alpine = makeTemplate("alpine:latest");
-export const Debian = makeTemplate("debian:latest");
+export const Scratch = fromImage("scratch");
+export const Alpine = fromImage("alpine:latest");
+export const Debian = fromImage("debian:latest");

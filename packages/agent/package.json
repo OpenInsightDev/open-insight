@@ -54,6 +54,7 @@
     "immer": "catalog:",
     "memfs": "catalog:",
     "ripgrep": "catalog:",
+    "smolmachines": "catalog:",
     "yaml": "catalog:"
   },
   "devDependencies": {

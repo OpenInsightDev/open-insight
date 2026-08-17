@@ -1,7 +1,7 @@
 import { Bench, Grade, Snapshot, Task, Tasks, Eval, env, envify } from "@open-insight/eval";
 import { readdir, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { Effect, Schema } from "effect";
+import { Effect, pipe, Schema } from "effect";
 import { Acp, Sandbox } from "@open-insight/core";
 import { NodeServices } from "@effect/platform-node";
 
@@ -100,7 +100,7 @@ async function* loadTasks(repoPath: string) {
 
   const datasetDir = resolve(repoPath, datasetDirName);
 
-  const snapshot = Snapshot.makeTemplateWith({
+  const snapshot = Snapshot.makeTemplate({
     image: "ubuntu:24.04",
     context: import.meta.dirname,
     instructions: [
@@ -133,8 +133,8 @@ async function* loadTasks(repoPath: string) {
       id,
       name: id.toLocaleUpperCase(),
       snapshot,
-      prompt: `${prompt.trimEnd()}. Complete the task by writing the full Verilog solution to /workspace/top.v.`,
       category: "VerilogEval",
+      prompt: `${prompt.trimEnd()}. Complete the task by writing the full Verilog solution to /workspace/top.v.`,
       grader: Grade.embed(
         async ({ upload, $ }) => {
           await $`mkdir -p /tmp/verilog-eval`;
@@ -230,7 +230,7 @@ export const makeBench = Effect.fn("verilog-eval/makeBench")(function* () {
     Tasks.withGithub("NVlabs/verilog-eval", {
       branch: "main",
       commit: "c498220d0a52248f8e3fdffe279075215bde2da6",
-    })((repoPath) => Tasks.fromAsyncIter(loadTasks(repoPath))),
+    })((repoPath) => pipe(repoPath, loadTasks, Tasks.fromAsyncIter)),
   );
   // .pipe(
   //   Bench.mapMetric(({ simPass }) => ({ pass: simPass }), BenchMetric.avgPassAtK(1), {

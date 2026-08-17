@@ -33,7 +33,7 @@ layer(Harness.Service.layer("test").pipe(Layer.provide(dependencies)))((it) => {
   it.effect("builds a snapshot run backed by the acquired snapshot handle", () =>
     Effect.gen(function* () {
       const harness = yield* Harness.Service;
-      const run = yield* harness.runSnapshot(Snapshot.makeTemplate("test-image"));
+      const run = yield* harness.runSnapshot(Snapshot.fromImage("test-image"));
       assert.strictEqual(run.snapshot, snapshot);
     }).pipe(Effect.scoped),
   );
@@ -49,8 +49,8 @@ layer(Harness.Service.layer("cached").pipe(Layer.provide(countingDependencies)))
   it.effect("reuses the cached snapshot session for equivalent templates", () =>
     Effect.gen(function* () {
       const harness = yield* Harness.Service;
-      const run1 = yield* harness.runSnapshot(Snapshot.makeTemplate("test-image"));
-      const run2 = yield* harness.runSnapshot(Snapshot.makeTemplate("test-image"));
+      const run1 = yield* harness.runSnapshot(Snapshot.fromImage("test-image"));
+      const run2 = yield* harness.runSnapshot(Snapshot.fromImage("test-image"));
       assert.strictEqual(acquireCount, 1);
       assert.strictEqual(run1.snapshot, run2.snapshot);
     }).pipe(Effect.scoped),
@@ -60,8 +60,8 @@ layer(Harness.Service.layer("cached").pipe(Layer.provide(countingDependencies)))
     Effect.gen(function* () {
       const harness = yield* Harness.Service;
       const before = acquireCount;
-      yield* harness.runSnapshot(Snapshot.makeTemplate("image-a"));
-      yield* harness.runSnapshot(Snapshot.makeTemplate("image-b"));
+      yield* harness.runSnapshot(Snapshot.fromImage("image-a"));
+      yield* harness.runSnapshot(Snapshot.fromImage("image-b"));
       assert.strictEqual(acquireCount, before + 2);
     }).pipe(Effect.scoped),
   );

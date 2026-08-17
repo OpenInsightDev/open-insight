@@ -13,6 +13,10 @@ agent 可以在其中随便写代码文件和运行命令。
 
 - 当 agent 选择运行其中某个脚本时，该脚本首先会被以字符串形式传给 tsgo 进行类型检查和编译，编译后的 js 代码会被送入 node:vm 运行，运行结果返回给 agent；
 
+## 工具审批
+
+默认不提供单个工具的调用权限审批，而是**把一个 ptc 脚本的权限作为一个整体来管理**，参考 [Deno 的权限模型](https://docs.deno.org.cn/runtime/fundamentals/security/) 来控制这个脚本整体能够获取什么权限。
+
 ## MCP
 
 由于 mcp 只能运行在 sandbox 内，所以 sandbox 需要开放一个端口用于做所有 mcp 工具的反代；

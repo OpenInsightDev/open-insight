@@ -40,7 +40,7 @@ const loadGitRepo = Effect.fn(function* (repoPath: string, repoURL: string, opti
         .pipe(Effect.map((s) => s.trim()));
     }
 
-    return undefined;
+    return null;
   });
 
   const matchesTarget = Effect.gen(function* () {
