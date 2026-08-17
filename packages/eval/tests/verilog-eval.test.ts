@@ -1,24 +1,6 @@
-import {
-  Bench,
-  BenchMetric,
-  Chart,
-  Grade,
-  Snapshot,
-  Task,
-  TaskMetric,
-  Tasks,
-  TrajMetric,
-  When,
-  Eval,
-  Event,
-  env,
-  envify,
-  envExists,
-} from "@open-insight/eval";
-import { it } from "@effect/vitest";
+import { Bench, Grade, Snapshot, Task, Tasks, Eval, env, envify } from "@open-insight/eval";
 import { readdir, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { NodeServices } from "@effect/platform-node";
 import { Effect, Schema } from "effect";
 import { Acp, Sandbox } from "@open-insight/core";
 
@@ -38,7 +20,7 @@ export class Extra extends Schema.Class<Extra>("Extra")({
   category: Schema.String,
 }) {}
 
-const template = Task.makeTemplate({ Grade: GradeResult, Extra });
+const makeTask = Task.make(GradeResult, Extra);
 
 /**
  * Port of scripts/sv-iv-analyze's analyze_result() over the combined
@@ -146,7 +128,7 @@ async function* loadTasks(repoPath: string) {
     const refPath = resolve(datasetDir, `${id}_ref.sv`);
     const testPath = resolve(datasetDir, `${id}_test.sv`);
 
-    yield* Task.make(template)({
+    yield* makeTask({
       id,
       name: id.toLocaleUpperCase(),
       snapshot,

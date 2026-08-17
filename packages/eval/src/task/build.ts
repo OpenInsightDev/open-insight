@@ -89,11 +89,13 @@ const makeTask = <G extends Grade.AnyResult, E extends Schema.Constraint>(schema
     } satisfies Task<G, E>;
   });
 
-export function make<G extends Grade.AnyResult>(gradeSchema: G): typeof makeTask<G, typeof Empty>;
+export function make<G extends Grade.AnyResult>(
+  gradeSchema: G,
+): ReturnType<typeof makeTask<G, typeof Empty>>;
 export function make<G extends Grade.AnyResult, E extends Schema.Constraint>(
   gradeSchema: G,
   extraSchema: E,
-): typeof makeTask<G, E>;
+): ReturnType<typeof makeTask<G, E>>;
 export function make<G extends Grade.AnyResult, E extends Schema.Constraint>(
   gradeSchema: G,
   extraSchema?: E,

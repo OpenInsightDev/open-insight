@@ -1,6 +1,5 @@
 export {
   ID,
-  Metadata,
   TypeId,
   make,
   mapMetric,
@@ -8,7 +7,8 @@ export {
   trajMetric,
   type Init,
   type Task,
+  Metadata,
+  type MetadataEncoded,
 } from "./index.ts";
-export { type Template, make as makeTemplate } from "./template.ts";
 
 export * as Internal from "./index.ts";

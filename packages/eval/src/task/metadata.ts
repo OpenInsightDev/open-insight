@@ -1,8 +1,5 @@
 import { Schema } from "effect";
 
-export const ID = Schema.String;
-export type ID = Schema.Schema.Type<typeof ID>;
-
 export class Metadata extends Schema.Class<Metadata>("Metadata")({
   id: Schema.String,
   name: Schema.OptionFromOptionalNullOr(Schema.String),
