@@ -16,7 +16,9 @@ export const make =
   <T extends Task.AnyTask>(configOptions: Partial<Config.Config> = {}) =>
   (bench: Bench.Bench<T>) =>
     makeStream<T>(bench, Config.make(configOptions)).pipe(
-      Stream.mapError((done) => done as Cause.Done<Event.BenchResult<Task.GradeOf<T>>>),
+      Stream.catchTag("Done", (done) =>
+        Stream.fail(done as Cause.Done<Event.BenchResult<Task.GradeOf<T>>>),
+      ),
     );
 
 export const run = <T extends Task.AnyTask>(

@@ -144,13 +144,11 @@ const makeSession = Effect.fn(
 
 type TrailOptions<T extends Task.AnyTask> = Readonly<{
   id: Event.TrailID;
-
   task: T;
-  bench: Bench.Bench<T>;
 }>;
 
 const makeTrail = Effect.fn(
-  function* <T extends Task.AnyTask>({ task, bench, id }: TrailOptions<T>) {
+  function* <T extends Task.AnyTask>({ task, id }: TrailOptions<T>) {
     const { sandboxConfig, schedMetrics, prompt } = task;
 
     const { run: runGrader } = yield* Grade.RunService;
@@ -295,7 +293,7 @@ const makeTask = Effect.fn(
   function* <T extends Task.AnyTask>(options: TaskOptions<T>) {
     const harness = yield* Harness.Service;
 
-    const { id, task, bench, snapSem, trailSem, trailCount } = options;
+    const { id, task, snapSem, trailSem, trailCount } = options;
     const {
       grader,
       snapshot: taskTemplate,
@@ -344,7 +342,7 @@ const makeTask = Effect.fn(
     const trailResultPubsub = yield* PubSub.unbounded<Event.TrailResult>();
 
     for (const trailIdx of Array.range(0, trailCount - 1)) {
-      yield* makeTrail<T>({ task, bench, id: { ...id, trailIdx } })
+      yield* makeTrail<T>({ task, id: { ...id, trailIdx } })
         .pipe(Stream.provide(runGrader), Stream.provideService(Harness.SnapService, snapSession))
         .pipe(
           Stream.catchTag("GradeError", (error) => Stream.fail(EvalError.grade(error))),
@@ -503,18 +501,16 @@ export const make = Effect.fn(
   },
   (eff, bench) =>
     eff.pipe(
-      Effect.flatMap(
-        Effect.fn(function* (stream) {
+      Stream.unwrap,
+      Stream.catchTag("EvalError", (error) =>
+        Effect.gen(function* () {
           const harness = yield* Harness.Service;
-
           const id: Event.BenchID = {
             harnessId: harness.metadata.id,
             benchId: bench.metadata.id,
           };
-
-          return stream.pipe(Stream.catchTag("EvalError", (error) => error));
-        }),
+          return yield* Effect.fail(Event.BenchErrorEvent.make({ ...id, error }));
+        }).pipe(Stream.fromEffect),
       ),
-      Stream.unwrap,
     ),
 );
