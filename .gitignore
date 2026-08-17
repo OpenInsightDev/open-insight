@@ -31,6 +31,7 @@ __pycache__/
 *.sw?
 
 /.*
+!.ignore
 !.gitignore
 !/.gitmodules
 !/.changeset
@@ -48,3 +49,5 @@ __pycache__/
 !.vscode/extensions.json
 
 /references
+
+.open-insight
