@@ -1,7 +1,16 @@
-import { Context, Effect, Layer, Match } from "effect";
+import { Context, Effect, Layer } from "effect";
 import { ChildProcess as CP } from "effect/unstable/process";
-import * as Spawn from "#/utils/spawn.ts";
+import * as Spawn from "#/spawn/index.ts";
 import { GitError } from "./error.ts";
+
+const catchUnavailable = <A, E, R>(eff: Effect.Effect<A, E | Spawn.SpawnError, R>) =>
+  eff.pipe(
+    Effect.catchTag("SpawnError", (err) =>
+      err.reason._tag === "NonZeroExit"
+        ? Effect.fail(GitError.gitUnavailable)
+        : Effect.fail(GitError.checkFailed(err)),
+    ),
+  );
 
 export class Service extends Context.Service<
   Service,
@@ -16,21 +25,10 @@ export class Service extends Context.Service<
     Service,
     Effect.gen(function* () {
       const spawner = yield* Spawn.Service;
-      const cwd = process.cwd();
 
-      const mapSpawnError =
-        (exitError: GitError = GitError.notGitRepo(cwd)) =>
-        (error: Spawn.Error) =>
-          Match.value(error.cause).pipe(
-            Match.tag("SpawnExitCodeError", () => exitError),
-            Match.orElse(() => GitError.checkFailed(error)),
-          );
+      yield* catchUnavailable(spawner.success(CP.make`command -v git`));
 
-      yield* spawner
-        .success(CP.make`command -v git`)
-        .pipe(Effect.mapError(mapSpawnError(GitError.gitUnavailable())));
-
-      yield* spawner.success(CP.make`git status`).pipe(Effect.mapError(mapSpawnError()));
+      yield* catchUnavailable(spawner.success(CP.make`git status`));
 
       const [commitHash, remoteOrigin, isDirty] = yield* Effect.all(
         [
@@ -41,7 +39,7 @@ export class Service extends Context.Service<
             .pipe(Effect.map((r) => r.trim().length > 0)),
         ],
         { concurrency: "unbounded" },
-      ).pipe(Effect.mapError(mapSpawnError()));
+      ).pipe(Effect.catchTag("SpawnError", (err) => Effect.fail(GitError.checkFailed(err))));
 
       return Service.of({ commitHash, remoteOrigin, isDirty, isInitialized: true });
     }),

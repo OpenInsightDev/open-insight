@@ -1,5 +1,4 @@
-import { Sandbox } from "@open-insight/core";
-import { Spawn } from "@open-insight/core/utils";
+import { Sandbox, Spawn } from "@open-insight/core";
 import { assert, it } from "@effect/vitest";
 import { Effect, Schema } from "effect";
 import { ExitCode } from "effect/unstable/process/ChildProcessSpawner";

@@ -13,18 +13,18 @@ export type Handle = Spawn.ExecHandle;
 export type Fn = (
   command: Command,
   options?: Spawn.Options,
-) => Effect.Effect<Spawn.ExecHandle, Spawn.Error>;
+) => Effect.Effect<Spawn.ExecHandle, Spawn.SpawnError>;
 
 export type Spawn = Readonly<{
   spawn: Fn;
 
-  exitCode(command: Command): Effect.Effect<number, Spawn.Error>;
+  exitCode(command: Command): Effect.Effect<number, Spawn.SpawnError>;
 
-  success(command: Command): Effect.Effect<void, Spawn.Error>;
+  success(command: Command): Effect.Effect<void, Spawn.SpawnError>;
 
-  stdout(command: Command, options?: Spawn.Options): Effect.Effect<string, Spawn.Error>;
+  stdout(command: Command, options?: Spawn.Options): Effect.Effect<string, Spawn.SpawnError>;
 
-  stderr(command: Command, options?: Spawn.Options): Effect.Effect<string, Spawn.Error>;
+  stderr(command: Command, options?: Spawn.Options): Effect.Effect<string, Spawn.SpawnError>;
 }>;
 
 /**

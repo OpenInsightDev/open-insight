@@ -1,5 +1,5 @@
 import { Schema } from "effect";
-import * as Spawn from "#/utils/spawn.ts";
+import * as Spawn from "#/spawn/index.ts";
 
 export class NotARepo extends Schema.TaggedError<NotARepo>("open-insight/GitError/NotARepo")(
   "NotARepo",
@@ -59,8 +59,8 @@ export class GitError extends Schema.TaggedError<GitError>("open-insight/GitErro
   static dirtyWorkingTree = (cwd: string): GitError =>
     GitError.make({ reason: DirtyWorkingTree.make({ cwd }) });
 
-  static gitUnavailable = () => GitError.make({ reason: GitUnavailable.make({}) });
+  static gitUnavailable = GitError.make({ reason: GitUnavailable.make({}) });
 
-  static checkFailed = (cause: Spawn.Error): GitError =>
+  static checkFailed = (cause: Spawn.SpawnError): GitError =>
     GitError.make({ reason: CheckFailed.make({ cause }) });
 }
