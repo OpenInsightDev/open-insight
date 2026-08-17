@@ -251,7 +251,7 @@ export const EvalSuccessEvent = Schema.Union([
 export type EvalSuccessEvent = Schema.Schema.Type<typeof EvalSuccessEvent>;
 
 export const EvalEvent = Schema.Union([EvalSuccessEvent, EvalErrorEvent]);
-export type EvalEvent = Schema.Schema.Type<typeof EvalEvent>;
+export type EvalEvent = Schema.Schema.Type<typeof EvalEvent> & {};
 export type EvalEventEncoded = Schema.Codec.Encoded<typeof EvalEvent>;
 
 export const makeJsonSchema = () => Schema.toJsonSchemaDocument(EvalEvent);

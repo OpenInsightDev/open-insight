@@ -198,7 +198,7 @@ const makeTrail = Effect.fn(
     > => {
       const sessionID = { ...id, sessionIdx };
 
-      const sessionStream = makeSession({ id: sessionID, task, prompt, sbxPromise }).pipe(
+      const sessionStream = makeSession<T>({ id: sessionID, task, prompt, sbxPromise }).pipe(
         Stream.provideService(Harness.AgentService, session),
         Stream.catchTag("Done", ({ value: result }) =>
           Queue.offer(sessionResultQueue, result).pipe(() => Stream.empty),
@@ -497,9 +497,9 @@ export const make = Effect.fn(
         .pipe(Effect.forkScoped);
 
       return mainStream.pipe(Stream.onEnd(Fiber.join(fiber)));
+    } else {
+      return stream;
     }
-
-    return stream;
   },
   (eff, bench) =>
     eff.pipe(
@@ -512,11 +512,7 @@ export const make = Effect.fn(
             benchId: bench.metadata.id,
           };
 
-          return stream.pipe(
-            Stream.catchTag("EvalError", (error) =>
-              Stream.fail(Event.BenchErrorEvent.make({ ...id, error })),
-            ),
-          );
+          return stream.pipe(Stream.catchTag("EvalError", (error) => error));
         }),
       ),
       Stream.unwrap,
