@@ -1,5 +1,4 @@
 export * from "./error.ts";
-export * from "./fold.ts";
 export * from "./template.ts";
 export * from "./traj.ts";
 export * from "./build.ts";
