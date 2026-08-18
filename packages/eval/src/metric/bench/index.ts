@@ -4,10 +4,9 @@ import type { BivariantFn } from "#/utils/variant.ts";
 import { Effect, Schema, Stream } from "effect";
 import { Metadata, Result, type MetadataEncoded } from "../schema.ts";
 import { MetricError } from "../error.ts";
-import type { TrailResults } from "../task/index.ts";
 
-export type BenchResult<G = unknown> = Readonly<Record<Task.ID, TrailResults<G>>>;
-export type Delta<G = unknown> = [Task.ID, TrailResults<G>];
+export type BenchResult<G = unknown> = Readonly<Record<Task.ID, G[]>>;
+export type Delta<G = unknown> = Readonly<[Task.ID, G]>;
 
 /**
  * Computes a benchmark metric whenever a new task result is available.

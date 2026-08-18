@@ -3,23 +3,10 @@ import type { BivariantFn } from "#/utils/variant.ts";
 import { Effect, Schema, Stream } from "effect";
 import { Metadata, Result, type MetadataEncoded } from "../schema.ts";
 import { MetricError } from "../error.ts";
-import type { Prompt } from "@open-insight/core/internal";
-import { Response } from "effect/unstable/ai";
-
-export type SessionResult = Readonly<{
-  trajectory: Prompt.Trajectory;
-  usage: Response.Usage | null;
-}>;
-
-export type TrailResult<G = unknown> = Readonly<{
-  grade: G;
-  sessions: ReadonlyArray<SessionResult>;
-}>;
-export type TrailResults<G = unknown> = ReadonlyArray<TrailResult<G>>;
 
 export type Exec<G = unknown, R extends Schema.Json = Schema.Json> = (
-  results: TrailResults<G>,
-  delta: TrailResult<G>,
+  results: G[],
+  delta: G,
   prev: R | null,
 ) => R | Promise<R>;
 
@@ -46,7 +33,7 @@ export const make = Effect.fn(function* <G = unknown, R extends Schema.Json = Sc
 });
 
 export const makeStream =
-  <G = unknown, E = never, R = never>(trailResultStream: Stream.Stream<TrailResult<G>, E, R>) =>
+  <G = unknown, E = never, R = never>(trailResultStream: Stream.Stream<G, E, R>) =>
   <M extends Schema.Json>({
     exec,
     metadata,
@@ -54,7 +41,7 @@ export const makeStream =
   }: Metric<G, M>): Stream.Stream<Result, E | MetricError, R> =>
     trailResultStream.pipe(
       Stream.mapAccumEffect(
-        () => ({ results: [] as TrailResult<G>[], prev: null as M | null }),
+        () => ({ results: [] as G[], prev: null as M | null }),
         (state, delta) => {
           const results = [...state.results, delta];
 

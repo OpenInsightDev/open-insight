@@ -68,10 +68,6 @@ export const make = Effect.fn(function* <R extends Schema.Json = any>(options: O
   return { metadata, exec, chart } satisfies Metric<R>;
 });
 
-type StreamOptions<E, R> = Readonly<{
-  stream: Stream.Stream<Prompt.Prompt | Response.AnyAggPart, E, R>;
-}>;
-
 type Accum = State &
   Readonly<{
     prev: Schema.Json | null;
@@ -90,7 +86,7 @@ const foldPrompt = (state: Accum, prompt: Prompt.Prompt) => {
 };
 
 export const makeStream =
-  <E, R>({ stream }: StreamOptions<E, R>) =>
+  <E, R>(stream: Stream.Stream<Prompt.Prompt | Response.AnyAggPart, E, R>) =>
   ({ exec, metadata, chart }: Metric): Stream.Stream<Result, E | MetricError, R> => {
     return stream.pipe(
       Stream.mapAccumEffect(

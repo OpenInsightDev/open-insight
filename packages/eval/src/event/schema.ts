@@ -79,7 +79,7 @@ export class BenchErrorEvent extends Schema.TaggedClass<BenchErrorEvent>()("Benc
 export class TaskStartEvent extends Schema.TaggedClass<TaskStartEvent>()("TaskStartEvent", {
   id: TaskID,
   task: Task.Metadata,
-  metrics: Schema.Array(Metric.Metadata),
+  taskMetrics: Schema.Array(Metric.Metadata),
   trajMetrics: Schema.Array(Metric.Metadata),
   schedMetrics: Schema.Array(Metric.Metadata),
   startAt: Timestamp,

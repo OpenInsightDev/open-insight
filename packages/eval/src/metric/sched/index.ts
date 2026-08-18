@@ -68,7 +68,7 @@ const repeatSchedule = <A>(options: Effect.Repeat.Options<A>) => {
 };
 
 export const makeStream =
-  ({ sandbox }: { sandbox: Sandbox.Sandbox }) =>
+  (sandbox: Sandbox.Sandbox) =>
   ({
     exec,
     repeat,
