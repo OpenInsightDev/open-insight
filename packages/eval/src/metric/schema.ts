@@ -10,7 +10,7 @@ export class Metadata extends Schema.Class<Metadata>("Metadata")({
 export type MetadataEncoded = Schema.Codec.Encoded<typeof Metadata>;
 
 export class Result extends Schema.Class<Result>("Result")({
-  id: Schema.String,
+  metricID: Schema.String,
   value: Schema.Json,
   chart: Schema.NullOr(Chart.Points),
 }) {}

@@ -111,7 +111,7 @@ export const makeStream =
                     { ...nextState, prev: next },
                     [
                       Result.make({
-                        id: metadata.id,
+                        metricID: metadata.id,
                         value: next,
                         chart: chart?.(next) ?? null,
                       }),

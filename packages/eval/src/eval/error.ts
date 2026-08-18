@@ -5,7 +5,7 @@ import * as Tasks from "#/tasks/index.ts";
 import * as Task from "#/task/index.ts";
 import * as Bench from "#/bench/index.ts";
 import * as Event from "#/event/index.ts";
-import { Agent, Git, Harness, Snapshot } from "@open-insight/core/internal";
+import { Agent, Git, Harness, Prompt, Snapshot } from "@open-insight/core/internal";
 
 const NonNegativeInt = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0));
 type ExecTask = Task.AnyTask;
@@ -128,6 +128,7 @@ export const ErrorReason = Schema.Union([
   Grade.GradeError,
   Harness.HarnessError,
   Metric.MetricError,
+  Prompt.PromptError,
   SnapshotFailed,
   TaskInitFailed,
   TaskExecFailed,
@@ -170,6 +171,8 @@ export class EvalError extends Schema.TaggedError<EvalError>("open-insight/eval/
   static harness = (cause: Harness.HarnessError): EvalError => EvalError.make({ reason: cause });
 
   static metric = (cause: Metric.MetricError): EvalError => EvalError.make({ reason: cause });
+
+  static prompt = (cause: Prompt.PromptError): EvalError => EvalError.make({ reason: cause });
 
   static snapshot =
     (task: ExecTask) =>

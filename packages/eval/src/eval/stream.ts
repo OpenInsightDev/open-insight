@@ -23,113 +23,96 @@ import * as Task from "#/task/index.ts";
 import * as Metric from "#/metric/index.ts";
 import type { Config } from "./config.ts";
 import { EvalError } from "./error.ts";
+import { SandboxExposeError } from "../../../core/src/sandbox/error.ts";
 
 type SessionOptions<T extends Task.AnyTask> = Readonly<{
   id: Event.SessionID;
 
   task: T;
-  prompt: Prompt.Options;
   sbxPromise: Sandbox.SandboxPromise;
 }>;
 
 const makeSession = Effect.fn(
   function* <T extends Task.AnyTask>(options: SessionOptions<T>) {
-    const { id, prompt, sbxPromise, task } = options;
+    const { id, task } = options;
     const { trajMetrics } = task;
 
     const session = yield* Harness.AgentService;
+    const { init: promptInit, prompt: promptFn } = yield* Prompt.Service;
 
     const usageRef = yield* Ref.make<Response.Usage | null>(null);
     const finishRef = yield* Ref.make<Response.FinishReason>("unknown");
 
-    const makeRespStream = (prompt: Prompt.Prompt) =>
-      session
-        .prompt(prompt)
-        .pipe(Stream.mapError(EvalError.harness))
-        .pipe(
-          Stream.tap(
-            Effect.fn(function* (part) {
-              if (part.type !== "finish") {
-                return;
-              }
-              yield* Effect.all([Ref.set(finishRef, part.reason), Ref.set(usageRef, part.usage)]);
-            }),
-          ),
-        );
+    const deltaQueue = yield* Queue.make<Prompt.Prompt | Response.AnyAggPart, Cause.Done>();
 
-    const prompts = Prompt.makeStream(prompt, {
-      trajectory: session.trajectory,
-      sbxPromise,
-    }).pipe(Stream.mapError(EvalError.taskExec(task, id.trailIdx)));
+    const turns = Stream.callback<Prompt.Prompt | Response.AnyStreamPart, EvalError>(
+      Effect.fn(function* (queue) {
+        let current: Option.Option<Prompt.Prompt> = Option.some(promptInit);
 
-    // TODO 优化这里
-    type TurnPart = Data.TaggedEnum<{
-      Event: { part: Event.SessionPromptEvent | Event.SessionStreamEvent };
-      Metric: { part: Prompt.Prompt | Response.AnyAggPart };
-    }>;
-    const TurnPart = Data.taggedEnum<TurnPart>();
+        while (Option.isSome(current)) {
+          yield* Effect.all([
+            Queue.offer(queue, current.value),
+            Queue.offer(deltaQueue, current.value),
+          ]);
 
-    const [turnforEvent, turnForMetric] = yield* prompts
-      .pipe(
-        Stream.flatMap(
-          Effect.fn(function* (prompt) {
-            const [respForEvent, respForMetric] = yield* makeRespStream(prompt).pipe(
-              Stream.broadcastN({ n: 2, capacity: "unbounded" }),
-            );
-
-            const promptEvent = TurnPart.Event({
-              part: Event.SessionPromptEvent.make({ id, prompt }),
-            });
-            const streamEvents = respForEvent.pipe(
-              Stream.map((part) =>
-                TurnPart.Event({ part: Event.SessionStreamEvent.make({ id, part }) }),
+          const [resp, respForDelta] = yield* session
+            .prompt(current.value)
+            .pipe(Stream.mapError(EvalError.harness))
+            .pipe(
+              Stream.tap(
+                Effect.fn(function* (part) {
+                  if (part.type !== "finish") {
+                    return;
+                  }
+                  yield* Effect.all([
+                    Ref.set(finishRef, part.reason),
+                    Ref.set(usageRef, part.usage),
+                  ]);
+                }),
               ),
-            );
-            const events = Stream.empty.pipe(
-              Stream.concat(Stream.succeed(promptEvent)),
-              Stream.concat(streamEvents),
-            );
+            )
+            .pipe(Stream.broadcastN({ n: 2, capacity: "unbounded" }));
 
-            const promptDelta = TurnPart.Metric({ part: prompt });
-            const streamDeltas = Response.fold(respForMetric).pipe(
-              Stream.map((part) => TurnPart.Metric({ part })),
-            );
-            const deltas = Stream.empty.pipe(
-              Stream.concat(Stream.succeed(promptDelta)),
-              Stream.concat(streamDeltas),
-            );
+          yield* Effect.all([
+            resp.pipe(Stream.runForEach((part) => Queue.offer(queue, part))),
+            respForDelta
+              .pipe(Response.fold)
+              .pipe(Stream.runForEach((part) => Queue.offer(deltaQueue, part))),
+          ]);
 
-            return Stream.empty.pipe(Stream.merge(events), Stream.merge(deltas));
-          }, Stream.unwrap),
-        ),
-      )
-      .pipe(Stream.broadcastN({ n: 2, capacity: "unbounded" }));
+          const trajectory = yield* Ref.get(session.trajectory);
 
-    const turnEvents = turnforEvent.pipe(
-      Stream.filter(TurnPart.$is("Event")),
-      Stream.map(({ part }) => part),
+          current = yield* promptFn(trajectory).pipe(Effect.mapError(EvalError.prompt));
+        }
+
+        yield* Queue.end(queue);
+      }),
     );
-    const deltas = yield* turnForMetric
-      .pipe(
-        Stream.filter(TurnPart.$is("Metric")),
-        Stream.map(({ part }) => part),
-      )
-      .pipe(Stream.share({ capacity: "unbounded" }));
+    const turnEvents = turns.pipe(
+      Stream.map((value) =>
+        Match.value(value).pipe(
+          Match.when(Prompt.isPrompt, (prompt) => Event.SessionPromptEvent.make({ id, prompt })),
+          Match.orElse((part) => Event.SessionStreamEvent.make({ id, part })),
+        ),
+      ),
+    );
 
+    const deltas = Stream.fromQueue(deltaQueue);
     const metricEventStreams = trajMetrics
       .map((metric) => Metric.Traj.makeStream({ stream: deltas })(metric))
       .map(Stream.catchTag("MetricError", (error) => Stream.fail(EvalError.metric(error))))
       .map(
-        Stream.map(({ id: metricID, ...values }) =>
+        Stream.map(({ metricID: metricID, ...values }) =>
           Event.SessionMetricEvent.make({ id: { ...id, id: metricID }, ...values }),
         ),
       );
     const metricEvents = Stream.mergeAll(metricEventStreams, { concurrency: "unbounded" });
 
     const startEvent = Stream.succeed(Event.SessionStartEvent.make({ id }));
-    const endEvent = Ref.get(finishRef)
-      .pipe(Effect.map((reason) => Event.SessionEndEvent.make({ id, reason })))
-      .pipe(Stream.fromEffect);
+    const endEvent = Effect.all([Ref.get(finishRef), Ref.get(usageRef)]).pipe(
+      Effect.map(([reason, usage]) => Event.SessionEndEvent.make({ id, reason, usage })),
+      Stream.fromEffect,
+    );
 
     return Stream.empty.pipe(
       Stream.concat(startEvent),
@@ -152,11 +135,9 @@ type TrailOptions<T extends Task.AnyTask> = Readonly<{
   task: T;
 }>;
 
-type TrailResultEntry = readonly [trailIdx: number, result: Event.TrailResult];
-
 const makeTrail = Effect.fn(
-  function* <T extends Task.AnyTask>({ task, id }: TrailOptions<T>) {
-    const { sandboxConfig, schedMetrics, prompt } = task;
+  function* <T extends Task.AnyTask>({ id, task }: TrailOptions<T>) {
+    const { sandboxConfig, schedMetrics, prompt: promptOptions } = task;
 
     const { run: runGrader } = yield* Grade.RunService;
     const snapSession = yield* Harness.SnapService;
@@ -180,44 +161,34 @@ const makeTrail = Effect.fn(
     const sandbox = sbxSession.sandbox;
     const sbxPromise = yield* Sandbox.asPromise(sbxSession.sandbox);
 
-    const schedMetricStreams = schedMetrics
-      .map(Metric.Sched.makeStream({ sandbox }))
-      .map(Stream.mapError(EvalError.metric));
-
-    const usageRef = yield* Ref.make<Response.Usage | null>(null);
-    const trailResultRef = yield* Ref.make<Option.Option<Event.TrailResult>>(Option.none());
-
-    const sessionResultQueue = yield* Queue.make<Event.SessionResult, Cause.Done>();
-
     const makeAttempt = ({
-      session,
-      prompt,
+      agentSession,
+      prompt: promptOptions,
       sessionIdx,
     }: {
-      session: Harness.AgentSession;
+      agentSession: Harness.AgentSession;
       prompt: Prompt.Options;
       sessionIdx: number;
     }): Stream.Stream<
       Event.EvalSuccessEvent,
-      Event.EvalErrorEvent | EvalError | Event.ResultDone<Event.TrailResult>,
+      Event.EvalErrorEvent | EvalError,
       FileSystem.FileSystem | Path.Path | Grade.RunService
     > => {
       const sessionID = { ...id, sessionIdx };
 
-      const sessionStream = makeSession<T>({ id: sessionID, task, prompt, sbxPromise }).pipe(
-        Stream.provideService(Harness.AgentService, session),
-        Stream.catchTag("ResultDone", ({ value: result }) =>
-          Effect.gen(function* () {
-            // Keep the final session usage available for the trail end event.
-            yield* Ref.set(usageRef, result.usage);
-            yield* Queue.offer(sessionResultQueue, result);
-            return Stream.empty;
-          }).pipe(Stream.unwrap),
-        ),
+      const promptingLayer = Prompt.layerFrom({
+        options: promptOptions,
+        context: sbxPromise,
+      });
+
+      const sessionStream = makeSession<T>({ id: sessionID, task, sbxPromise }).pipe(
+        Stream.provideService(Harness.AgentService, agentSession),
+        Stream.provide(promptingLayer),
+        Stream.catchTag("PromptError", (error) => Stream.fail(EvalError.prompt(error))),
       );
 
       const gradeResultStream = Effect.gen(function* () {
-        const trajectory = yield* Ref.get(session.trajectory);
+        const trajectory = yield* Ref.get(agentSession.trajectory);
 
         const grade = yield* runGrader<Task.GradeOf<T>>({
           sandbox: sbxSession.sandbox,
@@ -227,17 +198,7 @@ const makeTrail = Effect.fn(
           Effect.catchTag("GradeError", (error) => Effect.fail(EvalError.grade(error))),
         );
 
-        yield* Queue.end(sessionResultQueue);
-
-        const result = Queue.collect(sessionResultQueue)
-          .pipe(
-            Effect.flatMap((sessions) =>
-              Event.resultDone(Event.TrailResult.make({ grade, sessions })),
-            ),
-          )
-          .pipe(Stream.fromEffect);
-
-        return result;
+        return Stream.succeed(Event.TrailEndEvent.make({ id, grade }));
       }).pipe(Stream.unwrap);
 
       const makeRetryStream = (retry: Grade.Retry) =>
@@ -250,17 +211,17 @@ const makeTrail = Effect.fn(
             Match.when("restart", () =>
               sbxSession.runAgent().pipe(Effect.mapError(EvalError.harness)),
             ),
-            Match.when("continue", () => Effect.succeed(session)),
+            Match.when("continue", () => Effect.succeed(agentSession)),
             Match.exhaustive,
           );
           const nextAttempt = makeAttempt({
-            session: nextSession,
-            prompt: retry.prompt,
+            agentSession: nextSession,
+            prompt: { init: retry.prompt },
             sessionIdx: sessionIdx + 1,
           });
 
           const retryEvent = Stream.succeed(
-            Event.SessionRetryEvent.make({ ...sessionID, reason: retry.reason }),
+            Event.SessionRetryEvent.make({ id: sessionID, reason: retry.reason }),
           );
 
           return Stream.empty.pipe(Stream.concat(retryEvent), Stream.concat(nextAttempt));
@@ -272,34 +233,22 @@ const makeTrail = Effect.fn(
     };
 
     const agentSession = yield* sbxSession.runAgent().pipe(Effect.mapError(EvalError.harness));
-    const startEvent = Stream.succeed(Event.TrailStartEvent.make(id));
-    const attemptStream = makeAttempt({ session: agentSession, prompt, sessionIdx: 0 });
-    const attemptEvents = attemptStream.pipe(
-      Stream.catchTag("ResultDone", ({ value }) =>
-        Ref.set(trailResultRef, Option.some(value)).pipe(Effect.as(Stream.empty), Stream.unwrap),
-      ),
-    );
+    const startEvent = Stream.succeed(Event.TrailStartEvent.make({ id }));
+    const attemptEvents = makeAttempt({ agentSession, prompt: promptOptions, sessionIdx: 0 });
 
+    const schedMetricStreams = schedMetrics
+      .map(Metric.Sched.makeStream({ sandbox }))
+      .map(Stream.mapError(EvalError.metric));
     const schedMetricEvents = Stream.mergeAll(schedMetricStreams, {
       concurrency: "unbounded",
-    }).pipe(Stream.map((result) => Event.TrailMetricEvent.make({ ...id, ...result })));
+    }).pipe(Stream.map((result) => Event.TrailMetricEvent.make({ id, ...result })));
 
     const activeEvents = attemptEvents.pipe(
       Stream.merge(schedMetricEvents, { haltStrategy: "left" }),
     );
     const completion = Effect.gen(function* () {
-      const resultOption = yield* Ref.get(trailResultRef);
-      if (Option.isNone(resultOption)) {
-        return yield* Effect.die("Trail completed without producing a result.");
-      }
-
-      const result = resultOption.value;
-      const usage = yield* Ref.get(usageRef);
-      const endEvent = Stream.succeed(
-        Event.TrailEndEvent.make({ ...id, grade: result.grade, usage }),
-      );
-      const resultDone = Stream.fromEffect(Event.resultDone(result));
-      return Stream.empty.pipe(Stream.concat(endEvent), Stream.concat(resultDone));
+      const endEvent = Stream.succeed(Event.TrailEndEvent.make({ id, grade: result.grade }));
+      return Stream.empty.pipe(Stream.concat(endEvent));
     }).pipe(Stream.unwrap);
 
     return Stream.empty.pipe(

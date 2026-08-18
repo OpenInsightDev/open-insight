@@ -97,7 +97,7 @@ export const makeStream =
         (eff) => Stream.fromEffectSchedule(eff, repeatSchedule(repeat)),
         Stream.map((next) =>
           Result.make({
-            id: metadata.id,
+            metricID: metadata.id,
             value: next,
             chart: chart?.(next) ?? null,
           }),

@@ -21,23 +21,28 @@ export type Prompting = Readonly<{
 
 export class Service extends Context.Service<Service, Prompting>()("PromptingService") {}
 
-export const make = ({ init, fn = defaultFn }: Options) =>
-  Effect.fn(function* (context: Context) {
-    const respFn = yield* Effect.tryPromise({
-      try: async () => await fn(context),
-      catch: PromptError.generation,
-    });
-
-    const prompt = (trajectory: Trajectory) =>
-      Effect.tryPromise({
-        try: () => respFn(trajectory),
-        catch: PromptError.generation,
-      })
-        .pipe(Effect.map(Option.fromNullOr))
-        .pipe(Effect.map(Option.map(Prompt.make)));
-
-    return { init: Prompt.make(init), prompt } satisfies Prompting;
+export const make = Effect.fn(function* ({
+  options: { init, fn = defaultFn },
+  context,
+}: {
+  options: Options;
+  context: Context;
+}) {
+  const respFn = yield* Effect.tryPromise({
+    try: async () => await fn(context),
+    catch: PromptError.generation,
   });
 
-export const layerFrom = (options: Options) => (context: Context) =>
-  make(options)(context).pipe(Layer.effect(Service));
+  const prompt = (trajectory: Trajectory) =>
+    Effect.tryPromise({
+      try: () => respFn(trajectory),
+      catch: PromptError.generation,
+    })
+      .pipe(Effect.map(Option.fromNullOr))
+      .pipe(Effect.map(Option.map(Prompt.make)));
+
+  return { init: Prompt.make(init), prompt } satisfies Prompting;
+});
+
+export const layerFrom = (args: { options: Options; context: Context }) =>
+  Layer.effect(Service, make(args));

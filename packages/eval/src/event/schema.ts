@@ -107,7 +107,6 @@ export type TrailStartEventEncoded = Schema.Codec.Encoded<typeof TrailStartEvent
 export class TrailEndEvent extends Schema.TaggedClass<TrailEndEvent>()("TrailEndEvent", {
   id: TrailID,
   grade: Schema.Unknown,
-  usage: Schema.NullOr(Response.Usage),
   endAt: Timestamp,
 }) {}
 export type TrailEndEventEncoded = Schema.Codec.Encoded<typeof TrailEndEvent>;
@@ -153,6 +152,7 @@ export class SessionRetryEvent extends Schema.TaggedClass<SessionRetryEvent>()(
 
 export class SessionEndEvent extends Schema.TaggedClass<SessionEndEvent>()("SessionEndEvent", {
   id: SessionID,
+  usage: Schema.NullOr(Response.Usage),
   reason: Response.FinishReason,
   endAt: Timestamp,
 }) {}
@@ -169,9 +169,8 @@ export class SessionErrorEvent extends Schema.TaggedClass<SessionErrorEvent>()(
 export class SessionMetricEvent extends Schema.TaggedClass<SessionMetricEvent>()(
   "SessionMetricEvent",
   {
-    id: TrajMetricID,
-    value: Schema.Json,
-    chart: Schema.NullOr(Chart.Points),
+    id: SessionID,
+    ...Metric.Result.fields,
   },
 ) {}
 export type SessionMetricEventEncoded = Schema.Codec.Encoded<typeof SessionMetricEvent>;
@@ -179,55 +178,56 @@ export type SessionMetricEventEncoded = Schema.Codec.Encoded<typeof SessionMetri
 export class SessionMetricErrorEvent extends Schema.TaggedClass<SessionMetricErrorEvent>()(
   "SessionMetricErrorEvent",
   {
-    id: TrajMetricID,
+    id: SessionID,
+    metricID: Schema.String,
     error: Schema.Defect(),
   },
 ) {}
 export type SessionMetricErrorEventEncoded = Schema.Codec.Encoded<typeof SessionMetricErrorEvent>;
 
 export class TrailMetricEvent extends Schema.TaggedClass<TrailMetricEvent>()("TrailMetricEvent", {
-  id: SchedMetricID,
-  value: Schema.Json,
-  chart: Schema.NullOr(Chart.Points),
+  id: TrailID,
+  ...Metric.Result.fields,
 }) {}
 export type TrailMetricEventEncoded = Schema.Codec.Encoded<typeof TrailMetricEvent>;
 
 export class TrailMetricErrorEvent extends Schema.TaggedClass<TrailMetricErrorEvent>()(
   "TrailMetricErrorEvent",
   {
-    id: SchedMetricID,
+    id: TrailID,
+    metricID: Schema.String,
     error: Schema.Defect(),
   },
 ) {}
 export type TrailMetricErrorEventEncoded = Schema.Codec.Encoded<typeof TrailMetricErrorEvent>;
 
 export class TaskMetricEvent extends Schema.TaggedClass<TaskMetricEvent>()("TaskMetricEvent", {
-  id: TaskMetricID,
-  value: Schema.Json,
-  chart: Schema.NullOr(Chart.Points),
+  id: TaskID,
+  ...Metric.Result.fields,
 }) {}
 export type TaskMetricEventEncoded = Schema.Codec.Encoded<typeof TaskMetricEvent>;
 
 export class TaskMetricErrorEvent extends Schema.TaggedClass<TaskMetricErrorEvent>()(
   "TaskMetricErrorEvent",
   {
-    id: TaskMetricID,
+    id: TaskID,
+    metricID: Schema.String,
     error: Schema.Defect(),
   },
 ) {}
 export type TaskMetricErrorEventEncoded = Schema.Codec.Encoded<typeof TaskMetricErrorEvent>;
 
 export class BenchMetricEvent extends Schema.TaggedClass<BenchMetricEvent>()("BenchMetricEvent", {
-  id: BenchMetricID,
-  value: Schema.Json,
-  chart: Schema.NullOr(Chart.Points),
+  id: BenchID,
+  ...Metric.Result.fields,
 }) {}
 export type BenchMetricEventEncoded = Schema.Codec.Encoded<typeof BenchMetricEvent>;
 
 export class BenchMetricErrorEvent extends Schema.TaggedClass<BenchMetricErrorEvent>()(
   "BenchMetricErrorEvent",
   {
-    id: BenchMetricID,
+    id: BenchID,
+    metricID: Schema.String,
     error: Schema.Defect(),
   },
 ) {}

@@ -65,7 +65,7 @@ export const makeStream =
             { results: nextResults, prev: next },
             [
               Result.make({
-                id: metadata.id,
+                metricID: metadata.id,
                 value: next,
                 chart: chart?.(next) ?? null,
               }),
