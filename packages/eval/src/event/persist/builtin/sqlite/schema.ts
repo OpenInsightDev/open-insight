@@ -14,14 +14,14 @@
  */
 import { Model } from "effect/unstable/schema";
 import { Schema } from "effect";
-import { EvalFields, TaskFields, TrailFields } from "#/event/schema.ts";
+import { BenchFields, TaskFields, TrailFields } from "#/event/schema.ts";
 
 // ─── Event table ───────────────────────────────────────────────────────
 // Stores every event as a JSON payload for full fidelity replay.
 
 export class Event extends Model.Class<Event>("Event")({
   id: Model.GeneratedByDb(Schema.Number),
-  ...EvalFields,
+  ...BenchFields,
   taskId: Model.FieldOption(Schema.String),
   trailIdx: Model.FieldOption(Schema.Int),
   sessionIdx: Model.FieldOption(Schema.Int),
@@ -35,7 +35,7 @@ export class Event extends Model.Class<Event>("Event")({
 
 export class BenchStatus extends Model.Class<BenchStatus>("BenchStatus")({
   id: Model.GeneratedByDb(Schema.Number),
-  ...EvalFields,
+  ...BenchFields,
   startedAt: Model.DateTimeInsertFromDate,
   endedAt: Model.FieldOption(Schema.DateTimeUtcFromDate),
 }) {}

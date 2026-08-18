@@ -7,6 +7,7 @@ import {
   Ref,
   Semaphore,
   Stream,
+  Channel,
   Cause,
   Queue,
   FiberSet,
