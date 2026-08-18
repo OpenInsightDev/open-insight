@@ -193,14 +193,11 @@ export class SessionMetricErrorEvent extends Schema.TaggedClass<SessionMetricErr
 ) {}
 export type SessionMetricErrorEventEncoded = Schema.Codec.Encoded<typeof SessionMetricErrorEvent>;
 
-export class TrailMetricEvent extends Schema.TaggedClass<TrailMetricEvent>()(
-  "TrailMetricEvent",
-  {
-    ...SchedMetricFields,
-    value: Schema.Json,
-    chart: Schema.NullOr(Chart.Points),
-  },
-) {}
+export class TrailMetricEvent extends Schema.TaggedClass<TrailMetricEvent>()("TrailMetricEvent", {
+  ...SchedMetricFields,
+  value: Schema.Json,
+  chart: Schema.NullOr(Chart.Points),
+}) {}
 export type TrailMetricEventEncoded = Schema.Codec.Encoded<typeof TrailMetricEvent>;
 
 export class TrailMetricErrorEvent extends Schema.TaggedClass<TrailMetricErrorEvent>()(
@@ -212,14 +209,11 @@ export class TrailMetricErrorEvent extends Schema.TaggedClass<TrailMetricErrorEv
 ) {}
 export type TrailMetricErrorEventEncoded = Schema.Codec.Encoded<typeof TrailMetricErrorEvent>;
 
-export class TaskMetricEvent extends Schema.TaggedClass<TaskMetricEvent>()(
-  "TaskMetricEvent",
-  {
-    ...TaskMetricFields,
-    value: Schema.Json,
-    chart: Schema.NullOr(Chart.Points),
-  },
-) {}
+export class TaskMetricEvent extends Schema.TaggedClass<TaskMetricEvent>()("TaskMetricEvent", {
+  ...TaskMetricFields,
+  value: Schema.Json,
+  chart: Schema.NullOr(Chart.Points),
+}) {}
 export type TaskMetricEventEncoded = Schema.Codec.Encoded<typeof TaskMetricEvent>;
 
 export class TaskMetricErrorEvent extends Schema.TaggedClass<TaskMetricErrorEvent>()(
@@ -231,14 +225,11 @@ export class TaskMetricErrorEvent extends Schema.TaggedClass<TaskMetricErrorEven
 ) {}
 export type TaskMetricErrorEventEncoded = Schema.Codec.Encoded<typeof TaskMetricErrorEvent>;
 
-export class BenchMetricEvent extends Schema.TaggedClass<BenchMetricEvent>()(
-  "BenchMetricEvent",
-  {
-    ...BenchMetricFields,
-    value: Schema.Json,
-    chart: Schema.NullOr(Chart.Points),
-  },
-) {}
+export class BenchMetricEvent extends Schema.TaggedClass<BenchMetricEvent>()("BenchMetricEvent", {
+  ...BenchMetricFields,
+  value: Schema.Json,
+  chart: Schema.NullOr(Chart.Points),
+}) {}
 export type BenchMetricEventEncoded = Schema.Codec.Encoded<typeof BenchMetricEvent>;
 
 export class BenchMetricErrorEvent extends Schema.TaggedClass<BenchMetricErrorEvent>()(
@@ -250,54 +241,6 @@ export class BenchMetricErrorEvent extends Schema.TaggedClass<BenchMetricErrorEv
 ) {}
 export type BenchMetricErrorEventEncoded = Schema.Codec.Encoded<typeof BenchMetricErrorEvent>;
 
-export const BenchSuccessEvent = Schema.Union([
-  BenchStartEvent,
-  BenchEndEvent,
-  BenchMetricEvent,
-]);
-export type BenchSuccessEvent = Schema.Schema.Type<typeof BenchSuccessEvent>;
-
-export const BenchEventError = Schema.Union([
-  BenchErrorEvent,
-  BenchMetricErrorEvent,
-]);
-export type BenchEventError = Schema.Schema.Type<typeof BenchEventError>;
-
-export const BenchEvent = Schema.Union([BenchSuccessEvent, BenchEventError]);
-export type BenchEvent = Schema.Schema.Type<typeof BenchEvent>;
-
-export const TaskSuccessEvent = Schema.Union([
-  TaskStartEvent,
-  TaskEndEvent,
-  TaskMetricEvent,
-]);
-export type TaskSuccessEvent = Schema.Schema.Type<typeof TaskSuccessEvent>;
-
-export const TaskEventError = Schema.Union([
-  TaskErrorEvent,
-  TaskMetricErrorEvent,
-]);
-export type TaskEventError = Schema.Schema.Type<typeof TaskEventError>;
-
-export const TaskEvent = Schema.Union([TaskSuccessEvent, TaskEventError]);
-export type TaskEvent = Schema.Schema.Type<typeof TaskEvent>;
-
-export const TrailSuccessEvent = Schema.Union([
-  TrailStartEvent,
-  TrailEndEvent,
-  TrailMetricEvent,
-]);
-export type TrailSuccessEvent = Schema.Schema.Type<typeof TrailSuccessEvent>;
-
-export const TrailEventError = Schema.Union([
-  TrailErrorEvent,
-  TrailMetricErrorEvent,
-]);
-export type TrailEventError = Schema.Schema.Type<typeof TrailEventError>;
-
-export const TrailEvent = Schema.Union([TrailSuccessEvent, TrailEventError]);
-export type TrailEvent = Schema.Schema.Type<typeof TrailEvent>;
-
 export const SessionSuccessEvent = Schema.Union([
   SessionStartEvent,
   SessionPromptEvent,
@@ -308,30 +251,75 @@ export const SessionSuccessEvent = Schema.Union([
 ]);
 export type SessionSuccessEvent = Schema.Schema.Type<typeof SessionSuccessEvent>;
 
-export const SessionEventError = Schema.Union([
+export const SessionEvent = Schema.Union([
+  SessionSuccessEvent,
   SessionErrorEvent,
   SessionMetricErrorEvent,
 ]);
-export type SessionEventError = Schema.Schema.Type<typeof SessionEventError>;
-
-export const SessionEvent = Schema.Union([SessionSuccessEvent, SessionEventError]);
 export type SessionEvent = Schema.Schema.Type<typeof SessionEvent>;
 
-export const EvalErrorEvent = Schema.Union([
-  BenchEventError,
-  TaskEventError,
-  TrailEventError,
-  SessionEventError,
-]);
-export type EvalErrorEvent = Schema.Schema.Type<typeof EvalErrorEvent>;
-
-export const EvalSuccessEvent = Schema.Union([
-  BenchSuccessEvent,
-  TaskSuccessEvent,
-  TrailSuccessEvent,
+export const TrailSuccessEvent = Schema.Union([
+  TrailStartEvent,
+  TrailEndEvent,
+  TrailMetricEvent,
   SessionSuccessEvent,
 ]);
+export type TrailSuccessEvent = Schema.Schema.Type<typeof TrailSuccessEvent>;
+
+export const TrailEvent = Schema.Union([
+  TrailSuccessEvent,
+  TrailErrorEvent,
+  TrailMetricErrorEvent,
+  SessionEvent,
+]);
+export type TrailEvent = Schema.Schema.Type<typeof TrailEvent>;
+
+export const TaskSuccessEvent = Schema.Union([
+  TaskStartEvent,
+  TaskEndEvent,
+  TaskMetricEvent,
+  TrailSuccessEvent,
+]);
+export type TaskSuccessEvent = Schema.Schema.Type<typeof TaskSuccessEvent>;
+
+export const TaskEvent = Schema.Union([
+  TaskSuccessEvent,
+  TaskErrorEvent,
+  TaskMetricErrorEvent,
+  TrailEvent,
+]);
+export type TaskEvent = Schema.Schema.Type<typeof TaskEvent>;
+
+export const BenchSuccessEvent = Schema.Union([
+  BenchStartEvent,
+  BenchEndEvent,
+  BenchMetricEvent,
+  TaskSuccessEvent,
+]);
+export type BenchSuccessEvent = Schema.Schema.Type<typeof BenchSuccessEvent>;
+
+export const BenchEvent = Schema.Union([
+  BenchSuccessEvent,
+  BenchErrorEvent,
+  BenchMetricErrorEvent,
+  TaskEvent,
+]);
+export type BenchEvent = Schema.Schema.Type<typeof BenchEvent>;
+
+export const EvalSuccessEvent = BenchSuccessEvent;
 export type EvalSuccessEvent = Schema.Schema.Type<typeof EvalSuccessEvent>;
+
+export const EvalErrorEvent = Schema.Union([
+  SessionErrorEvent,
+  SessionMetricErrorEvent,
+  TrailErrorEvent,
+  TrailMetricErrorEvent,
+  TaskErrorEvent,
+  TaskMetricErrorEvent,
+  BenchErrorEvent,
+  BenchMetricErrorEvent,
+]);
+export type EvalErrorEvent = Schema.Schema.Type<typeof EvalErrorEvent>;
 
 export const EvalEvent = Schema.Union([EvalSuccessEvent, EvalErrorEvent]);
 export type EvalEvent = Schema.Schema.Type<typeof EvalEvent>;

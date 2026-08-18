@@ -1,6 +1,6 @@
 import { Data, Match, Stream } from "effect";
 import { Response } from "effect/unstable/ai";
-import { AnyPart, type AnyStreamPart } from "./schema.ts";
+import { AnyAggPart, AnyPart } from "./schema.ts";
 
 type AccumState = Data.TaggedEnum<{
   Idle: {};
@@ -16,10 +16,11 @@ type AccumState = Data.TaggedEnum<{
 
 const { Idle, Text, Reasoning, ToolParams, $match } = Data.taggedEnum<AccumState>();
 
+// `as AnyAggPart` casts are safe: only non-streaming parts reach pass-through on well-formed streams.
 const matchPart = (
   state: AccumState,
-  part: AnyStreamPart,
-): readonly [AccumState, readonly AnyPart[]] =>
+  part: AnyPart,
+): readonly [AccumState, readonly AnyAggPart[]] =>
   $match(state, {
     Idle: () =>
       Match.value(part).pipe(
@@ -44,7 +45,7 @@ const matchPart = (
               [],
             ] as const,
         ),
-        Match.orElse(() => [state, [part]] as const),
+        Match.orElse(() => [state, [part as AnyAggPart]] as const),
       ),
 
     Text: (s) =>
@@ -57,7 +58,7 @@ const matchPart = (
           { type: "text-end" as const },
           () => [Idle(), [Response.makePart("text", { text: s.text })]] as const,
         ),
-        Match.orElse(() => [s, [part]] as const),
+        Match.orElse(() => [s, [part as AnyAggPart]] as const),
       ),
 
     Reasoning: (s) =>
@@ -70,7 +71,7 @@ const matchPart = (
           { type: "reasoning-end" as const },
           () => [Idle(), [Response.makePart("reasoning", { text: s.text })]] as const,
         ),
-        Match.orElse(() => [s, [part]] as const),
+        Match.orElse(() => [s, [part as AnyAggPart]] as const),
       ),
 
     ToolParams: (s) =>
@@ -98,16 +99,17 @@ const matchPart = (
             ],
           ] as const;
         }),
-        Match.orElse(() => [s, [part]] as const),
+        Match.orElse(() => [s, [part as AnyAggPart]] as const),
       ),
   });
 
-export const merge = <E, R>(
-  stream: Stream.Stream<AnyStreamPart, E, R>,
-): Stream.Stream<AnyPart, E, R> =>
+/**
+ * Folds all streaming parts (e.g. text-start/delta/end) in a response stream into aggregated parts (e.g. text).
+ */
+export const fold = <E, R>(stream: Stream.Stream<AnyPart, E, R>): Stream.Stream<AnyAggPart, E, R> =>
   stream.pipe(
-    Stream.mapAccum<AccumState, AnyStreamPart, AnyPart>(
+    Stream.mapAccum<AccumState, AnyPart, AnyAggPart>(
       () => Idle(),
-      (state, part) => matchPart(state, part),
+      (state, part) => matchPart(state, part as AnyPart),
     ),
   );

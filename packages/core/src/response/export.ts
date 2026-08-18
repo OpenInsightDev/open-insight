@@ -1,4 +1,4 @@
-export { AnyStreamPart, AnyPart } from "./schema.ts";
-export { merge } from "./stream.ts";
+export { AnyStreamPart, AnyPart, AnyAggPart } from "./schema.ts";
+export { fold } from "./stream.ts";
 
 export * from "effect/unstable/ai/Response";
