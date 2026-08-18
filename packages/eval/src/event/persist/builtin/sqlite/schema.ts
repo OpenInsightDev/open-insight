@@ -14,14 +14,14 @@
  */
 import { Model } from "effect/unstable/schema";
 import { Schema } from "effect";
-import { BenchFields, TaskFields, TrailFields } from "#/event/schema.ts";
+import { BenchID, TaskID, TrailID } from "#/event/schema.ts";
 
 // ─── Event table ───────────────────────────────────────────────────────
 // Stores every event as a JSON payload for full fidelity replay.
 
 export class Event extends Model.Class<Event>("Event")({
   id: Model.GeneratedByDb(Schema.Number),
-  ...BenchFields,
+  ...BenchID.fields,
   taskId: Model.FieldOption(Schema.String),
   trailIdx: Model.FieldOption(Schema.Int),
   sessionIdx: Model.FieldOption(Schema.Int),
@@ -35,7 +35,7 @@ export class Event extends Model.Class<Event>("Event")({
 
 export class BenchStatus extends Model.Class<BenchStatus>("BenchStatus")({
   id: Model.GeneratedByDb(Schema.Number),
-  ...BenchFields,
+  ...BenchID.fields,
   startedAt: Model.DateTimeInsertFromDate,
   endedAt: Model.FieldOption(Schema.DateTimeUtcFromDate),
 }) {}
@@ -46,7 +46,7 @@ export class BenchStatus extends Model.Class<BenchStatus>("BenchStatus")({
 
 export class TaskStatus extends Model.Class<TaskStatus>("TaskStatus")({
   id: Model.GeneratedByDb(Schema.Number),
-  ...TaskFields,
+  ...TaskID.fields,
   startedAt: Model.DateTimeInsertFromDate,
   endedAt: Model.FieldOption(Schema.DateTimeUtcFromDate),
 }) {}
@@ -61,7 +61,7 @@ export class TaskStatus extends Model.Class<TaskStatus>("TaskStatus")({
 
 export class TrailStatus extends Model.Class<TrailStatus>("TrailStatus")({
   id: Model.GeneratedByDb(Schema.Number),
-  ...TrailFields,
+  ...TrailID.fields,
   grade: Model.FieldOption(Schema.Unknown),
   usage: Model.FieldOption(Schema.Unknown),
   startedAt: Model.DateTimeInsertFromDate,
