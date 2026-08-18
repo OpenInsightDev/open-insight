@@ -1,20 +1,23 @@
 # Running Evaluation
 
-Evaluation prepares snapshots before it starts any trails. Task snapshots are
-grouped by their computed snapshot handle, so tasks that share a snapshot build
-it once per evaluation. `snapshotConcurrency` limits unique snapshot
-preparation, `taskConcurrency` limits task runner creation, and
-`trailConcurrency` limits running trails.
+Evaluation prepares each task snapshot before starting that task's trails.
+`snapshotConcurrency` limits snapshot preparation, `trailConcurrency` limits
+running trails, and `trailCount` selects how many trails each task runs.
 
-Log output is controlled by the `console` and `logLevel` config options; see
-`logging.md` for details.
-
-`Eval.make(options)(bench)` produces an event stream. Pipe that stream through
-`Eval.run` to consume its events and obtain the final `BenchResult`:
+`Eval.run(bench, options)` and `Eval.make(options)(bench)` produce the same
+event stream. Pipe it through `Eval.result` to consume the stream and obtain the
+final `BenchResult`:
 
 ```ts
-const result = yield* Eval.make()(bench).pipe(Eval.run)
+const result = yield* Eval.run(bench).pipe(Eval.result)
 ```
 
-`Eval.run` preserves evaluation failures and only converts the stream's final
-`Cause.Done<BenchResult>` signal into the returned result.
+`Eval.result` preserves evaluation failures and converts the stream's final
+internal `ResultDone<BenchResult>` signal into the returned result. Use
+`Eval.stream` when only the event sequence is needed:
+
+```ts
+import { Stream } from "effect"
+
+const events = yield* Eval.run(bench).pipe(Eval.stream, Stream.runCollect)
+```

@@ -39,6 +39,7 @@ export type Task<G extends Grade.AnyResult = any, E extends Schema.Constraint = 
 
 export type AnyTask = Task<any, any>;
 export type GradeOf<T> = T extends Task<infer G, infer _> ? G : never;
+export type GradeTypeOf<T> = GradeOf<T>["Type"];
 export type ExtraOf<T> = T extends Task<infer _, infer E> ? E : never;
 
 type Options<G extends Grade.AnyResult, E extends Schema.Constraint> = MetadataEncoded &

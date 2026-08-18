@@ -55,13 +55,14 @@ export const makeStream =
       Stream.mapAccumEffect(
         () => ({ results: {} as BenchResult<G>, prev: null as MR | null }),
         Effect.fn(function* ({ results, prev }, delta) {
+          const nextResults = { ...results, [delta[0]]: delta[1] };
           const next = yield* Effect.tryPromise({
-            try: () => Promise.resolve(exec(results, delta, prev)),
+            try: () => Promise.resolve(exec(nextResults, delta, prev)),
             catch: MetricError.exec(metadata.id),
           });
 
           return [
-            { results, prev: next },
+            { results: nextResults, prev: next },
             [
               Result.make({
                 id: metadata.id,

@@ -1,10 +1,10 @@
-import { Cause, Context, Effect, Option, Stream } from "effect";
+import { Context, Effect, Option, Stream } from "effect";
 import { BenchID, EvalErrorEvent, EvalSuccessEvent, TaskID, TrailID } from "../schema.ts";
 import type { EventError } from "../error.ts";
-import type { BenchResult, TaskResult, TrailResult } from "../result.ts";
+import type { BenchResult, ResultDone, TaskResult, TrailResult } from "../result.ts";
 import { EvalEvent } from "../schema.ts";
 
-type EventStream<R> = Stream.Stream<EvalSuccessEvent, EventError | EvalErrorEvent | Cause.Done<R>>;
+type EventStream<R> = Stream.Stream<EvalSuccessEvent, EventError | EvalErrorEvent | ResultDone<R>>;
 
 export type Persist = Readonly<{
   getBench(id: BenchID): Option.Option<EventStream<BenchResult>>;

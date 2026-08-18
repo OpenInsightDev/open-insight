@@ -88,7 +88,7 @@ export class RunService extends Context.Service<
           Embed: Effect.fn(function* (grader) {
             return Effect.fn(function* ({ sandbox, trajectory }: RunOptions) {
               const result = yield* Embed.run(grader)({ sandbox, trajectory });
-              return decodeResult(schema, result);
+              return yield* decodeResult(schema, result);
             });
           }),
           TrailSidecar: Effect.fn(function* (grader) {
@@ -109,7 +109,7 @@ export class RunService extends Context.Service<
                 grade: gradeSbx,
                 trajectory,
               });
-              return decodeResult(schema, result);
+              return yield* decodeResult(schema, result);
             }, Effect.scoped);
           }),
           TaskSidecar: Effect.fn(function* (grader) {
@@ -133,7 +133,7 @@ export class RunService extends Context.Service<
                 grade: gradeSbx,
                 trajectory,
               });
-              return decodeResult(schema, result);
+              return yield* decodeResult(schema, result);
             });
           }),
         });

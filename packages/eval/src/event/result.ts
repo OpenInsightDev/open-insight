@@ -1,7 +1,15 @@
 import { Timestamp } from "#/utils/schema.ts";
 import { Prompt } from "@open-insight/core/internal";
-import { Schema } from "effect";
+import { Data, Effect, Schema } from "effect";
 import { Response } from "effect/unstable/ai";
+
+/** Carries a completed aggregate through an evaluation stream's error channel. */
+export class ResultDone<A> extends Data.TaggedError("ResultDone")<{
+  readonly value: A;
+}> {}
+
+export const resultDone = <A>(value: A): Effect.Effect<never, ResultDone<A>> =>
+  Effect.fail(new ResultDone({ value }));
 
 export const SessionResult = Schema.TaggedStruct("SessionResult", {
   startedAt: Timestamp,
