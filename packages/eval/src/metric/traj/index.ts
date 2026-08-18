@@ -1,17 +1,40 @@
-import { Prompt } from "@open-insight/core/internal";
-import { Effect, Match, Schema, Stream } from "effect";
+import { Prompt, Response } from "@open-insight/core/internal";
+import { Effect, Schema, Stream } from "effect";
 import { Metadata, Result, type MetadataEncoded } from "../schema.ts";
 import type { BivariantFn } from "#/utils/variant.ts";
 import * as Chart from "#/chart/index.ts";
 import { MetricError } from "../error.ts";
 
 type State = Readonly<{
+  /**
+   * Trajectory of the previous prompts and responses.
+   * Note that this trajectory does not include the current prompt and response.
+   *
+   * See {@link Prompt.Trajectory} for the definition.
+   */
   trajectory: Prompt.Trajectory;
+
+  /**
+   * The prompt of the current turn.
+   * See {@link Prompt.Prompt} for the definition.
+   */
   prompt: Prompt.Prompt;
-  response: Prompt.ResponseMessagePart[];
+
+  /**
+   * The response parts of the current turn.
+   * See {@link Response.AnyAggPart} for the definition.
+   */
+  response: Response.AnyAggPart[];
 }>;
 
-export type Delta = Prompt.ResponseMessagePart | Prompt.Prompt;
+/**
+ * Stream part for metric to monitoring on session.
+ *
+ * Consists of:
+ * - {@link Prompt.Prompt}: The prompt of a new turn. Use {@link Prompt.isPrompt} to guard.
+ * - {@link Response.AnyAggPart}: The response parts of the current turn.
+ */
+export type Delta = Prompt.Prompt | Response.AnyAggPart;
 
 type Nullable<T> = T | null;
 export type Exec<R extends Schema.Json = any> = (
@@ -46,7 +69,7 @@ export const make = Effect.fn(function* <R extends Schema.Json = any>(options: O
 });
 
 type StreamOptions<E, R> = Readonly<{
-  stream: Stream.Stream<Prompt.Prompt | Prompt.ResponseMessagePart, E, R>;
+  stream: Stream.Stream<Prompt.Prompt | Response.AnyAggPart, E, R>;
 }>;
 
 type Accum = State &
@@ -54,35 +77,16 @@ type Accum = State &
     prev: Schema.Json | null;
   }>;
 
-const foldPrompt = (state: Accum, prompt: Prompt.Prompt): Accum => {
-  const assistant: Prompt.AssistantMessagePart[] = [];
-  const tool: Prompt.ToolMessagePart[] = [];
-
-  for (const part of state.response) {
-    Match.value(part).pipe(
-      Match.whenOr({ type: "tool-result" }, { type: "tool-approval-response" }, (toolPart) =>
-        tool.push(toolPart),
-      ),
-      Match.orElse((part) => assistant.push(part)),
-    );
-  }
-
-  const messages: Prompt.Message[] = [];
-  if (assistant.length > 0) {
-    messages.push(Prompt.makeMessage("assistant", { content: assistant }));
-  }
-  if (tool.length > 0) {
-    messages.push(Prompt.makeMessage("tool", { content: tool }));
-  }
-
-  const trajectory = state.trajectory.pipe(Prompt.concat(prompt), Prompt.concat(messages));
+const foldPrompt = (state: Accum, prompt: Prompt.Prompt) => {
+  const responsePrompt = Prompt.fromResponseParts(state.response);
+  const trajectory = state.trajectory.pipe(Prompt.concat(prompt), Prompt.concat(responsePrompt));
 
   return {
+    prev: state.prev,
     trajectory,
     prompt,
     response: [],
-    prev: state.prev,
-  };
+  } satisfies Accum;
 };
 
 export const makeStream =

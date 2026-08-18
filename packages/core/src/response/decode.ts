@@ -1,6 +1,7 @@
 import { Schema, Stream, type Effect } from "effect";
 import { AnyStreamPart } from "./schema.ts";
 import type { StreamPartEncoded } from "effect/unstable/ai/Response";
+import { Chat } from "effect/unstable/ai";
 
 export const decodeStreamPartEncoded = (
   encoded: StreamPartEncoded,
@@ -16,3 +17,5 @@ export const encodeStreamPart = (
   part: AnyStreamPart,
 ): Effect.Effect<StreamPartEncoded, Schema.SchemaError> =>
   Schema.encodeUnknownEffect(AnyStreamPart)(part);
+
+Chat.Chat;

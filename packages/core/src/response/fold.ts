@@ -19,9 +19,13 @@ const { Idle, Text, Reasoning, ToolParams, $match } = Data.taggedEnum<AccumState
 // `as AnyAggPart` casts are safe: only non-streaming parts reach pass-through on well-formed streams.
 const matchPart = (
   state: AccumState,
-  part: AnyPart,
-): readonly [AccumState, readonly AnyAggPart[]] =>
-  $match(state, {
+  part: AnyPart | unknown,
+): readonly [AccumState, readonly AnyAggPart[]] => {
+  if (!Response.isPart(part)) {
+    return [state, []];
+  }
+
+  return $match(state, {
     Idle: () =>
       Match.value(part).pipe(
         Match.when(
@@ -102,6 +106,7 @@ const matchPart = (
         Match.orElse(() => [s, [part as AnyAggPart]] as const),
       ),
   });
+};
 
 /**
  * Folds all streaming parts (e.g. text-start/delta/end) in a response stream into aggregated parts (e.g. text).

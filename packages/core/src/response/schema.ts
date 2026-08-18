@@ -102,26 +102,5 @@ export const AnyAggPart = Schema.Union([
 ]);
 export type AnyAggPart = Schema.Schema.Type<typeof AnyAggPart>;
 
-export const AnyPart = Schema.Union([
-  TextPart,
-  TextStartPart,
-  TextDeltaPart,
-  TextEndPart,
-  ReasoningPart,
-  ReasoningStartPart,
-  ReasoningDeltaPart,
-  ReasoningEndPart,
-  ToolParamsStartPart,
-  ToolParamsDeltaPart,
-  ToolParamsEndPart,
-  ToolApprovalRequestPart,
-  AnyToolCallPart,
-  AnyToolResultPart,
-  FilePart,
-  DocumentSourcePart,
-  UrlSourcePart,
-  ResponseMetadataPart,
-  FinishPart,
-  ErrorPart,
-]);
+export const AnyPart = Schema.Union([AnyStreamPart, AnyAggPart]);
 export type AnyPart = Schema.Schema.Type<typeof AnyPart>;

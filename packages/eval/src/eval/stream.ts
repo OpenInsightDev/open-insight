@@ -7,7 +7,6 @@ import {
   Ref,
   Semaphore,
   Stream,
-  Channel,
   Cause,
   Queue,
   FiberSet,
@@ -15,6 +14,7 @@ import {
   Match,
   Option,
   pipe,
+  Data,
 } from "effect";
 import * as Bench from "#/bench/index.ts";
 import * as Grade from "#/grade/index.ts";
@@ -59,109 +59,90 @@ const makeSession = Effect.fn(
 
     const prompts = Prompt.makeStream(prompt, {
       trajectory: session.trajectory,
-      sandbox: sbxPromise,
+      sbxPromise,
     }).pipe(Stream.mapError(EvalError.taskExec(task, id.trailIdx)));
 
-    type TurnEventItem = {
-      readonly _tag: "Event";
-      readonly event: Event.SessionPromptEvent | Event.SessionStreamEvent;
-    };
-    type TurnDeltaItem = {
-      readonly _tag: "Delta";
-      readonly delta: Prompt.Prompt | Prompt.ResponseMessagePart;
-    };
-    // Build each turn as an actual stream before asking for the next prompt.
-    // `Prompt.makeStream` reads the latest trajectory on every pull, so the
-    // sequential flatMap below must wait for both response consumers to finish
-    // before it pulls the next prompt.
-    const turnItems = prompts.pipe(
-      Stream.flatMap((prompt) =>
-        Effect.gen(function* () {
-          const [respStreamForEvent, respStreamForMetric] = yield* makeRespStream(prompt).pipe(
-            Stream.broadcastN({ n: 2, capacity: "unbounded" }),
-          );
+    // TODO 优化这里
+    type TurnPart = Data.TaggedEnum<{
+      Event: { part: Event.SessionPromptEvent | Event.SessionStreamEvent };
+      Metric: { part: Prompt.Prompt | Response.AnyAggPart };
+    }>;
+    const TurnPart = Data.taggedEnum<TurnPart>();
 
-          const eventItems = Stream.empty.pipe(
-            Stream.concat(
-              Stream.succeed<TurnEventItem>({
-                _tag: "Event" as const,
-                event: Event.SessionPromptEvent.make({ ...id, prompt }),
-              }),
-            ),
-            Stream.concat(
-              respStreamForEvent.pipe(
-                Stream.map((part): TurnEventItem => ({
-                  _tag: "Event" as const,
-                  event: Event.SessionStreamEvent.make({ ...id, part }),
-                })),
-              ),
-            ),
-          );
-          const deltaItems = Stream.empty.pipe(
-            Stream.concat(Stream.succeed<TurnDeltaItem>({ _tag: "Delta" as const, delta: prompt })),
-            Stream.concat(
-              Prompt.foldResponseStream(respStreamForMetric).pipe(
-                Stream.map((delta): TurnDeltaItem => ({ _tag: "Delta" as const, delta })),
-              ),
-            ),
-          );
+    const [turnforEvent, turnForMetric] = yield* prompts
+      .pipe(
+        Stream.flatMap(
+          Effect.fn(function* (prompt) {
+            const [respForEvent, respForMetric] = yield* makeRespStream(prompt).pipe(
+              Stream.broadcastN({ n: 2, capacity: "unbounded" }),
+            );
 
-          // The default merge halt strategy waits for both response branches,
-          // ensuring trajectory is committed before the next prompt is pulled.
-          return Stream.merge(eventItems, deltaItems);
-        }).pipe(Stream.unwrap),
-      ),
-    );
-    const turnStreams = yield* turnItems.pipe(
-      Stream.broadcastN({ n: 1 + trajMetrics.length, capacity: "unbounded" }),
-    );
-    const turnEvents = turnStreams[0]!.pipe(
-      Stream.filter((item): item is TurnEventItem => item._tag === "Event"),
-      Stream.map((item) => item.event),
-    );
-    const turnDeltas = turnStreams.slice(1).map((stream) =>
-      stream.pipe(
-        Stream.filter((item): item is TurnDeltaItem => item._tag === "Delta"),
-        Stream.map((item) => item.delta),
-      ),
-    );
-    const metricEventStreams = trajMetrics
-      .map((metric, index) =>
-        Metric.Traj.makeStream({
-          stream: turnDeltas[index]!,
-        })(metric),
+            const promptEvent = TurnPart.Event({
+              part: Event.SessionPromptEvent.make({ id, prompt }),
+            });
+            const streamEvents = respForEvent.pipe(
+              Stream.map((part) =>
+                TurnPart.Event({ part: Event.SessionStreamEvent.make({ id, part }) }),
+              ),
+            );
+            const events = Stream.empty.pipe(
+              Stream.concat(Stream.succeed(promptEvent)),
+              Stream.concat(streamEvents),
+            );
+
+            const promptDelta = TurnPart.Metric({ part: prompt });
+            const streamDeltas = Response.fold(respForMetric).pipe(
+              Stream.map((part) => TurnPart.Metric({ part })),
+            );
+            const deltas = Stream.empty.pipe(
+              Stream.concat(Stream.succeed(promptDelta)),
+              Stream.concat(streamDeltas),
+            );
+
+            return Stream.empty.pipe(Stream.merge(events), Stream.merge(deltas));
+          }, Stream.unwrap),
+        ),
       )
+      .pipe(Stream.broadcastN({ n: 2, capacity: "unbounded" }));
+
+    const turnEvents = turnforEvent.pipe(
+      Stream.filter(TurnPart.$is("Event")),
+      Stream.map(({ part }) => part),
+    );
+    const deltas = yield* turnForMetric
+      .pipe(
+        Stream.filter(TurnPart.$is("Metric")),
+        Stream.map(({ part }) => part),
+      )
+      .pipe(Stream.share({ capacity: "unbounded" }));
+
+    const metricEventStreams = trajMetrics
+      .map((metric) => Metric.Traj.makeStream({ stream: deltas })(metric))
       .map(Stream.catchTag("MetricError", (error) => Stream.fail(EvalError.metric(error))))
-      .map(Stream.map((result) => Event.SessionMetricEvent.make({ ...id, ...result })));
+      .map(
+        Stream.map(({ id: metricID, ...values }) =>
+          Event.SessionMetricEvent.make({ id: { ...id, id: metricID }, ...values }),
+        ),
+      );
     const metricEvents = Stream.mergeAll(metricEventStreams, { concurrency: "unbounded" });
 
-    const startEvent = Stream.succeed(Event.SessionStartEvent.make(id));
+    const startEvent = Stream.succeed(Event.SessionStartEvent.make({ id }));
     const endEvent = Ref.get(finishRef)
-      .pipe(Effect.map((reason) => Event.SessionEndEvent.make({ ...id, reason })))
+      .pipe(Effect.map((reason) => Event.SessionEndEvent.make({ id, reason })))
       .pipe(Stream.fromEffect);
-    const result = Effect.all({
-      usage: Ref.get(usageRef),
-      trajectory: Ref.get(session.trajectory),
-    }).pipe(
-      Effect.flatMap(({ usage, trajectory }) =>
-        Event.resultDone(Event.SessionResult.make({ usage, trajectory })),
-      ),
-      Stream.fromEffect,
-    );
 
-    const activeEvents = turnEvents.pipe(Stream.merge(metricEvents));
     return Stream.empty.pipe(
       Stream.concat(startEvent),
-      Stream.concat(activeEvents),
+      Stream.concat(turnEvents),
       Stream.concat(endEvent),
-      Stream.concat(result),
+      Stream.merge(metricEvents),
     );
   },
   (eff, { id }) =>
     eff.pipe(
       Stream.unwrap,
       Stream.catchTag("EvalError", (error) =>
-        Stream.fail(Event.SessionErrorEvent.make({ ...id, error })),
+        Stream.fail(Event.SessionErrorEvent.make({ id, error })),
       ),
     ),
 );

@@ -85,9 +85,7 @@ export class Service extends Context.Service<Service, Harness>()("harness/Servic
           Effect.mapError(HarnessError.init),
         );
 
-        // Reference-counted snapshot session cache keyed by template equality: the
-        // snapshot is acquired once per template and shared by every runSnapshot
-        // caller, then released when the last referencing scope closes.
+        // Reference-counted snapshot session cache keyed by template equality
         const cache = yield* RcMap.make({
           lookup: (template: Snapshot.Template) =>
             Effect.gen(function* () {

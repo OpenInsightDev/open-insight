@@ -35,7 +35,7 @@ export type Options =
  */
 export type Input = Readonly<{
   trajectory: Ref.Ref<Trajectory>;
-  sandbox: Sandbox.ReadonlySandboxPromise;
+  sbxPromise: Sandbox.ReadonlySandboxPromise;
 }>;
 
 const makeStaticStream = (init: Init): Stream.Stream<Prompt.Prompt, PromptError> =>
@@ -43,11 +43,11 @@ const makeStaticStream = (init: Init): Stream.Stream<Prompt.Prompt, PromptError>
 
 const makeFnStream = (
   fn: FnPromise,
-  { trajectory, sandbox }: Input,
+  { trajectory, sbxPromise }: Input,
 ): Stream.Stream<Prompt.Prompt, PromptError> =>
   Stream.unfold(undefined, () =>
     Effect.gen(function* () {
-      const context: Context = { ...sandbox, trajectory: yield* Ref.get(trajectory) };
+      const context: Context = { ...sbxPromise, trajectory: yield* Ref.get(trajectory) };
       const next = yield* Effect.tryPromise({
         try: () => fn(context),
         catch: PromptError.generation,
@@ -64,11 +64,11 @@ type GeneratedState = Readonly<{
 const makeFollowUpStream = (
   factory: Factory,
   init: Option.Option<Init>,
-  { trajectory, sandbox }: Input,
+  { trajectory, sbxPromise }: Input,
 ): Stream.Stream<Prompt.Prompt, PromptError> =>
   Stream.unfold({ pending: init, iterator: Option.none() } satisfies GeneratedState, (state) =>
     Effect.gen(function* () {
-      const context: Context = { ...sandbox, trajectory: yield* Ref.get(trajectory) };
+      const context: Context = { ...sbxPromise, trajectory: yield* Ref.get(trajectory) };
 
       if (Option.isSome(state.pending)) {
         return [

@@ -7,9 +7,12 @@ import { AgentError } from "./error.ts";
 
 export type Agent = Readonly<{
   /**
-   * Current trajectory of the agent.
+   * Ref of a append- and read-only view of the prompt trajectory, including all prompts and responses that have been streamed so far.
+   *
+   * Note that this trajectory does not equate to the internal state of the agent.
    */
   trajectory: Ref.Ref<Prompt.Trajectory>;
+
   prompt(prompt: Prompt.Prompt): Stream.Stream<Response.AnyStreamPart, AgentError>;
 }>;
 
@@ -18,127 +21,68 @@ export type SnapshotExtension = Readonly<{
   context?: string;
 }>;
 
-export type SessionOptions = Readonly<{}>;
-
 export type Provider = Readonly<{
   snapshotExtension: Option.Option<SnapshotExtension>;
-  runSession(
-    sandbox: Sandbox.Sandbox,
-    options?: SessionOptions,
-  ): Effect.Effect<Agent, AgentError, Scope.Scope>;
+  runSession(sandbox: Sandbox.Sandbox): Effect.Effect<Agent, AgentError, Scope.Scope>;
 }>;
 
 export class ProviderService extends Context.Service<ProviderService, Provider>()(
   "agent/AgentService",
 ) {}
 
-export type PromptFn = (
-  prompt: Prompt.Prompt,
-) => Stream.Stream<Response.StreamPartEncoded, AgentError>;
+type AgentOptions = Readonly<{
+  prompt(prompt: Prompt.Prompt): Stream.Stream<Response.StreamPartEncoded, AgentError>;
+}>;
+type ProviderOptions = Readonly<{
+  snapshotExtension: Option.Option<SnapshotExtension>;
+  runSession(sandbox: Sandbox.Sandbox): Effect.Effect<AgentOptions, AgentError, Scope.Scope>;
+}>;
 
-type PromptAsyncFn = (prompt: Prompt.Prompt) => AsyncIterable<Response.StreamPartEncoded>;
-
-/**
- * Builds an `Agent` from a model function that produces encoded response parts.
- *
- * The trajectory is accumulated manually: the caller's prompt is concatenated
- * onto the current history before it is handed to the model, and as encoded
- * parts stream back they are decoded and collected. Once the response stream
- * terminates, the trajectory is committed back into the history `Ref`.
- *
- * Concurrent `prompt` calls on the same agent are serialized with a binary
- * semaphore (mirroring `effect/unstable/ai/Chat`): a single mutex guards the
- * whole streaming lifecycle, so history is read and committed atomically and
- * never races. Concurrent calls queue up and run one at a time, each
- * accumulating its own prompt + response into the history in lock-grant order.
- */
-const makeAgent = Effect.fn(function* (run: PromptFn): Effect.fn.Return<Agent, AgentError> {
-  const history = yield* Ref.make<Prompt.Prompt>(Prompt.empty);
-  const semaphore = Semaphore.makeUnsafe(1);
+const makeAgent = Effect.fn(function* ({ prompt: promptFn }: AgentOptions) {
+  const trajectory = yield* Ref.make<Prompt.Trajectory>(Prompt.empty);
+  const sem = Semaphore.makeUnsafe(1);
 
   const promptStream = (prompt: Prompt.Prompt): Stream.Stream<Response.AnyStreamPart, AgentError> =>
     Effect.gen(function* () {
-      const current = yield* semaphore.take(1).pipe(Effect.flatMap(() => Ref.get(history)));
-      const trajectory = Prompt.concat(current, prompt);
+      yield* Ref.get(trajectory).pipe(sem.withPermit);
+      const parts: Array<Response.AnyStreamPart> = [];
 
-      const parts: Array<Response.AnyPart> = [];
-
-      return run(trajectory).pipe(
+      const decoded = promptFn(prompt).pipe(
         Response.decodeStream,
         Stream.mapError(AgentError.stream),
-        Stream.tap((part) =>
-          Effect.sync(() => {
-            parts.push(part);
-          }),
-        ),
+      );
+
+      return decoded.pipe(
+        Stream.tap((part) => Effect.sync(() => parts.push(part))),
         Stream.ensuring(
           Effect.andThen(
-            Ref.update(history, (_) => Prompt.concat(trajectory, Prompt.fromResponseParts(parts))),
-            semaphore.release(1),
+            Ref.update(trajectory, (_) => Prompt.concat(prompt, Prompt.fromResponseParts(parts))),
+            sem.release(1),
           ),
         ),
       );
     }).pipe(Stream.unwrap);
 
   return {
-    trajectory: history,
+    trajectory,
     prompt: promptStream,
   } satisfies Agent;
 });
 
-/**
- * Creates an `Agent` from a model function that streams encoded response
- * parts, given a `Prompt`. See {@link makeAgent} for the accumulation details.
- */
-export const make = Effect.fn(function* (prompt: PromptFn): Effect.fn.Return<Agent, AgentError> {
-  return yield* makeAgent(prompt);
+export const make = Effect.fn(function* ({
+  snapshotExtension,
+  runSession: runSessionFn,
+}: ProviderOptions) {
+  const runSession = Effect.fn(function* (sandbox: Sandbox.Sandbox) {
+    const agentOptions = yield* runSessionFn(sandbox);
+    return yield* makeAgent(agentOptions);
+  }) satisfies Provider["runSession"];
+
+  return {
+    snapshotExtension,
+    runSession,
+  } satisfies Provider;
 });
 
-/**
- * Creates an `Agent` from a model function that yields encoded response parts
- * as an `AsyncIterable`, given a `Prompt`.
- */
-export const makeAsync = Effect.fn(function* (
-  prompt: PromptAsyncFn,
-): Effect.fn.Return<Agent, AgentError> {
-  return yield* makeAgent((trajectory) =>
-    Stream.fromAsyncIterable(prompt(trajectory), AgentError.stream),
-  );
-});
-
-/**
- * Creates a `Provider` layer from a model function that streams encoded
- * response parts. Each `runSession` yields a fresh {@link make} `Agent` with
- * its own trajectory. The provider carries the given `snapshotExtension` (if
- * provided) so a harness can derive the sandbox snapshot before running.
- */
-export const layerFrom = (
-  prompt: PromptFn,
-  snapshotExtension?: SnapshotExtension,
-): Layer.Layer<ProviderService, AgentError> =>
-  Layer.effect(
-    ProviderService,
-    Effect.succeed({
-      snapshotExtension: Option.fromNullishOr(snapshotExtension),
-      runSession: () => make(prompt),
-    } satisfies Provider),
-  );
-
-/**
- * Creates a `Provider` layer from a model function that yields encoded
- * response parts as an `AsyncIterable`. Each `runSession` yields a fresh
- * {@link makeAsync} `Agent` with its own trajectory. The provider carries the
- * given `snapshotExtension` (if provided) so a harness can derive the sandbox
- * snapshot before running.
- */
-export const layerFromAsync = (
-  prompt: PromptAsyncFn,
-  snapshotExtension?: SnapshotExtension,
-): Layer.Layer<ProviderService, AgentError> =>
-  Layer.effect(
-    ProviderService,
-    Effect.succeed({
-      snapshotExtension: Option.fromNullishOr(snapshotExtension),
-      runSession: () => makeAsync(prompt),
-    } satisfies Provider),
-  );
+export const layerFrom = (options: ProviderOptions): Layer.Layer<ProviderService> =>
+  Layer.effect(ProviderService, make(options));

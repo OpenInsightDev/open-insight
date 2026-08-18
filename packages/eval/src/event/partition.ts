@@ -1,4 +1,5 @@
-import type { SessionID, TaskID, TrailID } from "./schema.ts";
+import { Schema, Stream } from "effect";
+import { TaskID, type SessionID, type TrailID } from "./schema.ts";
 import type {
   EvalEventStream,
   SessionEventStream,
@@ -9,7 +10,14 @@ import type {
 export const filterTask =
   (id: TaskID) =>
   <E, R>(stream: EvalEventStream<E, R>): TaskEventStream<E, R> => {
-    throw new Error("Not implemented");
+    return Stream.filter(
+      stream,
+      (event) =>
+        Schema.is(TaskID)(event.id) &&
+        event.id.benchId === id.benchId &&
+        event.id.harnessId === id.harnessId &&
+        event.id.taskId === id.taskId,
+    ) as TaskEventStream<E, R>;
   };
 
 export const filterTrail =
