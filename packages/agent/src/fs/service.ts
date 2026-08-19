@@ -1,10 +1,14 @@
-import { Context, Effect } from "effect";
+import { Context, Effect, Schema } from "effect";
 
-export type ReadFileOptions = Readonly<{
-  startLine?: number;
-  endLine?: number;
-  maxBytes?: number;
-}>;
+// export type ReadFileOptions = Readonly<{
+//   startLine?: number;
+//   endLine?: number;
+//   maxBytes?: number;
+// }>;
+
+export const ReadFileOptions = Schema.Struct({
+  filePath: Schema.String,
+});
 
 export class Fs extends Context.Service<
   Fs,

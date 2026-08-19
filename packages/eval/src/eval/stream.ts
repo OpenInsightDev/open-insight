@@ -77,9 +77,6 @@ const makeSession = Effect.fn(
             const trajectory = yield* Ref.get(session.trajectory);
             current = yield* prompting.prompt(trajectory).pipe(Effect.mapError(EvalError.prompt));
           }
-
-          yield* Queue.end(queue);
-          yield* Queue.end(deltaQueue);
         },
         (eff, queue) =>
           eff.pipe(Effect.ensuring(Effect.all([Queue.end(queue), Queue.end(deltaQueue)]))),
@@ -191,10 +188,9 @@ const makeTrail = Effect.fn(
         Stream.provide(Prompt.Gen.layerFrom({ options: promptOptions, context: sbxPromise })),
         Stream.catchTag("PromptError", (error) => Stream.fail(EvalError.prompt(error))),
         Stream.catchTag("SessionResult", (result) =>
-          Effect.all([
-            Ref.set(usageRef, result.usage),
-            Queue.offer(sessionResultQueue, result),
-          ]).pipe(() => Stream.empty),
+          Stream.fromEffect(
+            Effect.all([Ref.set(usageRef, result.usage), Queue.offer(sessionResultQueue, result)]),
+          ).pipe(Stream.drain),
         ),
       );
 
@@ -348,7 +344,7 @@ const makeTask = Effect.fn(
             )
             .pipe(
               Stream.catchTag("TrailResult", (result) =>
-                Queue.offer(trailResultQueue, result).pipe(() => Stream.empty),
+                Queue.offer(trailResultQueue, result).pipe(Stream.fromEffect, Stream.drain),
               ),
             );
         },
@@ -359,7 +355,8 @@ const makeTask = Effect.fn(
       trails.map((trail) =>
         trail.pipe(
           Stream.onStart(
-            // ensure only one trail per task is waiting trailSem
+            // ensure one trail at a time per task is waiting trailSem
+            // to ensure inter-task fairness
             trailSchedSem.take(1).pipe(Effect.andThen(Effect.yieldNow)),
           ),
         ),
@@ -438,13 +435,16 @@ export const make = Effect.fn(
         snapSem,
         trailSem,
         trailCount,
-      }).pipe(),
-    );
-    const taskEvents = Stream.mergeAll(taskStreams, { concurrency: "unbounded" }).pipe(
-      Stream.catchTag("TaskResult", (result) =>
-        Queue.offer(taskResultQueue, [result.id.taskId, result]).pipe(() => Stream.empty),
+      }).pipe(
+        Stream.catchTag("TaskResult", (result) =>
+          Queue.offer(taskResultQueue, [result.id.taskId, result]).pipe(
+            Stream.fromEffect,
+            Stream.drain,
+          ),
+        ),
       ),
     );
+    const taskEvents = Stream.mergeAll(taskStreams, { concurrency: "unbounded" });
 
     const startEvent = Stream.succeed(
       Event.BenchStartEvent.make({
