@@ -33,7 +33,7 @@ const makeSession = Effect.fn(
     const { trajMetrics } = task;
 
     const session = yield* Harness.AgentService;
-    const prompting = yield* Prompt.Service;
+    const prompting = yield* Prompt.Gen.Service;
 
     const usageRef = yield* Ref.make<Response.Usage | null>(null);
     const finishRef = yield* Ref.make<Response.FinishReason>("unknown");
@@ -177,7 +177,7 @@ const makeTrail = Effect.fn(
       sessionIdx,
     }: {
       agentSession: Harness.AgentSession;
-      prompt: Prompt.Options;
+      prompt: Prompt.Gen.Options;
       sessionIdx: number;
     }): Stream.Stream<
       Event.EvalSuccessEvent,
@@ -188,7 +188,7 @@ const makeTrail = Effect.fn(
 
       const session = makeSession<T>({ id: sessionID, task, sbxPromise }).pipe(
         Stream.provideService(Harness.AgentService, agentSession),
-        Stream.provide(Prompt.layerFrom({ options: promptOptions, context: sbxPromise })),
+        Stream.provide(Prompt.Gen.layerFrom({ options: promptOptions, context: sbxPromise })),
         Stream.catchTag("PromptError", (error) => Stream.fail(EvalError.prompt(error))),
         Stream.catchTag("SessionResult", (result) =>
           Effect.all([
