@@ -10,9 +10,9 @@ import {
   Cause,
   Queue,
   Fiber,
-  FiberSet,
   Match,
   Option,
+  Array,
 } from "effect";
 import * as Bench from "#/bench/index.ts";
 import * as Grade from "#/grade/index.ts";
@@ -24,63 +24,67 @@ import { EvalError } from "./error.ts";
 
 type SessionOptions<T extends Task.AnyTask> = Readonly<{
   id: Event.SessionID;
-
   task: T;
   sbxPromise: Sandbox.SandboxPromise;
 }>;
 
 const makeSession = Effect.fn(
-  function* <T extends Task.AnyTask>(options: SessionOptions<T>) {
-    const { id, task } = options;
+  function* <T extends Task.AnyTask>({ id, task }: SessionOptions<T>) {
     const { trajMetrics } = task;
 
     const session = yield* Harness.AgentService;
-    const { init: promptInit, prompt: promptFn } = yield* Prompt.Service;
+    const prompting = yield* Prompt.Service;
 
     const usageRef = yield* Ref.make<Response.Usage | null>(null);
     const finishRef = yield* Ref.make<Response.FinishReason>("unknown");
 
     const deltaQueue = yield* Queue.make<Prompt.Prompt | Response.AnyAggPart, Cause.Done>();
 
-    const turns = Stream.callback<Prompt.Prompt | Response.AnyStreamPart, EvalError>((queue) =>
-      Effect.gen(function* () {
-        let current: Option.Option<Prompt.Prompt> = Option.some(promptInit);
+    const turns = Stream.callback<Prompt.Prompt | Response.AnyStreamPart, EvalError>(
+      Effect.fn(
+        function* (queue) {
+          let current: Option.Option<Prompt.Prompt> = Option.some(prompting.init);
 
-        while (Option.isSome(current)) {
-          const prompt = current.value;
-          yield* Effect.all([Queue.offer(queue, prompt), Queue.offer(deltaQueue, prompt)]);
+          while (Option.isSome(current)) {
+            yield* Effect.all([
+              Queue.offer(queue, current.value),
+              Queue.offer(deltaQueue, current.value),
+            ]);
 
-          const response = session
-            .prompt(current.value)
-            .pipe(Stream.mapError(EvalError.harness))
-            .pipe(
-              Stream.tap(
-                Effect.fn(function* (part) {
-                  if (part.type !== "finish") {
-                    return;
-                  }
-                  yield* Effect.all([
-                    Ref.set(finishRef, part.reason),
-                    Ref.set(usageRef, part.usage),
-                  ]);
-                }),
-              ),
+            const response = session
+              .prompt(current.value)
+              .pipe(Stream.mapError(EvalError.harness))
+              .pipe(
+                Stream.tap(
+                  Effect.fn(function* (part) {
+                    if (part.type !== "finish") {
+                      return;
+                    }
+                    yield* Effect.all([
+                      Ref.set(finishRef, part.reason),
+                      Ref.set(usageRef, part.usage),
+                    ]);
+                  }),
+                ),
+              );
+
+            yield* response.pipe(
+              Stream.tap((part) => Queue.offer(queue, part)),
+              Response.fold,
+              Stream.runForEach((part) => Queue.offer(deltaQueue, part)),
             );
 
-          yield* response.pipe(
-            Stream.tap((part) => Queue.offer(queue, part)),
-            Response.fold,
-            Stream.runForEach((part) => Queue.offer(deltaQueue, part)),
-          );
+            const trajectory = yield* Ref.get(session.trajectory);
+            current = yield* prompting.prompt(trajectory).pipe(Effect.mapError(EvalError.prompt));
+          }
 
-          const trajectory = yield* Ref.get(session.trajectory);
-          current = yield* promptFn(trajectory).pipe(Effect.mapError(EvalError.prompt));
-        }
-
-        yield* Queue.end(queue);
-        yield* Queue.end(deltaQueue);
-      }),
-    ).pipe(Stream.ensuring(Queue.end(deltaQueue)));
+          yield* Queue.end(queue);
+          yield* Queue.end(deltaQueue);
+        },
+        (eff, queue) =>
+          eff.pipe(Effect.ensuring(Effect.all([Queue.end(queue), Queue.end(deltaQueue)]))),
+      ),
+    );
 
     const turnEvents = turns.pipe(
       Stream.map((value) =>
@@ -111,7 +115,7 @@ const makeSession = Effect.fn(
       trajectory: Ref.get(session.trajectory),
     }).pipe(
       Effect.flatMap(({ usage, trajectory }) =>
-        Effect.fail(Event.SessionResult.make({ usage, trajectory })),
+        Effect.fail(Event.SessionResult.make({ id, usage, trajectory })),
       ),
       Stream.fromEffect,
     );
@@ -142,7 +146,7 @@ const makeTrail = Effect.fn(
   function* <T extends Task.AnyTask>({ id, task }: TrailOptions<T>) {
     const { sandboxConfig, schedMetrics, prompt: promptOptions } = task;
 
-    const { run: runGrader } = yield* Grade.RunService;
+    const grading = yield* Grade.RunService;
     const snapSession = yield* Harness.SnapService;
 
     const persist = yield* Effect.serviceOption(Event.Persist.Service);
@@ -166,7 +170,6 @@ const makeTrail = Effect.fn(
 
     const usageRef = yield* Ref.make<Response.Usage | null>(null);
     const sessionResultQueue = yield* Queue.make<Event.SessionResult, Cause.Done>();
-    const trailResultRef = yield* Ref.make<Option.Option<Event.TrailResult>>(Option.none());
 
     const makeAttempt = ({
       agentSession,
@@ -178,43 +181,40 @@ const makeTrail = Effect.fn(
       sessionIdx: number;
     }): Stream.Stream<
       Event.EvalSuccessEvent,
-      Event.EvalErrorEvent | EvalError | Event.TrailResult,
+      Event.EvalErrorEvent | EvalError | Event.TrailResult<Task.GradeTypeOf<T>>,
       FileSystem.FileSystem | Path.Path | Grade.RunService
     > => {
       const sessionID: Event.SessionID = { ...id, sessionIdx };
 
       const session = makeSession<T>({ id: sessionID, task, sbxPromise }).pipe(
         Stream.provideService(Harness.AgentService, agentSession),
-        Stream.provide(
-          Prompt.layerFrom({
-            options: promptOptions,
-            context: sbxPromise,
-          }),
-        ),
+        Stream.provide(Prompt.layerFrom({ options: promptOptions, context: sbxPromise })),
         Stream.catchTag("PromptError", (error) => Stream.fail(EvalError.prompt(error))),
         Stream.catchTag("SessionResult", (result) =>
-          Effect.gen(function* () {
-            yield* Ref.set(usageRef, result.usage);
-            yield* Queue.offer(sessionResultQueue, result);
-            return Stream.empty;
-          }).pipe(Stream.unwrap),
+          Effect.all([
+            Ref.set(usageRef, result.usage),
+            Queue.offer(sessionResultQueue, result),
+          ]).pipe(() => Stream.empty),
         ),
       );
 
       const gradeResult = Effect.gen(function* () {
         const trajectory = yield* Ref.get(agentSession.trajectory);
 
-        const grade = yield* runGrader<Task.GradeOf<T>>({
-          sandbox: sbxSession.sandbox,
-          trajectory,
-        }).pipe(
-          Effect.catchTag("Retry", (retry) => Effect.fail(retry)),
-          Effect.catchTag("GradeError", (error) => Effect.fail(EvalError.grade(error))),
-        );
+        const grade = yield* grading
+          .run<Task.GradeOf<T>>({
+            sandbox: sbxSession.sandbox,
+            trajectory,
+          })
+          .pipe(Effect.catchTag("GradeError", (error) => Effect.fail(EvalError.grade(error))));
+
+        const endEvent = Stream.succeed(Event.TrailEndEvent.make({ id, grade }));
 
         yield* Queue.end(sessionResultQueue);
         const sessions = yield* Queue.collect(sessionResultQueue);
-        return Stream.fail(Event.TrailResult.make({ grade, sessions }));
+        const result = Stream.fail(Event.TrailResult.make({ id, grade, sessions }));
+
+        return Stream.empty.pipe(Stream.concat(endEvent), Stream.concat(result));
       }).pipe(Stream.unwrap);
 
       const makeRetry = (retry: Grade.Retry) =>
@@ -243,13 +243,13 @@ const makeTrail = Effect.fn(
           return Stream.empty.pipe(Stream.concat(retryEvent), Stream.concat(nextAttempt));
         }).pipe(Stream.unwrap);
 
-      const gradeStream = gradeResult.pipe(Stream.catchTag("Retry", makeRetry));
-
-      return Stream.empty.pipe(Stream.concat(session), Stream.concat(gradeStream));
+      const grade = gradeResult.pipe(Stream.catchTag("Retry", makeRetry));
+      return Stream.empty.pipe(Stream.concat(session), Stream.concat(grade));
     };
 
-    const agentSession = yield* sbxSession.runAgent().pipe(Effect.mapError(EvalError.harness));
     const startEvent = Stream.succeed(Event.TrailStartEvent.make({ id }));
+
+    const agentSession = yield* sbxSession.runAgent().pipe(Effect.mapError(EvalError.harness));
     const attemptEvents = makeAttempt({ agentSession, prompt: promptOptions, sessionIdx: 0 });
 
     const schedMetricStreams = schedMetrics
@@ -262,8 +262,8 @@ const makeTrail = Effect.fn(
     return Stream.empty.pipe(
       Stream.concat(startEvent),
       Stream.concat(attemptEvents),
+      // end event and result are included in attemptEvents
       Stream.merge(metricEvents),
-      // TODO end
     );
   },
   (eff, { id }) =>
@@ -324,89 +324,68 @@ const makeTask = Effect.fn(
       }),
     );
 
-    const trailQueue = yield* Queue.make<
-      Event.EvalSuccessEvent,
-      Event.EvalErrorEvent | Cause.Done
-    >();
-    const trailFibers = yield* FiberSet.make<void, never>();
-    const trailResultQueues = yield* Effect.all([
-      Queue.make<TrailResultEntry, Cause.Done>(),
-      ...taskMetrics.map(() => Queue.make<TrailResultEntry, Cause.Done>()),
-    ]);
-    const trailResultQueue = trailResultQueues[0]!;
-    const taskMetricQueues = trailResultQueues.slice(1);
+    const trailResultQueue = yield* Queue.make<Event.TrailResult, Cause.Done>();
+    const trailResults = yield* Stream.fromQueue(trailResultQueue).pipe(
+      Stream.share({ capacity: "unbounded" }),
+    );
+    const taskResultFiber = yield* Stream.runCollect(trailResults).pipe(Effect.forkScoped);
 
-    for (let trailIdx = 0; trailIdx < trailCount; trailIdx += 1) {
-      const trailID = { ...id, trailIdx };
-      yield* makeTrail<T>({ task, id: trailID })
-        .pipe(
-          Stream.provide(Grade.RunService.layerFrom<Task.GradeOf<T>>(grader)),
-          Stream.provideService(Harness.SnapService, snapSession),
-        )
-        .pipe(
-          Stream.catchTag("GradeError", (error) =>
-            Stream.fail(Event.TrailErrorEvent.make({ id: trailID, error: EvalError.grade(error) })),
-          ),
-          Stream.catchTag("ResultDone", ({ value }) =>
-            Effect.forEach(
-              trailResultQueues,
-              (queue) => Queue.offer(queue, [trailIdx, value] as const),
-              { discard: true },
-            ).pipe(Effect.as(Stream.empty), Stream.unwrap),
-          ),
-          Stream.runForEach((event) => Queue.offer(trailQueue, event)),
-          Effect.catchCause((cause) => Queue.failCause(trailQueue, cause)),
-          Effect.asVoid,
-        )
-        .pipe(trailSem.withPermit, FiberSet.run(trailFibers));
-      yield* Effect.yieldNow;
-    }
+    // trails of the same task should task global trail sem sequentially
+    // to ensure inter-task fairness
+    const trailSchedSem = yield* Semaphore.make(1);
 
-    yield* Effect.forkScoped(
-      FiberSet.awaitEmpty(trailFibers).pipe(
-        Effect.andThen(Queue.end(trailQueue)),
-        Effect.andThen(
-          Effect.forEach(trailResultQueues, (queue) => Queue.end(queue), { discard: true }),
+    const trails = Array.range(0, trailCount - 1).map(
+      Effect.fn(
+        function* (trailIdx) {
+          yield* trailSchedSem.release(1);
+
+          const trailID: Event.TrailID = { ...id, trailIdx };
+          return makeTrail<T>({ task, id: trailID })
+            .pipe(
+              Stream.provide(Grade.layerFrom(grader)),
+              Stream.catchTag("GradeError", (error) => Stream.fail(EvalError.grade(error))),
+              Stream.provideService(Harness.SnapService, snapSession),
+            )
+            .pipe(
+              Stream.catchTag("TrailResult", (result) =>
+                Queue.offer(trailResultQueue, result).pipe(() => Stream.empty),
+              ),
+            );
+        },
+        (eff) => eff.pipe(trailSem.withPermit, Stream.unwrap),
+      ),
+    );
+    const trailEvents = Stream.mergeAll(
+      trails.map((trail) =>
+        trail.pipe(
+          Stream.onStart(
+            // ensure only one trail per task is waiting trailSem
+            trailSchedSem.take(1).pipe(Effect.andThen(Effect.yieldNow)),
+          ),
         ),
       ),
-      { startImmediately: true },
+      { concurrency: "unbounded" },
     );
 
-    const trailEvents = Stream.fromQueue(trailQueue);
-    const taskMetricStreams = taskMetrics
-      .map((metric, index) =>
-        Metric.Task.makeStream(
-          Stream.fromQueue(taskMetricQueues[index]!).pipe(Stream.map(([, result]) => result)),
-        )(metric),
-      )
-      .map(Stream.mapError(EvalError.metric));
-    const metricEvents = Stream.mergeAll(taskMetricStreams, { concurrency: "unbounded" }).pipe(
-      Stream.map((result) => Event.TaskMetricEvent.make({ id, ...result })),
-    );
-    const activeEvents = trailEvents.pipe(Stream.merge(metricEvents));
-    const result = Stream.fromEffect(
-      Stream.fromQueue(trailResultQueue)
-        .pipe(Stream.runCollect)
-        .pipe(
-          Effect.flatMap((entries) =>
-            Event.resultDone(
-              Event.TaskResult.make({
-                trails: entries
-                  .slice()
-                  .sort(([left], [right]) => left - right)
-                  .map(([, trail]) => trail),
-              }),
-            ),
-          ),
-        ),
-    );
+    const metricStreams = taskMetrics
+      .map(Metric.Task.makeStream(trailResults))
+      .map(Stream.catchTag("MetricError", (error) => Stream.fail(EvalError.metric(error))))
+      .map(Stream.map((result) => Event.TaskMetricEvent.make({ id, ...result })));
+    const metricEvents = Stream.mergeAll(metricStreams, { concurrency: "unbounded" });
     const endEvent = Stream.succeed(Event.TaskEndEvent.make({ id }));
+
+    const result = Effect.gen(function* () {
+      yield* Queue.end(trailResultQueue);
+      const trails = yield* Fiber.join(taskResultFiber);
+      return yield* Effect.fail(Event.TaskResult.make({ id, trails }));
+    }).pipe(Stream.fromEffect);
 
     return Stream.empty.pipe(
       Stream.concat(startEvent),
-      Stream.concat(activeEvents),
+      Stream.concat(trailEvents),
       Stream.concat(endEvent),
       Stream.concat(result),
+      Stream.merge(metricEvents),
     );
   },
   (eff, { id }) =>
@@ -422,22 +401,6 @@ export const make = Effect.fn(
   function* <T extends Task.AnyTask>(bench: Bench.Bench<T>, config: Config) {
     const { tasks, metrics } = bench;
     const { trailConcurrency, snapshotConcurrency, trailCount } = config;
-
-    const invalidConcurrency = [
-      { name: "trailConcurrency", value: trailConcurrency },
-      { name: "snapshotConcurrency", value: snapshotConcurrency },
-    ].find(({ value }) => !Number.isSafeInteger(value) || value < 1);
-    if (invalidConcurrency !== undefined) {
-      const { name, value } = invalidConcurrency;
-      return yield* Effect.fail(
-        EvalError.init(new RangeError(`${name} must be a positive integer (received ${value})`)),
-      );
-    }
-    if (!Number.isSafeInteger(trailCount)) {
-      return yield* Effect.fail(
-        EvalError.init(new RangeError(`trailCount must be an integer (received ${trailCount})`)),
-      );
-    }
 
     const harness = yield* Harness.Service;
     const id: Event.BenchID = {
@@ -458,12 +421,13 @@ export const make = Effect.fn(
       }
     }
 
-    const taskResultQueues = yield* Effect.all([
-      Queue.make<[Task.ID, Event.TaskResult], Cause.Done>(),
-      ...metrics.map(() => Queue.make<[Task.ID, Event.TaskResult], Cause.Done>()),
-    ]);
-    const taskResultQueue = taskResultQueues[0]!;
-    const benchMetricQueues = taskResultQueues.slice(1);
+    const taskResultQueue = yield* Queue.make<[Task.ID, Event.TaskResult], Cause.Done>();
+    const taskResults = yield* Stream.fromQueue(taskResultQueue).pipe(
+      Stream.share({ capacity: "unbounded" }),
+    );
+    const resultFiber = yield* Stream.runCollect(taskResults)
+      .pipe(Effect.map((entries) => Object.fromEntries(entries)))
+      .pipe(Effect.forkScoped);
 
     const taskStreams = tasks.map((task) =>
       makeTask<T>({
@@ -474,37 +438,12 @@ export const make = Effect.fn(
         snapSem,
         trailSem,
         trailCount,
-      }).pipe(
-        Stream.catchTag("ResultDone", ({ value }) =>
-          Effect.forEach(
-            taskResultQueues,
-            (queue) => Queue.offer(queue, [task.metadata.id, value] as const),
-            { discard: true },
-          ).pipe(Effect.as(Stream.empty), Stream.unwrap),
-        ),
-      ),
+      }).pipe(),
     );
-    const taskEvents =
-      tasks.length === 0
-        ? Stream.empty
-        : Stream.mergeAll(taskStreams, { concurrency: tasks.length });
-    const taskEventsWithClose = taskEvents.pipe(
-      Stream.ensuring(
-        Effect.forEach(taskResultQueues, (queue) => Queue.end(queue), { discard: true }),
+    const taskEvents = Stream.mergeAll(taskStreams, { concurrency: "unbounded" }).pipe(
+      Stream.catchTag("TaskResult", (result) =>
+        Queue.offer(taskResultQueue, [result.id.taskId, result]).pipe(() => Stream.empty),
       ),
-    );
-
-    const metricStreams = metrics
-      .map((metric, index) =>
-        Metric.Bench.makeStream(
-          Stream.fromQueue(benchMetricQueues[index]!).pipe(
-            Stream.map(([taskId, result]) => [taskId, result.trails] as const),
-          ),
-        )(metric),
-      )
-      .map(Stream.mapError(EvalError.metric));
-    const metricEvents = Stream.mergeAll(metricStreams, { concurrency: "unbounded" }).pipe(
-      Stream.map((result) => Event.BenchMetricEvent.make({ id, ...result })),
     );
 
     const startEvent = Stream.succeed(
@@ -517,50 +456,36 @@ export const make = Effect.fn(
     );
 
     const endEvent = Stream.succeed(Event.BenchEndEvent.make({ id }));
-    const result = Stream.fromEffect(
-      Stream.fromQueue(taskResultQueue)
-        .pipe(Stream.runCollect)
-        .pipe(
-          Effect.flatMap((entries) =>
-            Event.resultDone(
-              Event.BenchResult.make({
-                tasks: Object.fromEntries(entries.map(([taskId, task]) => [taskId, task])),
-              }),
-            ),
-          ),
-        ),
-    );
-    const stream = Stream.empty.pipe(
+
+    let stream = Stream.empty.pipe(
       Stream.concat(startEvent),
-      Stream.concat(taskEventsWithClose.pipe(Stream.merge(metricEvents))),
+      Stream.concat(taskEvents),
       Stream.concat(endEvent),
-      Stream.concat(result),
     );
 
-    if (Option.isSome(persist)) {
-      const persistQueue = yield* Queue.make<
-        Stream.Success<typeof stream>,
-        Stream.Error<typeof stream> | Cause.Done
-      >();
-      const persistFiber = yield* persist.value
-        .persist(Stream.fromQueue(persistQueue))
-        .pipe(Effect.catchTag("EventError", (error) => Effect.fail(EvalError.event(error))))
-        .pipe(Effect.forkScoped);
+    const persistFiber = yield* Effect.gen(function* () {
+      if (Option.isNone(persist)) {
+        return;
+      }
 
-      return stream.pipe(
-        Stream.tap((event) => Queue.offer(persistQueue, event)),
-        Stream.catch((error) =>
-          Queue.fail(persistQueue, error).pipe(
-            Effect.andThen(Fiber.join(persistFiber)),
-            Effect.andThen(Effect.fail(error)),
-            Stream.fromEffect,
-          ),
-        ),
-        Stream.onEnd(Queue.end(persistQueue).pipe(Effect.andThen(Fiber.join(persistFiber)))),
-      );
-    }
+      const shared = yield* stream.pipe(Stream.share({ capacity: "unbounded" }));
+      yield* persist.value
+        .persist(shared)
+        .pipe(Effect.catchTag("EventError", (error) => Effect.fail(EvalError.event(error))));
+    }).pipe(Effect.forkScoped);
 
-    return stream;
+    const result = Effect.gen(function* () {
+      yield* Queue.end(taskResultQueue);
+      const tasks = yield* Fiber.join(resultFiber);
+
+      return yield* Effect.fail(Event.BenchResult.make({ id, tasks }));
+    }).pipe(Stream.fromEffect);
+
+    return Stream.empty.pipe(
+      Stream.concat(stream),
+      Stream.concat(result),
+      Stream.onEnd(Fiber.join(persistFiber)),
+    );
   },
   (eff, bench) =>
     eff.pipe(

@@ -12,23 +12,11 @@ export const BenchID = Schema.Struct({
 });
 export type BenchID = Schema.Schema.Type<typeof BenchID>;
 
-export const BenchMetricID = Schema.Struct({
-  ...BenchID.fields,
-  id: Schema.String,
-});
-export type BenchMetricID = Schema.Schema.Type<typeof BenchMetricID>;
-
 export const TaskID = Schema.Struct({
   ...BenchID.fields,
   taskId: Schema.String,
 });
 export type TaskID = Schema.Schema.Type<typeof TaskID>;
-
-export const TaskMetricID = Schema.Struct({
-  ...TaskID.fields,
-  id: Schema.String,
-});
-export type TaskMetricID = Schema.Schema.Type<typeof TaskMetricID>;
 
 export const TrailID = Schema.Struct({
   ...TaskID.fields,
@@ -36,23 +24,11 @@ export const TrailID = Schema.Struct({
 });
 export type TrailID = Schema.Schema.Type<typeof TrailID>;
 
-export const SchedMetricID = Schema.Struct({
-  ...TrailID.fields,
-  id: Schema.String,
-});
-export type SchedMetricID = Schema.Schema.Type<typeof SchedMetricID>;
-
 export const SessionID = Schema.Struct({
   ...TrailID.fields,
   sessionIdx: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
 });
 export type SessionID = Schema.Schema.Type<typeof SessionID>;
-
-export const TrajMetricID = Schema.Struct({
-  ...SessionID.fields,
-  id: Schema.String,
-});
-export type TrajMetricID = Schema.Schema.Type<typeof TrajMetricID>;
 
 export class BenchStartEvent extends Schema.TaggedClass<BenchStartEvent>()("BenchStartEvent", {
   id: BenchID,

@@ -76,72 +76,72 @@ export class RunService extends Context.Service<
       FileSystem.FileSystem | Path.Path | R["DecodingServices"]
     >;
   }
->()("RunService") {
-  static layerFrom = <R extends AnyResult>({ schema, variant }: Grader<R>) =>
-    Layer.effect(
-      this,
-      Effect.gen(function* () {
-        const scope = yield* Scope.Scope;
-        const sbxProvider = yield* Sandbox.ProviderService;
+>()("RunService") {}
 
-        const run = yield* Variant<R>().$match(variant, {
-          Embed: Effect.fn(function* (grader) {
-            return Effect.fn(function* ({ sandbox, trajectory }: RunOptions) {
-              const result = yield* Embed.run(grader)({ sandbox, trajectory });
-              return yield* decodeResult(schema, result);
-            });
-          }),
-          TrailSidecar: Effect.fn(function* (grader) {
-            const { snapshot: template, resources } = grader;
+export const layerFrom = ({ schema, variant }: Grader) =>
+  Layer.effect(
+    RunService,
+    Effect.gen(function* () {
+      const scope = yield* Scope.Scope;
+      const sbxProvider = yield* Sandbox.ProviderService;
 
-            const snapshot = yield* sbxProvider
-              .acquireSnapshot({ template, cache: true })
-              .pipe(Effect.mapError(GradeError.sandbox))
-              .pipe(Effect.provideService(Scope.Scope, scope));
+      const run = yield* Variant().$match(variant, {
+        Embed: Effect.fn(function* (grader) {
+          return Effect.fn(function* ({ sandbox, trajectory }: RunOptions) {
+            const result = yield* Embed.run(grader)({ sandbox, trajectory });
+            return yield* decodeResult(schema, result);
+          });
+        }),
+        TrailSidecar: Effect.fn(function* (grader) {
+          const { snapshot: template, resources } = grader;
 
-            return Effect.fn(function* ({ sandbox: agentSbx, trajectory }: RunOptions) {
-              const gradeSbx = yield* sbxProvider
-                .runSandbox({ snapshot, resources, cache: false })
-                .pipe(Effect.mapError(GradeError.sandbox));
+          const snapshot = yield* sbxProvider
+            .acquireSnapshot({ template, cache: true })
+            .pipe(Effect.mapError(GradeError.sandbox))
+            .pipe(Effect.provideService(Scope.Scope, scope));
 
-              const result = yield* Sidecar.run(grader)({
-                agent: agentSbx,
-                grade: gradeSbx,
-                trajectory,
-              });
-              return yield* decodeResult(schema, result);
-            }, Effect.scoped);
-          }),
-          TaskSidecar: Effect.fn(function* (grader) {
-            const { snapshot: template, resources } = grader;
-
-            const snapshot = yield* sbxProvider
-              .acquireSnapshot({ template, cache: true })
-              .pipe(Effect.mapError(GradeError.sandbox))
-              .pipe(Effect.provideService(Scope.Scope, scope));
-
-            // grade sandbox are bound to the scope of creation
-            // can be used between multiple runs
+          return Effect.fn(function* ({ sandbox: agentSbx, trajectory }: RunOptions) {
             const gradeSbx = yield* sbxProvider
-              .runSandbox({ snapshot, resources, cache: true })
-              .pipe(Effect.mapError(GradeError.sandbox))
-              .pipe(Effect.provideService(Scope.Scope, scope));
+              .runSandbox({ snapshot, resources, cache: false })
+              .pipe(Effect.mapError(GradeError.sandbox));
 
-            return Effect.fn(function* ({ sandbox: agentSbx, trajectory }: RunOptions) {
-              const result = yield* Sidecar.run(grader)({
-                agent: agentSbx,
-                grade: gradeSbx,
-                trajectory,
-              });
-              return yield* decodeResult(schema, result);
+            const result = yield* Sidecar.run(grader)({
+              agent: agentSbx,
+              grade: gradeSbx,
+              trajectory,
             });
-          }),
-        });
+            return yield* decodeResult(schema, result);
+          }, Effect.scoped);
+        }),
+        TaskSidecar: Effect.fn(function* (grader) {
+          const { snapshot: template, resources } = grader;
 
-        return { run };
-      }),
-    );
-}
+          const snapshot = yield* sbxProvider
+            .acquireSnapshot({ template, cache: true })
+            .pipe(Effect.mapError(GradeError.sandbox))
+            .pipe(Effect.provideService(Scope.Scope, scope));
+
+          // grade sandbox are bound to the scope of creation
+          // can be used between multiple runs
+          const gradeSbx = yield* sbxProvider
+            .runSandbox({ snapshot, resources, cache: true })
+            .pipe(Effect.mapError(GradeError.sandbox))
+            .pipe(Effect.provideService(Scope.Scope, scope));
+
+          return Effect.fn(function* ({ sandbox: agentSbx, trajectory }: RunOptions) {
+            const result = yield* Sidecar.run(grader)({
+              agent: agentSbx,
+              grade: gradeSbx,
+              trajectory,
+            });
+            return yield* decodeResult(schema, result);
+          });
+        }),
+      });
+
+      return { run };
+    }),
+  );
 
 export * from "./error.ts";
 export * from "./retry.ts";
