@@ -9,7 +9,7 @@ import { BenchError } from "./error.ts";
 import { Sandbox } from "@open-insight/core/internal";
 
 export const metric =
-  <G extends Grade.AnyResult, MR extends Schema.JsonObject>(
+  <G extends Grade.AnyResult, MR extends Schema.Json>(
     exec: Metric.Bench.Exec<G["Type"], MR>,
     options: Omit<Metric.Bench.Options<G["Type"], MR>, "exec"> = {},
   ) =>
@@ -26,7 +26,7 @@ export const metric =
     );
 
 export const taskMetric =
-  <G extends Grade.AnyResult, MR extends Schema.JsonObject>(
+  <G extends Grade.AnyResult, MR extends Schema.Json>(
     taskId: Task.ID,
     exec: Metric.Task.Exec<G["Type"], MR>,
     options: Omit<Metric.Task.Options<G["Type"], MR>, "exec"> = {},
@@ -52,7 +52,7 @@ export const taskMetric =
       );
     });
 
-const mapTaskExec = <G extends Grade.AnyResult, M, R extends Schema.JsonObject>(
+const mapTaskExec = <G extends Grade.AnyResult, M, R extends Schema.Json>(
   mapper: (grade: G["Type"]) => M,
   exec: Metric.Task.Exec<M, R>,
 ): Metric.Task.Exec<G["Type"], R> => {
@@ -65,7 +65,7 @@ const mapTaskExec = <G extends Grade.AnyResult, M, R extends Schema.JsonObject>(
 };
 
 export const mapTaskMetric =
-  <G extends Grade.AnyResult, M, MR extends Schema.JsonObject>(
+  <G extends Grade.AnyResult, M, MR extends Schema.Json>(
     taskId: Task.ID,
     mapper: (grade: G["Type"]) => M,
     exec: Metric.Task.Exec<M, MR>,
@@ -92,7 +92,7 @@ export const mapTaskMetric =
       );
     });
 
-const mapBenchExec = <G extends Grade.AnyResult, M, R extends Schema.JsonObject>(
+const mapBenchExec = <G extends Grade.AnyResult, M, R extends Schema.Json>(
   mapper: (grade: G["Type"]) => M,
   exec: Metric.Bench.Exec<M, R>,
 ): Metric.Bench.Exec<G["Type"], R> => {
@@ -118,7 +118,7 @@ const mapBenchExec = <G extends Grade.AnyResult, M, R extends Schema.JsonObject>
 };
 
 export const mapMetric =
-  <G extends Grade.AnyResult, M, MR extends Schema.JsonObject>(
+  <G extends Grade.AnyResult, M, MR extends Schema.Json>(
     mapper: (grade: G["Type"]) => M,
     exec: Metric.Bench.Exec<M, MR>,
     options: Omit<Metric.Bench.Options<G["Type"], MR>, "exec"> = {},
@@ -136,7 +136,7 @@ export const mapMetric =
     );
 
 export const trajMetric =
-  <R extends Schema.JsonObject = Schema.JsonObject>(
+  <R extends Schema.Json = Schema.JsonObject>(
     taskId: Task.ID,
     exec: Metric.Traj.Exec<R>,
     options: Omit<Metric.Traj.Options<R>, "exec"> = {},
@@ -174,7 +174,7 @@ const mapTrajExec = <R extends Schema.Json>(
 };
 
 export const mapTrajMetric =
-  <R extends Schema.JsonObject = Schema.JsonObject>(
+  <R extends Schema.Json = Schema.JsonObject>(
     taskId: Task.ID,
     mapper: (state: Metric.Traj.State, delta: Metric.Traj.Delta) => Metric.Traj.State,
     exec: Metric.Traj.Exec<R>,
@@ -207,7 +207,7 @@ export const mapTrajMetric =
     );
 
 export const schedMetric =
-  <R extends Schema.JsonObject = Schema.JsonObject>(
+  <R extends Schema.Json = Schema.JsonObject>(
     taskId: Task.ID,
     exec: Metric.Sched.Exec<R>,
     options: Omit<Metric.Sched.Options<R>, "exec"> = {},
@@ -245,7 +245,7 @@ const mapSchedExec = <R extends Schema.Json>(
 };
 
 export const mapSchedMetric =
-  <R extends Schema.JsonObject = Schema.JsonObject>(
+  <R extends Schema.Json = Schema.JsonObject>(
     taskId: Task.ID,
     mapper: (sandbox: Sandbox.ReadonlySandboxPromise) => Sandbox.ReadonlySandboxPromise,
     exec: Metric.Sched.Exec<R>,

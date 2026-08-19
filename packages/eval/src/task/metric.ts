@@ -5,7 +5,7 @@ import { castDraft, produce } from "immer";
 import type { Task } from "./build.ts";
 import { TaskError } from "./error.ts";
 
-const mapExec = <G extends Grade.AnyResult, M, R extends Schema.JsonObject>(
+const mapExec = <G extends Grade.AnyResult, M, R extends Schema.Json>(
   mapper: (grade: G["Type"]) => M,
   exec: Metric.Task.Exec<M, R>,
 ): Metric.Task.Exec<G["Type"], R> => {
@@ -18,7 +18,7 @@ const mapExec = <G extends Grade.AnyResult, M, R extends Schema.JsonObject>(
 };
 
 export const mapMetric =
-  <G extends Grade.AnyResult, M, MR extends Schema.JsonObject>(
+  <G extends Grade.AnyResult, M, MR extends Schema.Json>(
     mapper: (grade: G["Type"]) => M,
     exec: Metric.Task.Exec<M, MR>,
     options: Omit<Metric.Task.Options<G["Type"], MR>, "exec"> = {},
@@ -36,7 +36,7 @@ export const mapMetric =
     );
 
 export const metric =
-  <G extends Grade.AnyResult, MR extends Schema.JsonObject>(
+  <G extends Grade.AnyResult, MR extends Schema.Json>(
     exec: Metric.Task.Exec<G["Type"], MR>,
     options: Omit<Metric.Task.Options<G["Type"], MR>, "exec"> = {},
   ) =>
@@ -53,7 +53,7 @@ export const metric =
     );
 
 export const trajMetric =
-  <R extends Schema.JsonObject = Schema.JsonObject>(
+  <R extends Schema.Json = Schema.JsonObject>(
     exec: Metric.Traj.Exec<R>,
     options: Omit<Metric.Traj.Options<R>, "exec"> = {},
   ) =>
@@ -74,7 +74,7 @@ export const trajMetric =
     );
 
 export const schedMetric =
-  <R extends Schema.JsonObject = Schema.JsonObject>(
+  <R extends Schema.Json = Schema.JsonObject>(
     exec: Metric.Sched.Exec<R>,
     options: Omit<Metric.Sched.Options<R>, "exec"> = {},
   ) =>

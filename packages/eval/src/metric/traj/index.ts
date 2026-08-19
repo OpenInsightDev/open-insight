@@ -119,3 +119,5 @@ export const makeStream =
       ),
     );
   };
+
+export * as Tool from "./tool/index.ts";

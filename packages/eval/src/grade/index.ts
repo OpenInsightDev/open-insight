@@ -22,6 +22,11 @@ export type Grader<R extends AnyResult = AnyResult> = Readonly<{
 export type EmbedOptions<R extends AnyResult = AnyResult> = Readonly<{
   verif?: Verif<R> | null;
 }>;
+/**
+ * Creates an embed grader.
+ *
+ * This grader runs the grading logic in the same sandbox as the agent.
+ */
 export const embed = <R extends AnyResult>(
   grade: Embed.Exec<R>,
   { verif = null }: EmbedOptions<R> = {},
@@ -34,6 +39,11 @@ export type SidecarOptions<R extends AnyResult = AnyResult> = Readonly<{
   resources?: Resource.Resources;
   concurrency?: number;
 }>;
+/**
+ * Creates a sidecar grader.
+ *
+ * This grader runs the grading logic in a separate grading sandbox.
+ */
 export const sidecar = <R extends AnyResult>(
   grade: Sidecar.Exec<R>,
   {

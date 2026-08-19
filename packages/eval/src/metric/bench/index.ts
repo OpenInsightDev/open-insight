@@ -74,3 +74,5 @@ export const makeStream =
         }),
       ),
     );
+
+export * from "./builtin/index.ts";
