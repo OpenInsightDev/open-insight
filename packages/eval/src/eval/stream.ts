@@ -457,20 +457,17 @@ export const make = Effect.fn(
 
     const endEvent = Stream.succeed(Event.BenchEndEvent.make({ id }));
 
-    let stream = Stream.empty.pipe(
-      Stream.concat(startEvent),
-      Stream.concat(taskEvents),
-      Stream.concat(endEvent),
-    );
+    let stream = yield* Stream.empty
+      .pipe(Stream.concat(startEvent), Stream.concat(taskEvents), Stream.concat(endEvent))
+      .pipe(Stream.share({ capacity: "unbounded" }));
 
     const persistFiber = yield* Effect.gen(function* () {
       if (Option.isNone(persist)) {
         return;
       }
 
-      const shared = yield* stream.pipe(Stream.share({ capacity: "unbounded" }));
       yield* persist.value
-        .persist(shared)
+        .persist(stream)
         .pipe(Effect.catchTag("EventError", (error) => Effect.fail(EvalError.event(error))));
     }).pipe(Effect.forkScoped);
 

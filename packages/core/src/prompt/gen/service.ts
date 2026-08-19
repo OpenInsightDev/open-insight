@@ -1,8 +1,8 @@
 import { Context, Effect, Layer, Option } from "effect";
 import { Prompt } from "effect/unstable/ai";
 import * as Sandbox from "#/sandbox/index.ts";
-import { PromptError } from "./error.ts";
-import type { Trajectory } from "./traj.ts";
+import { PromptError } from "../error.ts";
+import type { Trajectory } from "../traj.ts";
 
 export type Context = Sandbox.ReadonlySandboxPromise;
 
@@ -14,12 +14,12 @@ export type Options = Readonly<{
 }>;
 const defaultFn: Fn = () => async () => null;
 
-export type Prompting = Readonly<{
+export type PromptGen = Readonly<{
   init: Prompt.Prompt;
   prompt(trajectory: Trajectory): Effect.Effect<Option.Option<Prompt.Prompt>, PromptError>;
 }>;
 
-export class Service extends Context.Service<Service, Prompting>()("PromptingService") {}
+export class Service extends Context.Service<Service, PromptGen>()("PromptingService") {}
 
 export const make = Effect.fn(function* ({
   options: { init, fn = defaultFn },
@@ -41,7 +41,7 @@ export const make = Effect.fn(function* ({
       .pipe(Effect.map(Option.fromNullOr))
       .pipe(Effect.map(Option.map(Prompt.make)));
 
-  return { init: Prompt.make(init), prompt } satisfies Prompting;
+  return { init: Prompt.make(init), prompt } satisfies PromptGen;
 });
 
 export const layerFrom = (args: { options: Options; context: Context }) =>
