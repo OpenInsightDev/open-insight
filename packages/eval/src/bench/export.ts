@@ -1,8 +1,12 @@
 export {
   BenchError,
   make,
+  mapMetric,
+  mapSchedMetric,
   mapTaskMetric,
+  mapTrajMetric,
   metric,
+  schedMetric,
   taskMetric,
   trajMetric,
   type Percentage,

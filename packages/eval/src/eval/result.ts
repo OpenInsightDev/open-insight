@@ -2,7 +2,6 @@ import {
   Cause,
   Chunk,
   Effect,
-  Equal,
   Fiber,
   Match,
   MutableHashMap,
@@ -20,8 +19,9 @@ import { EvalError } from "./error.ts";
 
 export const makeTrajSink = (
   id: Event.SessionID,
-): Sink.Sink<Prompt.Trajectory, Event.EvalEvent, Event.EvalEvent, never> =>
-  Sink.fold(
+): Sink.Sink<Prompt.Trajectory, Event.EvalEvent, Event.EvalEvent, never> => {
+  const equalSessionID = Schema.toEquivalence(Event.SessionID);
+  return Sink.fold(
     () => ({
       traj: Prompt.empty as Prompt.Trajectory,
       parts: Chunk.empty<Response.AnyPart>(),
@@ -32,7 +32,15 @@ export const makeTrajSink = (
       event: Event.EvalEvent,
     ) =>
       Effect.sync(() => {
-        if (!Equal.equals(event.id, id)) {
+        // Filter events that don't belong to this session
+        if (
+          !Match.value(event).pipe(
+            Match.tag("SessionPromptEvent", "SessionStreamEvent", "SessionEndEvent", (e) =>
+              equalSessionID(e.id, id),
+            ),
+            Match.orElse(() => false),
+          )
+        ) {
           return state;
         }
 
@@ -65,6 +73,7 @@ export const makeTrajSink = (
         );
       }),
   ).pipe(Sink.map((state) => state.traj));
+};
 
 type ResultBranch<A, E> = Readonly<{
   queue: Queue.Queue<E, Cause.Done>;
@@ -72,9 +81,6 @@ type ResultBranch<A, E> = Readonly<{
 }>;
 
 const equalBenchID = Schema.toEquivalence(Event.BenchID);
-const equalTaskID = Schema.toEquivalence(Event.TaskID);
-const equalTrailID = Schema.toEquivalence(Event.TrailID);
-const equalSessionID = Schema.toEquivalence(Event.SessionID);
 
 const invalidEvent = (message: string): Effect.Effect<never, EvalError> =>
   Effect.fail(EvalError.event(Event.EventError.invalid(new Error(message))));
@@ -112,6 +118,40 @@ const makeEventSink = <A, E>(
     ),
   );
 
+// Helper to forward events to a child branch's queue
+const forwardToChild = <E, K>(
+  key: K,
+  active: MutableHashMap.MutableHashMap<K, ResultBranch<unknown, E>>,
+  event: E,
+  errorMessage: string,
+) =>
+  Effect.gen(function* () {
+    const branch = MutableHashMap.get(active, key);
+    if (Option.isNone(branch)) {
+      return yield* invalidEvent(errorMessage);
+    }
+    yield* Queue.offer(branch.value.queue, event);
+  });
+
+// Helper to finish a child branch and collect its result
+const finishChild = <A, E, K>(
+  key: K,
+  active: MutableHashMap.MutableHashMap<K, ResultBranch<A, E>>,
+  completed: MutableHashMap.MutableHashMap<K, A>,
+  event: E,
+  errorMessage: string,
+) =>
+  Effect.gen(function* () {
+    const branch = MutableHashMap.get(active, key);
+    if (Option.isNone(branch)) {
+      return yield* invalidEvent(errorMessage);
+    }
+    yield* Queue.offer(branch.value.queue, event);
+    const result = yield* closeResultBranch(branch.value);
+    MutableHashMap.set(completed, key, result);
+    MutableHashMap.remove(active, key);
+  });
+
 export const makeSessionResultSink = (
   id: Event.SessionID,
 ): Sink.Sink<Event.SessionResult, Event.SessionEvent, never, EvalError> =>
@@ -122,10 +162,6 @@ export const makeSessionResultSink = (
     const consume = Effect.fn("makeSessionResultSink.consume")(function* (
       event: Event.SessionEvent,
     ): Effect.fn.Return<void, EvalError, Scope.Scope> {
-      if (!equalSessionID(event.id, id)) {
-        return yield* invalidEvent("Session sink received an event for a different session");
-      }
-
       return yield* Match.value(event).pipe(
         Match.tagsExhaustive({
           SessionStartEvent: (event) =>
@@ -219,11 +255,12 @@ export const makeTrailResultSink = <G = unknown>(
       if (startedAt === undefined || end !== undefined) {
         return yield* invalidEvent("Session event occurred outside an active trail");
       }
-      const branch = MutableHashMap.get(active, event.id.sessionIdx);
-      if (Option.isNone(branch)) {
-        return yield* invalidEvent("Session event has no active session");
-      }
-      yield* Queue.offer(branch.value.queue, event);
+      yield* forwardToChild(
+        event.id.sessionIdx,
+        active,
+        event,
+        "Session event has no active session",
+      );
     });
 
     const finishSession = Effect.fn("makeTrailResultSink.finishSession")(function* (
@@ -232,23 +269,18 @@ export const makeTrailResultSink = <G = unknown>(
       if (startedAt === undefined || end !== undefined) {
         return yield* invalidEvent("SessionEndEvent occurred outside an active trail");
       }
-      const branch = MutableHashMap.get(active, event.id.sessionIdx);
-      if (Option.isNone(branch)) {
-        return yield* invalidEvent("SessionEndEvent has no active session");
-      }
-      yield* Queue.offer(branch.value.queue, event);
-      const result = yield* closeResultBranch(branch.value);
-      MutableHashMap.set(sessions, event.id.sessionIdx, result);
-      MutableHashMap.remove(active, event.id.sessionIdx);
+      yield* finishChild(
+        event.id.sessionIdx,
+        active,
+        sessions,
+        event,
+        "SessionEndEvent has no active session",
+      );
     });
 
     const consume = Effect.fn("makeTrailResultSink.consume")(function* (
       event: Event.TrailEvent,
     ): Effect.fn.Return<void, EvalError, Scope.Scope> {
-      if (!equalTrailID(event.id, id)) {
-        return yield* invalidEvent("Trail sink received an event for a different trail");
-      }
-
       return yield* Match.value(event).pipe(
         Match.tagsExhaustive({
           TrailStartEvent: (event) =>
@@ -344,11 +376,7 @@ export const makeTaskResultSink = <G = unknown>(
       if (startedAt === undefined || end !== undefined) {
         return yield* invalidEvent("Trail event occurred outside an active task");
       }
-      const branch = MutableHashMap.get(active, event.id.trailIdx);
-      if (Option.isNone(branch)) {
-        return yield* invalidEvent("Trail event has no active trail");
-      }
-      yield* Queue.offer(branch.value.queue, event);
+      yield* forwardToChild(event.id.trailIdx, active, event, "Trail event has no active trail");
     });
 
     const finishTrail = Effect.fn("makeTaskResultSink.finishTrail")(function* (
@@ -357,23 +385,18 @@ export const makeTaskResultSink = <G = unknown>(
       if (startedAt === undefined || end !== undefined) {
         return yield* invalidEvent("TrailEndEvent occurred outside an active task");
       }
-      const branch = MutableHashMap.get(active, event.id.trailIdx);
-      if (Option.isNone(branch)) {
-        return yield* invalidEvent("TrailEndEvent has no active trail");
-      }
-      yield* Queue.offer(branch.value.queue, event);
-      const result = yield* closeResultBranch(branch.value);
-      MutableHashMap.set(trails, event.id.trailIdx, result);
-      MutableHashMap.remove(active, event.id.trailIdx);
+      yield* finishChild(
+        event.id.trailIdx,
+        active,
+        trails,
+        event,
+        "TrailEndEvent has no active trail",
+      );
     });
 
     const consume = Effect.fn("makeTaskResultSink.consume")(function* (
       event: Event.TaskEvent,
     ): Effect.fn.Return<void, EvalError, Scope.Scope> {
-      if (!equalTaskID(event.id, id)) {
-        return yield* invalidEvent("Task sink received an event for a different task");
-      }
-
       return yield* Match.value(event).pipe(
         Match.tagsExhaustive({
           TaskStartEvent: (event) =>
@@ -469,11 +492,7 @@ export const makeResultSink = <T extends Task.AnyTask>(
       if (startedAt === undefined || end !== undefined) {
         return yield* invalidEvent("Task event occurred outside an active benchmark");
       }
-      const branch = MutableHashMap.get(active, event.id.taskId);
-      if (Option.isNone(branch)) {
-        return yield* invalidEvent("Task event has no active task");
-      }
-      yield* Queue.offer(branch.value.queue, event);
+      yield* forwardToChild(event.id.taskId, active, event, "Task event has no active task");
     });
 
     const finishTask = Effect.fn("makeResultSink.finishTask")(function* (
@@ -482,14 +501,7 @@ export const makeResultSink = <T extends Task.AnyTask>(
       if (startedAt === undefined || end !== undefined) {
         return yield* invalidEvent("TaskEndEvent occurred outside an active benchmark");
       }
-      const branch = MutableHashMap.get(active, event.id.taskId);
-      if (Option.isNone(branch)) {
-        return yield* invalidEvent("TaskEndEvent has no active task");
-      }
-      yield* Queue.offer(branch.value.queue, event);
-      const result = yield* closeResultBranch(branch.value);
-      MutableHashMap.set(tasks, event.id.taskId, result);
-      MutableHashMap.remove(active, event.id.taskId);
+      yield* finishChild(event.id.taskId, active, tasks, event, "TaskEndEvent has no active task");
     });
 
     const consume = Effect.fn("makeResultSink.consume")(function* (

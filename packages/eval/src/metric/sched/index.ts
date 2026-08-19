@@ -5,14 +5,14 @@ import { Metadata, Result, type MetadataEncoded } from "../schema.ts";
 import { Effect, Schedule, Schema, Scope, Stream, SynchronizedRef } from "effect";
 import { MetricError } from "../error.ts";
 
-export type Exec<R extends Schema.Json = Schema.Json> = (
+export type Exec<R extends Schema.Json = any> = (
   sandbox: Sandbox.ReadonlySandboxPromise,
   prev: R | null,
 ) => R | Promise<R>;
 
 export type Repeat = Schedule.Schedule<unknown>;
 
-export type Metric<R extends Schema.Json = Schema.Json> = Readonly<{
+export type Metric<R extends Schema.Json = any> = Readonly<{
   metadata: Metadata;
   exec: BivariantFn<Exec<R>>;
   chart: BivariantFn<Chart.Chart<R>> | null;
@@ -20,7 +20,7 @@ export type Metric<R extends Schema.Json = Schema.Json> = Readonly<{
   retry: Effect.Retry.Options<unknown>;
 }>;
 
-export type Options<R extends Schema.Json = Schema.Json> = Effect.Repeat.Options<R> &
+export type Options<R extends Schema.Json = any> = Effect.Repeat.Options<R> &
   Readonly<{
     exec: Exec<R>;
     retry?: Effect.Retry.Options<unknown>;
@@ -28,7 +28,7 @@ export type Options<R extends Schema.Json = Schema.Json> = Effect.Repeat.Options
   }> &
   MetadataEncoded;
 
-export const make = Effect.fn(function* <R extends Schema.Json = Schema.Json>(
+export const make = Effect.fn(function* <R extends Schema.Json = any>(
   options: Options<R>,
 ): Effect.fn.Return<Metric<R>, MetricError> {
   const { exec, retry = {}, chart = null } = options;

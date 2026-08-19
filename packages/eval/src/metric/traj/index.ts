@@ -5,7 +5,7 @@ import type { BivariantFn } from "#/utils/variant.ts";
 import * as Chart from "#/chart/index.ts";
 import { MetricError } from "../error.ts";
 
-type State = Readonly<{
+export type State = Readonly<{
   /**
    * Trajectory of the previous prompts and responses.
    * Note that this trajectory does not include the current prompt and response.
