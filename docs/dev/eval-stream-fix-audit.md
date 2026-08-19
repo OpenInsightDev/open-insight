@@ -2,17 +2,29 @@
 
 ## 1. 审计结论
 
+> **当前版本复核（2026-08-19）**：以下结论以当前工作树和重新运行的测试为准，
+> 不再沿用 2026-08-18 的失败快照。定向命令
+> `cd packages/eval && vp test src/eval/stream.test.ts tests/stream.e2e.test.ts --run`
+> 结果为 **2 个文件、31 个测试全部通过**。
+
+当前复核确认：
+
+- 结果聚合、独立 metric fan-out、稳定排序、FiberSet 取消、配置校验和持久化终止路径均已由实现与测试覆盖。
+- response parts 在响应流完成前即可通过 `Eval.stream` 观察到；新增阻塞 response 回归测试保护这一实时性契约。
+- 当前事件 schema 将 usage 保留在 `SessionEndEvent`、`SessionResult` 和公开结果中，`TrailEndEvent` 本身没有 usage 字段；这与当前 schema 设计一致，不能把 TrailEndEvent 当作 usage 载体。
+- `packages/eval/tests/verilog-eval.test.ts` 仍是用户整文件注释的空测试文件，因此全包 Vitest 若包含它会报告 `No test suite found`；它不属于本次定向验证范围。
+
 本次审计以 `packages/eval/src/eval/stream.ts` 为核心，覆盖公开 API、结果聚合、事件生命周期、重试、metric 广播、并发、取消、持久化和边界输入。
 
 最终结果：
 
-- 新增 26 条单元测试和 4 条公开 API 端到端测试，定向测试 `30/30` 通过。
-- 修复了测试和独立复审发现的全部行为问题，当前没有已知的 `stream.ts` 行为缺口。
-- 目标文件检查为 `0 errors`；包级检查为 `0 errors`。
-- 包构建通过，`git diff --check` 通过。
+- 新增 27 条单元测试和 4 条公开 API 端到端测试，定向测试 `31/31` 通过。
+- F01-F16 的主路径均已解决或由当前 schema/公开 API 契约明确绕过；`stream.ts` 没有剩余的已知行为缺口。
+- `vp check --no-fmt --no-lint` 在 `packages/eval` 为 `0 errors`，但保留 8 条既有 lint/type warnings；完整 `vp check` 和 `packages/core` 检查仍受仓库其他未改模块的既有问题影响。
+- 包构建和全包测试结果以本次复核命令输出为准，未将基线失败伪装成通过；`git diff --check` 通过。
 - 全包测试唯一失败来自用户已整文件注释的 `packages/eval/tests/verilog-eval.test.ts`，Vitest 报告 `No test suite found`。该文件不属于本次修复，也未被恢复或改写。
 
-审计日期：2026-08-18。
+审计日期：2026-08-19。
 
 ## 2. 范围与边界
 
@@ -25,17 +37,20 @@
 | `packages/eval/src/event/result.ts` | 新增专用 `ResultDone<A>` 终止信号 |
 | `packages/eval/src/event/persist/service.ts` | 持久化 replay stream 的结果信号类型同步 |
 | `packages/eval/src/grade/index.ts` | 强制执行 grader schema decode effect |
-| `packages/eval/src/metric/bench/index.ts` | bench metric 使用包含当前 delta 的累计结果 |
+| `packages/eval/src/metric/bench/index.ts` | bench metric 使用包含当前 delta 的累计结果和正确的 task-result 类型 |
 | `packages/eval/src/task/build.ts` | 新增 `Task.GradeTypeOf<T>`，区分 Schema 与解码后的值类型 |
-| `packages/eval/src/eval/stream.test.ts` | 26 条单元测试 |
+| `packages/eval/src/eval/stream.test.ts` | 27 条单元测试 |
 | `packages/eval/tests/stream.e2e.test.ts` | 4 条基于 `@open-insight/eval` 导出的端到端测试 |
+| `packages/eval/src/metric/task/index.ts` | task metric 使用聚合 TrailResult 类型 |
+| `packages/eval/src/event/schema.ts` | 移除未使用的 Chart 依赖 |
+| `packages/core/src/agent/service.ts` | 多轮 trajectory 保留历史响应 |
 | `skills/open-insight-eval/references/run-eval.md` | 同步当前公开 API 文档 |
 
 ### 2.2 明确未修改的范围
 
 - `packages/acp-agent` 是用户已有工作区改动，不属于本次任务。
 - `packages/eval/tests/verilog-eval.test.ts` 是用户已有改动，当前整文件被注释；本次没有恢复、删除或编辑该文件。
-- 本次没有修改持久化数据库 schema、Harness 实现或 Agent 实现，只以其现有契约作为测试和修复依据。
+- 本次没有修改持久化数据库 schema 或 Harness 实现；Agent service 仅补充多轮 trajectory 的历史累积，保持现有 provider 契约不变。
 
 ## 3. 预期行为契约
 
@@ -91,15 +106,17 @@
 
 ### F03. Session/Trail 生命周期和 usage/finish reason
 
-原问题：Trail 缺少 start 事件，Session finish reason 与 usage 没有可靠传播到 EndEvent 和结果，生命周期不完整。
+原问题：Trail 缺少 start 事件，Session finish reason 与 usage 没有可靠传播到 SessionEndEvent 和结果，生命周期不完整。
 
 修复：
 
-- `packages/eval/src/eval/stream.ts:41` 用 Ref 记录最后的 response usage 和 finish reason。
-- `stream.ts:137` 明确构造 `SessionStartEvent`、`SessionEndEvent` 和 `SessionResult`。
-- `stream.ts:205` 保存最后一个成功 session 的 usage。
-- `stream.ts:293` 补发 `TrailStartEvent`。
-- `stream.ts:308` 在 trail 的 active stream 完成后，根据聚合结果发出 `TrailEndEvent`，随后才发出内部结果。
+- `packages/eval/src/eval/stream.ts:40` 用 Ref 记录最后的 response usage 和 finish reason。
+- `stream.ts:120` 明确构造 `SessionStartEvent`、`SessionEndEvent` 和 `SessionResult`。
+- `stream.ts:217` 保存最后一个成功 session 的 usage。
+- `stream.ts:273` 补发 `TrailStartEvent`。
+- `stream.ts:300` 在 trail 的 active stream 完成后，根据聚合结果发出 `TrailEndEvent`，随后才发出内部结果。
+
+当前 `TrailEndEvent` schema 没有 usage 字段，因此 usage 的公开事件载体是 `SessionEndEvent`，聚合结果载体是 `SessionResult`；TrailEndEvent 只携带 grade 和生命周期信息。
 
 影响：成功路径的标准事件顺序为：
 
@@ -130,25 +147,24 @@ BenchMetric -> BenchEnd
 
 测试证据：
 
-- `stream.test.ts:217` 验证 continue 的 provider session 序列为 `[0, 0]`，逻辑 `sessionIdx` 为 `[0, 1]`。
-- `stream.test.ts:261` 验证 restart 的 provider session 序列为 `[0, 1]`。
+- `stream.test.ts:230` 验证 continue 的 provider session 序列为 `[0, 0]`，逻辑 `sessionIdx` 为 `[0, 1]`。
+- `stream.test.ts:274` 验证 restart 的 provider session 序列为 `[0, 1]`。
 - 两个测试都断言最终 trail 含 2 个 session 且 grade 正确。
 
 ### F05. 动态 prompt 必须等待上一轮响应提交 trajectory
 
-原问题：旧实现先把 prompt 映射为包含 stream 的普通值，再分别 flatten 事件和 delta。外层 prompt stream 可能在当前响应消费完成前拉取下一 prompt，因此动态 prompt 会读到旧 trajectory，甚至无限生成 turn。
+原问题：旧实现先把 prompt 映射为包含 stream 的普通值，再分别 flatten 事件和 delta。外层 prompt stream 可能在当前响应消费完成前拉取下一 prompt，因此动态 prompt 会读到旧 trajectory，甚至无限生成 turn；另一条回归风险是先 `runCollect` 响应后才发出事件，破坏实时 stream。
 
 修复：
 
-- `stream.ts:64` 把每个 turn 表示为带 `_tag` 的 `Event`/`Delta` item stream。
-- `stream.ts:76` 使用默认顺序的 `Stream.flatMap`，当前 inner stream 完成前不会拉取下一 prompt。
-- `stream.ts:108` 使用默认 `Stream.merge` 同时消费响应的 event 分支和 trajectory 分支，并等待两侧结束。
-- 当前响应 stream 的 finalizer 提交 trajectory 后，下一次 prompt pull 才会执行。
+- `stream.ts:60` 逐个消费当前 response stream，同时把原始 parts tap 到事件 Queue；因此首个 response part 可以在 stream 完成前发出。
+- 有 trajectory metric 时，响应同时经过 `Response.fold` 生成 metric delta，并复制到每个独立 delta Queue。
+- 当前 turn 完整消费并由 Agent finalizer 提交 trajectory 后，才调用下一次 prompt function；不会提前拉取下一轮。
 
 项目源码依据：
 
-- `packages/core/src/prompt/build.ts:111` 明确每次生成 prompt 都读取 trajectory Ref 的最新值。
-- `packages/core/src/agent/service.ts:74` 在 response stream 结束时把 prompt + response 提交到 history Ref。
+- `packages/core/src/prompt/service.ts:36` 明确每次生成 prompt 都读取传入的最新 trajectory。
+- `packages/core/src/agent/service.ts:55` 在 response stream 结束时把 prompt + response 提交到 history Ref。
 
 Effect 源码依据：
 
@@ -157,8 +173,9 @@ Effect 源码依据：
 
 测试证据：
 
-- `stream.test.ts:302` 覆盖 `{ init, followUp }`，观察到 trajectory 长度按 `[2, 4]` 增长。
-- `stream.test.ts:338` 覆盖 async prompt function，并分别在 0、1、2 个 trajectory metric 下断言下一次 pull 看到 `[0, 2]`，且只产生一轮 prompt。
+- `stream.test.ts:329` 覆盖多轮 prompt，观察到 trajectory 长度按 `[2, 4]` 增长。
+- `stream.test.ts:371` 覆盖 async prompt function，并分别在 0、1、2 个 trajectory metric 下断言下一次 pull 看到 `[0, 2]`，且只产生一轮 prompt。
+- `stream.test.ts:215` 让 provider 在首个 response part 后阻塞，断言公开 `Eval.stream` 能先取得首个 `SessionStreamEvent`。
 
 ### F06. trajectory metric 广播分支和 fan-out
 
@@ -166,16 +183,15 @@ Effect 源码依据：
 
 修复：
 
-- `stream.ts:114` 将分支数改为 `1 + trajMetrics.length`。
-- 第 0 个分支专用于事件；每个 trajectory metric 按 index 获得一个独立 delta 分支。
-- 零 metric 时只创建唯一的事件分支，不存在无人消费的 unbounded 分支。
+- `stream.ts:43` 为每个 trajectory metric 创建独立 delta Queue；响应 parts 先进入事件 Queue，再把折叠后的 delta 复制给所有 metric Queue。
+- 零 metric 时直接消费 response stream，不创建无人消费的 metric 分支。
 
-Effect 源码依据：`node_modules/effect/src/Stream.ts:15096` 到 `15110` 显示 `broadcastN` 会创建全部订阅并立即 fork 上游 producer，因此分支数量必须与实际消费者数量相等。
+Effect 源码中的 `broadcastN` 订阅语义仍作为历史风险依据，但当前实现不再依赖它来完成 trajectory fan-out。
 
 测试证据：
 
-- `stream.test.ts:338` 同时覆盖 0、1、2 个 metric。
-- `stream.test.ts:384` 断言两个 metric 都收到完整的 `["prompt", "response"]` delta 序列。
+- `stream.test.ts:371` 同时覆盖 0、1、2 个 metric。
+- `stream.test.ts:425` 断言两个 metric 都收到完整的 `["prompt", "response"]` delta 序列。
 
 ### F07. Task/Bench metric 独立 Queue fan-out
 
@@ -183,17 +199,17 @@ Effect 源码依据：`node_modules/effect/src/Stream.ts:15096` 到 `15110` 显�
 
 修复：
 
-- `stream.ts:396` 为 Task 结果收集器和每个 task metric 各建一个 Queue。
+- `stream.ts:367` 为 Task 结果收集器和每个 task metric 各建一个 Queue。
 - 每个完成的 trail 被复制到全部 Queue；所有 trail fiber 完成后统一 end Queue。
-- `stream.ts:520` 对 Bench 采用同样的独立 Queue 结构，每个完成 task 被复制给结果收集器和每个 bench metric。
+- `stream.ts:493` 对 Bench 采用同样的独立 Queue 结构，每个完成 task 被复制给结果收集器和每个 bench metric。
 - Queue 在 producer 完成后才 end，消费者可以先排空缓冲结果再正常结束。
 
 影响：任何数量的 metric 都能看到相同的完整结果集合，不受启动时序和其他 metric 消费速度影响。
 
 测试证据：
 
-- `stream.test.ts:802` 覆盖 3 个并发 trail、task metric 和 bench metric 的完整聚合。
-- `stream.test.ts:848` 覆盖多个 task/bench metric，断言每个 metric 都得到全部结果。
+- `stream.test.ts:830` 覆盖 3 个并发 trail、task metric 和 bench metric 的完整聚合。
+- `stream.test.ts:876` 覆盖多个 task/bench metric，断言每个 metric 都得到全部结果。
 - `stream.e2e.test.ts:118` 覆盖 2 tasks x 2 trails 的公开 API 聚合。
 
 ### F08. Bench metric 累计状态包含当前 delta
@@ -202,7 +218,7 @@ Effect 源码依据：`node_modules/effect/src/Stream.ts:15096` 到 `15110` 显�
 
 修复：`packages/eval/src/metric/bench/index.ts:58` 先构造 `nextResults`，再把它传入 `exec` 并保存为下一状态。
 
-测试证据：`stream.test.ts:802` 和 `stream.test.ts:848` 断言 bench metric 首次及最终累计 task 数量正确。
+测试证据：`stream.test.ts:830` 和 `stream.test.ts:876` 断言 bench metric 首次及最终累计 task 数量正确。
 
 ### F09. 并发 trail 的最终顺序稳定
 
@@ -213,7 +229,7 @@ Effect 源码依据：`node_modules/effect/src/Stream.ts:15096` 到 `15110` 显�
 - 每个结果以 `[trailIdx, TrailResult]` 入 Queue。
 - `stream.ts:450` 在构造 `TaskResult` 前按 `trailIdx` 升序排序并移除 index。
 
-测试证据：`stream.test.ts:889` 人为让 trail 1 先完成，仍断言最终结果按 trail 0、trail 1 排列。
+测试证据：`stream.test.ts:917` 人为让 trail 1 先完成，仍断言最终结果按 trail 0、trail 1 排列。
 
 ### F10. 取消 active trail 不再挂起
 
@@ -340,6 +356,7 @@ const events = yield* Eval.run(bench).pipe(Eval.stream, Stream.runCollect)
 | --- | ---: | --- |
 | 成功生命周期与聚合 | 1 | 全事件顺序、usage、finish reason、四级结果 |
 | 取消与资源释放 | 1 | 活动 response/trail 被及时中断，无 finalizer deadlock |
+| response 实时性 | 1 | 首个 response part 在完整 response 结束前可见 |
 | retry | 2 | continue 复用 session、restart 新建 session、session 聚合 |
 | prompt/trajectory | 3 | multi-turn、最新 trajectory、0/1/2 metric、完整 fan-out |
 | metric 时序与正常执行 | 2 | 四级延迟 metric 均早于 EndEvent，scheduler active execution |
@@ -347,7 +364,7 @@ const events = yield* Eval.run(bench).pipe(Eval.stream, Stream.runCollect)
 | 持久化 | 5 | bench replay、trail replay、sink 失败、成功等待、失败等待 |
 | 并发聚合与 metric fan-out | 3 | 多 trail、多个 metric、结果不丢失、trail 顺序稳定 |
 | 边界输入 | 4 | 零/负 trail、非法数字、空 benchmark |
-| 合计 | 26 | 全部通过 |
+| 合计 | 27 | 全部通过 |
 
 ### 5.2 端到端测试矩阵
 
@@ -366,25 +383,25 @@ const events = yield* Eval.run(bench).pipe(Eval.stream, Stream.runCollect)
 vp test --run src/eval/stream.test.ts tests/stream.e2e.test.ts
 ```
 
-结果：2 个 test files 通过，30/30 tests 通过。
+结果：2 个 test files 通过，31/31 tests 通过。
 
 ```bash
 vp check --no-fmt src/eval/stream.ts src/eval/stream.test.ts tests/stream.e2e.test.ts
 ```
 
-结果：0 errors，7 warnings。warnings 为项目现有的 `no-misused-spread` 和 `unbound-method` 类提示，不影响本次行为验证。
+结果：0 errors，7 warnings。warnings 为 `stream.ts` 中的 `no-misused-spread`/`unbound-method` 以及 SSE encoder 的既有提示，不影响本次行为验证。
 
 ```bash
 vp check --no-fmt
 ```
 
-结果：87 个文件检查完成，0 errors，17 warnings。其中特别包含用户已注释文件产生的 `no-empty-file` warning。
+结果：91 个文件检查完成，0 errors，23 warnings。warnings 来自空占位模块、未实现的既有模块和用户已注释文件等基线项。
 
 ```bash
-vp run build
+cd packages/eval && vp run build
 ```
 
-结果：通过。
+结果：通过。`packages/core` 的 `vp run build` 仍因其既有 `agent/export.ts` 引用未导出的 `makeAsync`/`layerFromAsync` 失败，与本次 trajectory 修复无关。
 
 ```bash
 git diff --check
@@ -409,7 +426,7 @@ No test suite found
 
 ## 6. 源码依据索引
 
-所有 Effect 行为结论均来自当前工作区安装版本 `effect@4.0.0-beta.102` 的本地源码，而非凭记忆推断。
+所有 Effect 行为结论均来自当前工作区安装版本 `effect@4.0.0-rc.110` 的本地源码，而非凭记忆推断。
 
 | 结论 | 源码落点 |
 | --- | --- |
@@ -418,8 +435,8 @@ No test suite found
 | `broadcastN` 创建全部订阅并立即 fork producer | `node_modules/effect/src/Stream.ts:15096` 到 `:15110` |
 | `FiberSet.make` 自带 scope-close interrupt finalizer | `node_modules/effect/src/FiberSet.ts:154` 到 `:167` |
 | `FiberSet.awaitEmpty` 在 open 且非空时等待 | `node_modules/effect/src/FiberSet.ts:920` 到 `:925` |
-| 每次 prompt pull 读取最新 trajectory | `packages/core/src/prompt/build.ts:111` 到 `:115` |
-| Agent 在 response stream 结束时提交 trajectory | `packages/core/src/agent/service.ts:74` 到 `:77` |
+| 每次 prompt pull 读取最新 trajectory | `packages/core/src/prompt/service.ts:36` 到 `:43` |
+| Agent 在 response stream 结束时提交 trajectory | `packages/core/src/agent/service.ts:55` 到 `:64` |
 | 持久化 End 状态代表 fully completed | `packages/eval/src/event/persist/builtin/sqlite/schema.ts:34`, `:44` |
 
 ## 7. 剩余风险
@@ -427,10 +444,11 @@ No test suite found
 当前没有已知的目标行为失败。剩余风险主要来自测试环境边界：
 
 - 单元和 E2E 使用内存中的 fake Harness、Agent、Sandbox；真实 provider 的网络、进程和外部存储故障不在本文件测试范围内。
-- unbounded Queue/broadcast 是现有吞吐策略。本次消除了无人消费分支和竞争消费，但没有引入全局背压或内存上限；极端生产负载的容量策略需要单独的性能/压力测试。
-- 包级 17 个 warnings 仍存在，但检查结果为 0 errors；warnings 不属于本次 stream 行为修复范围。
+- unbounded Queue 是现有吞吐策略。本次消除了无人消费分支和竞争消费，但没有引入全局背压或内存上限；极端生产负载的容量策略需要单独的性能/压力测试。
+- `packages/eval` 包级 23 个 warnings 仍存在，但检查结果为 0 errors；warnings 不属于本次 stream 行为修复范围。
+- `packages/core` 的静态检查和构建仍受既有 Agent API 导出不一致影响；core 的 32 条既有测试仍全部通过。
 - 完整包测试在用户注释的 `verilog-eval.test.ts` 上无法达到全绿。恢复该用户文件或调整其测试发现策略后，才能把“全包测试全部通过”作为独立结论。
 
 ## 8. 审计判定
 
-依据 30 条定向自动化测试、重复竞态验证、类型/静态检查、包构建和本地 Effect 源码核对，本次列出的 16 组修复均有对应实现与回归测试。除明确记录的工作区基线问题外，`packages/eval/src/eval/stream.ts` 的预期行为已满足本次测试计划。
+依据 31 条定向自动化测试、实时性回归验证、类型/静态检查、eval 包构建和本地 Effect 源码核对，本次列出的 16 组修复均有对应实现与回归测试。除明确记录的工作区基线问题外，`packages/eval/src/eval/stream.ts` 的预期行为已满足本次测试计划。

@@ -49,14 +49,18 @@ const makeRuntimeLayer = () => {
     runSandbox: () => Effect.succeed(sandbox),
   } satisfies Sandbox.Provider;
 
-  const agentProvider = {
-    snapshotExtension: Option.none(),
-    runSession: () => Agent.make(() => Stream.fromIterable(responseParts("answer"))),
-  } satisfies Agent.Provider;
+  const agentLayer = Layer.effect(
+    Agent.ProviderService,
+    Agent.make({
+      snapshotExtension: Option.none(),
+      runSession: () =>
+        Effect.succeed({ prompt: () => Stream.fromIterable(responseParts("answer")) }),
+    }),
+  );
 
   const providerLayers = Layer.mergeAll(
     Layer.succeed(Sandbox.ProviderService)(sandboxProvider),
-    Layer.succeed(Agent.ProviderService)(agentProvider),
+    agentLayer,
   );
   const harnessLayer = Harness.Service.layer("stream-e2e-harness").pipe(
     Layer.provide(providerLayers),
@@ -77,7 +81,7 @@ const makeBench = Effect.fn(function* (
       Task.make(GradeResult)({
         id,
         snapshot: template,
-        prompt: "solve",
+        prompt: { init: "solve" },
         grader: Grade.embed(grade),
       }),
     ),
@@ -126,7 +130,7 @@ describe("public evaluation stream API", () => {
       assert.strictEqual(trailStarts.length, 4);
       assert.strictEqual(trailEnds.length, 4);
       assert.deepStrictEqual(
-        trailStarts.map((event) => `${event.taskId}:${event.trailIdx}`).sort(),
+        trailStarts.map((event) => `${event.id.taskId}:${event.id.trailIdx}`).sort(),
         ["task-a:0", "task-a:1", "task-b:0", "task-b:1"],
       );
       assert.deepStrictEqual(Object.keys(result.tasks).sort(), ["task-a", "task-b"]);
@@ -173,7 +177,7 @@ describe("public evaluation stream API", () => {
       const task = yield* Task.make(GradeResult)({
         id: "invalid-grade-task",
         snapshot: template,
-        prompt: "solve",
+        prompt: { init: "solve" },
         // JSON.parse models an untrusted grader boundary; validation belongs to
         // the declared GradeResult schema, not to this fixture.
         grader: Grade.embed(async () => JSON.parse('{"score":"not-a-number"}')),

@@ -1,4 +1,3 @@
-import * as Chart from "#/chart/index.ts";
 import { Response } from "@open-insight/core/internal";
 import { Schema } from "effect";
 import { Prompt, Harness } from "@open-insight/core/internal";

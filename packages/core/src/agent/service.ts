@@ -56,7 +56,9 @@ const makeAgent = Effect.fn(function* ({ prompt: promptFn }: AgentOptions) {
         Stream.tap((part) => Effect.sync(() => parts.push(part))),
         Stream.ensuring(
           Effect.andThen(
-            Ref.update(trajectory, (_) => Prompt.concat(prompt, Prompt.fromResponseParts(parts))),
+            Ref.update(trajectory, (history) =>
+              history.pipe(Prompt.concat(prompt), Prompt.concat(Prompt.fromResponseParts(parts))),
+            ),
             sem.release(1),
           ),
         ),

@@ -3,10 +3,14 @@ import type { BivariantFn } from "#/utils/variant.ts";
 import { Effect, Schema, Stream } from "effect";
 import { Metadata, Result, type MetadataEncoded } from "../schema.ts";
 import { MetricError } from "../error.ts";
+import type { TrailResult as EventTrailResult } from "#/event/result.ts";
+
+export type TrailResult<G = unknown> = EventTrailResult<G>;
+export type TrailResults<G = unknown> = ReadonlyArray<TrailResult<G>>;
 
 export type Exec<G = unknown, R extends Schema.Json = Schema.Json> = (
-  results: G[],
-  delta: G,
+  results: TrailResults<G>,
+  delta: TrailResult<G>,
   prev: R | null,
 ) => R | Promise<R>;
 
@@ -33,7 +37,7 @@ export const make = Effect.fn(function* <G = unknown, R extends Schema.Json = Sc
 });
 
 export const makeStream =
-  <G = unknown, E = never, R = never>(trailResultStream: Stream.Stream<G, E, R>) =>
+  <G = unknown, E = never, R = never>(trailResultStream: Stream.Stream<TrailResult<G>, E, R>) =>
   <M extends Schema.Json>({
     exec,
     metadata,
@@ -41,7 +45,7 @@ export const makeStream =
   }: Metric<G, M>): Stream.Stream<Result, E | MetricError, R> =>
     trailResultStream.pipe(
       Stream.mapAccumEffect(
-        () => ({ results: [] as G[], prev: null as M | null }),
+        () => ({ results: [] as TrailResults<G>, prev: null as M | null }),
         (state, delta) => {
           const results = [...state.results, delta];
 
