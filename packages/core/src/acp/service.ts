@@ -430,13 +430,15 @@ export const makeProvider = Effect.fn("Acp.makeProvider")(function* (
       turnActive,
     };
 
-    return yield* Agent.make((trajectory) => promptStream(context, trajectory));
-  }) satisfies Agent.Provider["runSession"];
+    return {
+      prompt: (prompt: Prompt.Prompt) => promptStream(context, prompt),
+    };
+  });
 
-  return {
+  return yield* Agent.make({
     snapshotExtension: Option.some(snapshotExtension(agentId, options)),
     runSession,
-  } satisfies Agent.Provider;
+  });
 });
 
 export const layerFrom = (

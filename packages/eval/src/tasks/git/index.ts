@@ -13,7 +13,7 @@ interface Options {
   readonly branch?: string;
   /** Specific commit hash to checkout after cloning. */
   readonly commit?: string;
-  /** Clone depth. Defaults to 1. Leave undefined for a full clone. */
+  /** Clone depth. Defaults to 1. Use `Infinity` for a full clone. */
   readonly depth?: number;
   /** Only fetch the specified branch. Defaults to `true` when `branch` is set. */
   readonly singleBranch?: boolean;
@@ -26,6 +26,7 @@ interface Options {
 const loadGitRepo = Effect.fn(function* (repoPath: string, repoURL: string, options: Options) {
   const fs = yield* FileSystem.FileSystem;
   const spawner = yield* Spawn.Service;
+  const managed = options.directory === undefined;
 
   const targetCommit = Effect.gen(function* () {
     if (options.commit) {
@@ -41,6 +42,19 @@ const loadGitRepo = Effect.fn(function* (repoPath: string, repoURL: string, opti
     }
 
     return null;
+  });
+
+  const checkoutCommit = Effect.fn("loadGitRepo.checkoutCommit")(function* (commit: string) {
+    const checkedOut = yield* spawner.success(CP.make`git -C ${repoPath} checkout ${commit}`).pipe(
+      Effect.as(true),
+      Effect.catch(() => Effect.succeed(false)),
+    );
+    if (checkedOut) {
+      return;
+    }
+
+    yield* spawner.success(CP.make`git -C ${repoPath} fetch --depth 1 origin ${commit}`);
+    yield* spawner.success(CP.make`git -C ${repoPath} checkout ${commit}`);
   });
 
   const matchesTarget = Effect.gen(function* () {
@@ -87,7 +101,7 @@ const loadGitRepo = Effect.fn(function* (repoPath: string, repoURL: string, opti
     }
 
     if (options.commit) {
-      yield* spawner.success(CP.make`git -C ${repoPath} checkout ${options.commit}`);
+      yield* checkoutCommit(options.commit);
     }
 
     yield* spawner.success(CP.make`git -C ${repoPath} reset --hard`);
@@ -101,37 +115,45 @@ const loadGitRepo = Effect.fn(function* (repoPath: string, repoURL: string, opti
       return;
     }
 
-    const updated = yield* tryUpdate.pipe(
-      Effect.flatMap(() => matchesTarget),
-      Effect.catch(() => Effect.succeed(false)),
-    );
-    if (updated) {
-      return;
+    if (!managed) {
+      const entries = yield* fs.readDirectory(repoPath);
+      if (entries.length > 0) {
+        return yield* TasksError.directoryConflict(repoPath);
+      }
     }
 
-    yield* fs.remove(repoPath, { recursive: true, force: true });
+    if (managed) {
+      const updated = yield* tryUpdate.pipe(
+        Effect.flatMap(() => matchesTarget),
+        Effect.catch(() => Effect.succeed(false)),
+      );
+      if (updated) {
+        return;
+      }
+
+      yield* fs.remove(repoPath, { recursive: true, force: true });
+    }
   }
 
   const depth =
     options.depth === undefined || Number.isFinite(options.depth)
       ? (options.depth ?? 1)
       : undefined;
-  if (depth !== undefined && options.branch) {
-    yield* spawner.success(
-      CP.make`git clone --depth ${depth} --branch ${options.branch} --single-branch ${repoURL} ${repoPath}`,
-    );
-  } else if (depth !== undefined) {
-    yield* spawner.success(CP.make`git clone --depth ${depth} ${repoURL} ${repoPath}`);
-  } else if (options.branch) {
-    yield* spawner.success(
-      CP.make`git clone --branch ${options.branch} --single-branch ${repoURL} ${repoPath}`,
-    );
-  } else {
-    yield* spawner.success(CP.make`git clone ${repoURL} ${repoPath}`);
+  const cloneArgs = ["clone"];
+  if (depth !== undefined) {
+    cloneArgs.push("--depth", String(depth));
   }
+  if (options.branch) {
+    cloneArgs.push("--branch", options.branch);
+  }
+  if (options.singleBranch ?? options.branch !== undefined) {
+    cloneArgs.push("--single-branch");
+  }
+  cloneArgs.push(repoURL, repoPath);
+  yield* spawner.success(CP.make("git", cloneArgs));
 
   if (options.commit) {
-    yield* spawner.success(CP.make`git -C ${repoPath} checkout ${options.commit}`);
+    yield* checkoutCommit(options.commit);
   }
 });
 
@@ -158,7 +180,11 @@ export const withGitRepo = (repoURL: string, options: Options = {}) =>
         );
       }
 
-      yield* loadGitRepo(repoPath, repoURL, options).pipe(Effect.mapError(TasksError.source));
+      yield* loadGitRepo(repoPath, repoURL, options).pipe(
+        Effect.mapError((cause) =>
+          cause instanceof TasksError ? cause : TasksError.source(cause),
+        ),
+      );
       if (options.postInit !== undefined) {
         const spawner = yield* Spawn.Service;
         yield* spawner
@@ -172,8 +198,7 @@ export const withGitRepo = (repoURL: string, options: Options = {}) =>
       });
       return yield* loader;
     },
-    (effect) =>
-      effect.pipe(Effect.mapError(TasksError.source), Effect.provide(Spawn.Service.layer)),
+    (effect) => effect.pipe(Effect.provide(Spawn.Service.layer)),
   );
 
 export const withGithub = (id: string, options?: Options) =>

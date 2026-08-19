@@ -1,7 +1,7 @@
 import { PROTOCOL_VERSION, type AnyMessage } from "@agentclientprotocol/sdk";
 import { assert, it } from "@effect/vitest";
 import { Effect } from "effect";
-import { AcpError, openHttpStream, openWebSocketStream } from "./index.ts";
+import { AcpError, openHttpStream, openStream, openWebSocketStream } from "./index.ts";
 
 const initializeRequest = {
   jsonrpc: "2.0",
@@ -28,6 +28,18 @@ it.effect("rejects invalid URLs before opening a connection", () =>
 
     assert.strictEqual(reason.operation, "parse-url");
     assert.strictEqual(reason.url, "not a url");
+  }),
+);
+
+it.effect("rejects transport URLs with an incompatible scheme before connecting", () =>
+  Effect.gen(function* () {
+    const httpError = yield* openHttpStream("ws://agent.test/acp").pipe(Effect.flip);
+    const webSocketError = yield* openWebSocketStream("https://agent.test/acp").pipe(Effect.flip);
+    const autoError = yield* openStream("ftp://agent.test/acp").pipe(Effect.flip);
+
+    for (const error of [httpError, webSocketError, autoError]) {
+      assert.strictEqual(transportError(error).operation, "parse-url");
+    }
   }),
 );
 

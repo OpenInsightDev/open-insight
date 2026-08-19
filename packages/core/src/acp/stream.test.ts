@@ -212,6 +212,44 @@ it.effect("maps in-progress tool updates to preliminary tool results", () =>
   }),
 );
 
+it.effect("keeps dynamic tool payloads JSON-safe instead of defecting on unsupported values", () =>
+  Effect.gen(function* () {
+    const parts = yield* collect([
+      {
+        sessionUpdate: "tool_call",
+        toolCallId: "tool-non-json",
+        title: "Non JSON input",
+        rawInput: BigInt(1),
+      },
+      {
+        sessionUpdate: "tool_call_update",
+        toolCallId: "tool-non-json",
+        status: "completed",
+        rawOutput: BigInt(2),
+      },
+    ]);
+
+    assert.deepStrictEqual(
+      parts.map((part) => part.type),
+      ["tool-call", "tool-result", "finish"],
+    );
+    const toolCall = parts[0];
+    const toolResult = parts[1];
+    assert.deepStrictEqual(toolCall?.type === "tool-call" ? toolCall.params : undefined, {
+      omitted: true,
+    });
+    assert.deepStrictEqual(toolResult?.type === "tool-result" ? toolResult.result : undefined, {
+      omitted: true,
+    });
+    assert.deepStrictEqual(toolCall?.type === "tool-call" ? toolCall.metadata?.acp : undefined, {
+      sessionUpdate: "tool_call",
+      toolCallId: "tool-non-json",
+      title: "Non JSON input",
+      rawInput: { omitted: true },
+    });
+  }),
+);
+
 it.effect("keeps plan and session state events as metadata", () =>
   Effect.gen(function* () {
     const updates: ReadonlyArray<SessionUpdate> = [

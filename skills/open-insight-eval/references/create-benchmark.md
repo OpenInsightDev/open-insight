@@ -70,6 +70,8 @@ export const makeBench = Effect.fn(function* () {
 
 `Tasks.fromIter`, `Tasks.fromAsyncIter`, and `Tasks.fromStream` resolve task effects and preserve their order. Pass the resulting loader Effect directly to `Bench.make`. Use the source-specific loaders when appropriate: for example, `Harbor.fromDir` can load Harbor tasks, while `Tasks.withGithub` and `Tasks.withDist` can acquire a pinned source before passing its path to a loader. Inspect the current `Tasks` exports before choosing a loader; the available integrations can grow over time.
 
+Git loaders use a managed cache when `directory` is omitted. If `directory` is supplied, it is caller-owned: only an empty directory or an already clean, matching repository is accepted. A conflicting non-empty directory fails with `TasksError` instead of being reset, cleaned, or deleted.
+
 Every task must be built before it enters the benchmark. The usual task pipeline is:
 
 1. `Task.make(options)`;

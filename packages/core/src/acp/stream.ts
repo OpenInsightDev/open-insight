@@ -53,11 +53,49 @@ const emptyUsage = (): typeof Response.Usage.Encoded => ({
   },
 });
 
-const acpMetadata = (update: SessionUpdate): Response.ProviderMetadata => ({
-  acp: decodeJson(update),
-});
+const omittedJsonValue = { omitted: true } as const;
 
-const decodeJson = Schema.decodeUnknownSync(Schema.Json);
+const jsonSafe = (value: unknown, ancestors = new Set<object>()): Schema.Json => {
+  switch (typeof value) {
+    case "string":
+    case "boolean":
+      return value;
+    case "number":
+      return Number.isFinite(value) ? value : omittedJsonValue;
+    case "object": {
+      if (value === null) {
+        return value;
+      }
+      if (ancestors.has(value)) {
+        return omittedJsonValue;
+      }
+
+      ancestors.add(value);
+      try {
+        if (Array.isArray(value)) {
+          return value.map((item) => jsonSafe(item, ancestors));
+        }
+        const prototype = Object.getPrototypeOf(value);
+        if (prototype !== Object.prototype && prototype !== null) {
+          return omittedJsonValue;
+        }
+        return Object.fromEntries(
+          Object.entries(value).map(([key, item]) => [key, jsonSafe(item, ancestors)]),
+        );
+      } catch {
+        return omittedJsonValue;
+      } finally {
+        ancestors.delete(value);
+      }
+    }
+    default:
+      return omittedJsonValue;
+  }
+};
+
+const acpMetadata = (update: SessionUpdate): Response.ProviderMetadata => ({
+  acp: jsonSafe(update),
+});
 
 const finishMetadata = (update: UsageUpdate | undefined): Response.ProviderMetadata =>
   update === undefined ? streamCompleteMetadata : acpMetadata(update);
@@ -197,13 +235,14 @@ const toolCallPart = (
   type: "tool-call",
   id: update.toolCallId,
   name,
-  params:
+  params: jsonSafe(
     update.rawInput === undefined
       ? {
           title: update.title,
           kind: update.kind ?? null,
         }
       : update.rawInput,
+  ),
   providerExecuted: true,
   metadata,
 });
@@ -224,7 +263,7 @@ const toolResultPart = (
     id: update.toolCallId,
     name,
     isFailure: update.status === "failed",
-    result,
+    result: jsonSafe(result),
     providerExecuted: true,
     preliminary: update.status !== "completed" && update.status !== "failed",
     metadata,

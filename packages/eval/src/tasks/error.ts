@@ -44,11 +44,23 @@ export class InitFailed extends Schema.TaggedError<InitFailed>(
   }
 }
 
+/** An explicit task source directory exists but cannot be reused safely. */
+export class DirectoryConflict extends Schema.TaggedError<DirectoryConflict>(
+  "open-insight/TasksError/DirectoryConflict",
+)("DirectoryConflict", {
+  directory: Schema.String,
+}) {
+  override get message(): string {
+    return `Refusing to modify existing task source directory: ${this.directory}`;
+  }
+}
+
 export const ErrorReason = Schema.Union([
   SourceNotAvailable,
   InvalidTask,
   UnsupportedTask,
   InitFailed,
+  DirectoryConflict,
 ]);
 export type ErrorReason = Schema.Schema.Type<typeof ErrorReason>;
 
@@ -85,5 +97,10 @@ export class TasksError extends Schema.TaggedError<TasksError>("open-insight/Tas
   static init = (cause: unknown): TasksError =>
     TasksError.make({
       reason: InitFailed.make({ cause }),
+    });
+
+  static directoryConflict = (directory: string): TasksError =>
+    TasksError.make({
+      reason: DirectoryConflict.make({ directory }),
     });
 }
