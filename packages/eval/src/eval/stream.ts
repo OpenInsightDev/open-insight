@@ -79,7 +79,14 @@ const makeSession = Effect.fn(
           }
         },
         (eff, queue) =>
-          eff.pipe(Effect.ensuring(Effect.all([Queue.end(queue), Queue.end(deltaQueue)]))),
+          eff.pipe(
+            Effect.matchCauseEffect({
+              onFailure: (cause) =>
+                // TODO
+                Effect.all([Queue.failCause(queue, cause), Queue.end(deltaQueue)]),
+              onSuccess: () => Effect.all([Queue.end(queue), Queue.end(deltaQueue)]),
+            }),
+          ),
       ),
     );
 
@@ -446,6 +453,15 @@ export const make = Effect.fn(
     );
     const taskEvents = Stream.mergeAll(taskStreams, { concurrency: "unbounded" });
 
+    const benchMetricResults = taskResults.pipe(
+      Stream.map(([taskId, { trails }]) => [taskId, trails] as const),
+    );
+    const metricStreams = metrics
+      .map(Metric.Bench.makeStream(benchMetricResults))
+      .map(Stream.catchTag("MetricError", (error) => Stream.fail(EvalError.metric(error))))
+      .map(Stream.map((result) => Event.BenchMetricEvent.make({ id, ...result })));
+    const metricEvents = Stream.mergeAll(metricStreams, { concurrency: "unbounded" });
+
     const startEvent = Stream.succeed(
       Event.BenchStartEvent.make({
         id,
@@ -457,8 +473,13 @@ export const make = Effect.fn(
 
     const endEvent = Stream.succeed(Event.BenchEndEvent.make({ id }));
 
-    let stream = yield* Stream.empty
-      .pipe(Stream.concat(startEvent), Stream.concat(taskEvents), Stream.concat(endEvent))
+    const stream = yield* Stream.empty
+      .pipe(
+        Stream.concat(startEvent),
+        Stream.concat(taskEvents),
+        Stream.concat(endEvent),
+        Stream.merge(metricEvents),
+      )
       .pipe(Stream.share({ capacity: "unbounded" }));
 
     const persistFiber = yield* Effect.gen(function* () {
@@ -473,29 +494,28 @@ export const make = Effect.fn(
 
     const result = Effect.gen(function* () {
       yield* Queue.end(taskResultQueue);
+      yield* Fiber.join(persistFiber);
       const tasks = yield* Fiber.join(resultFiber);
-
       return yield* Effect.fail(Event.BenchResult.make({ id, tasks }));
     }).pipe(Stream.fromEffect);
 
-    return Stream.empty.pipe(
-      Stream.concat(stream),
-      Stream.concat(result),
-      Stream.onEnd(Fiber.join(persistFiber)),
-    );
+    return Stream.empty.pipe(Stream.concat(stream), Stream.concat(result));
   },
   (eff, bench) =>
     eff.pipe(
       Stream.unwrap,
       Stream.catchTag("EvalError", (error) =>
-        Effect.gen(function* () {
-          const harness = yield* Harness.Service;
-          const id: Event.BenchID = {
-            harnessId: harness.metadata.id,
-            benchId: bench.metadata.id,
-          };
-          return yield* Effect.fail(Event.BenchErrorEvent.make({ id, error }));
-        }).pipe(Stream.fromEffect),
+        Harness.Service.pipe(
+          Effect.map(
+            (harness) =>
+              ({
+                harnessId: harness.metadata.id,
+                benchId: bench.metadata.id,
+              }) satisfies Event.BenchID,
+          ),
+          Effect.flatMap((id) => Effect.fail(Event.BenchErrorEvent.make({ id, error }))),
+          Stream.fromEffect,
+        ),
       ),
     ),
 );
