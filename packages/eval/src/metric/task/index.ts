@@ -1,185 +1,111 @@
 import * as Chart from "#/chart/index.ts";
-import type { BivariantFn } from "#/utils/variant.ts";
-import { Array, Effect, Schema, Stream } from "effect";
-import { Metadata, Result, type MetadataEncoded } from "../schema.ts";
+import { Effect, Schema, Stream } from "effect";
+import { Metadata, type MetadataEncoded } from "../schema.ts";
 import { MetricError } from "../error.ts";
-import type { TrailResult as EventTrailResult } from "#/event/result.ts";
-import type * as Map from "./map.ts";
-import type * as Accum from "./accum.ts";
-import type * as Collect from "./collect.ts";
 
-export type { Map, Accum, Collect };
+type Output<S = unknown, R extends Schema.Json = any> = [state: S, output: R[]];
 
-export type TrailResult<G = unknown> = EventTrailResult<G>;
-export type TrailResults<G = unknown> = ReadonlyArray<TrailResult<G>>;
+export type Exec<S = unknown, G = unknown, R extends Schema.Json = any> = (
+  state: S,
+  delta: G,
+) => Output<S, R> | PromiseLike<Output<S, R>>;
 
-// ─── Variant ─────────────────────────────────────────────────────────────
+export type Metric<S = unknown, G = unknown, R extends Schema.Json = any> = Readonly<{
+  initState: S;
+  exec: Exec<S, G, R>;
 
-interface MapVariant<G, R extends Schema.Json> {
-  readonly _tag: "Map";
-  readonly exec: Map.Exec<G, R>;
-}
-
-interface AccumVariant<G, R extends Schema.Json, S = unknown> {
-  readonly _tag: "Accum";
-  readonly exec: Accum.Exec<G, R, S>;
-  readonly initialState: S;
-}
-
-interface CollectVariant<G, R extends Schema.Json> {
-  readonly _tag: "Collect";
-  readonly exec: Collect.Exec<G, R>;
-}
-
-export type Variant<G = unknown, R extends Schema.Json = Schema.Json> =
-  | MapVariant<G, R>
-  | AccumVariant<G, R, unknown>
-  | CollectVariant<G, R>;
-
-function makeMapVariant<G, R extends Schema.Json>(exec: Map.Exec<G, R>): MapVariant<G, R> {
-  return { _tag: "Map", exec };
-}
-
-function makeAccumVariant<G, R extends Schema.Json, S>(
-  exec: Accum.Exec<G, R, S>,
-  initialState: S,
-): AccumVariant<G, R, S> {
-  return { _tag: "Accum", exec, initialState };
-}
-
-function makeCollectVariant<G, R extends Schema.Json>(
-  exec: Collect.Exec<G, R>,
-): CollectVariant<G, R> {
-  return { _tag: "Collect", exec };
-}
-
-// ─── Metric ──────────────────────────────────────────────────────────────
-
-export type Metric<G = unknown, R extends Schema.Json = Schema.Json> = Readonly<{
-  variant: Variant<G, R>;
-  chart: BivariantFn<Chart.Chart<R>> | null;
   metadata: Metadata;
+  chart: Chart.Chart<R> | null;
 }>;
 
-export type Options = Readonly<{
-  chart?: Chart.Chart<Schema.Json> | null;
-}> &
-  MetadataEncoded;
+type Options<R extends Schema.Json> = MetadataEncoded &
+  Readonly<{
+    chart?: Chart.Chart<R> | null;
+  }>;
 
-// ─── Constructors ────────────────────────────────────────────────────────
-
-export const makeMap = Effect.fn(function* <G = unknown, R extends Schema.Json = Schema.Json>(
-  options: Map.Options<G, R> & Options,
+export const makeAccum = Effect.fn(function* <G, S, R extends Schema.Json>(
+  initState: () => S,
+  exec: Exec<S, G, R>,
+  options: Options<R> = {},
 ) {
-  const { exec, chart = null } = options;
+  const { chart = null } = options;
   const metadata = yield* Schema.decodeEffect(Metadata)(options).pipe(
     Effect.mapError(MetricError.metadata),
   );
-  return { variant: makeMapVariant<G, R>(exec), chart, metadata } satisfies Metric<G, R>;
-});
 
-export const makeAccum = Effect.fn(function* <
-  G = unknown,
-  R extends Schema.Json = Schema.Json,
-  S = unknown,
->(options: Accum.Options<G, R, S> & Options) {
-  const { exec, initialState, chart = null } = options;
-  const metadata = yield* Schema.decodeEffect(Metadata)(options).pipe(
-    Effect.mapError(MetricError.metadata),
-  );
   return {
-    variant: makeAccumVariant<G, R, S>(exec, initialState) as Variant<G, R>,
-    chart,
+    initState: initState(),
+    exec,
     metadata,
-  } satisfies Metric<G, R>;
+    chart,
+  } satisfies Metric<S, G, R>;
 });
 
-export const makeCollect = Effect.fn(function* <G = unknown, R extends Schema.Json = Schema.Json>(
-  options: Collect.Options<G, R> & Options,
-) {
-  const { exec, chart = null } = options;
-  const metadata = yield* Schema.decodeEffect(Metadata)(options).pipe(
-    Effect.mapError(MetricError.metadata),
-  );
-  return { variant: makeCollectVariant<G, R>(exec), chart, metadata } satisfies Metric<G, R>;
-});
+type MapExec<G = unknown, R extends Schema.Json = any> = (
+  delta: G,
+  results: G[],
+) => R | PromiseLike<R>;
+export const fromMapExec = <G, R extends Schema.Json>(exec: MapExec<G, R>): Exec<G[], G, R> => {
+  return async (state: G[], delta: G) => {
+    const output = exec(delta, state);
+    return [state, [await Promise.resolve(output)]];
+  };
+};
 
-// ─── makeStream ──────────────────────────────────────────────────────────
+export const makeMap = <G, R extends Schema.Json>(
+  exec: MapExec<G, R>,
+  options: Options<R> = {},
+) => {
+  return makeAccum(() => [], fromMapExec(exec), options);
+};
+
+type ReduceExec<G = unknown, R extends Schema.Json = any> = (
+  delta: G,
+  prev: R,
+) => R | PromiseLike<R>;
+export const fromReduceExec = <G, R extends Schema.Json>(exec: ReduceExec<G, R>): Exec<R, G, R> => {
+  return async (state: R, delta: G) => {
+    const output = exec(delta, state);
+    return [await Promise.resolve(output), [await Promise.resolve(output)]];
+  };
+};
+
+export const makeReduce = <G, R extends Schema.Json>(
+  initState: () => R,
+  exec: ReduceExec<G, R>,
+  options: Options<R> = {},
+) => {
+  return makeAccum(initState, fromReduceExec(exec), options);
+};
 
 export const makeStream =
-  <G = unknown, E = never, R = never>(trailResultStream: Stream.Stream<TrailResult<G>, E, R>) =>
-  <M extends Schema.Json>({
-    variant,
-    metadata,
-    chart,
-  }: Metric<G, M>): Stream.Stream<Result, E | MetricError, R> => {
-    const id = metadata.id;
-
-    switch (variant._tag) {
-      case "Map": {
-        const { exec } = variant as MapVariant<unknown, M>;
-        return trailResultStream.pipe(
-          Stream.mapEffect((delta) =>
-            Effect.tryPromise({
-              try: () => Promise.resolve(exec(delta)),
-              catch: MetricError.exec(id),
-            }).pipe(
-              Effect.map((value) =>
-                Result.make({
-                  metricID: id,
-                  value,
-                  chart: chart?.(value as M) ?? null,
-                }),
-              ),
-            ),
-          ),
-        ) as Stream.Stream<Result, E | MetricError, R>;
-      }
-
-      case "Accum": {
-        const { exec, initialState } = variant as AccumVariant<unknown, M, unknown>;
-        return Stream.mapAccumEffect(
-          trailResultStream,
-          () => initialState as unknown,
-          (state: unknown, delta: TrailResult<G>) =>
-            Effect.tryPromise({
-              try: () => Promise.resolve(exec(delta, state)),
-              catch: MetricError.exec(id),
-            }).pipe(
-              Effect.map(([value, nextState]): [unknown, Result[]] => [
-                nextState,
-                [
-                  Result.make({
-                    metricID: id,
-                    value,
-                    chart: chart?.(value as M) ?? null,
-                  }),
-                ],
-              ]),
-            ),
-        ) as unknown as Stream.Stream<Result, E | MetricError, R>;
-      }
-
-      case "Collect": {
-        const { exec } = variant as CollectVariant<unknown, M>;
-        return Stream.fromEffect(
-          Stream.runCollect(trailResultStream).pipe(
-            Effect.map(Array.fromIterable),
-            Effect.flatMap((results) =>
-              Effect.tryPromise({
-                try: () => Promise.resolve(exec(results)),
-                catch: MetricError.exec(id),
-              }),
-            ),
-            Effect.map((value) =>
-              Result.make({
-                metricID: id,
-                value,
-                chart: chart?.(value as M) ?? null,
-              }),
-            ),
-          ),
-        ) as Stream.Stream<Result, E | MetricError, R>;
-      }
-    }
+  <G, S, MR extends Schema.Json, E, R>(stream: Stream.Stream<G, E, R>) =>
+  (metric: Metric<S, G, MR>): Stream.Stream<MR, E | MetricError, R> => {
+    return stream.pipe(
+      Stream.mapAccumEffect(
+        () => metric.initState,
+        (state, delta) =>
+          Effect.tryPromise({
+            try: () => Promise.resolve(metric.exec(state, delta)),
+            catch: MetricError.exec(metric.metadata.id),
+          }),
+      ),
+    );
   };
+
+type Mapper<A, B> = (input: A) => B;
+const mapExec = <G, S, M, R extends Schema.Json>(
+  mapper: Mapper<G, M>,
+  exec: Exec<S, M, R>,
+): Exec<S, G, R> => {
+  return (state: S, delta: G) => exec(state, mapper(delta));
+};
+export const mapGrade = <G, S, M, R extends Schema.Json>(
+  mapper: Mapper<G, M>,
+  metric: Metric<S, M, R>,
+): Metric<S, G, R> => {
+  return {
+    ...metric,
+    exec: mapExec(mapper, metric.exec),
+  };
+};

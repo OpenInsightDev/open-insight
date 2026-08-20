@@ -1,1 +1,1 @@
-export { avgPassAtK } from "./passk.ts";
+export { avgPassAtK, calcAvgPassAtK, type PassGrade } from "./passk.ts";

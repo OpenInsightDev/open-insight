@@ -28,17 +28,18 @@ release. Add a tool name to select part of the graph. For example, run
 
 ## Rules
 
+### General
+
 - Do not run `vp test` from the repository root. Run tests only from the specified project directory.
 - When debugging type-related issues, STRICTLY FORBIDDEN to annotate types manually just to make the type checker happy. Instead, fix the real underlying type issue. If you are unsure how to fix it, ask for help.
+
+### Code Quality
+
+- **Code quality is top priority (MANDATORY)**: Code that merely "works" but has messy, convoluted design is STILL unacceptable. Deliver clean, minimal, and well-structured code — nothing more, nothing less.
+- **Do NOT be "smart" (MANDATORY)**: Do NOT make extra designs or additions that the user did NOT explicitly request.
+- **No unnecessary abstractions (MANDATORY)**: Do NOT add forward compatibility layers, premature generalization, or speculative features unless explicitly asked.
+
+### Effect
+
 - **Effect Task Rule (MANDATORY)**: Follow `effect-ts` skill first. All Effect answers MUST include source landing (file path + code). **STRICTLY FORBIDDEN** to fabricate APIs from memory — always read source first.
 - **Effect Code Quality (MANDATORY)**: Final code MUST use correct Effect APIs and style per `node_modules/effect/AGENTS.md`: `Effect.gen`/`Effect.fn`, `Match.tag`, `Equal.equals`, `Schema.TaggedError`, proper service patterns, Effect data structures. Naive implementations OK during exploration, but refactor before delivery.
-
-# Learning more about the Effect
-
-This repository uses the Effect Typescript library.
-
-Before writing any Effect code, first read `node_modules/effect/AGENTS.md`
-**completely**, and follow the links in the file when required.
-
-If you need to learn more about particular Effect apis and concepts that the
-guide doesn't cover, search through the source code in `node_modules/effect/src`.

@@ -1,10 +1,14 @@
 export {
-  make,
+  makeMap,
+  makeAccum,
+  makeReduce,
+  makeCollect,
   makeStream,
+  mapGrade,
   type BenchResult,
+  type Delta,
   type Exec,
   type Metric,
-  type Options,
 } from "./index.ts";
 
 export * from "./builtin/export.ts";
