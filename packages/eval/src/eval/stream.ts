@@ -39,64 +39,56 @@ const makeSession = Effect.fn(
     const finishRef = yield* Ref.make<Response.FinishReason>("unknown");
 
     const deltaQueue = yield* Queue.make<Prompt.Prompt | Response.AnyAggPart, Cause.Done>();
+    const eventQueue = yield* Queue.make<
+      Event.SessionSuccessEvent,
+      Event.SessionErrorEvent | Cause.Done
+    >();
 
-    const turns = Stream.callback<Prompt.Prompt | Response.AnyStreamPart, EvalError>(
-      Effect.fn(
-        function* (queue) {
-          let current: Option.Option<Prompt.Prompt> = Option.some(prompting.init);
+    yield* Effect.gen(function* () {
+      let current: Option.Option<Prompt.Prompt> = Option.some(prompting.init);
 
-          while (Option.isSome(current)) {
-            yield* Effect.all([
-              Queue.offer(queue, current.value),
-              Queue.offer(deltaQueue, current.value),
-            ]);
+      while (Option.isSome(current)) {
+        yield* Effect.all([
+          Queue.offer(eventQueue, Event.SessionPromptEvent.make({ id, prompt: current.value })),
+          Queue.offer(deltaQueue, current.value),
+        ]);
 
-            const response = session
-              .prompt(current.value)
-              .pipe(Stream.mapError(EvalError.harness))
-              .pipe(
-                Stream.tap(
-                  Effect.fn(function* (part) {
-                    if (part.type !== "finish") {
-                      return;
-                    }
-                    yield* Effect.all([
-                      Ref.set(finishRef, part.reason),
-                      Ref.set(usageRef, part.usage),
-                    ]);
-                  }),
-                ),
-              );
+        const response = session
+          .prompt(current.value)
+          .pipe(Stream.mapError(EvalError.harness))
+          .pipe(
+            Stream.tap(
+              Effect.fn(function* (part) {
+                if (part.type !== "finish") {
+                  return;
+                }
+                yield* Effect.all([Ref.set(finishRef, part.reason), Ref.set(usageRef, part.usage)]);
+              }),
+            ),
+          );
 
-            yield* response.pipe(
-              Stream.tap((part) => Queue.offer(queue, part)),
-              Response.fold,
-              Stream.runForEach((part) => Queue.offer(deltaQueue, part)),
-            );
-
-            const trajectory = yield* Ref.get(session.trajectory);
-            current = yield* prompting.prompt(trajectory).pipe(Effect.mapError(EvalError.prompt));
-          }
-        },
-        (eff, queue) =>
-          eff.pipe(
-            Effect.matchCauseEffect({
-              onFailure: (cause) =>
-                // TODO
-                Effect.all([Queue.failCause(queue, cause), Queue.end(deltaQueue)]),
-              onSuccess: () => Effect.all([Queue.end(queue), Queue.end(deltaQueue)]),
-            }),
+        yield* response.pipe(
+          Stream.tap((part) =>
+            Queue.offer(eventQueue, Event.SessionStreamEvent.make({ id, part })),
           ),
-      ),
-    );
+          Response.fold,
+          Stream.runForEach((part) => Queue.offer(deltaQueue, part)),
+        );
 
-    const turnEvents = turns.pipe(
-      Stream.map((value) =>
-        Match.value(value).pipe(
-          Match.when(Prompt.isPrompt, (prompt) => Event.SessionPromptEvent.make({ id, prompt })),
-          Match.orElse((part) => Event.SessionStreamEvent.make({ id, part })),
-        ),
+        const trajectory = yield* Ref.get(session.trajectory);
+        current = yield* prompting.prompt(trajectory).pipe(Effect.mapError(EvalError.prompt));
+      }
+
+      yield* Effect.all([Queue.end(deltaQueue), Queue.end(eventQueue)]);
+    }).pipe(
+      Effect.catch((error) =>
+        Effect.all([
+          Queue.fail(eventQueue, Event.SessionErrorEvent.make({ id, error })),
+          Queue.end(deltaQueue), // metrics do not need to handle error
+        ]),
       ),
+      // no need to join; stream will not end until the fiber is done
+      Effect.forkScoped,
     );
 
     const deltas = yield* Stream.fromQueue(deltaQueue).pipe(
@@ -109,6 +101,9 @@ const makeSession = Effect.fn(
     const metricEvents = Stream.mergeAll(metricEventStreams, { concurrency: "unbounded" });
 
     const startEvent = Stream.succeed(Event.SessionStartEvent.make({ id }));
+
+    const turnEvents = Stream.fromQueue(eventQueue);
+
     const endEvent = Effect.all([Ref.get(finishRef), Ref.get(usageRef)]).pipe(
       Effect.map(([reason, usage]) => Event.SessionEndEvent.make({ id, reason, usage })),
       Stream.fromEffect,
@@ -127,9 +122,9 @@ const makeSession = Effect.fn(
     return Stream.empty.pipe(
       Stream.concat(startEvent),
       Stream.concat(turnEvents),
-      Stream.merge(metricEvents),
       Stream.concat(endEvent),
       Stream.concat(result),
+      Stream.merge(metricEvents),
     );
   },
   (eff, { id }) =>
@@ -333,14 +328,12 @@ const makeTask = Effect.fn(
     );
     const taskResultFiber = yield* Stream.runCollect(trailResults).pipe(Effect.forkScoped);
 
-    // trails of the same task should task global trail sem sequentially
-    // to ensure inter-task fairness
-    const trailSchedSem = yield* Semaphore.make(1);
-
+    const trailSchedMutex = yield* Semaphore.make(1);
     const trails = Array.range(0, trailCount - 1).map(
       Effect.fn(
         function* (trailIdx) {
-          yield* trailSchedSem.release(1);
+          // once aquired trailSem, release mutex to allow siblings to start waiting
+          yield* trailSchedMutex.release(1);
 
           const trailID: Event.TrailID = { ...id, trailIdx };
           return makeTrail<T>({ task, id: trailID })
@@ -362,9 +355,8 @@ const makeTask = Effect.fn(
       trails.map((trail) =>
         trail.pipe(
           Stream.onStart(
-            // ensure one trail at a time per task is waiting trailSem
-            // to ensure inter-task fairness
-            trailSchedSem.take(1).pipe(Effect.andThen(Effect.yieldNow)),
+            // one trail at a time per task is waiting trailSem to ensure inter-task fairness
+            trailSchedMutex.take(1).pipe(Effect.andThen(Effect.yieldNow)),
           ),
         ),
       ),
@@ -486,7 +478,6 @@ export const make = Effect.fn(
       if (Option.isNone(persist)) {
         return;
       }
-
       yield* persist.value
         .persist(stream)
         .pipe(Effect.catchTag("EventError", (error) => Effect.fail(EvalError.event(error))));

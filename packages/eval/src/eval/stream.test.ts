@@ -515,7 +515,7 @@ describe("stream.ts evaluation orchestration", () => {
         exec: (_sandbox, previous) => (typeof previous === "number" ? previous : 0) + 1,
         times: 0,
       });
-      const taskMetric = yield* Metric.Task.make<typeof GradeResult, number>({
+      const taskMetric = yield* Metric.Task.makeCollect<typeof GradeResult, number>({
         id: "task-count",
         exec: (results) => results.length,
       });

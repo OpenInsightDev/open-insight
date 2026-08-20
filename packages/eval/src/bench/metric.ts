@@ -28,8 +28,8 @@ export const metric =
 export const taskMetric =
   <G extends Grade.AnyResult, MR extends Schema.Json>(
     taskId: Task.ID,
-    exec: Metric.Task.Exec<G["Type"], MR>,
-    options: Omit<Metric.Task.Options<G["Type"], MR>, "exec"> = {},
+    exec: Metric.Task.Collect.Exec<G["Type"], MR>,
+    options: Omit<Metric.Task.Options, "exec"> = {},
   ) =>
   <E, R>(bench: Effect.Effect<Bench<Task.Task<G>>, E, R>) =>
     Effect.flatMap(bench, (bench) => {
@@ -37,7 +37,7 @@ export const taskMetric =
         return Effect.fail(BenchError.taskNotFound(taskId));
       }
 
-      return Metric.Task.make({ ...options, exec }).pipe(
+      return Metric.Task.makeCollect({ ...options, exec }).pipe(
         Effect.mapError(BenchError.init),
         Effect.map((metric) =>
           produce(bench, (draft) => {
@@ -54,22 +54,22 @@ export const taskMetric =
 
 const mapTaskExec = <G extends Grade.AnyResult, M, R extends Schema.Json>(
   mapper: (grade: G["Type"]) => M,
-  exec: Metric.Task.Exec<M, R>,
-): Metric.Task.Exec<G["Type"], R> => {
+  exec: Metric.Task.Collect.Exec<M, R>,
+): Metric.Task.Collect.Exec<G["Type"], R> => {
   const mapTrail = (trail: TrailResult<G["Type"]>): TrailResult<M> => ({
     ...trail,
     grade: mapper(trail.grade),
   });
 
-  return (results, delta, prev) => exec(results.map(mapTrail), mapTrail(delta), prev);
+  return (results) => exec(results.map(mapTrail));
 };
 
 export const mapTaskMetric =
   <G extends Grade.AnyResult, M, MR extends Schema.Json>(
     taskId: Task.ID,
     mapper: (grade: G["Type"]) => M,
-    exec: Metric.Task.Exec<M, MR>,
-    options: Omit<Metric.Task.Options<G["Type"], MR>, "exec"> = {},
+    exec: Metric.Task.Collect.Exec<M, MR>,
+    options: Omit<Metric.Task.Options, "exec"> = {},
   ) =>
   <E, R>(bench: Effect.Effect<Bench<Task.Task<G>>, E, R>) =>
     Effect.flatMap(bench, (bench) => {
@@ -77,7 +77,7 @@ export const mapTaskMetric =
         return Effect.fail(BenchError.taskNotFound(taskId));
       }
 
-      return Metric.Task.make({ ...options, exec: mapTaskExec(mapper, exec) }).pipe(
+      return Metric.Task.makeCollect({ ...options, exec: mapTaskExec(mapper, exec) }).pipe(
         Effect.mapError(BenchError.init),
         Effect.map((metric) =>
           produce(bench, (draft) => {

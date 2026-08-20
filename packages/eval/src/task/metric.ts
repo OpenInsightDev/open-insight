@@ -7,25 +7,25 @@ import { TaskError } from "./error.ts";
 
 const mapExec = <G extends Grade.AnyResult, M, R extends Schema.Json>(
   mapper: (grade: G["Type"]) => M,
-  exec: Metric.Task.Exec<M, R>,
-): Metric.Task.Exec<G["Type"], R> => {
+  exec: Metric.Task.Collect.Exec<M, R>,
+): Metric.Task.Collect.Exec<G["Type"], R> => {
   const mapTrail = (trail: Metric.Task.TrailResult<G["Type"]>): Metric.Task.TrailResult<M> => ({
     ...trail,
     grade: mapper(trail.grade),
   });
 
-  return (results, delta, prev) => exec(results.map(mapTrail), mapTrail(delta), prev);
+  return (results) => exec(results.map(mapTrail));
 };
 
 export const mapMetric =
   <G extends Grade.AnyResult, M, MR extends Schema.Json>(
     mapper: (grade: G["Type"]) => M,
-    exec: Metric.Task.Exec<M, MR>,
-    options: Omit<Metric.Task.Options<G["Type"], MR>, "exec"> = {},
+    exec: Metric.Task.Collect.Exec<M, MR>,
+    options: Omit<Metric.Task.Options, "exec"> = {},
   ) =>
   <E, R>(task: Effect.Effect<Task<G>, E, R>) =>
     Effect.flatMap(task, (task) =>
-      Metric.Task.make({ ...options, exec: mapExec(mapper, exec) }).pipe(
+      Metric.Task.makeCollect({ ...options, exec: mapExec(mapper, exec) }).pipe(
         Effect.mapError(TaskError.metadata),
         Effect.map((metric) =>
           produce(task, (draft) => {
@@ -37,12 +37,12 @@ export const mapMetric =
 
 export const metric =
   <G extends Grade.AnyResult, MR extends Schema.Json>(
-    exec: Metric.Task.Exec<G["Type"], MR>,
-    options: Omit<Metric.Task.Options<G["Type"], MR>, "exec"> = {},
+    exec: Metric.Task.Collect.Exec<G["Type"], MR>,
+    options: Omit<Metric.Task.Options, "exec"> = {},
   ) =>
   <E, R>(task: Effect.Effect<Task<G>, E, R>) =>
     Effect.flatMap(task, (task) =>
-      Metric.Task.make({ ...options, exec }).pipe(
+      Metric.Task.makeCollect({ ...options, exec }).pipe(
         Effect.mapError(TaskError.metadata),
         Effect.map((metric) =>
           produce(task, (draft) => {

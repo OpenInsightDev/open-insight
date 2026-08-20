@@ -1,4 +1,4 @@
-import type { Exec } from "../index.ts";
+import type { Collect } from "../index.ts";
 
 export const calcPassAtK =
   (k: number) =>
@@ -21,7 +21,7 @@ export const calcPassAtK =
   };
 
 export const passAtK =
-  (k: number): Exec<{ pass: boolean }, number> =>
+  (k: number): Collect.Exec<{ pass: boolean }, number> =>
   (results) => {
     const passes = results.map(({ grade }) => grade.pass);
     return calcPassAtK(k)(passes);

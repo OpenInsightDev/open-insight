@@ -25,11 +25,11 @@ export type Task<G extends Grade.AnyResult = any, E extends Schema.Constraint = 
 
   snapshot: Snapshot.Template;
 
-  metrics: ReadonlyArray<Metric.Task.Metric>;
+  metrics: ReadonlyArray<Metric.Task.Metric<G>>;
   trajMetrics: ReadonlyArray<Metric.Traj.Metric>;
   schedMetrics: ReadonlyArray<Metric.Sched.Metric>;
 
-  prompt: Prompt.Options;
+  prompt: Prompt.Gen.Options;
   grader: Grade.Grader<G>;
 
   sandboxConfig: Harness.SandboxSessionConfig;
@@ -50,7 +50,7 @@ type Options<G extends Grade.AnyResult, E extends Schema.Constraint> = MetadataE
   E["Type"] &
   Readonly<{
     snapshot: Snapshot.Template;
-    prompt: Prompt.Options;
+    prompt: Prompt.Gen.Options;
     grader: Grade.Variant<G>;
 
     metrics?: ReadonlyArray<Metric.Task.Metric<G>>;
