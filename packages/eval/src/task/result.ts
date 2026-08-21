@@ -1,5 +1,4 @@
 import type { Prompt, Response } from "@open-insight/core/internal";
-import * as Grade from "#/grade/index.ts";
 import { Effect, type Schema } from "effect";
 import type { BivariantFn } from "../utils/variant.ts";
 import * as Task from "./build.ts";
@@ -10,7 +9,6 @@ export type SessionResult = Readonly<{
 }>;
 
 export type TrailResult<G extends Schema.Constraint> = Readonly<{
-  usage: Response.Usage | null;
   grade: G["Type"];
   sessions: Array<SessionResult>;
 }>;
@@ -33,8 +31,13 @@ export type Mixin<G extends Schema.Constraint, S extends Schema.Constraint> = Re
 }>;
 
 export const result =
-  <G extends Schema.Constraint, S extends Schema.Constraint>(schema: S, exec: Exec<G, S>) =>
-  <T extends Task.Any, E, R>(
-    task: Effect.Effect<T, E, R> & Grade.Mixin<G>,
-  ): Effect.Effect<T & Mixin<G, S>, E, R> =>
-    Effect.map(task, (t) => Object.assign(t, { [Field]: make(schema, exec) }));
+  <S extends Schema.Constraint, T extends Task.Any>(schema: S) =>
+  (exec: Exec<Task.GradeOf<T>, S>) =>
+  <E, R>(task: Effect.Effect<T, E, R>): Effect.Effect<T & Mixin<Task.GradeOf<T>, S>, E, R> =>
+    Effect.map(task, (task) => Object.assign(task, { [Field]: make(schema, exec) }));
+
+export type ResultOf<T> = T extends Mixin<infer _, infer S> ? S : never;
+export type ResultsOf<T extends Record<string, any>> = {
+  [K in keyof T]: ResultOf<T[K]>;
+};
+export type ResultFnOf<T> = T extends Mixin<infer G, infer S> ? Fn<G, S> : never;

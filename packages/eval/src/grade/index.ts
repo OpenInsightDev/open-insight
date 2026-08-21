@@ -25,10 +25,10 @@ export type EmbedOptions<R extends Schema.Constraint = Schema.Constraint> = Read
  *
  * This grader runs the grading logic in the same sandbox as the agent.
  */
-export const embed = <R extends Schema.Constraint>(
-  grade: Embed.Exec<R>,
-  { verif = null }: EmbedOptions<R> = {},
-) => Variant<R>().Embed({ grade, verif });
+export const embed =
+  <R extends Schema.Constraint>(schema: R) =>
+  (grade: Embed.Exec<R>, { verif = null }: EmbedOptions<R> = {}) =>
+    Object.assign(Variant<R>().Embed({ grade, verif }), { schema }) satisfies Grader<R>;
 
 export type SidecarOptions<R extends Schema.Constraint = Schema.Constraint> = Readonly<{
   snapshot?: Snapshot.Template;
@@ -42,23 +42,28 @@ export type SidecarOptions<R extends Schema.Constraint = Schema.Constraint> = Re
  *
  * This grader runs the grading logic in a separate grading sandbox.
  */
-export const sidecar = <R extends Schema.Constraint>(
-  grade: Sidecar.Exec<R>,
-  {
-    snapshot = Snapshot.Alpine,
-    verif = null,
-    scope = "per-trail",
-    resources = Resource.make(),
-    concurrency = 1,
-  }: SidecarOptions<R> = {},
-): Variant<R> => {
-  const options = { grade, snapshot, verif, scope, resources, concurrency };
-  return Match.value(scope).pipe(
-    Match.when("per-task", () => Variant<R>().TaskSidecar(options)),
-    Match.when("per-trail", () => Variant<R>().TrailSidecar(options)),
-    Match.exhaustive,
-  );
-};
+export const sidecar =
+  <R extends Schema.Constraint>(schema: R) =>
+  (
+    grade: Sidecar.Exec<R>,
+    {
+      snapshot = Snapshot.Alpine,
+      verif = null,
+      scope = "per-trail",
+      resources = Resource.make(),
+      concurrency = 1,
+    }: SidecarOptions<R> = {},
+  ): Variant<R> => {
+    const options = { grade, snapshot, verif, scope, resources, concurrency };
+    return Object.assign(
+      Match.value(scope).pipe(
+        Match.when("per-task", () => Variant<R>().TaskSidecar(options)),
+        Match.when("per-trail", () => Variant<R>().TrailSidecar(options)),
+        Match.exhaustive,
+      ),
+      { schema },
+    ) satisfies Grader<R>;
+  };
 
 type RunOptions = Readonly<{
   sandbox: Sandbox.Sandbox;
@@ -151,11 +156,6 @@ export const layerFrom = (grader: Grader) =>
       return { run };
     }),
   );
-
-export const Field = "#/grade/grader" as const;
-export type Mixin<R extends Schema.Constraint = Schema.Constraint> = Readonly<{
-  [Field]: Grader<R>;
-}>;
 
 export * from "./error.ts";
 export * from "./retry.ts";

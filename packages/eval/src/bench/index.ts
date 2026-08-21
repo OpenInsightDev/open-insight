@@ -1,4 +1,6 @@
 import * as Task from "#/task/index.ts";
+import * as Grade from "#/grade/index.ts";
+import { Schema } from "effect";
 
 export type TasksByName<Tasks> =
   Tasks extends Record<string, Task.Any>
@@ -17,3 +19,10 @@ export const make = <Tasks extends ReadonlyArray<Task.Any>>(
 ): Bench<TasksByName<Tasks>> => {
   throw new Error("Not implemented");
 };
+
+const taskA = Task.make("taskA", {
+  grader: Grade.embed(Schema.Struct({ passed: Schema.Boolean }))(async () => ({ passed: true })),
+  prompt: { init: [] },
+}).pipe(Task.Result.result(Schema.Struct({ passAt1: Schema.Number }))(() => ({ passAt1: 1 })));
+
+const bench = make(taskA);
