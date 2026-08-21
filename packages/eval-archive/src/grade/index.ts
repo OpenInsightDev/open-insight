@@ -1,23 +1,25 @@
 import * as Sidecar from "./sidecar.ts";
 import * as Embed from "./embed.ts";
-import { Context, Data, Effect, FileSystem, Layer, Match, Path, Schema, Scope } from "effect";
+import { Context, Data, Effect, FileSystem, Layer, Match, Path, Scope } from "effect";
 import { Prompt, Resource, Sandbox, Snapshot } from "@open-insight/core/internal";
 import type { Verif } from "./verif.ts";
-import { decodeResult } from "./result.ts";
+import { decodeResult, type AnyResult } from "./result.ts";
 import * as Retry from "./retry.ts";
 import { GradeError } from "./error.ts";
 
-export type Variant<R extends Schema.Constraint> = Data.TaggedEnum<{
+export type Variant<R extends AnyResult> = Data.TaggedEnum<{
   Embed: Embed.Grader<R>;
   TrailSidecar: Sidecar.Grader<R>;
   TaskSidecar: Sidecar.Grader<R>;
 }>;
-export const Variant = <R extends Schema.Constraint>() => Data.taggedEnum<Variant<R>>();
+export const Variant = <R extends AnyResult>() => Data.taggedEnum<Variant<R>>();
 
-export type Grader<R extends Schema.Constraint = Schema.Constraint> = Variant<R> &
-  Readonly<{ schema: R }>;
+export type Grader<R extends AnyResult = AnyResult> = Readonly<{
+  schema: R;
+  variant: Variant<R>;
+}>;
 
-export type EmbedOptions<R extends Schema.Constraint = Schema.Constraint> = Readonly<{
+export type EmbedOptions<R extends AnyResult = AnyResult> = Readonly<{
   verif?: Verif<R> | null;
 }>;
 /**
@@ -25,12 +27,12 @@ export type EmbedOptions<R extends Schema.Constraint = Schema.Constraint> = Read
  *
  * This grader runs the grading logic in the same sandbox as the agent.
  */
-export const embed = <R extends Schema.Constraint>(
+export const embed = <R extends AnyResult>(
   grade: Embed.Exec<R>,
   { verif = null }: EmbedOptions<R> = {},
 ) => Variant<R>().Embed({ grade, verif });
 
-export type SidecarOptions<R extends Schema.Constraint = Schema.Constraint> = Readonly<{
+export type SidecarOptions<R extends AnyResult = AnyResult> = Readonly<{
   snapshot?: Snapshot.Template;
   verif?: Verif<R> | null;
   scope?: Sidecar.SandboxScope;
@@ -42,7 +44,7 @@ export type SidecarOptions<R extends Schema.Constraint = Schema.Constraint> = Re
  *
  * This grader runs the grading logic in a separate grading sandbox.
  */
-export const sidecar = <R extends Schema.Constraint>(
+export const sidecar = <R extends AnyResult>(
   grade: Sidecar.Exec<R>,
   {
     snapshot = Snapshot.Alpine,
@@ -65,7 +67,7 @@ type RunOptions = Readonly<{
   trajectory: Prompt.Trajectory;
 }>;
 
-export type RunGrader = <R extends Schema.Constraint = Schema.Constraint>(
+export type RunGrader = <R extends AnyResult = AnyResult>(
   options: RunOptions,
 ) => Effect.Effect<
   R["Type"],
@@ -76,7 +78,7 @@ export type RunGrader = <R extends Schema.Constraint = Schema.Constraint>(
 export class RunService extends Context.Service<
   RunService,
   {
-    run<R extends Schema.Constraint = Schema.Constraint>(
+    run<R extends AnyResult = AnyResult>(
       options: RunOptions,
     ): Effect.Effect<
       R["Type"],
@@ -86,15 +88,14 @@ export class RunService extends Context.Service<
   }
 >()("RunService") {}
 
-export const layerFrom = (grader: Grader) =>
+export const layerFrom = ({ schema, variant }: Grader) =>
   Layer.effect(
     RunService,
     Effect.gen(function* () {
       const scope = yield* Scope.Scope;
       const sbxProvider = yield* Sandbox.ProviderService;
-      const schema = grader.schema;
 
-      const run = yield* Variant().$match(grader, {
+      const run = yield* Variant().$match(variant, {
         Embed: Effect.fn(function* (grader) {
           return Effect.fn(function* ({ sandbox, trajectory }: RunOptions) {
             const result = yield* Embed.run(grader)({ sandbox, trajectory });
@@ -151,11 +152,6 @@ export const layerFrom = (grader: Grader) =>
       return { run };
     }),
   );
-
-export const Field = "#/grade/grader" as const;
-export type Mixin<R extends Schema.Constraint = Schema.Constraint> = Readonly<{
-  [Field]: Grader<R>;
-}>;
 
 export * from "./error.ts";
 export * from "./retry.ts";

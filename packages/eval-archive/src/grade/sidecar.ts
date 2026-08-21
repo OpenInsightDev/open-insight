@@ -1,7 +1,8 @@
 import { Prompt, Resource, Sandbox, type Snapshot } from "@open-insight/core/internal";
 import type { BivariantFn } from "#/utils/variant.ts";
+import { type AnyResult } from "./result.ts";
 import type { Verif } from "./verif.ts";
-import { Effect, FiberSet, FileSystem, Path, Schema, Scope } from "effect";
+import { Effect, FiberSet, FileSystem, Path, Scope } from "effect";
 import * as Retry from "./retry.ts";
 import type { GradeError } from "./error.ts";
 
@@ -117,11 +118,11 @@ export const makeContext = Effect.fn(function* ({
   } satisfies Context;
 });
 
-export type Exec<R extends Schema.Constraint = any> = BivariantFn<
+export type Exec<R extends AnyResult = AnyResult> = BivariantFn<
   (ctx: Context) => PromiseLike<R["Encoded"]>
 >;
 
-export type Grader<R extends Schema.Constraint = any> = Readonly<{
+export type Grader<R extends AnyResult = AnyResult> = Readonly<{
   grade: Exec<R>;
   snapshot: Snapshot.Template;
   resources: Resource.Resources;
@@ -130,7 +131,7 @@ export type Grader<R extends Schema.Constraint = any> = Readonly<{
   concurrency: number;
 }>;
 
-export const run = <R extends Schema.Constraint = any>(grader: Grader<R>) =>
+export const run = <R extends AnyResult = AnyResult>(grader: Grader<R>) =>
   Effect.fn(function* (
     options: MakeContextOptions,
   ): Effect.fn.Return<R["Encoded"], GradeError | Retry.Retry, FileSystem.FileSystem | Path.Path> {
