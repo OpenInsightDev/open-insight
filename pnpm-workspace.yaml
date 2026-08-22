@@ -2,6 +2,8 @@ packages:
   - apps/*
   - packages/*
   - apps/@open-insight/*
+  - packages/effect/packages/*
+  - packages/effect/packages/**/*
 
 catalogMode: strict
 
@@ -103,9 +105,18 @@ peerDependencyRules:
     vitest: "*"
 allowBuilds:
   '@mongodb-js/zstd': true
+  core-js: set this to true or false
+  cpu-features: set this to true or false
+  dprint: set this to true or false
   esbuild: true
   msgpackr-extract: true
   node-liblzma: true
+  protobufjs: set this to true or false
+  ssh2: set this to true or false
+  tree-sitter: set this to true or false
+  tree-sitter-javascript: set this to true or false
+  tree-sitter-typescript: set this to true or false
+  workerd: set this to true or false
 minimumReleaseAgeExclude:
   - '@typescript/typescript-aix-ppc64@7.0.2'
   - '@typescript/typescript-darwin-arm64@7.0.2'
@@ -128,11 +139,3 @@ minimumReleaseAgeExclude:
   - '@typescript/typescript-win32-arm64@7.0.2'
   - '@typescript/typescript-win32-x64@7.0.2'
   - typescript@7.0.2
-  - '@effect/ai-anthropic@4.0.0-rc.110'
-  - '@effect/ai-openai@4.0.0-rc.110'
-  - '@effect/opentelemetry@4.0.0-rc.110'
-  - '@effect/platform-node-shared@4.0.0-rc.110'
-  - '@effect/platform-node@4.0.0-rc.110'
-  - '@effect/vitest@4.0.0-rc.110'
-  - effect@4.0.0-rc.110
-  - '@effect/sql-sqlite-node@4.0.0-rc.110'

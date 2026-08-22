@@ -33,7 +33,7 @@
   "dependencies": {
     "@effect/platform-node": "catalog:",
     "@openai/agents": "catalog:",
-    "effect": "catalog:"
+    "effect": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "catalog:",

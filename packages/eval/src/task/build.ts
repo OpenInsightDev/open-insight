@@ -1,38 +1,47 @@
 import { Snapshot, type Prompt } from "@open-insight/core/internal";
 import * as Grade from "#/grade/index.ts";
-import { Effect, Schema } from "effect";
+import { Data, Schema } from "effect";
+import * as Result from "./result.ts";
 
-export interface Task<out Name extends string, G extends Schema.Constraint> {
-  readonly name: Name;
-  readonly description: string | null;
+export class Task<
+  out Name extends string,
+  G extends Schema.Constraint,
+  R extends Schema.Constraint = Schema.Void,
+> extends Data.Class<{
+  name: Name;
+  description: string | null;
 
-  readonly snapshot: Snapshot.Template;
-  readonly prompt: Prompt.Gen.Options;
-  readonly grader: Grade.Grader<G>;
-}
+  snapshot: Snapshot.Template;
+  prompt: Prompt.Gen.Options;
+  grader: Grade.Grader<G>;
+
+  result?: Result.Fn<G, R>;
+}> {}
 
 export type GradeOf<T> = T extends Task<infer _, infer G> ? G : never;
 
-export type Any = Task<string, any>;
+export type Any = Task<string, any, any>;
 
-type Options<G extends Schema.Constraint> = Readonly<{
+type Options<G extends Schema.Constraint, R extends Schema.Constraint> = Readonly<{
   prompt: Prompt.Gen.Options;
   grader: Grade.Grader<G>;
 
   description?: string | null;
   snapshot?: Snapshot.Template;
+  result?: Result.Fn<G, R>;
 }>;
 
-export const make = <Name extends string, G extends Schema.Constraint>(
+export const make = <Name extends string, G extends Schema.Constraint, R extends Schema.Constraint>(
   name: Name,
-  options: Options<G>,
+  options: Options<G, R>,
 ) => {
-  const { prompt, grader, description = null, snapshot = Snapshot.Alpine } = options;
-  return Effect.succeed({
+  const { prompt, grader, description = null, snapshot = Snapshot.Alpine, result } = options;
+  return new Task({
     name,
     description,
     snapshot,
     prompt,
     grader,
-  } satisfies Task<Name, G>);
+    result,
+  });
 };

@@ -25,10 +25,11 @@ export type EmbedOptions<R extends Schema.Constraint = Schema.Constraint> = Read
  *
  * This grader runs the grading logic in the same sandbox as the agent.
  */
-export const embed =
-  <R extends Schema.Constraint>(schema: R) =>
-  (grade: Embed.Exec<R>, { verif = null }: EmbedOptions<R> = {}) =>
-    Object.assign(Variant<R>().Embed({ grade, verif }), { schema }) satisfies Grader<R>;
+export const embed = <R extends Schema.Constraint>(
+  schema: R,
+  grade: Embed.Exec<R>,
+  { verif = null }: EmbedOptions<R> = {},
+) => Object.assign(Variant<R>().Embed({ grade, verif }), { schema }) satisfies Grader<R>;
 
 export type SidecarOptions<R extends Schema.Constraint = Schema.Constraint> = Readonly<{
   snapshot?: Snapshot.Template;

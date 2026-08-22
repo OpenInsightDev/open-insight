@@ -14,7 +14,7 @@
     "@effect/language-service": "catalog:",
     "@effect/tsgo": "catalog:",
     "@typescript/native-preview": "catalog:",
-    "effect": "catalog:",
+    "effect": "workspace:*",
     "skills": "catalog:",
     "typescript": "catalog:",
     "vite-plus": "catalog:"

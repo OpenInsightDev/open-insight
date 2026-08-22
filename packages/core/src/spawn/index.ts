@@ -7,8 +7,6 @@ import {
 } from "effect/unstable/process/ChildProcessSpawner";
 import { SpawnError } from "./error.ts";
 
-export * from "./error.ts";
-
 export type ExecHandle = Readonly<{
   exitCode: ExitCode;
   stdout: string;
@@ -157,3 +155,5 @@ export class Service extends Context.Service<
     }),
   );
 }
+
+export * from "./error.ts";

@@ -34,7 +34,7 @@
     "@computesdk/e2b": "catalog:",
     "@computesdk/provider": "catalog:",
     "computesdk": "catalog:",
-    "effect": "catalog:"
+    "effect": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^26.1.1",

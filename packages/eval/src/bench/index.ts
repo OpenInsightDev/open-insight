@@ -9,6 +9,10 @@ export type TasksByName<Tasks> =
       ? { readonly [Task in Tasks[number] as Task["name"]]: Task }
       : never;
 
+export type TaskResultsOf<T extends Record<string, any>> = {
+  [K in keyof T]: Task.ResultOf<T[K]>;
+};
+
 export interface Bench<in out Tasks extends Record<string, Task.Any>> {
   readonly tasks: Tasks;
 }
@@ -21,8 +25,26 @@ export const make = <Tasks extends ReadonlyArray<Task.Any>>(
 };
 
 const taskA = Task.make("taskA", {
-  grader: Grade.embed(Schema.Struct({ passed: Schema.Boolean }))(async () => ({ passed: true })),
+  grader: Grade.embed(
+    Schema.Struct({ passed: Schema.Boolean }), //
+    async () => ({ passed: true }),
+  ),
   prompt: { init: [] },
-}).pipe(Task.Result.result(Schema.Struct({ passAt1: Schema.Number }))(() => ({ passAt1: 1 })));
+}).pipe(
+  Task.result(
+    Schema.Struct({ passAt1: Schema.Number }), //
+    () => ({ passAt1: 1 }),
+  ),
+);
 
-const bench = make(taskA);
+const taskB = Task.make("taskB", {
+  grader: Grade.embed(
+    Schema.Struct({ totalCount: Schema.Number }), //
+    async () => ({ totalCount: 10 }),
+  ),
+  prompt: { init: [] },
+});
+
+const bench = make(taskA, taskB);
+
+type R = TaskResultsOf<TasksOf<typeof bench>>;

@@ -79,6 +79,6 @@
     "vitest": "catalog:"
   },
   "peerDependencies": {
-    "effect": "catalog:"
+    "effect": "workspace:*"
   }
 }

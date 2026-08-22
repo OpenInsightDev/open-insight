@@ -39,6 +39,6 @@
   },
   "peerDependencies": {
     "@open-insight/core": "workspace:*",
-    "effect": "catalog:"
+    "effect": "workspace:*"
   }
 }
