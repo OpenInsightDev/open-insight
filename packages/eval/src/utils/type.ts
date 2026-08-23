@@ -5,3 +5,5 @@ export function assertNonNull<T>(val: T): asserts val is NonNullable<T> {
 }
 
 export type Exact<A, B> = A extends B ? (B extends A ? A : never) : never;
+
+export type Override<T, U> = Omit<T, keyof U> & U;

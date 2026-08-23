@@ -1,11 +1,16 @@
-import type { Schema } from "effect";
+import { Schema } from "effect";
 
-type MakeOptions<
-  G extends Schema.Constraint,
-  TaskResult extends Schema.Constraint = Schema.Void,
-  BenchResult extends Schema.Constraint = Schema.Void,
-> = Readonly<{
-  grade: G;
-  taskResult: TaskResult;
-  benchResult: BenchResult;
-}>;
+export const EvalID = Schema.Struct({
+  benchID: Schema.String,
+  harnessID: Schema.String,
+});
+
+export const TaskID = Schema.Struct({
+  ...EvalID.fields,
+  taskID: Schema.String,
+});
+
+const taskEndEvent = <S extends Schema.Constraint>(schema: S) =>
+  Schema.Struct({
+    result: schema,
+  });

@@ -1,22 +1,23 @@
-import { Snapshot, type Prompt } from "@open-insight/core/internal";
+import { Snapshot } from "@open-insight/core/internal";
 import * as Grade from "#/grade/index.ts";
 import { Data, Schema } from "effect";
 
 export class Task<
-  Name extends string = string,
+  ID extends string = string,
   G extends Schema.Constraint = any,
 > extends Data.Class<{
-  name: Name;
+  _tag: ID;
+
+  id: ID;
   description: string | null;
 
   snapshot: Snapshot.Template;
-  prompt: Prompt.Fn.Init;
   grader: Grade.Grader<G>;
 }> {}
 
 export type GradeOf<T> = T extends Task<infer _, infer G> ? G : never;
 
-export type Any = Task<string, any>;
+export type Any = Task<any, any>;
 
 type Options<G extends Schema.Constraint> = Readonly<{
   grader: Grade.Grader<G>;
@@ -25,10 +26,10 @@ type Options<G extends Schema.Constraint> = Readonly<{
   snapshot?: Snapshot.Template;
 }>;
 
-export const make = <Name extends string, G extends Schema.Constraint>(
-  name: Name,
+export const make = <ID extends string, G extends Schema.Constraint>(
+  id: ID,
   options: Options<G>,
 ) => {
-  const { prompt, grader, description = null, snapshot = Snapshot.Alpine } = options;
-  return new Task({ name, description, snapshot, prompt, grader });
+  const { grader, description = null, snapshot = Snapshot.Alpine } = options;
+  return new Task({ _tag: id, id, description, snapshot, grader });
 };

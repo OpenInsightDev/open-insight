@@ -1,6 +1,6 @@
 export * from "./bench.ts";
 
-import { make } from "./bench.ts";
+import { make, mapTask } from "./bench.ts";
 import { result } from "./result.ts";
 import * as Task from "#/task/index.ts";
 import * as Grade from "#/grade/index.ts";
@@ -14,7 +14,7 @@ const taskA = Task.make("taskA", {
 }).pipe(
   Task.result(
     Schema.Struct({ passAt1: Schema.Number }), //
-    async () => ({ result: { passAt1: 1 } }),
+    async () => ({ passAt1: 1 }),
   ),
 );
 
@@ -26,15 +26,26 @@ const taskB = Task.make("taskB", {
 }).pipe(
   Task.result(
     Schema.Struct({ total: Schema.Number }), //
-    async () => ({ result: { total: 2 } }),
+    async () => ({ total: 2 }),
   ),
 );
 
-const bench = make({ name: "bench" }, taskA, taskB).pipe(
-  result(
-    Schema.Struct({ total: Schema.Number }), //
-    async (tasks) => {
-      return { result: { total: 1 } };
-    },
-  ),
-);
+const bench = make({ name: "bench" }, taskA, taskB)
+  .pipe(
+    result(
+      Schema.Struct({ total: Schema.Number }), //
+      async (tasks) => {
+        return { total: 1 };
+      },
+    ),
+  )
+  .pipe(
+    mapTask("taskA", (task) =>
+      task.pipe(
+        Task.result(
+          Schema.Struct({ passAt2: Schema.Number }), //
+          async () => ({ passAt2: 2 }),
+        ),
+      ),
+    ),
+  );

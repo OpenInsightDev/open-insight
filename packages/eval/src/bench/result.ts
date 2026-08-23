@@ -1,15 +1,14 @@
 import * as Task from "#/task/index.ts";
+import * as Bench from "./bench.ts";
 import type { Schema } from "effect";
 import type { BivariantFn } from "#/utils/variant.ts";
-import type { Bench } from "./bench.ts";
+import type { Override } from "#/utils/type.ts";
 
 export type ResultsOf<Tasks extends Record<string, Task.Any>> = {
-  [K in keyof Tasks]: Task.Result.ResultOf<Tasks[K]>;
+  [K in keyof Tasks]: Task.Result.ResultOf<Tasks[K]> & { _tag: K };
 };
 
-export type BenchResult<S extends Schema.Constraint = any> = Readonly<{
-  result: S["Type"];
-}>;
+export type BenchResult<S extends Schema.Constraint = any> = Readonly<S["Type"]>;
 
 export type Exec<
   Tasks extends Record<string, Task.Any>,
@@ -30,9 +29,6 @@ export const resultOf = <Tasks extends Record<string, Task.Any>, S extends Schem
 ) => value[Field];
 
 export const result =
-  <Tasks extends Record<string, Task.Any>, S extends Schema.Constraint>(
-    schema: S,
-    exec: Exec<Tasks, S>,
-  ) =>
-  (bench: Bench<Tasks>): Bench<Tasks> & Mixin<Tasks, S> =>
+  <B extends Bench.Any, S extends Schema.Constraint>(schema: S, exec: Exec<Bench.TasksOf<B>, S>) =>
+  (bench: B): Override<B, Mixin<Bench.TasksOf<B>, S>> =>
     Object.assign(bench, { [Field]: { schema, exec } });
