@@ -1,12 +1,11 @@
-import { Context, Effect, Layer, Option, RcMap, Ref, Schema, Scope, Stream } from "effect";
+import { Context, Data, Effect, Layer, Option, RcMap, Ref, Schema, Scope, Stream } from "effect";
 import * as Agent from "#/agent/index.ts";
 import * as Resource from "#/resource/index.ts";
 import * as Sandbox from "#/sandbox/index.ts";
 import * as Snapshot from "#/snapshot/index.ts";
 import { HarnessError } from "./error.ts";
 import * as Prompt from "#/prompt/index.ts";
-import { Response } from "@open-insight/core/internal";
-import { Tool, Toolkit } from "effect/unstable/ai";
+import { Tool, Toolkit, Response } from "effect/unstable/ai";
 
 export class Metadata extends Schema.Class<Metadata>("HarnessMetadata")({
   id: Schema.String,
@@ -15,19 +14,17 @@ export class Metadata extends Schema.Class<Metadata>("HarnessMetadata")({
 }) {}
 type MetadataEncoded = Schema.Codec.Encoded<typeof Metadata>;
 
-export type AgentSession<Tools extends Record<string, Tool.Any> = {}> = Readonly<{
-  toolkit?: Toolkit.Toolkit<Tools>;
+export type AgentSession<Tools extends Record<string, Tool.Any>> = Readonly<{
+  toolkit: Toolkit.Toolkit<Tools>;
   trajectory: Ref.Ref<Prompt.Trajectory>;
   prompt(
     prompt: Prompt.Prompt,
   ): Stream.Stream<
-    Response.AnyStreamPart,
+    Response.StreamPart<Tools>,
     HarnessError,
-    Schema.Codec.DecodingServices<ReturnType<typeof Response.StreamPart<Toolkit.Toolkit<Tools>>>>
+    Tool.ResultDecodingServices<Tools[keyof Tools]>
   >;
 }>;
-
-export const AgentService = Context.Service<AgentSession>("AgentService");
 
 const makeAgentSession = Effect.fn(function* <Tools extends Record<string, Tool.Any>>(
   agent: Agent.Agent<Tools>,
@@ -43,8 +40,6 @@ export type SandboxSession = Readonly<{
   sandbox: Sandbox.Sandbox;
   runAgent(): Effect.Effect<AgentSession, HarnessError, Scope.Scope>;
 }>;
-
-export const SandboxService = Context.Service<SandboxSession>("SandboxService");
 
 export type SandboxSessionConfig = Readonly<{
   /** The resources to provide to the sandbox. */
@@ -68,87 +63,94 @@ export type SnapshotSession = Readonly<{
   ): Effect.Effect<SandboxSession, HarnessError, Scope.Scope>;
 }>;
 
-export const SnapService = Context.Service<SnapshotSession>("SnapService");
+// export type Harness = Readonly<{
+//   metadata: Metadata;
+//   runSnapshot(
+//     snapshot: Snapshot.Template,
+//   ): Effect.Effect<SnapshotSession, HarnessError, Scope.Scope>;
+// }>;
 
-export type Harness = Readonly<{
+export class Harness<
+  ID extends string,
+  Tools extends Record<string, Tool.Any> = {},
+> extends Data.Class<{
+  _tag: ID;
+  id: ID;
   metadata: Metadata;
-  runSnapshot(
-    snapshot: Snapshot.Template,
-  ): Effect.Effect<SnapshotSession, HarnessError, Scope.Scope>;
-}>;
 
-export type ConfigOptions = Omit<MetadataEncoded, "id"> &
-  Readonly<{
-    toolkit?: Toolkit.Toolkit<Record<string, Tool.Any>>;
-  }>;
+  toolkit?: Toolkit.Toolkit<Tools>;
+}> {}
+export type Any = Harness<any, any>;
 
-export class Service extends Context.Service<Service, Harness>()("harness/Service") {
-  static layer = (
-    id: string,
-    config: ConfigOptions = {},
-  ): Layer.Layer<Service, HarnessError, Agent.ProviderService | Sandbox.ProviderService> => {
-    return Layer.effect(
-      this,
-      Effect.gen(function* () {
-        const agentProvider = yield* Agent.ProviderService;
-        const sandboxProvider = yield* Sandbox.ProviderService;
-        const { toolkit } = config;
+export const make = Effect.fn(function* () {});
 
-        const metadata = yield* Schema.decodeEffect(Metadata)({ id, ...config }).pipe(
-          Effect.mapError(HarnessError.init),
-        );
+// export class Service extends Context.Service<Service, Harness>()("harness/Service") {
+//   static layer = (
+//     id: string,
+//     config: ConfigOptions = {},
+//   ): Layer.Layer<Service, HarnessError, Agent.ProviderService | Sandbox.ProviderService> => {
+//     return Layer.effect(
+//       this,
+//       Effect.gen(function* () {
+//         const agentProvider = yield* Agent.ProviderService;
+//         const sandboxProvider = yield* Sandbox.ProviderService;
+//         const { toolkit } = config;
 
-        // Reference-counted snapshot session cache keyed by template equality
-        const cache = yield* RcMap.make({
-          lookup: (template: Snapshot.Template) =>
-            Effect.gen(function* () {
-              const snapshot = yield* sandboxProvider
-                .acquireSnapshot({ template, cache: true })
-                .pipe(Effect.mapError(HarnessError.snapshotAcquire(template)));
+//         const metadata = yield* Schema.decodeEffect(Metadata)({ id, ...config }).pipe(
+//           Effect.mapError(HarnessError.init),
+//         );
 
-              const extended = yield* agentProvider.snapshotExtension.pipe(
-                Option.match({
-                  onNone: () => Effect.succeed(snapshot),
-                  onSome: ({ instructions, context }) =>
-                    sandboxProvider
-                      .deriveSnapshot({
-                        snapshot,
-                        instructions,
-                        context: context ?? template.context,
-                        cache: true,
-                      })
-                      .pipe(Effect.mapError(HarnessError.snapshotDerive(instructions))),
-                }),
-              );
+//         // Reference-counted snapshot session cache keyed by template equality
+//         const cache = yield* RcMap.make({
+//           lookup: (template: Snapshot.Template) =>
+//             Effect.gen(function* () {
+//               const snapshot = yield* sandboxProvider
+//                 .acquireSnapshot({ template, cache: true })
+//                 .pipe(Effect.mapError(HarnessError.snapshotAcquire(template)));
 
-              const runSandbox = Effect.fn("HarnessService.runSandbox")(function* ({
-                resources = Resource.make(),
-                cache = true,
-              } = {}) {
-                const sandbox = yield* sandboxProvider
-                  .runSandbox({ snapshot: extended, resources, cache })
-                  .pipe(Effect.mapError(HarnessError.sandbox));
+//               const extended = yield* agentProvider.snapshotExtension.pipe(
+//                 Option.match({
+//                   onNone: () => Effect.succeed(snapshot),
+//                   onSome: ({ instructions, context }) =>
+//                     sandboxProvider
+//                       .deriveSnapshot({
+//                         snapshot,
+//                         instructions,
+//                         context: context ?? template.context,
+//                         cache: true,
+//                       })
+//                       .pipe(Effect.mapError(HarnessError.snapshotDerive(instructions))),
+//                 }),
+//               );
 
-                const runAgent = Effect.fn("HarnessService.runAgent")(function* () {
-                  const agentSession = yield* agentProvider
-                    .runSession(sandbox, toolkit)
-                    .pipe(Effect.mapError(HarnessError.agent));
-                  return yield* makeAgentSession(agentSession);
-                }) satisfies SandboxSession["runAgent"];
+//               const runSandbox = Effect.fn("HarnessService.runSandbox")(function* ({
+//                 resources = Resource.make(),
+//                 cache = true,
+//               } = {}) {
+//                 const sandbox = yield* sandboxProvider
+//                   .runSandbox({ snapshot: extended, resources, cache })
+//                   .pipe(Effect.mapError(HarnessError.sandbox));
 
-                return { sandbox, runAgent: runAgent } satisfies SandboxSession;
-              }) satisfies SnapshotSession["runSandbox"];
+//                 const runAgent = Effect.fn("HarnessService.runAgent")(function* () {
+//                   const agentSession = yield* agentProvider
+//                     .runSession(sandbox, toolkit)
+//                     .pipe(Effect.mapError(HarnessError.agent));
+//                   return yield* makeAgentSession(agentSession);
+//                 }) satisfies SandboxSession["runAgent"];
 
-              return { snapshot: extended, runSandbox } satisfies SnapshotSession;
-            }),
-        });
+//                 return { sandbox, runAgent: runAgent } satisfies SandboxSession;
+//               }) satisfies SnapshotSession["runSandbox"];
 
-        const runSnapshot = Effect.fn("HarnessService.runSnapshot")(function* (template) {
-          return yield* RcMap.get(cache, template);
-        }) satisfies Harness["runSnapshot"];
+//               return { snapshot: extended, runSandbox } satisfies SnapshotSession;
+//             }),
+//         });
 
-        return { metadata, runSnapshot } satisfies Harness;
-      }),
-    );
-  };
-}
+//         const runSnapshot = Effect.fn("HarnessService.runSnapshot")(function* (template) {
+//           return yield* RcMap.get(cache, template);
+//         }) satisfies Harness["runSnapshot"];
+
+//         return { metadata, runSnapshot } satisfies Harness;
+//       }),
+//     );
+//   };
+// }

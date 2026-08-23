@@ -4,23 +4,22 @@ import type { Schema } from "effect";
 import type { BivariantFn } from "#/utils/variant.ts";
 import type { Override } from "#/utils/type.ts";
 
-export type ResultsOf<Tasks extends Record<string, Task.Any>> = {
+export type TaskResultsOf<Tasks extends Record<string, Task.Any>> = Readonly<{
   [K in keyof Tasks]: Task.Result.ResultOf<Tasks[K]> & { _tag: K };
-};
+}>;
 
 export type BenchResult<S extends Schema.Constraint = any> = Readonly<S["Type"]>;
 
 export type Exec<
   Tasks extends Record<string, Task.Any>,
   S extends Schema.Constraint = any,
-> = BivariantFn<(tasks: ResultsOf<Tasks>) => BenchResult<S> | PromiseLike<BenchResult<S>>>;
+> = BivariantFn<
+  (taskResults: TaskResultsOf<Tasks>) => BenchResult<S> | PromiseLike<BenchResult<S>>
+>;
 
 const Field: unique symbol = Symbol.for("BenchResultField");
 export type Mixin<Tasks extends Record<string, Task.Any>, S extends Schema.Constraint> = Readonly<{
-  [Field]: {
-    schema: S;
-    exec: Exec<Tasks, S>;
-  };
+  [Field]: { schema: S; exec: Exec<Tasks, S> };
 }>;
 export type ResultOf<B> = B extends Mixin<any, infer S> ? S["Type"] : never;
 

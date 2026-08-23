@@ -10,25 +10,29 @@ export type TasksByName<Tasks> =
       ? { readonly [Task in Tasks[number] as Task["id"]]: Task }
       : never;
 
-export class Bench<Tasks extends Record<string, Task.Any>> extends Data.Class<{
-  name: string;
+export class Bench<ID extends string, Tasks extends Record<string, Task.Any>> extends Data.Class<{
+  _tag: ID;
+  id: ID;
   tasks: Tasks;
 }> {}
-export type Any = Bench<any>;
+export type IDOf<B> = B extends Bench<infer ID, any> ? ID : never;
+export type TasksOf<B> = B extends Bench<any, infer Tasks> ? Tasks : never;
 
-type Options = Readonly<{
-  name: string;
+export type Any = Bench<any, any>;
+
+type Options<ID extends string> = Readonly<{
+  id: ID;
 }>;
-export const make = <Tasks extends ReadonlyArray<Task.Any>>(
-  { name }: Options,
-  ...tasks: Tasks
-): Bench<TasksByName<Tasks>> =>
-  new Bench({
-    name,
-    tasks: Object.fromEntries(tasks.map((task) => [task.id, task])) as TasksByName<Tasks>,
-  });
+export const fromArray = <ID extends string, Tasks extends ReadonlyArray<Task.Any>>(
+  { id }: Options<ID>,
+  tasks: Tasks,
+): Bench<ID, TasksByName<Tasks>> =>
+  new Bench({ _tag: id, id, tasks: Object.fromEntries(tasks.map((task) => [task.id, task])) });
 
-export type TasksOf<B> = B extends Bench<infer Tasks> ? Tasks : never;
+export const make = <ID extends string, Tasks extends ReadonlyArray<Task.Any>>(
+  { id }: Options<ID>,
+  ...tasks: Tasks
+): Bench<ID, TasksByName<Tasks>> => fromArray({ id }, tasks);
 
 type MappedTasks<
   Tasks extends Record<string, Task.Any>,
@@ -43,7 +47,7 @@ export const mapTask =
     name: Name,
     mapper: (task: TasksOf<B>[Name]) => Mapped,
   ) =>
-  (bench: B): Override<B, Bench<MappedTasks<TasksOf<B>, Name, Mapped>>> =>
+  (bench: B): Override<B, Bench<IDOf<B>, MappedTasks<TasksOf<B>, Name, Mapped>>> =>
     bench.pipe(
       produce((draft) => {
         draft.tasks[name] = mapper(draft.tasks[name]);
