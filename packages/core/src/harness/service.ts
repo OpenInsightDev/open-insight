@@ -6,6 +6,7 @@ import * as Snapshot from "#/snapshot/index.ts";
 import { HarnessError } from "./error.ts";
 import * as Prompt from "#/prompt/index.ts";
 import { Response } from "@open-insight/core/internal";
+import { Tool, Toolkit } from "effect/unstable/ai";
 
 export class Metadata extends Schema.Class<Metadata>("HarnessMetadata")({
   id: Schema.String,
@@ -14,20 +15,28 @@ export class Metadata extends Schema.Class<Metadata>("HarnessMetadata")({
 }) {}
 type MetadataEncoded = Schema.Codec.Encoded<typeof Metadata>;
 
-export type AgentSession = Readonly<{
+export type AgentSession<Tools extends Record<string, Tool.Any> = {}> = Readonly<{
+  toolkit?: Toolkit.Toolkit<Tools>;
   trajectory: Ref.Ref<Prompt.Trajectory>;
-  prompt(prompt: Prompt.Prompt): Stream.Stream<Response.AnyStreamPart, HarnessError>;
+  prompt(
+    prompt: Prompt.Prompt,
+  ): Stream.Stream<
+    Response.AnyStreamPart,
+    HarnessError,
+    Schema.Codec.DecodingServices<ReturnType<typeof Response.StreamPart<Toolkit.Toolkit<Tools>>>>
+  >;
 }>;
 
 export const AgentService = Context.Service<AgentSession>("AgentService");
 
-const makeAgentSession = Effect.fn(function* (
-  agent: Agent.Agent,
-): Effect.fn.Return<AgentSession, HarnessError> {
+const makeAgentSession = Effect.fn(function* <Tools extends Record<string, Tool.Any>>(
+  agent: Agent.Agent<Tools>,
+): Effect.fn.Return<AgentSession<Tools>, HarnessError> {
   return {
+    toolkit: agent.toolkit,
     trajectory: agent.trajectory,
     prompt: (prompt) => agent.prompt(prompt).pipe(Stream.mapError(HarnessError.agent)),
-  } satisfies AgentSession;
+  } satisfies AgentSession<Tools>;
 });
 
 export type SandboxSession = Readonly<{
@@ -68,7 +77,10 @@ export type Harness = Readonly<{
   ): Effect.Effect<SnapshotSession, HarnessError, Scope.Scope>;
 }>;
 
-export type ConfigOptions = Omit<MetadataEncoded, "id"> & Readonly<{}>;
+export type ConfigOptions = Omit<MetadataEncoded, "id"> &
+  Readonly<{
+    toolkit?: Toolkit.Toolkit<Record<string, Tool.Any>>;
+  }>;
 
 export class Service extends Context.Service<Service, Harness>()("harness/Service") {
   static layer = (
@@ -80,6 +92,7 @@ export class Service extends Context.Service<Service, Harness>()("harness/Servic
       Effect.gen(function* () {
         const agentProvider = yield* Agent.ProviderService;
         const sandboxProvider = yield* Sandbox.ProviderService;
+        const { toolkit } = config;
 
         const metadata = yield* Schema.decodeEffect(Metadata)({ id, ...config }).pipe(
           Effect.mapError(HarnessError.init),
@@ -118,7 +131,7 @@ export class Service extends Context.Service<Service, Harness>()("harness/Servic
 
                 const runAgent = Effect.fn("HarnessService.runAgent")(function* () {
                   const agentSession = yield* agentProvider
-                    .runSession(sandbox)
+                    .runSession(sandbox, toolkit)
                     .pipe(Effect.mapError(HarnessError.agent));
                   return yield* makeAgentSession(agentSession);
                 }) satisfies SandboxSession["runAgent"];

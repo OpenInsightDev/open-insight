@@ -15,6 +15,7 @@ import { Harness } from "@open-insight/core";
 const harness = Harness.Service.layer("my-harness", {
   name: "My Harness",
   description: "Runs the task in an isolated sandbox",
+  toolkit,
 });
 ```
 
@@ -41,10 +42,11 @@ const sbxSession = yield* snapSession.runSandbox({
 const session = yield* sbxSession.runAgent();
 ```
 
-A `SandboxSession` exposes the live `Sandbox` plus `runAgent()`, which opens an `AgentSession` for that sandbox.
+A `SandboxSession` exposes the live `Sandbox` plus `runAgent()`, which opens an `AgentSession` for that sandbox. A toolkit supplied in `Harness.Service.layer` config is passed to the configured agent provider and is available on the resulting session.
 
 An `AgentSession` exposes:
 
+- `toolkit`, the optional toolkit supplied when the session was opened,
 - `trajectory`, a `Ref.Ref<Prompt.Trajectory>` holding the accumulated agent history,
 - and `prompt(prompt)`, a `Stream` of `Prompt.AnyStreamPart` parts.
 

@@ -1,50 +1,40 @@
+export * from "./bench.ts";
+
+import { make } from "./bench.ts";
+import { result } from "./result.ts";
 import * as Task from "#/task/index.ts";
 import * as Grade from "#/grade/index.ts";
 import { Schema } from "effect";
-
-export type TasksByName<Tasks> =
-  Tasks extends Record<string, Task.Any>
-    ? { readonly [Name in keyof Tasks]: Tasks[Name] }
-    : Tasks extends ReadonlyArray<Task.Any>
-      ? { readonly [Task in Tasks[number] as Task["name"]]: Task }
-      : never;
-
-export type TaskResultsOf<T extends Record<string, any>> = {
-  [K in keyof T]: Task.ResultOf<T[K]>;
-};
-
-export interface Bench<in out Tasks extends Record<string, Task.Any>> {
-  readonly tasks: Tasks;
-}
-export type TasksOf<B> = B extends Bench<infer Tasks> ? Tasks : never;
-
-export const make = <Tasks extends ReadonlyArray<Task.Any>>(
-  ...tasks: Tasks
-): Bench<TasksByName<Tasks>> => {
-  throw new Error("Not implemented");
-};
 
 const taskA = Task.make("taskA", {
   grader: Grade.embed(
     Schema.Struct({ passed: Schema.Boolean }), //
     async () => ({ passed: true }),
   ),
-  prompt: { init: [] },
 }).pipe(
   Task.result(
     Schema.Struct({ passAt1: Schema.Number }), //
-    () => ({ passAt1: 1 }),
+    async () => ({ result: { passAt1: 1 } }),
   ),
 );
 
 const taskB = Task.make("taskB", {
   grader: Grade.embed(
-    Schema.Struct({ totalCount: Schema.Number }), //
-    async () => ({ totalCount: 10 }),
+    Schema.Struct({ count: Schema.Number }), //
+    async () => ({ count: 1 }),
   ),
-  prompt: { init: [] },
-});
+}).pipe(
+  Task.result(
+    Schema.Struct({ total: Schema.Number }), //
+    async () => ({ result: { total: 2 } }),
+  ),
+);
 
-const bench = make(taskA, taskB);
-
-type R = TaskResultsOf<TasksOf<typeof bench>>;
+const bench = make({ name: "bench" }, taskA, taskB).pipe(
+  result(
+    Schema.Struct({ total: Schema.Number }), //
+    async (tasks) => {
+      return { result: { total: 1 } };
+    },
+  ),
+);
