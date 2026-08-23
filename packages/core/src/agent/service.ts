@@ -1,7 +1,6 @@
 import * as Sandbox from "#/sandbox/index.ts";
 import * as Snapshot from "#/snapshot/index.ts";
 import * as Prompt from "#/prompt/index.ts";
-import * as Response from "#/response/index.ts";
 import { Context, Effect, Layer, Option, Ref, Scope, Semaphore, Stream } from "effect";
 import { AgentError } from "./error.ts";
 

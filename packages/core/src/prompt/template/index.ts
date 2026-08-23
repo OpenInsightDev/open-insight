@@ -1,7 +1,7 @@
 import { Eta } from "eta";
 import { Effect, FileSystem } from "effect";
 import { Prompt } from "effect/unstable/ai";
-import { PromptError } from "./error.ts";
+import { PromptError } from "../error.ts";
 
 const eta = new Eta();
 
