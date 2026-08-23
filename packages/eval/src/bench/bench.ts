@@ -11,7 +11,6 @@ export type TasksByName<Tasks> =
       : never;
 
 export class Bench<ID extends string, Tasks extends Record<string, Task.Any>> extends Data.Class<{
-  _tag: ID;
   id: ID;
   tasks: Tasks;
 }> {}
@@ -27,7 +26,7 @@ export const fromArray = <ID extends string, Tasks extends ReadonlyArray<Task.An
   { id }: Options<ID>,
   tasks: Tasks,
 ): Bench<ID, TasksByName<Tasks>> =>
-  new Bench({ _tag: id, id, tasks: Object.fromEntries(tasks.map((task) => [task.id, task])) });
+  new Bench({ id, tasks: Object.fromEntries(tasks.map((task) => [task.id, task])) });
 
 export const make = <ID extends string, Tasks extends ReadonlyArray<Task.Any>>(
   { id }: Options<ID>,

@@ -1,0 +1,148 @@
+import { Data, Effect, Option, RcMap, Ref, Schema, Scope, Stream } from "effect";
+import * as Agent from "#/agent/index.ts";
+import * as Resource from "#/resource/index.ts";
+import * as Sandbox from "#/sandbox/index.ts";
+import * as Snapshot from "#/snapshot/index.ts";
+import { HarnessError } from "./error.ts";
+import * as Prompt from "#/prompt/index.ts";
+import { Tool, Toolkit, Response } from "effect/unstable/ai";
+
+export type AgentSession<Tools extends Record<string, Tool.Any>> = Readonly<{
+  toolkit: Toolkit.Toolkit<Tools>;
+  trajectory: Ref.Ref<Prompt.Trajectory>;
+  prompt(
+    prompt: Prompt.Prompt,
+  ): Stream.Stream<
+    Response.StreamPart<Tools>,
+    HarnessError,
+    Tool.ResultDecodingServices<Tools[keyof Tools]>
+  >;
+}>;
+
+const makeAgentSession = Effect.fn(function* <Tools extends Record<string, Tool.Any>>(
+  agent: Agent.Agent<Tools>,
+): Effect.fn.Return<AgentSession<Tools>, HarnessError> {
+  return {
+    toolkit: agent.toolkit,
+    trajectory: agent.trajectory,
+    prompt: (prompt) => agent.prompt(prompt).pipe(Stream.mapError(HarnessError.agent)),
+  } satisfies AgentSession<Tools>;
+});
+
+export type SandboxSession<Tools extends Record<string, Tool.Any>> = Readonly<{
+  sandbox: Sandbox.Sandbox;
+  runAgent(): Effect.Effect<AgentSession<Tools>, HarnessError, Scope.Scope>;
+}>;
+
+export type SandboxSessionConfig = Readonly<{
+  resources: Resource.Resources;
+  cache: boolean;
+}>;
+export const DefaultSandboxSessionConfig: SandboxSessionConfig = {
+  resources: Resource.make(),
+  cache: true,
+};
+
+export type SnapshotSession<Tools extends Record<string, Tool.Any>> = Readonly<{
+  snapshot: Snapshot.Snapshot;
+
+  runSandbox(
+    options?: Partial<SandboxSessionConfig>,
+  ): Effect.Effect<SandboxSession<Tools>, HarnessError, Scope.Scope>;
+}>;
+
+export class Metadata extends Schema.Class<Metadata>("HarnessMetadata")({
+  id: Schema.String,
+  name: Schema.OptionFromOptionalNullOr(Schema.String),
+  description: Schema.OptionFromOptionalNullOr(Schema.String),
+}) {}
+type MetadataEncoded = Schema.Codec.Encoded<typeof Metadata>;
+
+export class Harness<ID extends string, Tools extends Record<string, Tool.Any>> extends Data.Class<{
+  id: ID;
+  metadata: Metadata;
+  toolkit: Toolkit.Toolkit<Tools>;
+  runSnapshot(
+    snapshot: Snapshot.Template,
+  ): Effect.Effect<SnapshotSession<Tools>, HarnessError, Scope.Scope>;
+}> {}
+export type Any = Harness<any, any>;
+export type IDOf<H> = H extends Harness<infer ID, any> ? ID : never;
+export type ToolsOf<H> = H extends Harness<any, infer Tools> ? Tools : never;
+
+type Options<Tools extends Record<string, Tool.Any>> = Omit<MetadataEncoded, "id"> &
+  Readonly<{
+    toolkit: Toolkit.Toolkit<Tools>;
+  }>;
+export const make = Effect.fn(function* <ID extends string, Tools extends Record<string, Tool.Any>>(
+  id: ID,
+  options: Options<Tools>,
+): Effect.fn.Return<
+  Harness<ID, Tools>,
+  HarnessError,
+  Scope.Scope | Agent.ProviderService | Sandbox.ProviderService
+> {
+  const { toolkit } = options;
+  const metadata = yield* Schema.decodeEffect(Metadata)({ id, ...options }).pipe(
+    Effect.mapError(HarnessError.init),
+  );
+
+  const agentProvider = yield* Agent.ProviderService;
+  const sandboxProvider = yield* Sandbox.ProviderService;
+
+  // Reference-counted snapshot session cache keyed by template equality
+  const cache = yield* RcMap.make({
+    lookup: (template: Snapshot.Template) =>
+      Effect.gen(function* () {
+        const snapshot = yield* sandboxProvider
+          .acquireSnapshot({ template, cache: true })
+          .pipe(Effect.mapError(HarnessError.snapshotAcquire(template)));
+
+        const extended = yield* agentProvider.snapshotExtension.pipe(
+          Option.match({
+            onNone: () => Effect.succeed(snapshot),
+            onSome: ({ instructions, context }) =>
+              sandboxProvider
+                .deriveSnapshot({
+                  snapshot,
+                  instructions,
+                  context: context ?? template.context,
+                  cache: true,
+                })
+                .pipe(Effect.mapError(HarnessError.snapshotDerive(instructions))),
+          }),
+        );
+
+        const runSandbox = Effect.fn("HarnessService.runSandbox")(function* ({
+          resources = Resource.make(),
+          cache = true,
+        } = {}) {
+          const sandbox = yield* sandboxProvider
+            .runSandbox({ snapshot: extended, resources, cache })
+            .pipe(Effect.mapError(HarnessError.sandbox));
+
+          const runAgent = Effect.fn("HarnessService.runAgent")(function* () {
+            const agentSession = yield* agentProvider
+              .runSession(sandbox, toolkit)
+              .pipe(Effect.mapError(HarnessError.agent));
+            return yield* makeAgentSession(agentSession);
+          }) satisfies SandboxSession<Tools>["runAgent"];
+
+          return { sandbox, runAgent: runAgent } satisfies SandboxSession<Tools>;
+        }) satisfies SnapshotSession<Tools>["runSandbox"];
+
+        return { snapshot: extended, runSandbox } satisfies SnapshotSession<Tools>;
+      }),
+  });
+
+  const runSnapshot = Effect.fn("HarnessService.runSnapshot")(function* (template) {
+    return yield* RcMap.get(cache, template);
+  }) satisfies Harness<ID, Tools>["runSnapshot"];
+
+  return new Harness({
+    id,
+    metadata,
+    toolkit,
+    runSnapshot,
+  });
+});

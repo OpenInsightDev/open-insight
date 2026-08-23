@@ -15,4 +15,4 @@ export {
   type AgentSession,
   type SandboxSessionConfig,
   type SandboxSession,
-} from "./service.ts";
+} from "./harness.ts";

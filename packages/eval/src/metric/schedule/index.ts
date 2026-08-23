@@ -1,4 +1,4 @@
-import type { DateTime, Stream } from "effect";
+import { Stream, type DateTime } from "effect";
 import * as Chart from "#/chart/index.ts";
 
 export type Metric<E, R> = (
