@@ -1,5 +1,5 @@
 import type { Prompt, Response } from "@open-insight/core/internal";
-import { Data, Effect, Option, type Schema } from "effect";
+import { Data, Effect, Option, type Schema, Function } from "effect";
 import type { BivariantFn } from "#/utils/variant.ts";
 import * as Task from "./task.ts";
 import { hasProperty } from "effect/Predicate";
@@ -55,10 +55,22 @@ export type ResultOf<T> = T extends Mixin<any, infer S> ? TaskResult<S> : never;
 export const mixinOf = <T extends object>(value: T) =>
   Option.fromNullOr(hasProperty(value, Field) ? (value[Field] as MixinOf<T>) : null);
 
-export const result =
+export const result: {
   <T extends Task.Any, S extends Schema.Constraint>(
     schema: S,
     exec: ExecOption<Task.GradeOf<T>, S>,
-  ) =>
-  (task: T): Override<T, Mixin<Task.GradeOf<T>, S>> =>
-    Object.assign(task, { [Field]: { schema, exec: makeExec(task.id, exec) } });
+  ): (task: T) => Override<T, Mixin<Task.GradeOf<T>, S>>;
+  <T extends Task.Any, S extends Schema.Constraint>(
+    task: T,
+    schema: S,
+    exec: ExecOption<Task.GradeOf<T>, S>,
+  ): Override<T, Mixin<Task.GradeOf<T>, S>>;
+} = Function.dual(
+  3,
+  <T extends Task.Any, S extends Schema.Constraint>(
+    task: T,
+    schema: S,
+    exec: ExecOption<Task.GradeOf<T>, S>,
+  ): Override<T, Mixin<Task.GradeOf<T>, S>> =>
+    Object.assign(task, { [Field]: { schema, exec: makeExec(task.id, exec) } }),
+);
