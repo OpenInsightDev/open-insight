@@ -115,9 +115,29 @@ export class TrailEndEvent extends Schema.TaggedClass<TrailEndEvent>()("TrailEnd
   grade: Schema.Unknown,
 }) {}
 
+export class SchedMetrticEvent extends Schema.TaggedClass<SchedMetrticEvent>()(
+  "SchedMetrticEvent",
+  {
+    id: TrailID,
+    metricID: Schema.String,
+    chart: Chart.Points,
+  },
+) {}
+
+export class SchedMetrticErrorEvent extends Schema.TaggedClass<SchedMetrticErrorEvent>()(
+  "SchedMetrticErrorEvent",
+  {
+    id: TrailID,
+    metricID: Schema.String,
+    error: Schema.Defect(),
+  },
+) {}
+
 export const TrailSuccessEvent = Schema.Union([
   TrailStartEvent,
   SessionSuccessEvent,
+  SchedMetrticEvent,
+  SchedMetrticErrorEvent,
   TrailEndEvent,
 ]);
 export type TrailSuccessEvent = Schema.Schema.Type<typeof TrailSuccessEvent>;
@@ -133,6 +153,7 @@ export type TrailFailedEvent = Schema.Schema.Type<typeof TrailFailedEvent>;
 export class TaskStartEvent extends Schema.TaggedClass<TaskStartEvent>()("TaskStartEvent", {
   id: TaskID,
   task: Task.Metadata,
+  extra: Schema.Option(Schema.Unknown),
 }) {}
 
 export class TaskEndEvent extends Schema.TaggedClass<TaskEndEvent>()("TaskEndEvent", {

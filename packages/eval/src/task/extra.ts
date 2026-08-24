@@ -1,4 +1,4 @@
-import type { Schema } from "effect";
+import { Option, type Schema } from "effect";
 
 const Field: unique symbol = Symbol.for("ExtraField");
 export type Mixin<S extends Schema.Constraint> = Readonly<{
@@ -7,8 +7,10 @@ export type Mixin<S extends Schema.Constraint> = Readonly<{
     value: S["Type"];
   };
 }>;
+export type ExtraOf<T> = T extends Mixin<infer S> ? S["Type"] : never;
 
-export const extraOf = <S extends Schema.Constraint>(value: Mixin<S>) => value[Field];
+export const extraOf = <T extends object>(value: T) =>
+  Option.fromNullOr(Field in value ? (value[Field] as ExtraOf<T>) : null);
 
 export const extra =
   <T extends Schema.Constraint>(schema: T, value: T["Type"]) =>

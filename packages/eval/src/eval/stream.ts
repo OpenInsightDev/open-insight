@@ -138,6 +138,7 @@ type TrailOptions = Readonly<{
   task: Task.Any;
   snapSession: Harness.SnapshotSession;
 }>;
+
 const makeTrail = Effect.fn(
   function* ({ id, task, snapSession }: TrailOptions) {
     const { resources, trajMetrics, schedMetrics, prompt } = task;
@@ -227,7 +228,28 @@ const makeTrail = Effect.fn(
     const agentSession = yield* sbxSession.runAgent().pipe(Effect.mapError(EvalError.harness));
     const attemptEvents = makeAttempt({ agentSession, sessionIdx: 0 }).pipe(Stream.provide(prompt));
 
-    return Stream.empty.pipe(Stream.concat(startEvent), Stream.concat(attemptEvents));
+    const metricEvents = Stream.mergeAll(
+      schedMetrics.map(({ metadata, repeat, transform }) => {
+        const stream = Metric.Sched.fromRepeat(repeat);
+        return transform({ sandbox, stream }).pipe(
+          Stream.map((chart) => Event.SchedMetrticEvent.make({ id, metricID: metadata.id, chart })),
+          Stream.catch((error) =>
+            Stream.succeed(
+              Event.SchedMetrticErrorEvent.make({
+                id,
+                metricID: metadata.id,
+                error,
+              }),
+            ),
+          ),
+        );
+      }),
+      { concurrency: "unbounded" },
+    );
+
+    return Stream.empty
+      .pipe(Stream.concat(startEvent), Stream.concat(attemptEvents))
+      .pipe(Stream.merge(metricEvents, { haltStrategy: "left" }));
   },
   (eff, { id }) =>
     eff.pipe(
@@ -274,6 +296,7 @@ const makeTask = Effect.fn(
       Event.TaskStartEvent.make({
         id,
         task: task.metadata,
+        extra: Task.Extra.extraOf(task),
       }),
     );
 
@@ -320,7 +343,8 @@ const makeTask = Effect.fn(
     const result = Task.Result.resultOf(task).pipe(
       Option.match({
         onSome: ({ exec }) =>
-          Queue.collect(trailResultQueue)
+          Queue.end(trailResultQueue)
+            .pipe(Effect.andThen(Queue.collect(trailResultQueue)))
             .pipe(Effect.flatMap(exec), Effect.mapError(EvalError.task))
             .pipe(Effect.flatMap(Effect.fail), Stream.fromEffect),
         onNone: () => Stream.empty,
@@ -402,8 +426,32 @@ export const make = Effect.fn(
 
     const endEvent = Stream.succeed(Event.EvalEndEvent.make({ id }));
 
+    const result = Bench.Result.resultOf(eval_.bench).pipe(
+      Option.match({
+        onSome: ({ exec }) =>
+          Queue.end(taskResultQueue).pipe(
+            Effect.andThen(Queue.collect(taskResultQueue)),
+            Effect.flatMap((taskResults) =>
+              exec(Object.fromEntries(taskResults)).pipe(
+                Effect.mapError(EvalError.task),
+                Effect.flatMap((result) =>
+                  Effect.fail(result as Bench.Result.ResultOf<BenchOf<E>>),
+                ),
+              ),
+            ),
+            Stream.fromEffect,
+          ),
+        onNone: () => Stream.empty,
+      }),
+    );
+
     const stream = yield* Stream.empty
-      .pipe(Stream.concat(startEvent), Stream.concat(taskEvents), Stream.concat(endEvent))
+      .pipe(
+        Stream.concat(startEvent),
+        Stream.concat(taskEvents),
+        Stream.concat(endEvent),
+        Stream.concat(result),
+      )
       .pipe(Stream.share({ capacity: "unbounded" }));
 
     return stream;

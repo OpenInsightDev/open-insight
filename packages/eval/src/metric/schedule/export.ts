@@ -1,1 +1,1 @@
-export { toDateTime } from "./index.ts";
+export { fromRepeat as streamFromRepeat } from "./index.ts";
