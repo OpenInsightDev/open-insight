@@ -3,8 +3,8 @@ import * as Bench from "./bench.ts";
 import { Data, Effect, Option, Schema } from "effect";
 import type { BivariantFn } from "#/utils/variant.ts";
 import type { Override } from "#/utils/type.ts";
-import { hasProperty } from "effect/Predicate";
 import { TaskError } from "#/task/error.ts";
+import { hasProperty } from "effect/Predicate";
 
 export type TaskResultsOf<Tasks extends Record<string, Task.Any>> = Readonly<{
   [K in keyof Tasks]: Task.Result.ResultOf<Tasks[K]>;
@@ -36,13 +36,11 @@ const Field: unique symbol = Symbol.for("BenchResultField");
 export type Mixin<S extends Schema.Constraint> = Readonly<{
   [Field]: { schema: S; exec: Exec };
 }>;
+export type MixinOf<B> = B extends Mixin<infer S> ? Mixin<S>[typeof Field] : never;
 export type ResultOf<B> = B extends Mixin<infer S> ? BenchResult<S> : never;
 
-export const hasResult = <T, S extends Schema.Constraint>(value: T): value is T & Mixin<S> =>
-  hasProperty(value, Field);
-
-export const resultOf = <T, S extends Schema.Constraint>(value: T) =>
-  hasResult<T, S>(value) ? Option.some(value[Field]) : Option.none();
+export const mixinOf = <T extends object>(value: T) =>
+  Option.fromNullOr(hasProperty(value, Field) ? (value[Field] as MixinOf<T>) : null);
 
 export const result =
   <B extends Bench.Any, S extends Schema.Constraint>(

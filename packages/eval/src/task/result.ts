@@ -49,14 +49,11 @@ export type Mixin<G extends Schema.Constraint, S extends Schema.Constraint> = Re
     exec: Exec<G, S>;
   };
 }>;
+export type MixinOf<T> = T extends Mixin<infer G, infer S> ? Mixin<G, S>[typeof Field] : never;
 export type ResultOf<T> = T extends Mixin<any, infer S> ? TaskResult<S> : never;
 
-export const hasResult = <T, G extends Schema.Constraint, S extends Schema.Constraint>(
-  value: T,
-): value is T & Mixin<G, S> => hasProperty(value, Field);
-
-export const resultOf = <T, G extends Schema.Constraint, S extends Schema.Constraint>(value: T) =>
-  hasResult<T, G, S>(value) ? Option.some(value[Field]) : Option.none();
+export const mixinOf = <T extends object>(value: T) =>
+  Option.fromNullOr(hasProperty(value, Field) ? (value[Field] as MixinOf<T>) : null);
 
 export const result =
   <T extends Task.Any, S extends Schema.Constraint>(

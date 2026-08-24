@@ -340,7 +340,7 @@ const makeTask = Effect.fn(
 
     const endEvent = Stream.succeed(Event.TaskEndEvent.make({ id }));
 
-    const result = Task.Result.resultOf(task).pipe(
+    const result = Task.Result.mixinOf(task as any).pipe(
       Option.match({
         onSome: ({ exec }) =>
           Queue.end(trailResultQueue)
@@ -417,16 +417,12 @@ export const make = Effect.fn(
     const taskEvents = Stream.mergeAll(taskStreams, { concurrency: "unbounded" });
 
     const startEvent = Stream.succeed(
-      Event.EvalStartEvent.make({
-        id,
-        bench: bench.metadata,
-        harness: harness.metadata,
-      }),
+      Event.EvalStartEvent.make({ id, bench: bench.metadata, harness: harness.metadata }),
     );
 
     const endEvent = Stream.succeed(Event.EvalEndEvent.make({ id }));
 
-    const result = Bench.Result.resultOf(eval_.bench).pipe(
+    const result = Bench.Result.mixinOf(eval_.bench).pipe(
       Option.match({
         onSome: ({ exec }) =>
           Queue.end(taskResultQueue).pipe(

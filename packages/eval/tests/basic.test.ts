@@ -39,23 +39,18 @@ const taskB = Task.make("taskB", {
 const bench = Bench.make({ id: "bench" }, taskA, taskB)
   .pipe(
     Bench.mapTask("taskA", (task) =>
-      task
-        .pipe(
-          Task.result(
-            Schema.Struct({ passAt2: Schema.Number }), //
-            async () => ({ passAt2: 2 }),
-          ),
-        )
-        .pipe((v) => {
-          const toolkit = Task.toolkitOf(v);
-          return v;
-        }),
+      task.pipe(
+        Task.result(
+          Schema.Struct({ passAt2: Schema.Number }), //
+          async () => ({ passAt2: 2 }),
+        ),
+      ),
     ),
   )
   .pipe(
     Bench.result(
       Schema.Struct({ total: Schema.Number }), //
-      async ({ taskA: { passAt2 } }) => {
+      async ({ taskA }) => {
         return { total: 1 };
       },
     ),
