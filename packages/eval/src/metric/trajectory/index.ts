@@ -5,11 +5,11 @@ import * as Chart from "#/chart/index.ts";
 import type { MetricError } from "../error.ts";
 import { Metadata, type MetadataEncoded } from "../schema.ts";
 
-type InputStream = Stream.Stream<Prompt.Prompt | Response.AnyPart>;
-
 export type Metric = Readonly<{
   metadata: Metadata;
-  transform: (stream: InputStream) => Stream.Stream<Chart.Points, MetricError>;
+  transform: <E, R>(
+    stream: Stream.Stream<Prompt.Prompt | Response.AnyPart, E, R>,
+  ) => Stream.Stream<Chart.Points, E | MetricError, R>;
 }>;
 
 export type Mapper<Tools extends Record<string, Tool.Any>> = (

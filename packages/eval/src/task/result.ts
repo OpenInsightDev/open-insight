@@ -1,9 +1,10 @@
 import type { Prompt, Response } from "@open-insight/core/internal";
-import { Data, Option, type Schema } from "effect";
+import { Data, Effect, Option, type Schema } from "effect";
 import type { BivariantFn } from "#/utils/variant.ts";
 import * as Task from "./task.ts";
 import { hasProperty } from "effect/Predicate";
 import type { Override } from "#/utils/type.ts";
+import { TaskError } from "./error.ts";
 
 export class SessionResult extends Data.TaggedClass("SessionResult")<{
   trajectory: Prompt.Trajectory;
@@ -17,11 +18,29 @@ export class TrailResult<G extends Schema.Constraint = any> extends Data.TaggedC
   sessions: Array<SessionResult>;
 }> {}
 
-export type TaskResult<S extends Schema.Constraint = any> = Readonly<S["Type"]>;
+export class TaskResult<S extends Schema.Constraint = any> extends Data.TaggedClass("TaskResult")<{
+  id: string;
+  result: S["Type"];
+}> {}
 
-export type Exec<G extends Schema.Constraint, S extends Schema.Constraint> = BivariantFn<
-  (trails: Array<TrailResult<G>>) => TaskResult<S> | PromiseLike<TaskResult<S>>
+export type ExecOption<G extends Schema.Constraint, S extends Schema.Constraint> = BivariantFn<
+  (trails: ReadonlyArray<TrailResult<G>>) => S["Type"] | PromiseLike<S["Type"]>
 >;
+export type Exec<G extends Schema.Constraint, S extends Schema.Constraint> = (
+  trails: ReadonlyArray<TrailResult<G>>,
+) => Effect.Effect<TaskResult<S>, TaskError>;
+
+const makeExec = <G extends Schema.Constraint, S extends Schema.Constraint>(
+  id: string,
+  exec: ExecOption<G, S>,
+): Exec<G, S> =>
+  Effect.fn(function* (trails) {
+    const result = yield* Effect.tryPromise({
+      try: () => Promise.resolve(exec(trails)),
+      catch: TaskError.result,
+    });
+    return new TaskResult({ id, result });
+  });
 
 const Field: unique symbol = Symbol.for("ResultField");
 export type Mixin<G extends Schema.Constraint, S extends Schema.Constraint> = Readonly<{
@@ -30,7 +49,7 @@ export type Mixin<G extends Schema.Constraint, S extends Schema.Constraint> = Re
     exec: Exec<G, S>;
   };
 }>;
-export type ResultOf<T> = T extends Mixin<any, infer S> ? S["Type"] : never;
+export type ResultOf<T> = T extends Mixin<any, infer S> ? TaskResult<S> : never;
 
 export const hasResult = <T, G extends Schema.Constraint, S extends Schema.Constraint>(
   value: T,
@@ -40,6 +59,9 @@ export const resultOf = <T, G extends Schema.Constraint, S extends Schema.Constr
   hasResult<T, G, S>(value) ? Option.some(value[Field]) : Option.none();
 
 export const result =
-  <T extends Task.Any, S extends Schema.Constraint>(schema: S, exec: Exec<Task.GradeOf<T>, S>) =>
+  <T extends Task.Any, S extends Schema.Constraint>(
+    schema: S,
+    exec: ExecOption<Task.GradeOf<T>, S>,
+  ) =>
   (task: T): Override<T, Mixin<Task.GradeOf<T>, S>> =>
-    Object.assign(task, { [Field]: { schema, exec } });
+    Object.assign(task, { [Field]: { schema, exec: makeExec(task.id, exec) } });

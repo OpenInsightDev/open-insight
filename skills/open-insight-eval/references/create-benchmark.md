@@ -2,7 +2,7 @@
 
 A benchmark (`Bench.Bench`) is the immutable evaluation unit passed to `Eval.run`. It contains:
 
-- benchmark metadata (`id`, optional `subset`, and optional JSON `extras`);
+- benchmark metadata (`id`, optional `name`, and optional `description`);
 - an ordered, materialized array of built `Task.Task` values;
 - metrics that aggregate completed trails across tasks.
 
@@ -98,10 +98,10 @@ const bench = Effect.gen(function*() {
 The options are:
 
 - `id: string`: stable identifier used in evaluation results, events, logs, and metric scope;
+- `name?: string | null`: optional human-readable benchmark name;
+- `description?: string | null`: optional benchmark description;
 - `tasks: Tasks.Load`: an Effect that produces the complete ordered task collection for this benchmark value;
-- `subset?: boolean`: defaults to `false`; indicates that the benchmark is a selected subset;
-- `extras?: Record<string, Json>`: optional benchmark-level data;
-- `metrics?: ReadonlyArray<BenchMetric.Metric>`: optional metrics already constructed, normally supplied through the `Bench.metric(...)` builder described below.
+`Bench.make({ id, name?, description? }, ...tasks)` accepts the benchmark metadata and the complete task list. `name` and `description` are optional and are preserved on `bench.metadata`.
 
 `Bench.make` decodes the base metadata, runs the task loader, and returns an Effect whose error and environment include the loader's error and service requirements. Run it inside an `Effect.gen` or compose it with `pipe`; do not treat it as a plain object. The constructor does not deduplicate IDs or sort tasks, so validate those invariants in the loader when they matter.
 
@@ -171,9 +171,9 @@ const ratioBench = makeBench().pipe(Bench.sample("20%"));
 - `Bench.randomSelect(n)`: shuffles the task array using Effect's random service and keeps `n`;
 - `Bench.sample(percentage)`: shuffles the task array and keeps `Math.floor(total * ratio)` tasks, where `percentage` is a string such as `"20%"` and `ratio` is the parsed value divided by 100.
 
-All nine operations return a benchmark with `metadata.subset === true`. They preserve benchmark metadata, metrics, and task values while replacing the task array. `randomSelect` and `sample` are intentionally not stable sampling policies by themselves; use a controlled random service or an explicit ID list when the selected set must be reproducible across runs.
+Selection helpers are not part of the current synchronous `Bench` API. Build a new benchmark with the selected task list when a subset is needed, preserving the original metadata explicitly.
 
-Apply selection to the benchmark Effect, not to the raw task array, so the subset marker and all attached metrics remain part of the resulting benchmark. For configured IDs, validate that every requested ID exists if silently ignoring unknown IDs would hide a configuration error; the built-in `Bench.select` and `Bench.selectWhere` simply filter, while `Bench.taskMetric` and `Bench.trajMetric` fail with `BenchError` when their task ID does not exist.
+For configured IDs, validate that every requested ID exists if silently ignoring unknown IDs would hide a configuration error.
 
 ## Complete Assembly Pattern
 
@@ -218,7 +218,7 @@ Before passing the value to `Eval.run`, check the benchmark-level invariants tha
 
 ```ts
 const bench = yield* makeBench();
-const ids = bench.tasks.map((task) => task.metadata.id);
+const ids = Object.values(bench.tasks).map((task) => task.id);
 
 if (new Set(ids).size !== ids.length) {
   throw new Error("Benchmark task IDs must be unique");
@@ -226,9 +226,8 @@ if (new Set(ids).size !== ids.length) {
 
 console.log({
   id: bench.metadata.id,
-  subset: bench.metadata.subset,
-  taskCount: bench.tasks.length,
-  benchMetricCount: bench.metrics.length,
+  name: bench.metadata.name,
+  taskCount: ids.length,
 });
 ```
 
@@ -239,7 +238,7 @@ Also verify that:
 - each task's snapshot contains all files and tools required by its grader;
 - metric `k` values do not exceed the configured trail count;
 - benchmark metric grade mappings reflect the confirmed task grade semantics;
-- subset selection is intentional and recorded through `metadata.subset`.
+- benchmark metadata (`id`, `name`, and `description`) is intentional and stable.
 
 Then construct a harness and run the evaluation. See [Running evaluation](run-eval.md) for harness, trail count, verification mode, result handling, and event transport. For dataset loading details, keep the benchmark document focused on composition and consult the relevant `Tasks` loader or Harbor reference instead of adding source-specific logic here.
 
@@ -254,7 +253,7 @@ Benchmark construction can fail with `BenchError` for initialization failures or
 - Task IDs are unique and task order is intentional.
 - Task, trajectory, and benchmark metrics are attached at their correct scopes.
 - Benchmark metrics use explicit grade mappings when their input shape differs from the task grade.
-- The full benchmark is reusable; subsets are derived with `head`, `skip`, `tail`, `slice`, `select`, `selectAt`, `selectWhere`, `randomSelect`, or `sample` and are marked as subsets.
+- The full benchmark is reusable; subsets are derived by passing a selected task list to `Bench.fromArray`.
 - Metric trail requirements fit the configured `trailCount`.
 - Construction and loader failures remain typed Effect failures.
 - The resulting benchmark is validated before `Eval.run`.

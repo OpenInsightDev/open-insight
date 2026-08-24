@@ -118,7 +118,7 @@ export const makeContext = Effect.fn(function* ({
 });
 
 export type Exec<R extends Schema.Constraint = any> = BivariantFn<
-  (ctx: Context) => PromiseLike<R["Encoded"]>
+  (ctx: Context) => PromiseLike<R["Type"]>
 >;
 
 export type Grader<R extends Schema.Constraint = any> = Readonly<{
@@ -133,7 +133,7 @@ export type Grader<R extends Schema.Constraint = any> = Readonly<{
 export const run = <R extends Schema.Constraint = any>(grader: Grader<R>) =>
   Effect.fn(function* (
     options: MakeContextOptions,
-  ): Effect.fn.Return<R["Encoded"], GradeError | Retry.Retry, FileSystem.FileSystem | Path.Path> {
+  ): Effect.fn.Return<R["Type"], GradeError | Retry.Retry, FileSystem.FileSystem | Path.Path> {
     const ctx = yield* makeContext(options).pipe(Effect.scoped);
     return yield* Effect.tryPromise({
       try: () => grader.grade(ctx),

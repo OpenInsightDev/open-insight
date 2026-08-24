@@ -123,6 +123,7 @@ export const ErrorReason = Schema.Union([
   InitFailed,
   Git.GitError,
   Agent.AgentError,
+  Task.TaskError,
   Tasks.TasksError,
   Event.EventError,
   Grade.GradeError,
@@ -161,6 +162,8 @@ export class EvalError extends Schema.TaggedError<EvalError>("open-insight/eval/
   static git = (cause: Git.GitError): EvalError => EvalError.make({ reason: cause });
 
   static agent = (cause: Agent.AgentError): EvalError => EvalError.make({ reason: cause });
+
+  static task = (cause: Task.TaskError): EvalError => EvalError.make({ reason: cause });
 
   static tasks = (cause: Tasks.TasksError): EvalError => EvalError.make({ reason: cause });
 

@@ -11,7 +11,7 @@ export type Context = Sandbox.SandboxPromise &
   }>;
 
 export type Exec<R extends Schema.Constraint = any> = BivariantFn<
-  (ctx: Context) => PromiseLike<R["Encoded"]>
+  (ctx: Context) => PromiseLike<R["Type"]>
 >;
 
 export type Grader<R extends Schema.Constraint = any> = Readonly<{
@@ -35,7 +35,7 @@ export const makeContext = Effect.fn(function* ({
 export const run = <R extends Schema.Constraint = any>(grader: Grader<R>) =>
   Effect.fn(function* (
     options: MakeContextOptions,
-  ): Effect.fn.Return<R["Encoded"], GradeError | Retry.Retry, Scope.Scope> {
+  ): Effect.fn.Return<R["Type"], GradeError | Retry.Retry, Scope.Scope> {
     const ctx = yield* makeContext(options);
     return yield* Effect.tryPromise({
       try: () => grader.grade(ctx),

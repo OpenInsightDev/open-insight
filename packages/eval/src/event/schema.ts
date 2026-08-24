@@ -1,6 +1,9 @@
 import { Schema } from "effect";
+import * as Chart from "#/chart/index.ts";
 import * as Task from "#/task/index.ts";
 import * as Metric from "#/metric/index.ts";
+import * as Bench from "#/bench/index.ts";
+import { Harness } from "@open-insight/core/internal";
 import { Prompt, Response } from "@open-insight/core/internal";
 import { Toolkit } from "effect/unstable/ai";
 
@@ -65,6 +68,32 @@ export class SessionEndEvent extends Schema.TaggedClass<SessionEndEvent>()("Sess
   reason: Response.FinishReason,
 }) {}
 
+export class TrajMetricEvent extends Schema.TaggedClass<TrajMetricEvent>()("TrajMetricEvent", {
+  id: SessionID,
+  metricID: Schema.String,
+  chart: Chart.Points,
+}) {}
+
+export class TrajMetricErrorEvent extends Schema.TaggedClass<TrajMetricErrorEvent>()(
+  "TrajMetricErrorEvent",
+  {
+    id: SessionID,
+    metricID: Schema.String,
+    error: Schema.Defect(),
+  },
+) {}
+
+export const SessionSuccessEvent = Schema.Union([
+  SessionStartEvent,
+  SessionPromptEvent,
+  SessionStreamEvent,
+  SessionRetryEvent,
+  SessionEndEvent,
+  TrajMetricEvent,
+  TrajMetricErrorEvent,
+]);
+export type SessionSuccessEvent = Schema.Schema.Type<typeof SessionSuccessEvent>;
+
 export class SessionErrorEvent extends Schema.TaggedClass<SessionErrorEvent>()(
   "SessionErrorEvent",
   {
@@ -72,6 +101,9 @@ export class SessionErrorEvent extends Schema.TaggedClass<SessionErrorEvent>()(
     error: Schema.Defect(),
   },
 ) {}
+
+export const SessionFailedEvent = Schema.Union([SessionErrorEvent]);
+export type SessionFailedEvent = Schema.Schema.Type<typeof SessionFailedEvent>;
 
 export class TrailStartEvent extends Schema.TaggedClass<TrailStartEvent>()("TrailStartEvent", {
   id: TrailID,
@@ -83,10 +115,20 @@ export class TrailEndEvent extends Schema.TaggedClass<TrailEndEvent>()("TrailEnd
   grade: Schema.Unknown,
 }) {}
 
+export const TrailSuccessEvent = Schema.Union([
+  TrailStartEvent,
+  SessionSuccessEvent,
+  TrailEndEvent,
+]);
+export type TrailSuccessEvent = Schema.Schema.Type<typeof TrailSuccessEvent>;
+
 export class TrailErrorEvent extends Schema.TaggedClass<TrailErrorEvent>()("TrailErrorEvent", {
   id: TrailID,
   error: Schema.Defect(),
 }) {}
+
+export const TrailFailedEvent = Schema.Union([TrailErrorEvent, SessionFailedEvent]);
+export type TrailFailedEvent = Schema.Schema.Type<typeof TrailFailedEvent>;
 
 export class TaskStartEvent extends Schema.TaggedClass<TaskStartEvent>()("TaskStartEvent", {
   id: TaskID,
@@ -97,7 +139,34 @@ export class TaskEndEvent extends Schema.TaggedClass<TaskEndEvent>()("TaskEndEve
   id: TaskID,
 }) {}
 
+export const TaskSuccessEvent = Schema.Union([TaskStartEvent, TrailSuccessEvent, TaskEndEvent]);
+export type TaskSuccessEvent = Schema.Schema.Type<typeof TaskSuccessEvent>;
+
 export class TaskErrorEvent extends Schema.TaggedClass<TaskErrorEvent>()("TaskErrorEvent", {
   id: TaskID,
   error: Schema.Defect(),
 }) {}
+
+export const TaskFailedEvent = Schema.Union([TaskErrorEvent, TrailFailedEvent]);
+export type TaskFailedEvent = Schema.Schema.Type<typeof TaskFailedEvent>;
+
+export class EvalStartEvent extends Schema.TaggedClass<EvalStartEvent>()("EvalStartEvent", {
+  id: EvalID,
+  bench: Bench.Metadata,
+  harness: Harness.Metadata,
+}) {}
+
+export class EvalEndEvent extends Schema.TaggedClass<EvalEndEvent>()("EvalEndEvent", {
+  id: EvalID,
+}) {}
+
+export const EvalSuccessEvent = Schema.Union([EvalStartEvent, TaskSuccessEvent, EvalEndEvent]);
+export type EvalSuccessEvent = Schema.Schema.Type<typeof EvalSuccessEvent>;
+
+export class EvalErrorEvent extends Schema.TaggedClass<EvalErrorEvent>()("EvalErrorEvent", {
+  id: EvalID,
+  error: Schema.Defect(),
+}) {}
+
+export const EvalFailedEvent = Schema.Union([EvalErrorEvent, TaskFailedEvent]);
+export type EvalFailedEvent = Schema.Schema.Type<typeof EvalFailedEvent>;
