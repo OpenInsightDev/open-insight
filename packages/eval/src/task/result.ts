@@ -1,19 +1,21 @@
 import type { Prompt, Response } from "@open-insight/core/internal";
-import { type Schema } from "effect";
+import { Data, Option, type Schema } from "effect";
 import type { BivariantFn } from "#/utils/variant.ts";
 import * as Task from "./task.ts";
 import { hasProperty } from "effect/Predicate";
 import type { Override } from "#/utils/type.ts";
 
-export type SessionResult = Readonly<{
+export class SessionResult extends Data.TaggedClass("SessionResult")<{
   trajectory: Prompt.Trajectory;
   usage: Response.Usage | null;
-}>;
+}> {}
 
-export type TrailResult<G extends Schema.Constraint = any> = Readonly<{
+export class TrailResult<G extends Schema.Constraint = any> extends Data.TaggedClass(
+  "TrailResult",
+)<{
   grade: G["Type"];
   sessions: Array<SessionResult>;
-}>;
+}> {}
 
 export type TaskResult<S extends Schema.Constraint = any> = Readonly<S["Type"]>;
 
@@ -34,9 +36,8 @@ export const hasResult = <T, G extends Schema.Constraint, S extends Schema.Const
   value: T,
 ): value is T & Mixin<G, S> => hasProperty(value, Field);
 
-export const resultOf = <G extends Schema.Constraint, S extends Schema.Constraint>(
-  value: Mixin<G, S>,
-) => value[Field];
+export const resultOf = <T, G extends Schema.Constraint, S extends Schema.Constraint>(value: T) =>
+  hasResult<T, G, S>(value) ? Option.some(value[Field]) : Option.none();
 
 export const result =
   <T extends Task.Any, S extends Schema.Constraint>(schema: S, exec: Exec<Task.GradeOf<T>, S>) =>

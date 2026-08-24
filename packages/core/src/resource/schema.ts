@@ -65,3 +65,5 @@ export const make = (options: MakeOptions = {}): Resources => {
         }),
   });
 };
+
+export const empty = make();

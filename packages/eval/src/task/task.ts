@@ -1,4 +1,5 @@
-import { Prompt, Snapshot } from "@open-insight/core/internal";
+import { Prompt, Resource, Snapshot } from "@open-insight/core/internal";
+import * as Metric from "#/metric/index.ts";
 import * as Grade from "#/grade/index.ts";
 import { Data, Layer, Schema } from "effect";
 
@@ -17,7 +18,11 @@ export class Task<
 
   prompt: Layer.Layer<Prompt.Fn.Service>;
   snapshot: Snapshot.Template;
+  resources: Resource.Resources;
   grader: Grade.Grader<G>;
+
+  schedMetrics: Metric.Sched.Metric[];
+  trajMetrics: Metric.Traj.Metric[];
 }> {}
 
 export type GradeOf<T> = T extends Task<infer _, infer G> ? G : never;
@@ -31,14 +36,21 @@ type Options<G extends Schema.Constraint> = MetadataEncoded &
 
     description?: string | null;
     snapshot?: Snapshot.Template;
+    resources?: Resource.Resources;
   }>;
 
 export const make = <ID extends string, G extends Schema.Constraint>(
   id: ID,
   options: Options<G>,
 ) => {
-  const { prompt: promptOptions, grader, snapshot = Snapshot.Alpine, ...encoded } = options;
+  const {
+    prompt: promptOptions,
+    grader,
+    snapshot = Snapshot.Alpine,
+    resources = Resource.empty,
+    ...encoded
+  } = options;
   const metadata = Schema.decodeSync(Metadata)(encoded);
   const prompt = Prompt.Fn.layerFrom(promptOptions);
-  return new Task({ id, metadata, snapshot, prompt, grader });
+  return new Task({ id, metadata, snapshot, resources, prompt, grader });
 };
