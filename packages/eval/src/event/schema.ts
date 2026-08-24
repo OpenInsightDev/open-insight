@@ -1,4 +1,5 @@
 import { Schema } from "effect";
+import * as Task from "#/task/index.ts";
 
 export const EvalID = Schema.Struct({
   benchID: Schema.String,
@@ -24,10 +25,22 @@ export const SessionID = Schema.Struct({
 });
 export type SessionID = Schema.Schema.Type<typeof SessionID>;
 
-const TaskEndEvent = <S extends Schema.Constraint>(schema: S) =>
+export const TaskStartEvent = <S extends Schema.Constraint>(extraSchema: S) =>
   Schema.Struct({
     id: TaskID,
-    result: schema,
+    metadata: Task.Metadata,
+    extra: extraSchema,
+  });
+export type TaskStartEvent<S extends Schema.Constraint = any> = Readonly<{
+  id: TaskID;
+  metadata: Task.Metadata;
+  extra: S;
+}>;
+
+export const TaskEndEvent = <S extends Schema.Constraint>(resultSchema: S) =>
+  Schema.Struct({
+    id: TaskID,
+    result: resultSchema,
   });
 export type TaskEndEvent<S extends Schema.Constraint = any> = Readonly<{
   id: TaskID;

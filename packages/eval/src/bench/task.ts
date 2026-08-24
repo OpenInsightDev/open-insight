@@ -3,7 +3,7 @@ import { produce } from "immer";
 import type { Override } from "../utils/type.ts";
 import type { Any, Bench, IDOf, TasksOf } from "./bench.ts";
 
-type MappedTasks<
+export type MappedTasks<
   Tasks extends Record<string, Task.Any>,
   Name extends keyof Tasks,
   Mapped extends Task.Any,
@@ -14,11 +14,9 @@ type MappedTasks<
 export const mapTask =
   <B extends Any, Name extends keyof TasksOf<B>, Mapped extends Task.Any>(
     name: Name,
-    mapper: (task: TasksOf<B>[Name]) => Mapped,
+    mapper: (task: TasksOf<B>[Name], bench: B) => Mapped,
   ) =>
   (bench: B): Override<B, Bench<IDOf<B>, MappedTasks<TasksOf<B>, Name, Mapped>>> =>
-    bench.pipe(
-      produce((draft) => {
-        draft.tasks[name] = mapper(draft.tasks[name]);
-      }),
-    );
+    produce(bench, (draft) => {
+      draft.tasks[name] = mapper(draft.tasks[name], bench);
+    });

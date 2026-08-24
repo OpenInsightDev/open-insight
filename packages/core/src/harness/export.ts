@@ -9,7 +9,6 @@ export {
 } from "./error.ts";
 
 export {
-  Service,
   type Harness,
   type SnapshotSession,
   type AgentSession,
