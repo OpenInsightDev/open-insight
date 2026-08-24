@@ -1,5 +1,5 @@
-import { Schema } from "effect";
-import { Task, Bench, Grade } from "#/export.ts";
+import { Schema, Stream } from "effect";
+import { Task, Bench, Grade, Eval } from "#/export.ts";
 import { Tool, Toolkit } from "effect/unstable/ai";
 
 const taskA = Task.make("taskA", {
@@ -51,6 +51,7 @@ const bench = Bench.make({ id: "bench" }, taskA, taskB)
     Bench.result(
       Schema.Struct({ total: Schema.Number }), //
       async ({ taskA }) => {
+        taskA.result.passAt2;
         return { total: 1 };
       },
     ),

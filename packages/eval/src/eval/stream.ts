@@ -22,7 +22,7 @@ import * as Event from "#/event/index.ts";
 import * as Metric from "#/metric/index.ts";
 import { Harness, Prompt, Sandbox, Response } from "@open-insight/core/internal";
 import { EvalError } from "./error.ts";
-import type { Config } from "./config.ts";
+import * as Config from "./config.ts";
 import type { BenchOf } from "./eval.ts";
 
 type SessionOptions = Readonly<{
@@ -266,8 +266,6 @@ type TaskOptions = Readonly<{
   task: Task.Any;
   harness: Harness.Any;
 
-  config: Config;
-
   snapSem: Semaphore.Semaphore;
   trailSem: Semaphore.Semaphore;
   trailCount: number;
@@ -369,12 +367,12 @@ const makeTask = Effect.fn(
 
 type EvalOptions<Eval extends Any> = Readonly<{
   eval_: Eval;
-  config: Config;
+  config?: Partial<Config.Config>;
 }>;
 export const make = Effect.fn(
   function* <E extends Any>({
     eval_,
-    config,
+    config: configOptions,
   }: EvalOptions<E>): Effect.fn.Return<
     Stream.Stream<
       Event.EvalSuccessEvent,
@@ -392,6 +390,7 @@ export const make = Effect.fn(
       benchID: bench.metadata.id,
     };
 
+    const config = Config.make(configOptions);
     const { trailConcurrency, snapshotConcurrency, trailCount } = config;
 
     const trailSem = yield* Semaphore.make(trailConcurrency);
@@ -404,7 +403,6 @@ export const make = Effect.fn(
         id: { benchID: bench.id, harnessID: harness.id, taskID },
         task,
         harness,
-        config,
         snapSem,
         trailSem,
         trailCount,
