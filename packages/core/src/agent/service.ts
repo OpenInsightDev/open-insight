@@ -1,7 +1,7 @@
 import * as Sandbox from "#/sandbox/index.ts";
 import * as Snapshot from "#/snapshot/index.ts";
 import * as Prompt from "#/prompt/index.ts";
-import { Context, Effect, Option, Ref, Scope, Schema, Semaphore, Stream } from "effect";
+import { Context, Effect, Option, Ref, Scope, Semaphore, Stream } from "effect";
 import { AgentError } from "./error.ts";
 import { Response, Tool, Toolkit } from "effect/unstable/ai";
 
@@ -19,7 +19,9 @@ export type Agent<Tools extends Record<string, Tool.Any>> = Readonly<{
   ): Stream.Stream<
     Response.StreamPart<Tools>,
     AgentError,
-    Tool.ResultDecodingServices<Tools[keyof Tools]>
+    Tool.ResultDecodingServices<
+      ToolsFor<Toolkit.Toolkit<Tools>>[keyof ToolsFor<Toolkit.Toolkit<Tools>>]
+    >
   >;
 }>;
 
@@ -56,19 +58,20 @@ const makeAgent = Effect.fn(function* <Tools extends Record<string, Tool.Any>>(
   const trajectory = yield* Ref.make<Prompt.Trajectory>(Prompt.empty);
   const semaphore = Semaphore.makeUnsafe(1);
 
-  const decodePart = Schema.decodeEffect(Response.StreamPart(toolkit));
+  const PartSchema = Response.StreamPart(toolkit);
 
-  const promptStream = (prompt: Prompt.Prompt) =>
+  const prompt = (prompt: Prompt.Prompt) =>
     Effect.gen(function* () {
       yield* semaphore.take(1);
       const current = yield* Ref.get(trajectory);
       const nextTrajectory = Prompt.concat(current, prompt);
-      const parts: Array<Response.AnyPart> = [];
 
       const decoded = promptFn(nextTrajectory).pipe(
         Stream.mapEffect((part) => decodePart(part)),
         Stream.mapError(AgentError.stream),
       );
+
+      const parts: Stream.Success<typeof decoded>[] = [];
 
       return decoded.pipe(
         Stream.tap((part) => Effect.sync(() => parts.push(part))),
@@ -84,7 +87,7 @@ const makeAgent = Effect.fn(function* <Tools extends Record<string, Tool.Any>>(
   return {
     toolkit,
     trajectory,
-    prompt: promptStream,
+    prompt,
   } satisfies Agent<Tools>;
 });
 

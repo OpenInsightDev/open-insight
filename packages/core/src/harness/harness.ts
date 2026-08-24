@@ -19,15 +19,15 @@ export type AgentSession<Tools extends Record<string, Tool.Any>> = Readonly<{
   >;
 }>;
 
-const makeAgentSession = Effect.fn(function* <Tools extends Record<string, Tool.Any>>(
+const makeAgentSession = <Tools extends Record<string, Tool.Any>>(
   agent: Agent.Agent<Tools>,
-): Effect.fn.Return<AgentSession<Tools>, HarnessError> {
+): AgentSession<Tools> => {
   return {
     toolkit: agent.toolkit,
     trajectory: agent.trajectory,
     prompt: (prompt) => agent.prompt(prompt).pipe(Stream.mapError(HarnessError.agent)),
   } satisfies AgentSession<Tools>;
-});
+};
 
 export type SandboxSession<Tools extends Record<string, Tool.Any>> = Readonly<{
   sandbox: Sandbox.Sandbox;
@@ -90,49 +90,74 @@ export const make = Effect.fn(function* <ID extends string, Tools extends Record
   const agentProvider = yield* Agent.ProviderService;
   const sandboxProvider = yield* Sandbox.ProviderService;
 
+  const acquireSnapshot = (template: Snapshot.Template) =>
+    sandboxProvider
+      .acquireSnapshot({ template, cache: true })
+      .pipe(Effect.mapError(HarnessError.snapshotAcquire(template)));
+
+  const extendSnapshot = ({
+    template,
+    snapshot,
+  }: Readonly<{
+    template: Snapshot.Template;
+    snapshot: Snapshot.Snapshot;
+  }>) =>
+    agentProvider.snapshotExtension.pipe(
+      Option.match({
+        onNone: () => Effect.succeed(snapshot),
+        onSome: ({ instructions, context }) =>
+          sandboxProvider
+            .deriveSnapshot({
+              snapshot,
+              instructions,
+              context: context ?? template.context,
+              cache: true,
+            })
+            .pipe(Effect.mapError(HarnessError.snapshotDerive(instructions))),
+      }),
+    );
+
+  const makeSandboxSession = Effect.fn("HarnessService.makeSandboxSession")(function* ({
+    snapshot,
+    options,
+    toolkit,
+  }: Readonly<{
+    snapshot: Snapshot.Snapshot;
+    options: Partial<SandboxSessionConfig> | undefined;
+    toolkit: Toolkit.Toolkit<Tools>;
+  }>) {
+    const { resources = Resource.make(), cache = true } = options ?? {};
+    const sandbox = yield* sandboxProvider
+      .runSandbox({ snapshot, resources, cache })
+      .pipe(Effect.mapError(HarnessError.sandbox));
+
+    const runAgent = Effect.fn("HarnessService.runAgent")(function* () {
+      const agentSession = yield* agentProvider
+        .runSession(sandbox, toolkit)
+        .pipe(Effect.mapError(HarnessError.agent));
+      return makeAgentSession(agentSession);
+    }) satisfies SandboxSession<Tools>["runAgent"];
+
+    return { sandbox, runAgent } satisfies SandboxSession<Tools>;
+  });
+
+  const makeSnapshotSession = (snapshot: Snapshot.Snapshot): SnapshotSession<Tools> => {
+    const runSandbox = Effect.fn("HarnessService.runSandbox")(function* (
+      options?: Partial<SandboxSessionConfig>,
+    ) {
+      return yield* makeSandboxSession({ snapshot, options, toolkit });
+    }) satisfies SnapshotSession<Tools>["runSandbox"];
+
+    return { snapshot, runSandbox } satisfies SnapshotSession<Tools>;
+  };
+
   // Reference-counted snapshot session cache keyed by template equality
   const cache = yield* RcMap.make({
-    lookup: (template: Snapshot.Template) =>
-      Effect.gen(function* () {
-        const snapshot = yield* sandboxProvider
-          .acquireSnapshot({ template, cache: true })
-          .pipe(Effect.mapError(HarnessError.snapshotAcquire(template)));
-
-        const extended = yield* agentProvider.snapshotExtension.pipe(
-          Option.match({
-            onNone: () => Effect.succeed(snapshot),
-            onSome: ({ instructions, context }) =>
-              sandboxProvider
-                .deriveSnapshot({
-                  snapshot,
-                  instructions,
-                  context: context ?? template.context,
-                  cache: true,
-                })
-                .pipe(Effect.mapError(HarnessError.snapshotDerive(instructions))),
-          }),
-        );
-
-        const runSandbox = Effect.fn("HarnessService.runSandbox")(function* ({
-          resources = Resource.make(),
-          cache = true,
-        } = {}) {
-          const sandbox = yield* sandboxProvider
-            .runSandbox({ snapshot: extended, resources, cache })
-            .pipe(Effect.mapError(HarnessError.sandbox));
-
-          const runAgent = Effect.fn("HarnessService.runAgent")(function* () {
-            const agentSession = yield* agentProvider
-              .runSession(sandbox, toolkit)
-              .pipe(Effect.mapError(HarnessError.agent));
-            return yield* makeAgentSession(agentSession);
-          }) satisfies SandboxSession<Tools>["runAgent"];
-
-          return { sandbox, runAgent: runAgent } satisfies SandboxSession<Tools>;
-        }) satisfies SnapshotSession<Tools>["runSandbox"];
-
-        return { snapshot: extended, runSandbox } satisfies SnapshotSession<Tools>;
-      }),
+    lookup: Effect.fn(function* (template: Snapshot.Template) {
+      const snapshot = yield* acquireSnapshot(template);
+      const extended = yield* extendSnapshot({ template, snapshot });
+      return makeSnapshotSession(extended);
+    }),
   });
 
   const runSnapshot = Effect.fn("HarnessService.runSnapshot")(function* (template) {

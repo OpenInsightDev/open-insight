@@ -4,42 +4,42 @@ import * as Sandbox from "#/sandbox/index.ts";
 import { PromptError } from "../error.ts";
 import type { Trajectory } from "../traj.ts";
 
-export type Context = Sandbox.ReadonlySandboxPromise;
-
-type Respond = (trajectory: Trajectory) => PromiseLike<Prompt.RawInput | null>;
-export type Fn = Readonly<{
+export type Prompting = Readonly<{
   init: Prompt.Prompt;
-  respond: Respond;
+  respond: (trajectory: Trajectory) => Effect.Effect<Option.Option<Prompt.Prompt>, PromptError>;
 }>;
-export class Service extends Context.Service<Service, Fn>()("PromptingService") {}
 
-export type Init = (context: Context) => Fn;
+export class Service extends Context.Service<
+  Service,
+  {
+    make(sandbox: Sandbox.ReadonlySandbox): Effect.Effect<Prompting, PromptError>;
+  }
+>()("PromptingService") {}
 
-type RespondFn = (
-  context: Context,
-) => (trajectory: Trajectory) => PromiseLike<Prompt.RawInput | null>;
-const defaultRespond: RespondFn = () => async () => null;
-
-type Options = Readonly<{
+export type Options = Readonly<{
   init: Prompt.RawInput;
-  respond?: RespondFn;
+  respond?: (
+    sandbox: Sandbox.ReadonlySandbox,
+  ) => (trajectory: Trajectory) => Effect.Effect<Option.Option<Prompt.RawInput>, unknown>;
 }>;
-export const make = ({ init, respond = defaultRespond }: Options) =>
-  Effect.fn(function* (context: Context) {
-    const respGen = yield* Effect.tryPromise({
-      try: async () => respond(context),
-      catch: PromptError.generation,
-    });
+const defaultRespond: Options["respond"] = () => () => Effect.succeed(Option.none());
 
-    return {
-      init: Prompt.make(init),
-      respond: (trajectory: Trajectory) =>
-        Effect.tryPromise({
-          try: () => respGen(trajectory),
-          catch: PromptError.generation,
-        }).pipe(Effect.map(Option.fromNullOr), Effect.map(Option.map(Prompt.make))),
-    } satisfies Fn;
-  });
+export const make = ({ init: initOption, respond: respondOption = defaultRespond }: Options) => {
+  const init = Prompt.make(initOption);
 
-export const layerFrom = (options: Options, context: Context) =>
-  Layer.effect(Service, make(options)(context));
+  return {
+    make: Effect.fn(function* (sandbox) {
+      const respond = respondOption(sandbox);
+      return {
+        init,
+        respond: Effect.fn(function* (trajectory) {
+          const raw = yield* respond(trajectory).pipe(Effect.mapError(PromptError.generate));
+          return raw.pipe(Option.map(Prompt.make));
+        }),
+      };
+    }),
+  } satisfies Service["Service"];
+};
+
+export const layerFrom = (options: Options): Layer.Layer<Service> =>
+  Layer.effect(Service, Effect.succeed(make(options)));

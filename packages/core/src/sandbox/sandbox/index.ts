@@ -26,6 +26,7 @@ export type Sandbox = Spawn &
       options: Readonly<{ sandboxPort: number }>,
     ): Effect.Effect<{ hostUrl: string }, SandboxError>;
   }>;
+export type ReadonlySandbox = Omit<Sandbox, "writeFile" | "upload" | "expose">;
 
 /**
  * Reference of a live sandbox.

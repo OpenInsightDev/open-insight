@@ -1,9 +1,9 @@
 import { Formatter, Schema } from "effect";
 
 /** The prompt factory or follow-up iterator rejected while producing the next prompt. */
-export class GenerationFailed extends Schema.TaggedError<GenerationFailed>(
-  "open-insight/PromptError/GenerationFailed",
-)("GenerationFailed", {
+export class GenerateFailed extends Schema.TaggedError<GenerateFailed>(
+  "open-insight/PromptError/GenerateFailed",
+)("GenerateFailed", {
   cause: Schema.Defect(),
 }) {
   override get message(): string {
@@ -23,7 +23,7 @@ export class TemplateFailed extends Schema.TaggedError<TemplateFailed>(
   }
 }
 
-export const ErrorReason = Schema.Union([GenerationFailed, TemplateFailed]);
+export const ErrorReason = Schema.Union([GenerateFailed, TemplateFailed]);
 export type ErrorReason = Schema.Schema.Type<typeof ErrorReason>;
 
 export class PromptError extends Schema.TaggedError<PromptError>("open-insight/PromptError")(
@@ -40,8 +40,8 @@ export class PromptError extends Schema.TaggedError<PromptError>("open-insight/P
     return this.reason;
   }
 
-  static generation = (cause: unknown): PromptError =>
-    PromptError.make({ reason: GenerationFailed.make({ cause }) });
+  static generate = (cause: unknown): PromptError =>
+    PromptError.make({ reason: GenerateFailed.make({ cause }) });
 
   static template =
     (filePath: string) =>
