@@ -1,10 +1,17 @@
 import * as Bench from "#/bench/index.ts";
 import { Harness } from "@open-insight/core/internal";
-import { Data } from "effect";
+import { Data, Schema } from "effect";
+
+export class Metadata extends Schema.Class<Metadata>("EvalMetadata")({
+  name: Schema.OptionFromOptionalNullOr(Schema.String),
+  description: Schema.OptionFromOptionalNullOr(Schema.String),
+}) {}
+export type MetadataEncoded = Schema.Codec.Encoded<typeof Metadata>;
 
 export class Eval<B extends Bench.Any, H extends Harness.Any> extends Data.Class<{
   bench: B;
   harness: H;
+  metadata: Metadata;
 }> {}
 export type Any = Eval<any, any>;
 

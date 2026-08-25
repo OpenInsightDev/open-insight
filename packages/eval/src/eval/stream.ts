@@ -12,6 +12,7 @@ import {
   Stream,
   Array,
   Scope,
+  flow,
 } from "effect";
 import * as Grade from "#/grade/index.ts";
 import { Toolkit } from "effect/unstable/ai";
@@ -247,9 +248,11 @@ const makeTrail = Effect.fn(
       { concurrency: "unbounded" },
     );
 
-    return Stream.empty
-      .pipe(Stream.concat(startEvent), Stream.concat(attemptEvents))
-      .pipe(Stream.merge(metricEvents, { haltStrategy: "left" }));
+    return Stream.empty.pipe(
+      Stream.concat(startEvent),
+      Stream.concat(attemptEvents),
+      Stream.merge(metricEvents),
+    );
   },
   (eff, { id }) =>
     eff.pipe(
@@ -319,7 +322,7 @@ const makeTask = Effect.fn(
               ),
             );
         },
-        (eff) => eff.pipe(trailSem.withPermit, Stream.unwrap),
+        flow(trailSem.withPermit, Stream.unwrap),
       ),
     );
 

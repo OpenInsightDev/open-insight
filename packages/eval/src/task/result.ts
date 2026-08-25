@@ -30,17 +30,16 @@ export type Exec<G extends Schema.Constraint, S extends Schema.Constraint> = (
   trails: ReadonlyArray<TrailResult<G>>,
 ) => Effect.Effect<TaskResult<S>, TaskError>;
 
-const makeExec = <G extends Schema.Constraint, S extends Schema.Constraint>(
-  id: string,
-  exec: ExecOption<G, S>,
-): Exec<G, S> =>
-  Effect.fn(function* (trails) {
-    const result = yield* Effect.tryPromise({
+const makeExec =
+  <G extends Schema.Constraint, S extends Schema.Constraint>(
+    id: string,
+    exec: ExecOption<G, S>,
+  ): Exec<G, S> =>
+  (trails) =>
+    Effect.tryPromise({
       try: () => Promise.resolve(exec(trails)),
       catch: TaskError.result,
-    });
-    return new TaskResult({ id, result });
-  });
+    }).pipe(Effect.map((result) => new TaskResult({ id, result })));
 
 const Field: unique symbol = Symbol.for("ResultField");
 export type Mixin<G extends Schema.Constraint, S extends Schema.Constraint> = Readonly<{
