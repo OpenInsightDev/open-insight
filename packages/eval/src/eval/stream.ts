@@ -36,7 +36,7 @@ const makeSession = Effect.fn(
     const usageRef = yield* Ref.make<Response.Usage | null>(null);
     const finishRef = yield* Ref.make<Response.FinishReason>("unknown");
 
-    const promptFn = yield* Prompt.Fn.Service;
+    const promptFn = yield* Prompt.Respond.Service;
     const { init, respond } = yield* promptFn.make(sandbox).pipe(Effect.mapError(EvalError.prompt));
 
     const decodePart = Schema.decodeSync(Response.StreamPart(Toolkit.empty));
@@ -161,7 +161,7 @@ const makeTrail = Effect.fn(
     }): Stream.Stream<
       Event.TrailSuccessEvent,
       Event.TrailFailedEvent | Task.Result.TrailResult | EvalError,
-      FileSystem.FileSystem | Path.Path | Prompt.Fn.Service
+      FileSystem.FileSystem | Path.Path | Prompt.Respond.Service
     > =>
       Effect.gen(function* () {
         const sessionID: Event.SessionID = { ...id, sessionIdx };

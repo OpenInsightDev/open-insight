@@ -16,7 +16,7 @@ export class Task<
   id: ID;
   metadata: Metadata;
 
-  prompt: Layer.Layer<Prompt.Fn.Service>;
+  prompt: Layer.Layer<Prompt.Respond.Service>;
   snapshot: Snapshot.Template;
   resources: Resource.Resources;
   grader: Grade.Grader<G>;
@@ -31,7 +31,7 @@ export type Any = Task<any, any>;
 
 type Options<G extends Schema.Constraint> = MetadataEncoded &
   Readonly<{
-    prompt: Prompt.Fn.Options;
+    prompt: Prompt.Respond.Options;
     grader: Grade.Grader<G>;
 
     description?: string | null;
@@ -51,6 +51,15 @@ export const make = <ID extends string, G extends Schema.Constraint>(
     ...encoded
   } = options;
   const metadata = Schema.decodeSync(Metadata)(encoded);
-  const prompt = Prompt.Fn.layerFrom(promptOptions);
-  return new Task({ id, metadata, snapshot, resources, prompt, grader });
+  const prompt = Prompt.Respond.layerFrom(promptOptions);
+  return new Task({
+    id,
+    metadata,
+    snapshot,
+    resources,
+    prompt,
+    grader,
+    schedMetrics: [],
+    trajMetrics: [],
+  });
 };

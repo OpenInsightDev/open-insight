@@ -4,7 +4,7 @@ import * as Sandbox from "#/sandbox/index.ts";
 import { PromptError } from "../error.ts";
 import type { Trajectory } from "../traj.ts";
 
-export type Prompting = Readonly<{
+export type Respond = Readonly<{
   init: Prompt.Prompt;
   respond: (trajectory: Trajectory) => Effect.Effect<Option.Option<Prompt.Prompt>, PromptError>;
 }>;
@@ -12,9 +12,9 @@ export type Prompting = Readonly<{
 export class Service extends Context.Service<
   Service,
   {
-    make(sandbox: Sandbox.ReadonlySandbox): Effect.Effect<Prompting, PromptError>;
+    make(sandbox: Sandbox.ReadonlySandbox): Effect.Effect<Respond, PromptError>;
   }
->()("PromptingService") {}
+>()("RespondService") {}
 
 export type Options = Readonly<{
   init: Prompt.RawInput;

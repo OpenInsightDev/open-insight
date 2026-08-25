@@ -46,8 +46,8 @@ export class SandboxRunError extends Schema.TaggedError<SandboxRunError>(
   }
 }
 
-export class SessionNotStartedError extends Schema.TaggedError<SessionNotStartedError>(
-  "open-insight/HarnessError/SessionNotStartedError",
+export class SessionNotStarted extends Schema.TaggedError<SessionNotStarted>(
+  "open-insight/HarnessError/SessionNotStarted",
 )("SessionNotStartedError", {}) {
   override get message(): string {
     return "Agent session has not been started";
@@ -59,7 +59,7 @@ export const ErrorReason = Schema.Union([
   SnapshotAcquireError,
   SnapshotDeriveError,
   SandboxRunError,
-  SessionNotStartedError,
+  SessionNotStarted,
   Agent.AgentError,
 ]);
 export type ErrorReason = Schema.Schema.Type<typeof ErrorReason>;
@@ -97,5 +97,5 @@ export class HarnessError extends Schema.TaggedError<HarnessError>("open-insight
   static agent = (cause: Agent.AgentError): HarnessError => HarnessError.make({ reason: cause });
 
   static sessionNotStarted = (): HarnessError =>
-    HarnessError.make({ reason: SessionNotStartedError.make() });
+    HarnessError.make({ reason: SessionNotStarted.make() });
 }

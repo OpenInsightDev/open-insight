@@ -3,7 +3,7 @@ export {
   ErrorReason,
   InitError,
   SandboxRunError,
-  SessionNotStartedError,
+  SessionNotStarted as SessionNotStartedError,
   SnapshotAcquireError,
   SnapshotDeriveError,
 } from "./error.ts";

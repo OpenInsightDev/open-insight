@@ -5,7 +5,7 @@ import * as Sandbox from "#/sandbox/index.ts";
 import * as Snapshot from "#/snapshot/index.ts";
 import { HarnessError } from "./error.ts";
 import * as Prompt from "#/prompt/index.ts";
-import { Response } from "effect/unstable/ai";
+import { Response, Tool, Toolkit } from "effect/unstable/ai";
 
 export type AgentSession = Readonly<{
   trajectory: Ref.Ref<Prompt.Trajectory>;
@@ -48,25 +48,32 @@ export class Metadata extends Schema.Class<Metadata>("HarnessMetadata")({
 }) {}
 type MetadataEncoded = Schema.Codec.Encoded<typeof Metadata>;
 
-export class Harness<ID extends string> extends Data.Class<{
+export class Harness<ID extends string, Tools extends Record<string, Tool.Any>> extends Data.Class<{
   id: ID;
   metadata: Metadata;
+
+  toolkit: Toolkit.Toolkit<Tools>;
   runSnapshot(
     snapshot: Snapshot.Template,
   ): Effect.Effect<SnapshotSession, HarnessError, Scope.Scope>;
 }> {}
-export type Any = Harness<any>;
-export type IDOf<H> = H extends Harness<infer ID> ? ID : never;
+export type Any = Harness<any, any>;
+export type IDOf<H> = H extends Harness<infer ID, any> ? ID : never;
+export type ToolkitOf<H> = H extends Harness<any, infer Tools> ? Toolkit.Toolkit<Tools> : never;
 
-type Options = Omit<MetadataEncoded, "id">;
-export const make = Effect.fn(function* <ID extends string>(
+type Options = Omit<MetadataEncoded, "id"> & Readonly<{}>;
+
+export const make = Effect.fn(function* <ID extends string, Tools extends Record<string, Tool.Any>>(
   id: ID,
+  toolkit: Toolkit.Toolkit<Tools>,
   options: Options,
 ): Effect.fn.Return<
-  Harness<ID>,
+  Harness<ID, Tools>,
   HarnessError,
   Scope.Scope | Agent.ProviderService | Sandbox.ProviderService
 > {
+  type Service = Harness<ID, Tools>;
+
   const metadata = yield* Schema.decodeEffect(Metadata)({ id, ...options }).pipe(
     Effect.mapError(HarnessError.init),
   );
@@ -79,13 +86,7 @@ export const make = Effect.fn(function* <ID extends string>(
       .acquireSnapshot({ template, cache: true })
       .pipe(Effect.mapError(HarnessError.snapshotAcquire(template)));
 
-  const extendSnapshot = ({
-    template,
-    snapshot,
-  }: Readonly<{
-    template: Snapshot.Template;
-    snapshot: Snapshot.Snapshot;
-  }>) =>
+  const extendSnapshot = (template: Snapshot.Template) => (snapshot: Snapshot.Snapshot) =>
     agentProvider.snapshotExtension.pipe(
       Option.match({
         onNone: () => Effect.succeed(snapshot),
@@ -135,20 +136,22 @@ export const make = Effect.fn(function* <ID extends string>(
 
   // Reference-counted snapshot session cache keyed by template equality
   const cache = yield* RcMap.make({
-    lookup: Effect.fn(function* (template: Snapshot.Template) {
-      const snapshot = yield* acquireSnapshot(template);
-      const extended = yield* extendSnapshot({ template, snapshot });
-      return makeSnapshotSession(extended);
-    }),
+    lookup: (template: Snapshot.Template) =>
+      Effect.succeed(template).pipe(
+        Effect.flatMap(acquireSnapshot),
+        Effect.flatMap(extendSnapshot(template)),
+        Effect.map(makeSnapshotSession),
+      ),
   });
 
   const runSnapshot = Effect.fn("HarnessService.runSnapshot")(function* (template) {
     return yield* RcMap.get(cache, template);
-  }) satisfies Harness<ID>["runSnapshot"];
+  }) satisfies Service["runSnapshot"];
 
   return new Harness({
     id,
     metadata,
+    toolkit,
     runSnapshot,
   });
 });

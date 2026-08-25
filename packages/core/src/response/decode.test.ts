@@ -1,7 +1,7 @@
 import { assert, it } from "@effect/vitest";
 import { Effect, Schema, Stream } from "effect";
 import { Response, Tool, Toolkit } from "effect/unstable/ai";
-import { decodeStreamWithToolkit } from "./decode.ts";
+import { decodeAny } from "./decode.ts";
 
 const OldTool = Tool.make("old", {
   parameters: Schema.Struct({ value: Schema.Number }),
@@ -38,7 +38,7 @@ it.effect("decodes new tools while preserving existing decoded tools", () =>
       Response.StreamPart<Toolkit.Tools<typeof oldToolkit>>
     >;
 
-    const parts = yield* decodeStreamWithToolkit(stream, newToolkit).pipe(Stream.runCollect);
+    const parts = yield* decodeAny(stream, newToolkit).pipe(Stream.runCollect);
     const [decodedOld, decodedNew, decodedFile] = Array.from(parts);
 
     assert.strictEqual(decodedOld, oldPart);

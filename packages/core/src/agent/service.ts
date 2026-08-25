@@ -14,6 +14,9 @@ export type Agent = Readonly<{
    */
   trajectory: Ref.Ref<Prompt.Trajectory>;
 
+  /**
+   * Sends a prompt to the agent and returns a stream of response parts.
+   */
   prompt(prompt: Prompt.Prompt): Stream.Stream<Response.StreamPartEncoded, AgentError>;
 }>;
 
@@ -24,7 +27,6 @@ export type SnapshotExtension = Readonly<{
 
 export type Provider = Readonly<{
   snapshotExtension: Option.Option<SnapshotExtension>;
-
   runSession(sandbox: Sandbox.Sandbox): Effect.Effect<Agent, AgentError, Scope.Scope>;
 }>;
 

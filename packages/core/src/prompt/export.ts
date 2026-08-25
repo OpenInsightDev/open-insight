@@ -1,5 +1,5 @@
 export type { Trajectory } from "./traj.ts";
-export * as Fn from "./fn/export.ts";
+export * as Respond from "./respond/export.ts";
 export * as Template from "./template/export.ts";
 
 export {

@@ -1,50 +1,37 @@
-import { Effect, Schema, Stream } from "effect";
-import { Response, type Tool, Toolkit } from "effect/unstable/ai";
+import { Effect, Schema } from "effect";
+import { type Tool, Toolkit } from "effect/unstable/ai";
+import { Response } from "@open-insight/core/internal";
 
-type ToolPart = Response.AnyToolCallPart | Response.AnyToolResultPart;
-type ToolPartName = ToolPart["name"];
+export const decodeStreamPartView =
+  <Curr extends Record<string, Tool.Any>>(toolkit: Toolkit.Toolkit<Curr>) =>
+  <Prev extends Record<string, Tool.Any>>(part: Response.StreamPartView<Prev>) => {
+    const encode = Schema.encodeEffect(Response.StreamPartView(Toolkit.empty));
+    const decode = Schema.decodeEffect(Response.StreamPartView(toolkit));
 
-const isToolPart = (part: Response.AnyPart): part is ToolPart =>
-  part.type === "tool-call" || part.type === "tool-result";
+    if (part.type !== "tool-call" && part.type !== "tool-result") {
+      return Effect.succeed(part);
+    }
+    const toolNames = new Set(Object.values(toolkit.tools).map((tool) => tool.name));
+    if (!toolNames.has(part.name)) {
+      return Effect.succeed(part);
+    }
 
-/**
- * Decodes a response stream with an additional toolkit.
- *
- * Tool parts are first encoded with the empty toolkit so that both toolkit
- * specific and unknown tool parts can cross the schema boundary. Parts whose
- * names are not in the new toolkit retain their existing decoded value; this
- * keeps the original toolkit's types while allowing the new toolkit to decode
- * its own tools.
- */
-export const decodeStreamWithToolkit = <
-  Tools extends Record<string, Tool.Any>,
-  NewTools extends Record<string, Tool.Any>,
-  E,
-  R,
->(
-  stream: Stream.Stream<Response.StreamPart<Tools>, E, R>,
-  toolkit: Toolkit.Toolkit<NewTools>,
-): Stream.Stream<
-  Response.StreamPart<Tools> | Response.StreamPart<NewTools>,
-  E | Schema.SchemaError,
-  R | Tool.ResultDecodingServicesFor<NewTools>
-> => {
-  const decode = Schema.decodeUnknownEffect(Response.StreamPart(toolkit));
-  const encode = Schema.encodeUnknownEffect(Response.StreamPart(Toolkit.empty));
-  const toolNames = new Set<ToolPartName>(Object.values(toolkit.tools).map((tool) => tool.name));
+    return Effect.succeed(part).pipe(Effect.flatMap(encode), Effect.flatMap(decode));
+  };
 
-  return stream.pipe(
-    Stream.mapEffect((part) => {
-      if (!isToolPart(part)) return Effect.succeed(part);
+export const decodePartView =
+  <Curr extends Record<string, Tool.Any>>(toolkit: Toolkit.Toolkit<Curr>) =>
+  <Prev extends Record<string, Tool.Any>>(part: Response.Part<Prev>) => {
+    const encode = Schema.encodeEffect(Response.PartView(Toolkit.empty));
+    const decode = Schema.decodeEffect(Response.PartView(toolkit));
 
-      return encode(part).pipe(
-        Effect.flatMap(decode),
-        Effect.map((decoded) => (toolNames.has(part.name) ? decoded : part)),
-      );
-    }),
-  ) as Stream.Stream<
-    Response.StreamPart<Tools> | Response.StreamPart<NewTools>,
-    E | Schema.SchemaError,
-    R | Tool.ResultDecodingServicesFor<NewTools>
-  >;
-};
+    if (part.type !== "tool-call" && part.type !== "tool-result") {
+      return Effect.succeed(part);
+    }
+    const toolNames = new Set(Object.values(toolkit.tools).map((tool) => tool.name));
+    if (!toolNames.has(part.name)) {
+      return Effect.succeed(part);
+    }
+
+    return Effect.succeed(part).pipe(Effect.flatMap(encode), Effect.flatMap(decode));
+  };
