@@ -2,8 +2,11 @@ import { Effect, Schema, Stream } from "effect";
 import { Prompt, Tool, Response, Toolkit } from "effect/unstable/ai";
 import { TrajectoryError } from "./error.ts";
 
+type PromptMessage = Exclude<Prompt.Message, Prompt.AssistantMessage>;
+type PromptMessageEncoded = Exclude<Prompt.MessageEncoded, Prompt.AssistantMessageEncoded>;
+
 export type Turn<Tools extends Record<string, Tool.Any>> = Readonly<{
-  prompt: Prompt.Prompt;
+  prompt: PromptMessage[];
   response: Stream.Stream<Response.AllPartsView<Tools>, TrajectoryError>;
 }>;
 
@@ -15,66 +18,15 @@ export type Trajectory<Tools extends Record<string, Tool.Any>> = Readonly<{
   turns: () => Stream.Stream<Turn<Tools>, TrajectoryError>;
 }>;
 
-export type TurnEncoded = Readonly<{
-  prompt: ReadonlyArray<Prompt.MessageEncoded>;
-  response: Stream.Stream<Response.AllPartsEncoded, unknown>;
-}>;
-
-export type TurnEncodedStream<E, R> = Stream.Stream<TurnEncoded, E, R>;
-
-/**
- * Creates a trajectory backed by encoded response parts.
- *
- * Toolkits are merged in order, with later toolkits taking precedence when
- * they contain tools with the same name.
- */
-export const make = Effect.fn("Trajectory.make")(function* <
-  const Toolkits extends ReadonlyArray<Toolkit.Any>,
+export type TurnEncodedStream<E, R> = Stream.Stream<
+  PromptMessageEncoded | Response.AllPartsEncoded,
   E,
-  R,
->(
-  encodedTurns: TurnEncodedStream<E, R>,
-  ...toolkits: Toolkits
-): Effect.fn.Return<
-  Trajectory<Toolkit.MergedTools<Toolkits>>,
-  never,
-  | R
-  | Tool.ResultDecodingServices<Toolkit.MergedTools<Toolkits>[keyof Toolkit.MergedTools<Toolkits>]>
-> {
-  const toolkit = Toolkit.merge(...toolkits);
-  const responseSchema = Response.AllPartsView(toolkit);
-  const decodePrompt = Schema.decodeEffect(Prompt.Prompt);
-  const decodeResponse = Schema.decodeEffect(responseSchema);
-  const services = yield* Effect.context<R | typeof responseSchema.DecodingServices>();
-
-  return {
-    toolkit,
-    turns: () =>
-      encodedTurns.pipe(
-        Stream.mapError(TrajectoryError.storage),
-        Stream.mapEffect(({ prompt, response }) =>
-          decodePrompt({ content: prompt }).pipe(
-            Effect.mapError(TrajectoryError.decode),
-            Effect.map((prompt) => ({
-              prompt,
-              response: response.pipe(
-                Stream.mapError(TrajectoryError.storage),
-                Stream.mapEffect((encoded) =>
-                  decodeResponse(encoded).pipe(Effect.mapError(TrajectoryError.decode)),
-                ),
-                Stream.provideContext(services),
-              ),
-            })),
-          ),
-        ),
-        Stream.provideContext(services),
-      ),
-  };
-});
+  R
+>;
 
 export const prompts = <Tools extends Record<string, Tool.Any>>(
   trajectory: Trajectory<Tools>,
-): Stream.Stream<Prompt.Prompt, TrajectoryError> =>
+): Stream.Stream<PromptMessage[], TrajectoryError> =>
   trajectory.turns().pipe(Stream.map((turn) => turn.prompt));
 
 export const responses = <Tools extends Record<string, Tool.Any>>(
@@ -136,3 +88,21 @@ export const toolCalls = <Tools extends Record<string, Tool.Any>>(
   trajectory: Trajectory<Tools>,
 ): Stream.Stream<Response.ToolCallPartsView<Tools>, TrajectoryError> =>
   toolTurns(trajectory).pipe(Stream.map((turn) => turn.call));
+
+export const messages = <Tools extends Record<string, Tool.Any>>(
+  trajectory: Trajectory<Tools>,
+): Stream.Stream<Prompt.Message, TrajectoryError> =>
+  trajectory.turns().pipe(
+    Stream.flatMap((turn) =>
+      Stream.fromIterable(turn.prompt).pipe(
+        Stream.concat(
+          turn.response.pipe(
+            Stream.runCollect,
+            Effect.map((parts) => Prompt.fromResponseParts(Array.from(parts)).content),
+            Stream.fromEffect,
+            Stream.flatMap(Stream.fromIterable),
+          ),
+        ),
+      ),
+    ),
+  );
