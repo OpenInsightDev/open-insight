@@ -23,53 +23,55 @@ export class TaskResult<S extends Schema.Constraint = any> extends Data.TaggedCl
   result: S["Type"];
 }> {}
 
-export type ExecOption<G extends Schema.Constraint, S extends Schema.Constraint> = BivariantFn<
+export type FnOptions<G extends Schema.Constraint, S extends Schema.Constraint> = BivariantFn<
   (trails: ReadonlyArray<TrailResult<G>>) => S["Type"] | PromiseLike<S["Type"]>
 >;
-export type Exec<G extends Schema.Constraint, S extends Schema.Constraint> = (
+export type Fn<G extends Schema.Constraint, S extends Schema.Constraint> = (
   trails: ReadonlyArray<TrailResult<G>>,
 ) => Effect.Effect<TaskResult<S>, TaskError>;
 
-const makeExec =
+const makeFn =
   <G extends Schema.Constraint, S extends Schema.Constraint>(
     id: string,
-    exec: ExecOption<G, S>,
-  ): Exec<G, S> =>
+    fn: FnOptions<G, S>,
+  ): Fn<G, S> =>
   (trails) =>
     Effect.tryPromise({
-      try: () => Promise.resolve(exec(trails)),
+      try: () => Promise.resolve(fn(trails)),
       catch: TaskError.result,
     }).pipe(Effect.map((result) => new TaskResult({ id, result })));
 
+export type ResultFn<G extends Schema.Constraint, S extends Schema.Constraint> = Fn<G, S> &
+  Readonly<{
+    schema: S;
+  }>;
+
 const Field: unique symbol = Symbol.for("ResultField");
 export type Mixin<G extends Schema.Constraint, S extends Schema.Constraint> = Readonly<{
-  [Field]: {
-    schema: S;
-    exec: Exec<G, S>;
-  };
+  [Field]: ResultFn<G, S>;
 }>;
-export type MixinOf<T> = T extends Mixin<infer G, infer S> ? Mixin<G, S>[typeof Field] : never;
-export type ResultOf<T> = T extends Mixin<any, infer S> ? TaskResult<S> : never;
+export type FnOf<T> = T extends Mixin<infer G, infer S> ? ResultFn<G, S> : never;
+export type TaskResultOf<T> = T extends Mixin<any, infer S> ? TaskResult<S> : never;
 
-export const mixinOf = <T extends object>(value: T) =>
-  Option.fromNullOr(hasProperty(value, Field) ? (value[Field] as MixinOf<T>) : null);
+export const fnOf = <T>(value: T) =>
+  Option.fromNullOr(hasProperty(value, Field) ? (value[Field] as FnOf<T>) : null);
 
 export const result: {
   <T extends Task.Any, S extends Schema.Constraint>(
     schema: S,
-    exec: ExecOption<Task.GradeOf<T>, S>,
+    fn: FnOptions<Task.GradeOf<T>, S>,
   ): (task: T) => Override<T, Mixin<Task.GradeOf<T>, S>>;
   <T extends Task.Any, S extends Schema.Constraint>(
     task: T,
     schema: S,
-    exec: ExecOption<Task.GradeOf<T>, S>,
+    fn: FnOptions<Task.GradeOf<T>, S>,
   ): Override<T, Mixin<Task.GradeOf<T>, S>>;
 } = Function.dual(
   3,
   <T extends Task.Any, S extends Schema.Constraint>(
     task: T,
     schema: S,
-    exec: ExecOption<Task.GradeOf<T>, S>,
+    fn: FnOptions<Task.GradeOf<T>, S>,
   ): Override<T, Mixin<Task.GradeOf<T>, S>> =>
-    Object.assign(task, { [Field]: { schema, exec: makeExec(task.id, exec) } }),
+    Object.assign(task, { [Field]: Object.assign(makeFn(task.id, fn), { schema }) }),
 );

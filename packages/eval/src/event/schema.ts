@@ -107,7 +107,6 @@ export type SessionFailedEvent = Schema.Schema.Type<typeof SessionFailedEvent>;
 
 export class TrailStartEvent extends Schema.TaggedClass<TrailStartEvent>()("TrailStartEvent", {
   id: TrailID,
-  schedMetrics: Schema.Array(Metric.Metadata),
 }) {}
 
 export class TrailEndEvent extends Schema.TaggedClass<TrailEndEvent>()("TrailEndEvent", {

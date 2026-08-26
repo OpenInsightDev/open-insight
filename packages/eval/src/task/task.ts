@@ -1,7 +1,6 @@
 import { Prompt, Resource, Snapshot } from "@open-insight/core/internal";
-import * as Metric from "#/metric/index.ts";
 import * as Grade from "#/grade/index.ts";
-import { Data, Layer, Schema } from "effect";
+import { Data, Match, Schema } from "effect";
 
 export class Metadata extends Schema.Class<Metadata>("Metadata")({
   name: Schema.OptionFromOptionalNullOr(Schema.String),
@@ -16,13 +15,10 @@ export class Task<
   id: ID;
   metadata: Metadata;
 
-  prompt: Layer.Layer<Prompt.Respond.Service>;
+  prompt: Prompt.Turns;
   snapshot: Snapshot.Template;
   resources: Resource.Resources;
   grader: Grade.Grader<G>;
-
-  schedMetrics: Metric.Sched.Metric[];
-  trajMetrics: Metric.Traj.Metric[];
 }> {}
 
 export type GradeOf<T> = T extends Task<infer _, infer G> ? G : never;
@@ -31,7 +27,7 @@ export type Any = Task<any, any>;
 
 type Options<G extends Schema.Constraint> = MetadataEncoded &
   Readonly<{
-    prompt: Prompt.Respond.Options;
+    prompt: Prompt.RawInput | Prompt.Turns;
     grader: Grade.Grader<G>;
 
     description?: string | null;
@@ -44,22 +40,25 @@ export const make = <ID extends string, G extends Schema.Constraint>(
   options: Options<G>,
 ) => {
   const {
-    prompt: promptOptions,
+    prompt,
     grader,
     snapshot = Snapshot.Alpine,
     resources = Resource.empty,
     ...encoded
   } = options;
   const metadata = Schema.decodeSync(Metadata)(encoded);
-  const prompt = Prompt.Respond.layerFrom(promptOptions);
+
+  const turns = Match.value(prompt).pipe(
+    Match.tag("Turns", (turns) => turns),
+    Match.orElse((rawInput) => Prompt.makeTurns(Prompt.make(rawInput))),
+  );
+
   return new Task({
     id,
     metadata,
     snapshot,
     resources,
-    prompt,
+    prompt: turns,
     grader,
-    schedMetrics: [],
-    trajMetrics: [],
   });
 };

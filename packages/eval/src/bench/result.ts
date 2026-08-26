@@ -7,7 +7,7 @@ import { TaskError } from "#/task/error.ts";
 import { hasProperty } from "effect/Predicate";
 
 export type TaskResultsOf<Tasks extends Record<string, Task.Any>> = Readonly<{
-  [K in keyof Tasks]: Task.Result.ResultOf<Tasks[K]>;
+  [K in keyof Tasks]: Task.Result.TaskResultOf<Tasks[K]>;
 }>;
 export type TaskResults = Readonly<Record<string, Task.Result.TaskResult>>;
 

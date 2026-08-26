@@ -1,5 +1,5 @@
 import { Stream } from "effect";
-import { Prompt, Response, Tool } from "effect/unstable/ai";
+import { Response, Tool } from "effect/unstable/ai";
 
 type Metadata = Response.ProviderMetadata;
 type Active =
@@ -126,29 +126,9 @@ const step = <Tools extends Record<string, Tool.Any>>(
   }
 };
 
-type PromptInput<Tools extends Record<string, Tool.Any>> =
-  | Prompt.Prompt
-  | Response.StreamPart<Tools>;
-
-const stepPrompt = <Tools extends Record<string, Tool.Any>>(
-  state: State,
-  input: PromptInput<Tools>,
-): readonly [State, ReadonlyArray<Prompt.Prompt | Response.Part<Tools>>] =>
-  Prompt.isPrompt(input) ? [new Map(), [input]] : step(state, input);
-
 export const fold = <Tools extends Record<string, Tool.Any>, E, R>(
   stream: Stream.Stream<Response.StreamPart<Tools>, E, R>,
 ): Stream.Stream<Response.Part<Tools>, E, R> =>
   stream.pipe(
     Stream.mapAccum<State, Response.StreamPart<Tools>, Response.Part<Tools>>(() => new Map(), step),
-  );
-
-export const foldPrompt = <Tools extends Record<string, Tool.Any>, E, R>(
-  stream: Stream.Stream<PromptInput<Tools>, E, R>,
-): Stream.Stream<Prompt.Prompt | Response.Part<Tools>, E, R> =>
-  stream.pipe(
-    Stream.mapAccum<State, PromptInput<Tools>, Prompt.Prompt | Response.Part<Tools>>(
-      () => new Map(),
-      stepPrompt,
-    ),
   );

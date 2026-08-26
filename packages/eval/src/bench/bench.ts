@@ -1,4 +1,5 @@
 import * as Task from "#/task/index.ts";
+import type { IndexByKey } from "#/utils/type.ts";
 import { Data, Schema } from "effect";
 
 export class Metadata extends Schema.Class<Metadata>("BenchMetadata")({
@@ -7,13 +8,6 @@ export class Metadata extends Schema.Class<Metadata>("BenchMetadata")({
   description: Schema.OptionFromOptionalNullOr(Schema.String),
 }) {}
 export type MetadataEncoded = Schema.Codec.Encoded<typeof Metadata>;
-
-type TasksByName<Tasks> =
-  Tasks extends Record<string, Task.Any>
-    ? { readonly [Name in keyof Tasks]: Tasks[Name] }
-    : Tasks extends ReadonlyArray<Task.Any>
-      ? { readonly [Task in Tasks[number] as Task["id"]]: Task }
-      : never;
 
 export class Bench<ID extends string, Tasks extends Record<string, Task.Any>> extends Data.Class<{
   id: ID;
@@ -32,7 +26,7 @@ type Options<ID extends string> = Omit<MetadataEncoded, "id"> &
 export const fromArray = <ID extends string, Tasks extends ReadonlyArray<Task.Any>>(
   options: Options<ID>,
   tasks: Tasks,
-): Bench<ID, TasksByName<Tasks>> => {
+): Bench<ID, IndexByKey<Tasks, "id">> => {
   const metadata = Schema.decodeSync(Metadata)(options);
   return new Bench({
     id: options.id,
@@ -44,4 +38,4 @@ export const fromArray = <ID extends string, Tasks extends ReadonlyArray<Task.An
 export const make = <ID extends string, Tasks extends ReadonlyArray<Task.Any>>(
   options: Options<ID>,
   ...tasks: Tasks
-): Bench<ID, TasksByName<Tasks>> => fromArray(options, tasks);
+): Bench<ID, IndexByKey<Tasks, "id">> => fromArray(options, tasks);

@@ -14,5 +14,5 @@ export type Persist<T extends Task.Any> = Readonly<{
     idx: number,
   ): Stream.Stream<TrailSuccessEvent, TrailErrorEvent | Task.Result.TrailResult<Task.GradeOf<T>>>;
 
-  loadTask(): Stream.Stream<TaskSuccessEvent, TaskErrorEvent | Task.Result.ResultOf<T>>;
+  loadTask(): Stream.Stream<TaskSuccessEvent, TaskErrorEvent | Task.Result.TaskResultOf<T>>;
 }>;
