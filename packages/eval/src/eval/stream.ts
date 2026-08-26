@@ -49,7 +49,7 @@ const makeSession = Effect.fn(
         let current: Option.Option<Prompt.Prompt> = Option.some(promptTurns.init);
 
         while (Option.isSome(current)) {
-          const trajDeferred = yield* Deferred.make<Prompt.Trajectory>();
+          const trajDeferred = yield* Deferred.make<Prompt.Prompt>();
 
           const response = yield* agentSession
             .prompt(current.value)

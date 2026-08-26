@@ -20,6 +20,9 @@ export * as Resource from "./resource/export.ts";
 export * as Prompt from "./prompt/export.ts";
 export { PromptError } from "./prompt/export.ts";
 
+export * as Trajectory from "./trajectory/export.ts";
+export { TrajectoryError } from "./trajectory/export.ts";
+
 export * as Acp from "./acp/export.ts";
 export { AcpError } from "./acp/export.ts";
 

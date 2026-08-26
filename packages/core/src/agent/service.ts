@@ -12,7 +12,7 @@ export type Agent = Readonly<{
    *
    * Note that this trajectory does not equate to the internal state of the agent.
    */
-  trajectory: Ref.Ref<Prompt.Trajectory>;
+  trajectory: Ref.Ref<Prompt.Prompt>;
 
   /**
    * Sends a prompt to the agent and returns a stream of response parts.
@@ -45,7 +45,7 @@ type ProviderOptions = Readonly<{
 const makeAgent = Effect.fn("Agent.makeAgent")(function* ({
   prompt: promptFn,
 }: AgentOptions): Effect.fn.Return<Agent, AgentError> {
-  const trajectory = yield* Ref.make<Prompt.Trajectory>(Prompt.empty);
+  const trajectory = yield* Ref.make<Prompt.Prompt>(Prompt.empty);
   const semaphore = Semaphore.makeUnsafe(1);
   const decodePart = Schema.decodeEffect(Response.StreamPart(Toolkit.empty));
 

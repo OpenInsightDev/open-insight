@@ -1,34 +1,26 @@
-import type { Prompt, Response } from "@open-insight/core/internal";
 import { Data, Effect, Option, type Schema, Function } from "effect";
 import type { BivariantFn } from "#/utils/variant.ts";
 import * as Task from "./task.ts";
 import { hasProperty } from "effect/Predicate";
 import type { Override } from "#/utils/type.ts";
 import { TaskError } from "./error.ts";
-
-export class SessionResult extends Data.TaggedClass("SessionResult")<{
-  trajectory: Prompt.Trajectory;
-  usage: Response.Usage | null;
-}> {}
-
-export class TrailResult<G extends Schema.Constraint = any> extends Data.TaggedClass(
-  "TrailResult",
-)<{
-  grade: G["Type"];
-  sessions: Array<SessionResult>;
-}> {}
+import type { TrailResult } from "./trail.ts";
 
 export class TaskResult<S extends Schema.Constraint = any> extends Data.TaggedClass("TaskResult")<{
   id: string;
   result: S["Type"];
 }> {}
 
-export type FnOptions<G extends Schema.Constraint, S extends Schema.Constraint> = BivariantFn<
-  (trails: ReadonlyArray<TrailResult<G>>) => S["Type"] | PromiseLike<S["Type"]>
->;
-export type Fn<G extends Schema.Constraint, S extends Schema.Constraint> = (
-  trails: ReadonlyArray<TrailResult<G>>,
-) => Effect.Effect<TaskResult<S>, TaskError>;
+export type FnOptions<
+  G extends Schema.Constraint,
+  T extends Schema.Constraint,
+  S extends Schema.Constraint,
+> = BivariantFn<(trails: ReadonlyArray<TrailResult<G, T>>) => S["Type"] | PromiseLike<S["Type"]>>;
+export type Fn<
+  G extends Schema.Constraint,
+  T extends Schema.Constraint,
+  S extends Schema.Constraint,
+> = (trails: ReadonlyArray<TrailResult<G, T>>) => Effect.Effect<TaskResult<S>, TaskError>;
 
 const makeFn =
   <G extends Schema.Constraint, S extends Schema.Constraint>(

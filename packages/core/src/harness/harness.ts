@@ -8,7 +8,7 @@ import * as Prompt from "#/prompt/index.ts";
 import { Response, Tool, Toolkit } from "effect/unstable/ai";
 
 export type AgentSession = Readonly<{
-  trajectory: Ref.Ref<Prompt.Trajectory>;
+  trajectory: Ref.Ref<Prompt.Prompt>;
   prompt(prompt: Prompt.Prompt): Stream.Stream<Response.StreamPartEncoded, HarnessError>;
 }>;
 
