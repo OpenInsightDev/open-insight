@@ -2,34 +2,10 @@ import { Effect, Schema, Stream } from "effect";
 import { Prompt, Tool, Response, Toolkit } from "effect/unstable/ai";
 import { TrajectoryError } from "./error.ts";
 
-export const Trajectory = Prompt.Prompt;
-
 export type Turn<Tools extends Record<string, Tool.Any>> = Readonly<{
   prompt: Prompt.Prompt;
-  response: Response.AllPartsView<Tools>;
+  response: Stream.Stream<Response.AllPartsView<Tools>, TrajectoryError>;
 }>;
-
-/**
- * Persistent representation of a trajectory.
- *
- * The two streams are consumed point-wise: each prompt is paired with the
- * encoded response at the same position. Implementations should return a
- * fresh stream from each method so that a trajectory can be read more than
- * once.
- */
-export type Storage<E = never> = Readonly<{
-  prompts: () => Stream.Stream<Prompt.Prompt, E>;
-  responses: () => Stream.Stream<Response.AllPartsEncoded, E>;
-}>;
-
-export type ToolTurns<Tools extends Record<string, Tool.Any>> = {
-  [Name in keyof Tools]: Name extends string
-    ? Readonly<{
-        call: Extract<Response.ToolCallPartsView<Tools>, { name: Name }>;
-        result: Extract<Response.ToolResultPartsView<Tools>, { name: Name }>;
-      }>
-    : never;
-}[keyof Tools];
 
 /**
  * A trajectory represents a sequence of turns in a conversation, where each turn consists of a prompt and the corresponding response.
@@ -38,6 +14,13 @@ export type Trajectory<Tools extends Record<string, Tool.Any>> = Readonly<{
   toolkit: Toolkit.Toolkit<Tools>;
   turns: () => Stream.Stream<Turn<Tools>, TrajectoryError>;
 }>;
+
+export type TurnEncoded = Readonly<{
+  prompt: ReadonlyArray<Prompt.MessageEncoded>;
+  response: Stream.Stream<Response.AllPartsEncoded, unknown>;
+}>;
+
+export type TurnEncodedStream<E, R> = Stream.Stream<TurnEncoded, E, R>;
 
 /**
  * Creates a trajectory backed by encoded response parts.
@@ -48,34 +31,43 @@ export type Trajectory<Tools extends Record<string, Tool.Any>> = Readonly<{
 export const make = Effect.fn("Trajectory.make")(function* <
   const Toolkits extends ReadonlyArray<Toolkit.Any>,
   E,
+  R,
 >(
-  storage: Storage<E>,
+  encodedTurns: TurnEncodedStream<E, R>,
   ...toolkits: Toolkits
 ): Effect.fn.Return<
   Trajectory<Toolkit.MergedTools<Toolkits>>,
   never,
-  Tool.ResultDecodingServices<Toolkit.MergedTools<Toolkits>[keyof Toolkit.MergedTools<Toolkits>]>
+  | R
+  | Tool.ResultDecodingServices<Toolkit.MergedTools<Toolkits>[keyof Toolkit.MergedTools<Toolkits>]>
 > {
   const toolkit = Toolkit.merge(...toolkits);
-  const schema = Response.AllPartsView(toolkit);
-  const decode = Schema.decodeEffect(schema);
-  const decodingServices = yield* Effect.context<typeof schema.DecodingServices>();
+  const responseSchema = Response.AllPartsView(toolkit);
+  const decodePrompt = Schema.decodeEffect(Prompt.Prompt);
+  const decodeResponse = Schema.decodeEffect(responseSchema);
+  const services = yield* Effect.context<R | typeof responseSchema.DecodingServices>();
 
   return {
     toolkit,
     turns: () =>
-      Stream.zipWith(storage.prompts(), storage.responses(), (prompt, encoded) => ({
-        prompt,
-        encoded,
-      })).pipe(
+      encodedTurns.pipe(
         Stream.mapError(TrajectoryError.storage),
-        Stream.mapEffect(({ prompt, encoded }) =>
-          decode(encoded).pipe(
+        Stream.mapEffect(({ prompt, response }) =>
+          decodePrompt({ content: prompt }).pipe(
             Effect.mapError(TrajectoryError.decode),
-            Effect.map((response) => ({ prompt, response })),
+            Effect.map((prompt) => ({
+              prompt,
+              response: response.pipe(
+                Stream.mapError(TrajectoryError.storage),
+                Stream.mapEffect((encoded) =>
+                  decodeResponse(encoded).pipe(Effect.mapError(TrajectoryError.decode)),
+                ),
+                Stream.provideContext(services),
+              ),
+            })),
           ),
         ),
-        Stream.provideContext(decodingServices),
+        Stream.provideContext(services),
       ),
   };
 });
@@ -88,7 +80,16 @@ export const prompts = <Tools extends Record<string, Tool.Any>>(
 export const responses = <Tools extends Record<string, Tool.Any>>(
   trajectory: Trajectory<Tools>,
 ): Stream.Stream<Response.AllPartsView<Tools>, TrajectoryError> =>
-  trajectory.turns().pipe(Stream.map((turn) => turn.response));
+  trajectory.turns().pipe(Stream.flatMap((turn) => turn.response));
+
+export type ToolTurns<Tools extends Record<string, Tool.Any>> = {
+  [Name in keyof Tools]: Name extends string
+    ? Readonly<{
+        call: Extract<Response.ToolCallPartsView<Tools>, { name: Name }>;
+        result: Extract<Response.ToolResultPartsView<Tools>, { name: Name }>;
+      }>
+    : never;
+}[keyof Tools];
 
 export const toolTurns = <Tools extends Record<string, Tool.Any>>(
   trajectory: Trajectory<Tools>,
@@ -130,3 +131,8 @@ export const toolTurns = <Tools extends Record<string, Tool.Any>>(
     ),
   );
 };
+
+export const toolCalls = <Tools extends Record<string, Tool.Any>>(
+  trajectory: Trajectory<Tools>,
+): Stream.Stream<Response.ToolCallPartsView<Tools>, TrajectoryError> =>
+  toolTurns(trajectory).pipe(Stream.map((turn) => turn.call));
