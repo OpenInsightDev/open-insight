@@ -11,7 +11,7 @@ export type MetadataEncoded = Schema.Codec.Encoded<typeof Metadata>;
 export class Task<
   ID extends string = string,
   G extends Schema.Constraint = any,
-> extends Data.Class<{
+> extends Data.TaggedClass("Task")<{
   id: ID;
   metadata: Metadata;
 
@@ -46,6 +46,7 @@ export const make = <ID extends string, G extends Schema.Constraint>(
     resources = Resource.empty,
     ...encoded
   } = options;
+
   const metadata = Schema.decodeSync(Metadata)(encoded);
 
   const turns = Match.value(prompt).pipe(

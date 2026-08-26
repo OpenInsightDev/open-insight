@@ -29,16 +29,14 @@ import type { BenchOf } from "./eval.ts";
 
 type SessionOptions = Readonly<{
   id: Event.SessionID;
-  promptFn: Prompt.Turns.Init;
+  promptTurns: Prompt.Turns;
   sandbox: Sandbox.Sandbox;
   agentSession: Harness.AgentSession;
 }>;
 const makeSession = Effect.fn(
-  function* ({ id, promptFn, sandbox, agentSession }: SessionOptions) {
+  function* ({ id, promptTurns, sandbox, agentSession }: SessionOptions) {
     const usageRef = yield* Ref.make<Response.Usage | null>(null);
     const finishRef = yield* Ref.make<Response.FinishReason>("unknown");
-
-    const { init, respond } = yield* promptFn.make(sandbox).pipe(Effect.mapError(EvalError.prompt));
 
     const decodePart = Schema.decodeSync(Response.StreamPart(Toolkit.empty));
 
@@ -48,7 +46,7 @@ const makeSession = Effect.fn(
     }>;
     const turns = yield* Stream.callback<Turn, EvalError>(
       Effect.fn(function* (queue) {
-        let current: Option.Option<Prompt.Prompt> = Option.some(init);
+        let current: Option.Option<Prompt.Prompt> = Option.some(promptTurns.init);
 
         while (Option.isSome(current)) {
           const trajDeferred = yield* Deferred.make<Prompt.Trajectory>();
@@ -84,7 +82,14 @@ const makeSession = Effect.fn(
           yield* Queue.offer(queue, { prompt: current.value, response });
 
           current = yield* Deferred.await(trajDeferred).pipe(
-            Effect.flatMap((traj) => respond(traj).pipe(Effect.mapError(EvalError.prompt))),
+            Effect.flatMap((traj) =>
+              promptTurns
+                .next(traj)
+                .pipe(
+                  Effect.provideService(Sandbox.Current, sandbox),
+                  Effect.mapError(EvalError.prompt),
+                ),
+            ),
           );
         }
       }),
@@ -197,7 +202,7 @@ const makeTrail = Effect.fn(
 
         const session = makeSession({
           id: sessionID,
-          promptFn: prompt,
+          promptTurns: prompt,
           agentSession,
           sandbox,
         }).pipe(

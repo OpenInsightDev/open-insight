@@ -92,6 +92,10 @@ catalog:
   ajv: ^8.20.0
   ripgrep: ^0.3.1
   cloudflare: ^7.0.0
+  chdb: ^3.3.0
+  '@effect/sql-clickhouse': 4.0.0-rc.112
+  '@json-render/core': ^0.20.0
+  '@json-render/shadcn': ^0.20.0
 overrides:
   vite: "catalog:"
   vitest: "catalog:"
@@ -104,6 +108,7 @@ peerDependencyRules:
     vitest: "*"
 allowBuilds:
   '@mongodb-js/zstd': true
+  chdb: true
   core-js: true
   cpu-features: true
   dprint: true

@@ -36,9 +36,9 @@ export const run = <R extends Schema.Constraint = any>(grader: Grader<R>) =>
   Effect.fn(function* (
     options: MakeContextOptions,
   ): Effect.fn.Return<R["Type"], GradeError | Retry.Retry, Scope.Scope> {
-    const ctx = yield* makeContext(options);
+    const ctx = yield* makeContext(options).pipe(Effect.scoped);
     return yield* Effect.tryPromise({
       try: () => grader.grade(ctx),
       catch: Retry.mapError,
     });
-  }, Effect.scoped);
+  });

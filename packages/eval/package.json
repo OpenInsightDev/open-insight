@@ -52,8 +52,10 @@
     "@effect/ai-openai-compat": "catalog:",
     "@effect/opentelemetry": "catalog:",
     "@effect/platform-node": "catalog:",
+    "@effect/sql-clickhouse": "catalog:",
     "@effect/sql-sqlite-node": "catalog:",
-    "@effect/vitest": "catalog:",
+    "@json-render/core": "catalog:",
+    "@json-render/shadcn": "catalog:",
     "@open-insight/core": "workspace:*",
     "@opentelemetry/api-logs": "catalog:",
     "@opentelemetry/sdk-logs": "catalog:",
@@ -61,6 +63,7 @@
     "@opentelemetry/sdk-trace-node": "catalog:",
     "@opentelemetry/sdk-trace-web": "catalog:",
     "ai": "catalog:",
+    "chdb": "catalog:",
     "hyparquet": "catalog:",
     "hyparquet-writer": "catalog:",
     "immer": "catalog:",
@@ -70,6 +73,7 @@
     "uuid": "catalog:"
   },
   "devDependencies": {
+    "@effect/vitest": "catalog:",
     "@open-insight/agent": "workspace:*",
     "@types/node": "catalog:",
     "@types/picomatch": "catalog:",
