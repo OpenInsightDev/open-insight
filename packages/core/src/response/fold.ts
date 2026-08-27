@@ -131,6 +131,9 @@ export function fold<Tools extends Record<string, Tool.Any>, E, R>(
 ): Stream.Stream<Response.Part<Tools>, E, R>;
 export function fold<Tools extends Record<string, Tool.Any>, E, R>(
   stream: Stream.Stream<Response.AllPartsView<Tools>, E, R>,
+): Stream.Stream<Response.PartView<Tools>, E, R>;
+export function fold<Tools extends Record<string, Tool.Any>, E, R>(
+  stream: Stream.Stream<Response.AllPartsView<Tools>, E, R>,
 ): Stream.Stream<Response.PartView<Tools>, E, R> {
   return stream.pipe(
     Stream.mapAccum<State, Response.AllPartsView<Tools>, Response.PartView<Tools>>(
