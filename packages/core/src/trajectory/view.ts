@@ -17,7 +17,7 @@ export const turns = <Tools extends Record<string, Tool.Any>>(
       (turn, part) => {
         if (part._tag === "Prompt") {
           const next: Turn<Tools> = {
-            prompt: Array.from(part),
+            prompt: Array.from(part.messages),
             response: [],
           };
           return [next, turn === undefined ? [] : [turn]] as const;
@@ -25,7 +25,7 @@ export const turns = <Tools extends Record<string, Tool.Any>>(
         if (turn === undefined) {
           return [turn, []] as const;
         }
-        return [{ ...turn, response: [...turn.response, part] }, []] as const;
+        return [{ ...turn, response: [...turn.response, part.response] }, []] as const;
       },
       { onHalt: (turn) => (turn === undefined ? [] : [turn]) },
     ),
@@ -36,7 +36,7 @@ export const prompts = <Tools extends Record<string, Tool.Any>>(
 ): Stream.Stream<PromptMessage[], TrajectoryError> =>
   trajectory.parts.pipe(
     Stream.filter((part): part is PromptPart => part._tag === "Prompt"),
-    Stream.map((prompt) => Array.from(prompt)),
+    Stream.map((prompt) => Array.from(prompt.messages)),
   );
 
 export const responses = <Tools extends Record<string, Tool.Any>>(
@@ -44,6 +44,7 @@ export const responses = <Tools extends Record<string, Tool.Any>>(
 ): Stream.Stream<Response.AllPartsView<Tools>, TrajectoryError> =>
   trajectory.parts.pipe(
     Stream.filter((part): part is ResponsePart<Tools> => part._tag === "Response"),
+    Stream.map((response) => response.response),
   );
 
 export type ToolTurns<Tools extends Record<string, Tool.Any>> = {

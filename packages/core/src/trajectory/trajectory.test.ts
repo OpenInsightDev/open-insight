@@ -39,15 +39,15 @@ it.effect("preserves prompt and folded response order", () =>
     );
     if (parts[0]?._tag === "Prompt") {
       assert.deepStrictEqual(
-        parts[0].map((message) => message.role),
+        parts[0].messages.map((message) => message.role),
         ["system", "user"],
       );
     }
-    if (parts[1]?._tag === "Response" && parts[1].type === "text") {
-      assert.strictEqual(parts[1].text, "First answer");
+    if (parts[1]?._tag === "Response" && parts[1].response.type === "text") {
+      assert.strictEqual(parts[1].response.text, "First answer");
     }
-    if (parts[3]?._tag === "Response" && parts[3].type === "text") {
-      assert.strictEqual(parts[3].text, "Second answer");
+    if (parts[3]?._tag === "Response" && parts[3].response.type === "text") {
+      assert.strictEqual(parts[3].response.text, "Second answer");
     }
   }),
 );
@@ -86,8 +86,8 @@ it.effect("decodes tool calls using the merged toolkit", () =>
 
     assert.deepStrictEqual(Object.keys(trajectory.toolkit.tools), ["number"]);
     assert.strictEqual(response._tag, "Response");
-    if (response?._tag === "Response" && response.type === "tool-call") {
-      assert.deepStrictEqual(response.params, { value: 42 });
+    if (response?._tag === "Response" && response.response.type === "tool-call") {
+      assert.deepStrictEqual(response.response.params, { value: 42 });
     }
   }),
 );

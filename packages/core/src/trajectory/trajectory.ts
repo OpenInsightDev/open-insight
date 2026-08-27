@@ -1,4 +1,4 @@
-import { Effect, Match, Schema, Stream } from "effect";
+import { Data, Effect, Match, Schema, Stream } from "effect";
 import { Prompt, Tool, Response, Toolkit } from "effect/unstable/ai";
 import { foldPart, makeFoldState } from "../response/fold.ts";
 import { TrajectoryError } from "./error.ts";
@@ -11,28 +11,39 @@ export const PromptMessage = Schema.Union([
 export type PromptMessage = Schema.Schema.Type<typeof PromptMessage>;
 export type PromptMessageEncoded = Exclude<Prompt.MessageEncoded, Prompt.AssistantMessageEncoded>;
 
-export type PromptPart = ReadonlyArray<PromptMessage> & Readonly<{ _tag: "Prompt" }>;
+export const PromptPart = Schema.TaggedStruct("Prompt", {
+  messages: Schema.Array(PromptMessage),
+});
+export type PromptPart = Schema.Schema.Type<typeof PromptPart>;
+export type PromptPartEncoded = typeof PromptPart.Encoded;
 
-export type ResponsePart<Tools extends Record<string, Tool.Any>> = Response.PartView<Tools> &
-  Readonly<{ _tag: "Response" }>;
+export const ResponsePart = <T extends Toolkit.Any>(toolkit: T) =>
+  Schema.TaggedStruct("Response", {
+    response: Response.PartView(toolkit),
+  });
+export type ResponsePart<Tools extends Record<string, Tool.Any>> = Schema.Schema.Type<
+  ReturnType<typeof ResponsePart<Toolkit.Toolkit<Tools>>>
+>;
+export type ResponsePartEncoded = ReturnType<
+  typeof ResponsePart<Toolkit.Toolkit<Record<string, Tool.Any>>>
+>["Encoded"];
 
-export type Part<Tools extends Record<string, Tool.Any>> = PromptPart | ResponsePart<Tools>;
-
-const promptPart = <Tools extends Record<string, Tool.Any>>(
-  messages: ReadonlyArray<PromptMessage>,
-): Part<Tools> => Object.assign(Array.from(messages), { _tag: "Prompt" as const });
-
-const responsePart = <Tools extends Record<string, Tool.Any>>(
-  part: Response.PartView<Tools>,
-): Part<Tools> => Object.assign({ _tag: "Response" as const }, part);
+export const Part = <T extends Toolkit.Any>(toolkit: T) =>
+  Schema.Union([PromptPart, ResponsePart(toolkit)]);
+export type Part<Tools extends Record<string, Tool.Any>> = Schema.Schema.Type<
+  ReturnType<typeof Part<Toolkit.Toolkit<Tools>>>
+>;
+export type PartEncoded = ReturnType<
+  typeof Part<Toolkit.Toolkit<Record<string, Tool.Any>>>
+>["Encoded"];
 
 /**
  * A trajectory represents a sequence of turns in a conversation, where each turn consists of a prompt and the corresponding response.
  */
-export type Trajectory<Tools extends Record<string, Tool.Any>> = Readonly<{
+export class Trajectory<Tools extends Record<string, Tool.Any>> extends Data.Class<{
   toolkit: Toolkit.Toolkit<Tools>;
   parts: Stream.Stream<Part<Tools>, TrajectoryError>;
-}>;
+}> {}
 
 export type Turn<Tools extends Record<string, Tool.Any>> = Readonly<{
   prompt: PromptMessage[];
@@ -56,6 +67,7 @@ export const make = Effect.fn(function* <E, R, Toolkits extends ReadonlyArray<To
   const toolkit = Toolkit.merge(...toolkits);
   const prompt = Schema.Array(PromptMessage);
   const response = Response.AllPartsView(toolkit);
+  const partSchema = Part(toolkit);
   const sourceContext = yield* Effect.context<R>();
   const decodingContext = yield* Effect.context<typeof response.DecodingServices>();
   const decode = Match.type<PromptMessageEncoded[] | Response.AllPartsEncoded>().pipe(
@@ -78,20 +90,27 @@ export const make = Effect.fn(function* <E, R, Toolkits extends ReadonlyArray<To
     Stream.provideContext(sourceContext),
     Stream.mapError(TrajectoryError.storage),
     Stream.mapEffect(decode),
-    Stream.mapAccum(makeFoldState, (state, part) =>
-      Match.value(part).pipe(
-        Match.tag("Prompt", ({ value }) => [makeFoldState(), [promptPart(value)]] as const),
+    Stream.mapAccum(makeFoldState, (state, decodedPart) =>
+      Match.value(decodedPart).pipe(
+        Match.tag(
+          "Prompt",
+          ({ value: messages }) =>
+            [makeFoldState(), [partSchema.make({ _tag: "Prompt", messages })]] as const,
+        ),
         Match.tag("Response", ({ value }) => {
           const [next, responses] = foldPart(state, value);
-          return [next, responses.map(responsePart)] as const;
+          return [
+            next,
+            responses.map((response) => partSchema.make({ _tag: "Response", response })),
+          ] as const;
         }),
         Match.exhaustive,
       ),
     ),
   );
 
-  return {
+  return new Trajectory<Toolkit.MergedTools<Toolkits>>({
     toolkit,
     parts,
-  } satisfies Trajectory<Toolkit.MergedTools<Toolkits>>;
+  });
 });
