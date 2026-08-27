@@ -1,10 +1,6 @@
 import { Data, Schema, type Stream } from "effect";
 import * as Traj from "#/trajectory/index.ts";
-import { Response, Tool, Toolkit } from "effect/unstable/ai";
-
-type InputStream<Tools extends Record<string, Tool.Any>> = Stream.Stream<
-  Traj.PromptMessage | Response.PartView<Tools>
->;
+import { Tool, Toolkit } from "effect/unstable/ai";
 
 export type Exec<Tools extends Record<string, Tool.Any>, S extends Schema.Constraint> = (
   trajectory: Traj.Trajectory<Tools>,

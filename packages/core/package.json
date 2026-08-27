@@ -59,6 +59,8 @@
     "@effect/ai-openai": "catalog:",
     "@effect/opentelemetry": "catalog:",
     "ai": "catalog:",
+    "@effect/sql-clickhouse": "catalog:",
+    "chdb": "catalog:",
     "eta": "^4.6.0",
     "ipaddr.js": "catalog:",
     "openai": "catalog:",

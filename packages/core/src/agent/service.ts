@@ -46,12 +46,12 @@ const makeAgent = Effect.fn("Agent.makeAgent")(function* ({
   prompt: promptFn,
 }: AgentOptions): Effect.fn.Return<Agent, AgentError> {
   const trajectory = yield* Ref.make<Prompt.Prompt>(Prompt.empty);
-  const semaphore = Semaphore.makeUnsafe(1);
+  const promptSem = Semaphore.makeUnsafe(1);
   const decodePart = Schema.decodeEffect(Response.StreamPart(Toolkit.empty));
 
   const prompt = (prompt: Prompt.Prompt) =>
     Effect.gen(function* () {
-      yield* semaphore.take(1);
+      yield* promptSem.take(1);
       const current = yield* Ref.get(trajectory);
       const nextTrajectory = Prompt.concat(current, prompt);
 
@@ -68,7 +68,7 @@ const makeAgent = Effect.fn("Agent.makeAgent")(function* ({
         Stream.ensuring(
           Effect.andThen(
             Ref.set(trajectory, Prompt.concat(nextTrajectory, Prompt.fromResponseParts(parts))),
-            semaphore.release(1),
+            promptSem.release(1),
           ),
         ),
       );
