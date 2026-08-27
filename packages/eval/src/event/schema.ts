@@ -1,7 +1,6 @@
 import { Schema } from "effect";
 import * as Chart from "#/chart/index.ts";
 import * as Task from "#/task/index.ts";
-import * as Metric from "#/metric/index.ts";
 import * as Bench from "#/bench/index.ts";
 import { Harness } from "@open-insight/core/internal";
 import { Prompt, Response } from "@open-insight/core/internal";
@@ -114,17 +113,14 @@ export class TrailEndEvent extends Schema.TaggedClass<TrailEndEvent>()("TrailEnd
   grade: Schema.Unknown,
 }) {}
 
-export class SchedMetrticEvent extends Schema.TaggedClass<SchedMetrticEvent>()(
-  "SchedMetrticEvent",
-  {
-    id: TrailID,
-    metricID: Schema.String,
-    chart: Chart.Points,
-  },
-) {}
+export class SchedMetricEvent extends Schema.TaggedClass<SchedMetricEvent>()("SchedMetricEvent", {
+  id: TrailID,
+  metricID: Schema.String,
+  chart: Chart.Points,
+}) {}
 
-export class SchedMetrticErrorEvent extends Schema.TaggedClass<SchedMetrticErrorEvent>()(
-  "SchedMetrticErrorEvent",
+export class SchedMetricErrorEvent extends Schema.TaggedClass<SchedMetricErrorEvent>()(
+  "SchedMetricErrorEvent",
   {
     id: TrailID,
     metricID: Schema.String,
@@ -135,8 +131,8 @@ export class SchedMetrticErrorEvent extends Schema.TaggedClass<SchedMetrticError
 export const TrailSuccessEvent = Schema.Union([
   TrailStartEvent,
   SessionSuccessEvent,
-  SchedMetrticEvent,
-  SchedMetrticErrorEvent,
+  SchedMetricEvent,
+  SchedMetricErrorEvent,
   TrailEndEvent,
 ]);
 export type TrailSuccessEvent = Schema.Schema.Type<typeof TrailSuccessEvent>;

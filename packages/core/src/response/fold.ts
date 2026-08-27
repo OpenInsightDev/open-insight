@@ -37,8 +37,8 @@ const parse = (value: string): unknown => {
 
 const step = <Tools extends Record<string, Tool.Any>>(
   state: State,
-  part: Response.StreamPart<Tools>,
-): readonly [State, ReadonlyArray<Response.Part<Tools>>] => {
+  part: Response.AllPartsView<Tools>,
+): readonly [State, ReadonlyArray<Response.PartView<Tools>>] => {
   switch (part.type) {
     case "text-start":
       return [update(state, part.id, { kind: "text", value: "", metadata: part.metadata }), []];
@@ -97,7 +97,7 @@ const step = <Tools extends Record<string, Tool.Any>>(
               Response.makePart(kind, {
                 text: current.value,
                 metadata: metadata(current.metadata, part.metadata),
-              }) as Response.Part<Tools>,
+              }) as Response.PartView<Tools>,
             ],
           ]
         : [state, []];
@@ -114,7 +114,7 @@ const step = <Tools extends Record<string, Tool.Any>>(
                 params: parse(current.value),
                 providerExecuted: current.providerExecuted,
                 metadata: metadata(current.metadata, part.metadata),
-              }) as Response.Part<Tools>,
+              }) as Response.PartView<Tools>,
             ],
           ]
         : [state, []];
@@ -122,13 +122,20 @@ const step = <Tools extends Record<string, Tool.Any>>(
     case "error":
       return [state, []];
     default:
-      return [state, [part as Response.Part<Tools>]];
+      return [state, [part as Response.PartView<Tools>]];
   }
 };
 
-export const fold = <Tools extends Record<string, Tool.Any>, E, R>(
-  stream: Stream.Stream<Response.StreamPart<Tools>, E, R>,
-): Stream.Stream<Response.Part<Tools>, E, R> =>
-  stream.pipe(
-    Stream.mapAccum<State, Response.StreamPart<Tools>, Response.Part<Tools>>(() => new Map(), step),
+export function fold<Tools extends Record<string, Tool.Any>, E, R>(
+  stream: Stream.Stream<Response.AllParts<Tools>, E, R>,
+): Stream.Stream<Response.Part<Tools>, E, R>;
+export function fold<Tools extends Record<string, Tool.Any>, E, R>(
+  stream: Stream.Stream<Response.AllPartsView<Tools>, E, R>,
+): Stream.Stream<Response.PartView<Tools>, E, R> {
+  return stream.pipe(
+    Stream.mapAccum<State, Response.AllPartsView<Tools>, Response.PartView<Tools>>(
+      () => new Map(),
+      step,
+    ),
   );
+}

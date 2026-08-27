@@ -42,7 +42,7 @@ const makeSession = Effect.fn(
 
     type Turn = Readonly<{
       prompt: Prompt.Prompt;
-      response: Stream.Stream<Response.StreamPart<any>, EvalError>;
+      response: Stream.Stream<Response.StreamPartView<any>, EvalError>;
     }>;
     const turns = yield* Stream.callback<Turn, EvalError>(
       Effect.fn(function* (queue) {
@@ -270,10 +270,10 @@ const makeTrail = Effect.fn(
       schedMetrics.map(({ metadata, repeat, transform }) => {
         const stream = Metric.Sched.fromRepeat(repeat);
         return transform({ sandbox, stream }).pipe(
-          Stream.map((chart) => Event.SchedMetrticEvent.make({ id, metricID: metadata.id, chart })),
+          Stream.map((chart) => Event.SchedMetricEvent.make({ id, metricID: metadata.id, chart })),
           Stream.catch((error) =>
             Stream.succeed(
-              Event.SchedMetrticErrorEvent.make({
+              Event.SchedMetricErrorEvent.make({
                 id,
                 metricID: metadata.id,
                 error,

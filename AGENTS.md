@@ -44,10 +44,11 @@ If you need to learn more about particular Effect apis and concepts that the gui
 ### Code Quality
 
 - **Code quality is top priority**: Code that merely "works" but has messy, convoluted design is STILL unacceptable. Deliver clean, minimal, and well-structured code — nothing more, nothing less.
-- **Do NOT be "smart"**: Do NOT make extra designs or additions that the user did NOT explicitly request.
+- **Do not be "smart"**: Do NOT make extra designs or additions that the user did NOT explicitly request.
 - **No unnecessary abstractions**: Do NOT add forward compatibility layers, premature generalization, or speculative features unless explicitly asked.
+- **DO NOT dig for outdated implementations** unless explicitly asked. Always implement features from a fresh, simplest perspective.
 
 ### Effect
 
-- **Effect Task Rule**: Follow `effect-ts` skill first. All Effect answers MUST include source landing (file path + code). **STRICTLY FORBIDDEN** to fabricate APIs from memory — always read source first.
-- **Effect Code Quality**: Final code MUST use correct Effect APIs and style per `node_modules/effect/AGENTS.md`: `Effect.gen`/`Effect.fn`, `Match.tag`, `Equal.equals`, `Schema.TaggedError`, proper service patterns, Effect data structures. Naive implementations OK during exploration, but refactor before delivery.
+- **Effect Task Rule**: All Effect answers MUST include `packages/effect` source landing (file path + code). **STRICTLY FORBIDDEN** to fabricate APIs from memory. Always read source first.
+- **Effect Code Quality**: Final code MUST use correct Effect APIs and style: `Effect.gen`/`Effect.fn`, `Match.tag`, `Equal.equals`, `Schema.TaggedError`, proper service patterns, Effect data structures. Naive implementations OK during exploration, but must refactor before delivery.
