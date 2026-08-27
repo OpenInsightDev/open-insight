@@ -4,23 +4,29 @@ import * as Task from "./task.ts";
 import { hasProperty } from "effect/Predicate";
 import type { Override } from "#/utils/type.ts";
 import { TaskError } from "./error.ts";
-import type { TrailResult } from "./trail.ts";
+import type { Trajectory, Response } from "@open-insight/core/internal";
+
+export type SessionResult = Readonly<{
+  trajectory: Trajectory.Trajectory<any>;
+  usage: Response.Usage | null;
+}>;
+
+export class TrailResult<G extends Schema.Constraint> extends Data.TaggedClass("TrailResult")<{
+  grade: G["Type"];
+  sessions: Array<SessionResult>;
+}> {}
 
 export class TaskResult<S extends Schema.Constraint = any> extends Data.TaggedClass("TaskResult")<{
   id: string;
   result: S["Type"];
 }> {}
 
-export type FnOptions<
-  G extends Schema.Constraint,
-  T extends Schema.Constraint,
-  S extends Schema.Constraint,
-> = BivariantFn<(trails: ReadonlyArray<TrailResult<G, T>>) => S["Type"] | PromiseLike<S["Type"]>>;
-export type Fn<
-  G extends Schema.Constraint,
-  T extends Schema.Constraint,
-  S extends Schema.Constraint,
-> = (trails: ReadonlyArray<TrailResult<G, T>>) => Effect.Effect<TaskResult<S>, TaskError>;
+export type FnOptions<G extends Schema.Constraint, S extends Schema.Constraint> = BivariantFn<
+  (trails: ReadonlyArray<TrailResult<G>>) => S["Type"] | PromiseLike<S["Type"]>
+>;
+export type Fn<G extends Schema.Constraint, S extends Schema.Constraint> = (
+  trails: ReadonlyArray<TrailResult<G>>,
+) => Effect.Effect<TaskResult<S>, TaskError>;
 
 const makeFn =
   <G extends Schema.Constraint, S extends Schema.Constraint>(
