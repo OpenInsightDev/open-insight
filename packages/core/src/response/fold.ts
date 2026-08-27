@@ -35,7 +35,9 @@ const parse = (value: string): unknown => {
   }
 };
 
-const step = <Tools extends Record<string, Tool.Any>>(
+export const makeFoldState = (): State => new Map();
+
+export const foldPart = <Tools extends Record<string, Tool.Any>>(
   state: State,
   part: Response.AllPartsView<Tools>,
 ): readonly [State, ReadonlyArray<Response.PartView<Tools>>] => {
@@ -137,8 +139,8 @@ export function fold<Tools extends Record<string, Tool.Any>, E, R>(
 ): Stream.Stream<Response.PartView<Tools>, E, R> {
   return stream.pipe(
     Stream.mapAccum<State, Response.AllPartsView<Tools>, Response.PartView<Tools>>(
-      () => new Map(),
-      step,
+      makeFoldState,
+      foldPart,
     ),
   );
 }

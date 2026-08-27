@@ -1,5 +1,5 @@
-import { Effect, Stream } from "effect";
-import { Prompt, Tool, Response } from "effect/unstable/ai";
+import { Stream } from "effect";
+import { Tool, Response } from "effect/unstable/ai";
 import { TrajectoryError } from "./error.ts";
 import type { Trajectory } from "./trajectory.ts";
 import { responses } from "./view.ts";
@@ -58,21 +58,3 @@ export const toolCalls = <Tools extends Record<string, Tool.Any>>(
   trajectory: Trajectory<Tools>,
 ): Stream.Stream<Response.ToolCallPartsView<Tools>, TrajectoryError> =>
   toolTurns(trajectory).pipe(Stream.map((turn) => turn.call));
-
-export const messages = <Tools extends Record<string, Tool.Any>>(
-  trajectory: Trajectory<Tools>,
-): Stream.Stream<Prompt.Message, TrajectoryError> =>
-  trajectory.turns().pipe(
-    Stream.flatMap((turn) =>
-      Stream.fromIterable(turn.prompt).pipe(
-        Stream.concat(
-          turn.response.pipe(
-            Stream.runCollect,
-            Effect.map((parts) => Prompt.fromResponseParts(Array.from(parts)).content),
-            Stream.fromEffect,
-            Stream.flatMap(Stream.fromIterable),
-          ),
-        ),
-      ),
-    ),
-  );

@@ -22,6 +22,7 @@ export class Task<
 }> {}
 
 export type GradeOf<T> = T extends Task<infer _, infer G> ? G : never;
+export type IdOf<T> = T extends Task<infer ID, infer _> ? ID : never;
 
 export type Any = Task<any, any>;
 
