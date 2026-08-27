@@ -31,7 +31,7 @@ it.effect("preserves prompt and folded response order", () =>
       ]),
     );
 
-    const parts = yield* trajectory.parts().pipe(Stream.runCollect);
+    const parts = yield* trajectory.parts.pipe(Stream.runCollect);
 
     assert.deepStrictEqual(
       parts.map((part) => part._tag),
@@ -56,9 +56,7 @@ it.effect("emits a prompt while the source stream remains open", () =>
   Effect.gen(function* () {
     const queue = yield* Queue.make<Encoded>();
     const trajectory = yield* make(Stream.fromQueue(queue));
-    const first = yield* trajectory
-      .parts()
-      .pipe(Stream.take(1), Stream.runCollect, Effect.forkChild);
+    const first = yield* trajectory.parts.pipe(Stream.take(1), Stream.runCollect, Effect.forkChild);
 
     yield* Queue.offer(queue, [{ role: "user", content: "Question" }]);
     const parts = yield* Fiber.join(first);
@@ -83,7 +81,7 @@ it.effect("decodes tool calls using the merged toolkit", () =>
       toolkit,
     );
 
-    const parts = yield* trajectory.parts().pipe(Stream.runCollect);
+    const parts = yield* trajectory.parts.pipe(Stream.runCollect);
     const response = parts[1];
 
     assert.deepStrictEqual(Object.keys(trajectory.toolkit.tools), ["number"]);
@@ -101,7 +99,7 @@ it.effect("maps source failures to storage errors", () =>
     ]).pipe(Stream.concat(Stream.fail("disk unavailable")));
     const trajectory = yield* make(stream);
 
-    const error = yield* trajectory.parts().pipe(Stream.runCollect, Effect.flip);
+    const error = yield* trajectory.parts.pipe(Stream.runCollect, Effect.flip);
 
     assert.strictEqual(error.reason._tag, "StorageFailed");
     assert.strictEqual(error.reason.cause, "disk unavailable");
@@ -123,7 +121,7 @@ it.effect("maps schema failures to decode errors", () =>
       toolkit,
     );
 
-    const error = yield* trajectory.parts().pipe(Stream.runCollect, Effect.flip);
+    const error = yield* trajectory.parts.pipe(Stream.runCollect, Effect.flip);
 
     assert.strictEqual(error.reason._tag, "DecodeFailed");
   }),

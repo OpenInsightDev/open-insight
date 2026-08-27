@@ -31,7 +31,7 @@ const responsePart = <Tools extends Record<string, Tool.Any>>(
  */
 export type Trajectory<Tools extends Record<string, Tool.Any>> = Readonly<{
   toolkit: Toolkit.Toolkit<Tools>;
-  parts: () => Stream.Stream<Part<Tools>, TrajectoryError>;
+  parts: Stream.Stream<Part<Tools>, TrajectoryError>;
 }>;
 
 export type Turn<Tools extends Record<string, Tool.Any>> = Readonly<{
@@ -92,6 +92,6 @@ export const make = Effect.fn(function* <E, R, Toolkits extends ReadonlyArray<To
 
   return {
     toolkit,
-    parts: () => parts,
+    parts,
   } satisfies Trajectory<Toolkit.MergedTools<Toolkits>>;
 });

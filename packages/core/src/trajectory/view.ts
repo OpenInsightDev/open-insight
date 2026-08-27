@@ -11,7 +11,7 @@ export type Turn<Tools extends Record<string, Tool.Any>> = Readonly<{
 export const turns = <Tools extends Record<string, Tool.Any>>(
   trajectory: Trajectory<Tools>,
 ): Stream.Stream<Turn<Tools>, TrajectoryError> =>
-  trajectory.parts().pipe(
+  trajectory.parts.pipe(
     Stream.mapAccum<Turn<Tools> | undefined, Part<Tools>, Turn<Tools>>(
       () => undefined,
       (turn, part) => {
@@ -34,7 +34,7 @@ export const turns = <Tools extends Record<string, Tool.Any>>(
 export const prompts = <Tools extends Record<string, Tool.Any>>(
   trajectory: Trajectory<Tools>,
 ): Stream.Stream<PromptMessage[], TrajectoryError> =>
-  trajectory.parts().pipe(
+  trajectory.parts.pipe(
     Stream.filter((part): part is PromptPart => part._tag === "Prompt"),
     Stream.map((prompt) => Array.from(prompt)),
   );
@@ -42,9 +42,9 @@ export const prompts = <Tools extends Record<string, Tool.Any>>(
 export const responses = <Tools extends Record<string, Tool.Any>>(
   trajectory: Trajectory<Tools>,
 ): Stream.Stream<Response.AllPartsView<Tools>, TrajectoryError> =>
-  trajectory
-    .parts()
-    .pipe(Stream.filter((part): part is ResponsePart<Tools> => part._tag === "Response"));
+  trajectory.parts.pipe(
+    Stream.filter((part): part is ResponsePart<Tools> => part._tag === "Response"),
+  );
 
 export type ToolTurns<Tools extends Record<string, Tool.Any>> = {
   [Name in keyof Tools]: Name extends string
