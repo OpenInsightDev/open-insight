@@ -6,10 +6,10 @@ import type { Override } from "#/utils/type.ts";
 import { TaskError } from "./error.ts";
 import type { Trajectory, Response } from "@open-insight/core/internal";
 
-export type SessionResult = Readonly<{
+export class SessionResult extends Data.TaggedClass("SessionResult")<{
   trajectory: Trajectory.Trajectory<any>;
   usage: Response.Usage | null;
-}>;
+}> {}
 
 export class TrailResult<G extends Schema.Constraint> extends Data.TaggedClass("TrailResult")<{
   grade: G["Type"];

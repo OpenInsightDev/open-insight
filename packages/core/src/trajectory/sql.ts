@@ -13,7 +13,7 @@ export class TrajectoryPart extends Model.Class<TrajectoryPart>("TrajectoryPart"
   trajectoryId: TrajectoryId,
   seq: Schema.Int,
   payload: Schema.Unknown,
-  createdAt: Model.DateTimeInsertFromDate,
+  createdAt: Model.DateTimeInsert,
 }) {}
 
 const DEFAULT_PAGE_SIZE = 200;

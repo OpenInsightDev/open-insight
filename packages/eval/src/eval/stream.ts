@@ -21,7 +21,6 @@ import { type Any } from "./eval.ts";
 import * as Task from "#/task/index.ts";
 import * as Bench from "#/bench/index.ts";
 import * as Event from "#/event/index.ts";
-import * as Metric from "#/metric/index.ts";
 import { Harness, Prompt, Sandbox, Response } from "@open-insight/core/internal";
 import { EvalError } from "./error.ts";
 import * as Config from "./config.ts";
@@ -108,31 +107,6 @@ const makeSession = Effect.fn(
       ),
     );
 
-    const metricInput = yield* turns
-      .pipe(
-        Stream.flatMap(({ prompt, response }) =>
-          Stream.empty.pipe(
-            Stream.concat(Stream.succeed(prompt)),
-            Stream.concat(Response.fold(response)),
-          ),
-        ),
-      )
-      .pipe(Stream.share({ capacity: "unbounded" }));
-
-    // const metricEvents = Stream.mergeAll(
-    //   trajMetrics.map(({ metadata, transform }) =>
-    //     metricInput.pipe(
-    //       transform,
-    //       Stream.catchTag("MetricError", (error) => Stream.fail(EvalError.metric(error))),
-    //       Stream.map((result) =>
-    //         Event.TrajMetricEvent.make({ id, metricID: metadata.id, chart: result }),
-    //       ),
-    //     ),
-    //   ),
-    //   { concurrency: "unbounded" },
-    // );
-    const metricEvents = Stream.empty.pipe(Stream.onStart(Stream.runCollect(metricInput)));
-
     const endEvent = Effect.all([Ref.get(finishRef), Ref.get(usageRef)]).pipe(
       Effect.map(([reason, usage]) => Event.SessionEndEvent.make({ id, reason, usage })),
       Stream.fromEffect,
@@ -153,7 +127,6 @@ const makeSession = Effect.fn(
       Stream.concat(turnEvents),
       Stream.concat(endEvent),
       Stream.concat(result),
-      Stream.merge(metricEvents),
     );
   },
   (eff, { id }) =>
@@ -266,30 +239,7 @@ const makeTrail = Effect.fn(
     const agentSession = yield* sbxSession.runAgent().pipe(Effect.mapError(EvalError.harness));
     const attemptEvents = makeAttempt({ agentSession, sessionIdx: 0 }).pipe(Stream.provide(prompt));
 
-    const metricEvents = Stream.mergeAll(
-      schedMetrics.map(({ metadata, repeat, transform }) => {
-        const stream = Metric.Sched.fromRepeat(repeat);
-        return transform({ sandbox, stream }).pipe(
-          Stream.map((chart) => Event.SchedMetricEvent.make({ id, metricID: metadata.id, chart })),
-          Stream.catch((error) =>
-            Stream.succeed(
-              Event.SchedMetricErrorEvent.make({
-                id,
-                metricID: metadata.id,
-                error,
-              }),
-            ),
-          ),
-        );
-      }),
-      { concurrency: "unbounded" },
-    );
-
-    return Stream.empty.pipe(
-      Stream.concat(startEvent),
-      Stream.concat(attemptEvents),
-      Stream.merge(metricEvents),
-    );
+    return Stream.empty.pipe(Stream.concat(startEvent), Stream.concat(attemptEvents));
   },
   (eff, { id }) =>
     eff.pipe(
