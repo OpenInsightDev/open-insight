@@ -3,7 +3,7 @@ import { Task, Bench, Grade } from "#/export.ts";
 import { Tool, Toolkit } from "effect/unstable/ai";
 
 const taskA = Task.make("taskA", {
-  prompt: { init: [] },
+  prompt: [{ role: "user", content: "Hello, world!" }],
   grader: Grade.embed(
     Schema.Struct({ passed: Schema.Boolean }), //
     async () => ({ passed: true }),
@@ -18,10 +18,22 @@ const taskA = Task.make("taskA", {
       Tool.make("toolA", {}), //
     ),
   ),
+  Task.mapGrade((prev) =>
+    Grade.embed(
+      prev.schema.mapFields((fields) => ({
+        ...fields,
+        count: Schema.Number,
+      })),
+      async () => ({
+        passed: true,
+        count: 1,
+      }),
+    ),
+  ),
 );
 
 const taskB = Task.make("taskB", {
-  prompt: { init: [] },
+  prompt: [],
   grader: Grade.embed(
     Schema.Struct({ count: Schema.Number }), //
     async () => ({ count: 1 }),

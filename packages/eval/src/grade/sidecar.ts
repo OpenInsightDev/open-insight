@@ -1,9 +1,10 @@
-import { Prompt, Resource, Sandbox, type Snapshot } from "@open-insight/core/internal";
+import { Prompt, Resource, Sandbox, Trajectory, type Snapshot } from "@open-insight/core/internal";
 import type { BivariantFn } from "#/utils/variant.ts";
 import type { Verif } from "./verif.ts";
 import { Effect, FiberSet, FileSystem, Path, Schema, Scope } from "effect";
 import * as Retry from "./retry.ts";
 import type { GradeError } from "./error.ts";
+import type { Tool } from "effect/unstable/ai";
 
 export type SandboxScope = "per-task" | "per-trail";
 
@@ -14,15 +15,15 @@ type TransferOptions = Readonly<{
   gradePath?: string;
 }>;
 
-export type Context = Sandbox.SandboxPromise &
+export type Context<Tools extends Record<string, Tool.Any>> = Sandbox.Sandbox &
   Readonly<{
     /** The sandbox in which the agent performed the task. */
-    agent: Sandbox.SandboxPromise;
+    agent: Sandbox.Sandbox;
 
     /** Trasfer a file or directory from the agent sandbox to the grade sandbox. */
     transfer(options: TransferOptions): Promise<void>;
 
-    trajectory: Prompt.Trajectory;
+    trajectory: Trajectory.Trajectory<Tools>;
   }>;
 
 const makeTransfer = ({ agent, grade }: { agent: Sandbox.Sandbox; grade: Sandbox.Sandbox }) =>

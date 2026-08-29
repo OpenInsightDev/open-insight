@@ -1,27 +1,37 @@
-import { Prompt, Sandbox } from "@open-insight/core/internal";
+import { Trajectory, Sandbox } from "@open-insight/core/internal";
 import type { BivariantFn } from "#/utils/variant.ts";
 import { Effect, Schema, Scope } from "effect";
 import { GradeError } from "./error.ts";
 import { type Verif } from "./verif.ts";
 import * as Retry from "./retry.ts";
+import type { Tool } from "effect/unstable/ai";
 
-export type Context = Sandbox.SandboxPromise &
+export type Context<Tools extends Record<string, Tool.Any>> = Sandbox.SandboxPromise &
   Readonly<{
-    trajectory: Prompt.Trajectory;
+    trajectory: Trajectory.Trajectory<Tools>;
   }>;
 
-export type Exec<R extends Schema.Constraint = any> = BivariantFn<
-  (ctx: Context) => PromiseLike<R["Type"]>
->;
+export type Exec<
+  Tools extends Record<string, Tool.Any>,
+  R extends Schema.Constraint = any,
+> = BivariantFn<(ctx: Context<Tools>) => PromiseLike<R["Type"]>>;
 
-export type Grader<R extends Schema.Constraint = any> = Readonly<{
-  grade: Exec<R>;
+export type Grader<
+  Tools extends Record<string, Tool.Any>,
+  R extends Schema.Constraint = any,
+> = Readonly<{
+  grade: Exec<Tools, R>;
   verif: Verif<R> | null;
 }>;
 
-export type MakeContextOptions = Readonly<{
+// export type MakeContextOptions<Tools extends Record<string, Tool.Any>> = Readonly<{
+//   sandbox: Sandbox.Sandbox;
+//   trajectory: Trajectory.Trajectory<Tools>;
+// }>;
+
+type Options<Tools extends Record<string, Tool.Any>> = Readonly<{
   sandbox: Sandbox.Sandbox;
-  trajectory: Prompt.Trajectory;
+  trajectory: Trajectory.Trajectory<Tools>;
 }>;
 
 export const makeContext = Effect.fn(function* ({
