@@ -1,5 +1,6 @@
-import { Data, Schema, Stream } from "effect";
+import { Data, Effect, Schema, Stream } from "effect";
 import { Prompt, Tool, Response, Toolkit } from "effect/unstable/ai";
+import { foldPart, makeFoldState } from "../response/fold.ts";
 import { TrajectoryError } from "./error.ts";
 
 /**
@@ -23,10 +24,9 @@ export const ResponsePart = <T extends Toolkit.Any>(toolkit: T) =>
   Schema.TaggedStruct("Response", {
     response: Response.PartView(toolkit),
   });
-export type ResponsePart<Tools extends Record<string, Tool.Any>> = Readonly<{
-  _tag: "Response";
-  response: Response.PartView<Tools>;
-}>;
+export type ResponsePart<Tools extends Record<string, Tool.Any>> = Schema.Schema.Type<
+  ReturnType<typeof ResponsePart<Toolkit.Toolkit<Tools>>>
+>;
 export type ResponsePartEncoded = Readonly<{
   _tag: "Response";
   response: Response.PartEncoded;
@@ -35,10 +35,7 @@ export type ResponsePartEncoded = Readonly<{
 export const Part = <T extends Toolkit.Any>(toolkit: T) =>
   Schema.Union([PromptPart, ResponsePart(toolkit)]);
 export type Part<Tools extends Record<string, Tool.Any>> = PromptPart | ResponsePart<Tools>;
-
-export type PartEncoded = ReturnType<
-  typeof Part<Toolkit.Toolkit<Record<string, Tool.Any>>>
->["Encoded"];
+export type PartEncoded = PromptPartEncoded | ResponsePartEncoded;
 
 /**
  * A trajectory represents a sequence of turns in a conversation, where each turn consists of a prompt and the corresponding response.
@@ -48,3 +45,61 @@ export class Trajectory<Tools extends Record<string, Tool.Any>> extends Data.Cla
   parts: Stream.Stream<Part<Tools>, TrajectoryError>;
 }> {}
 export type Any = Trajectory<any>;
+
+export class TrajectoryEncoded extends Data.Class<{
+  parts: Stream.Stream<PartEncoded, TrajectoryError>;
+}> {}
+
+export type EncodedStream<E, R> = Stream.Stream<
+  PromptMessageEncoded[] | Response.AllPartsEncoded,
+  E,
+  R
+>;
+
+export const makeEncoded = Effect.fn(function* <E, R>(stream: EncodedStream<E, R>) {
+  const sourceContext = yield* Effect.context<R>();
+  const toolkit = Toolkit.empty;
+  const decodeResponse = Schema.decodeEffect(Response.AllPartsView(toolkit));
+  const encodeResponse = Schema.encodeEffect(Response.PartView(toolkit));
+
+  const parts = stream.pipe(
+    Stream.provideContext(sourceContext),
+    Stream.mapError(TrajectoryError.storage),
+    Stream.mapEffect((part) =>
+      Effect.gen(function* () {
+        if (Array.isArray(part)) {
+          return part;
+        }
+        return yield* decodeResponse(part).pipe(Effect.mapError(TrajectoryError.decode));
+      }),
+    ),
+    Stream.mapAccum<
+      ReturnType<typeof makeFoldState>,
+      PromptMessageEncoded[] | Response.AllPartsView<Toolkit.Tools<typeof toolkit>>,
+      PromptPartEncoded | ResponsePart<Toolkit.Tools<typeof toolkit>>
+    >(makeFoldState, (state, part) => {
+      if (Array.isArray(part)) {
+        return [makeFoldState(), [{ _tag: "Prompt", messages: part }]] as const;
+      }
+
+      const [next, responses] = foldPart(state, part);
+      return [
+        next,
+        responses.map((response) => ({ _tag: "Response", response }) as const),
+      ] as const;
+    }),
+    Stream.mapEffect((part) =>
+      Effect.gen(function* () {
+        if (part._tag === "Prompt") {
+          return part;
+        }
+        const response = yield* encodeResponse(part.response).pipe(
+          Effect.mapError(TrajectoryError.decode),
+        );
+        return { _tag: "Response", response } as const;
+      }),
+    ),
+  );
+
+  return new TrajectoryEncoded({ parts });
+});

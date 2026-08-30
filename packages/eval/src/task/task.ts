@@ -1,6 +1,7 @@
 import { Prompt, Resource, Snapshot } from "@open-insight/core/internal";
 import * as Grade from "#/grade/index.ts";
 import { Data, Effect, Match, Schema } from "effect";
+import * as Result from "./result.ts";
 
 export class Metadata extends Schema.Class<Metadata>("Metadata")({
   name: Schema.OptionFromOptionalNullOr(Schema.String),
@@ -10,7 +11,7 @@ export type MetadataEncoded = Schema.Codec.Encoded<typeof Metadata>;
 
 export class Task<
   ID extends string = string,
-  G extends Schema.Constraint = any,
+  Grader extends Grade.Any = Grade.Any,
 > extends Data.TaggedClass("Task")<{
   id: ID;
   metadata: Metadata;
@@ -18,7 +19,8 @@ export class Task<
   prompt: Prompt.Turns;
   snapshot: Snapshot.Template;
   resources: Resource.Resources;
-  grader: Grade.Grader<G>;
+  grader: Grader;
+  result: ResultFn<GradeResult>;
 }> {}
 
 export type GradeOf<T> = T extends Task<infer _, infer G> ? G : never;

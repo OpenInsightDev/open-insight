@@ -21,6 +21,7 @@ export type Grader<
     verif: Option.Option<Verif.Verif<Result>>;
     toolkit: Toolkit.Toolkit<Tools>;
   }>;
+export type Any = Grader<any, any>;
 
 export type Options<
   Result extends Schema.Constraint,
@@ -132,7 +133,7 @@ export const makeRun = Effect.fn(function* <
           trajectory,
         });
         return yield* grader(context);
-      }, Effect.scoped);
+      }, Effect.scoped); // self scoped
     }
 
     case "TaskSidecar": {

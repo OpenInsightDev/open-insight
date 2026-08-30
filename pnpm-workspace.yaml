@@ -6,6 +6,12 @@ packages:
 
 catalogMode: strict
 
+registries:
+  "https://npm.jsr.io":
+    serverType: npm
+    scopes:
+      - "@jsr"
+
 catalog:
   "@types/node": ^26.1.1
   effect: 4.0.0-rc.110
