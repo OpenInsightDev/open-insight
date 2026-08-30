@@ -20,9 +20,7 @@ export type Exec<
 export type Grader<
   Result extends Schema.Constraint = any,
   Tools extends Record<string, Tool.Any> = any,
-> = Readonly<{
-  grade: Exec<Result, Tools, GradeError>;
-}>;
+> = Exec<Result, Tools, GradeError>;
 
 export type Options<
   Result extends Schema.Constraint = any,
@@ -40,8 +38,12 @@ export const make = Effect.fn(function* <
   R,
 >({ grade: gradeOption }: Options<Result, Tools, E, R>) {
   const ctx = yield* Effect.context<R>();
-  return {
-    grade: (context) =>
-      gradeOption(context).pipe(Effect.mapError(GradeError.exec), Effect.provide(ctx)),
-  } satisfies Grader<Result, Tools>;
+
+  const exec = ((context) =>
+    gradeOption(context).pipe(
+      Effect.mapError(GradeError.exec),
+      Effect.provide(ctx),
+    )) satisfies Exec<Result, Tools, GradeError>;
+
+  return exec;
 });

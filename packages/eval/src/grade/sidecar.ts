@@ -110,13 +110,13 @@ export type Exec<
 export type Grader<
   Result extends Schema.Constraint = any,
   Tools extends Record<string, Tool.Any> = any,
-> = Readonly<{
-  grade: Exec<Result, Tools, GradeError>;
-  snapshot: Snapshot.Template;
-  resources: Resource.Resources;
-  scope: SandboxScope;
-  concurrency: number;
-}>;
+> = Exec<Result, Tools, GradeError> &
+  Readonly<{
+    snapshot: Snapshot.Template;
+    resources: Resource.Resources;
+    scope: SandboxScope;
+    concurrency: number;
+  }>;
 
 export type Options<
   Result extends Schema.Constraint = any,
@@ -143,12 +143,17 @@ export const make = Effect.fn(function* <
   concurrency = 1,
 }: Options<Result, Tools, E, R>) {
   const ctx = yield* Effect.context<R>();
-  return {
-    grade: (context) =>
-      gradeOption(context).pipe(Effect.mapError(GradeError.exec), Effect.provide(ctx)),
+
+  const exec = ((context: Context<Tools>) =>
+    gradeOption(context).pipe(
+      Effect.mapError(GradeError.exec),
+      Effect.provide(ctx),
+    )) satisfies Exec<Result, Tools, GradeError>;
+
+  return Object.assign(exec, {
     snapshot,
     resources,
     scope,
     concurrency,
-  } satisfies Grader<Result, Tools>;
+  }) satisfies Grader<Result, Tools>;
 });
