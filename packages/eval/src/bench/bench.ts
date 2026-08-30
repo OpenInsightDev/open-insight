@@ -19,10 +19,7 @@ export type TasksOf<B> = B extends Bench<any, infer Tasks> ? Tasks : never;
 
 export type Any = Bench<string, Record<string, Task.Any>>;
 
-type Options<ID extends string> = Omit<MetadataEncoded, "id"> &
-  Readonly<{
-    id: ID;
-  }>;
+type Options<ID extends string> = Omit<MetadataEncoded, "id"> & Readonly<{ id: ID }>;
 export const fromArray = <ID extends string, Tasks extends ReadonlyArray<Task.Any>>(
   options: Options<ID>,
   tasks: Tasks,
