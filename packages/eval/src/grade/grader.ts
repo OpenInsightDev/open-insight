@@ -22,6 +22,8 @@ export type Grader<
     toolkit: Toolkit.Toolkit<Tools>;
   }>;
 export type Any = Grader<any, any>;
+export type ResultOf<G> = G extends Grader<infer R, any> ? R : never;
+export type ToolsOf<G> = G extends Grader<any, infer T> ? T : never;
 
 export type Options<
   Result extends Schema.Constraint,

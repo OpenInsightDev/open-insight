@@ -1,6 +1,6 @@
 import { Data, Effect, Schema, Stream } from "effect";
 import { Prompt, Tool, Response, Toolkit } from "effect/unstable/ai";
-import { foldPart, makeFoldState } from "../response/fold.ts";
+import { foldPart, makeFoldState } from "#/response/index.ts";
 import { TrajectoryError } from "./error.ts";
 
 /**
