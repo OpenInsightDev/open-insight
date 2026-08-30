@@ -66,4 +66,4 @@ export const make = (options: MakeOptions = {}): Resources => {
   });
 };
 
-export const empty = make();
+export const providerDefault = make();

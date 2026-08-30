@@ -17,400 +17,395 @@ export type Options = Readonly<{
 const formatSandboxCommand = ({ command, args = [] }: Sandbox.Spawn.Command) =>
   [command, ...args].map(Bash.quote).join(" ");
 
-export const make = Effect.fn("sandbox/provider/docker")(
-  function* ({
-    ports = [],
-    timeout = "30 seconds",
-  }: Options): Effect.fn.Return<
-    Sandbox.Provider,
-    SandboxError,
-    Crypto.Crypto | FileSystem.FileSystem | Spawn.Service | ChildProcessSpawner.ChildProcessSpawner
-  > {
-    const runtime = yield* Runtime.make().pipe(Effect.mapError(SandboxError.provider("docker")));
+export const make = Effect.fn("sandbox/provider/docker")(function* ({
+  ports = [],
+  timeout = "30 seconds",
+}: Options): Effect.fn.Return<
+  Sandbox.Provider,
+  SandboxError,
+  Crypto.Crypto | FileSystem.FileSystem | Spawn.Service | ChildProcessSpawner.ChildProcessSpawner
+> {
+  const runtime = yield* Runtime.make().pipe(Effect.mapError(SandboxError.provider("docker")));
 
-    const serviceContext = yield* Effect.context<
-      Crypto.Crypto | FileSystem.FileSystem | Spawn.Service
-    >();
+  const serviceContext = yield* Effect.context<
+    Crypto.Crypto | FileSystem.FileSystem | Spawn.Service
+  >();
 
-    const imageExists = Effect.fn(function* (snapshot: Snapshot.Snapshot) {
+  const imageExists = Effect.fn(function* (snapshot: Snapshot.Snapshot) {
+    const spawner = yield* Spawn.Service;
+    const inspect = CP.make`image inspect ${snapshot.name}`.pipe(runtime);
+    return yield* spawner.success(inspect).pipe(
+      Effect.as(true),
+      Effect.catch(() => Effect.succeed(false)),
+    );
+  });
+
+  const removeImage = Effect.fn(function* (snapshot: Snapshot.Snapshot) {
+    const spawner = yield* Spawn.Service;
+    yield* Effect.logDebug("Removing uncached Docker image", { image: snapshot.name });
+    yield* spawner.success(CP.make`rmi ${snapshot.name}`.pipe(runtime)).pipe(
+      Effect.tap(() =>
+        Effect.logDebug("Removed uncached Docker image", {
+          image: snapshot.name,
+        }),
+      ),
+      Effect.catch((error) =>
+        Effect.logWarning("Failed to remove uncached Docker image", {
+          image: snapshot.name,
+          error,
+        }),
+      ),
+    );
+  });
+
+  const removeContainer = Effect.fn(function* (name: string) {
+    const spawner = yield* Spawn.Service;
+    yield* spawner.success(CP.make`rm --force ${name}`.pipe(runtime)).pipe(
+      Effect.tap(() =>
+        Effect.logDebug("Removed Docker sandbox container", {
+          containerName: name,
+        }),
+      ),
+      Effect.catch((error) =>
+        Effect.logWarning("Failed to remove Docker sandbox container", {
+          containerName: name,
+          error,
+        }),
+      ),
+    );
+  });
+
+  const acquireSnapshot = Effect.fn(
+    function* ({ template, cache }) {
       const spawner = yield* Spawn.Service;
-      const inspect = CP.make`image inspect ${snapshot.name}`.pipe(runtime);
-      return yield* spawner.success(inspect).pipe(
-        Effect.as(true),
-        Effect.catch(() => Effect.succeed(false)),
-      );
-    });
+      const snapshot = yield* Snapshot.make(template);
 
-    const removeImage = Effect.fn(function* (snapshot: Snapshot.Snapshot) {
-      const spawner = yield* Spawn.Service;
-      yield* Effect.logDebug("Removing uncached Docker image", { image: snapshot.name });
-      yield* spawner.success(CP.make`rmi ${snapshot.name}`.pipe(runtime)).pipe(
-        Effect.tap(() =>
-          Effect.logDebug("Removed uncached Docker image", {
-            image: snapshot.name,
-          }),
-        ),
-        Effect.catch((error) =>
-          Effect.logWarning("Failed to remove uncached Docker image", {
-            image: snapshot.name,
-            error,
-          }),
-        ),
-      );
-    });
+      yield* Effect.annotateCurrentSpan({
+        dockerImage: snapshot.name,
+        snapshotContext: template.context,
+      });
 
-    const removeContainer = Effect.fn(function* (name: string) {
-      const spawner = yield* Spawn.Service;
-      yield* spawner.success(CP.make`rm --force ${name}`.pipe(runtime)).pipe(
-        Effect.tap(() =>
-          Effect.logDebug("Removed Docker sandbox container", {
-            containerName: name,
-          }),
-        ),
-        Effect.catch((error) =>
-          Effect.logWarning("Failed to remove Docker sandbox container", {
-            containerName: name,
-            error,
-          }),
-        ),
-      );
-    });
-
-    const acquireSnapshot = Effect.fn(
-      function* ({ template, cache }) {
-        const spawner = yield* Spawn.Service;
-        const snapshot = yield* Snapshot.make(template);
-
-        yield* Effect.annotateCurrentSpan({
-          dockerImage: snapshot.name,
-          snapshotContext: template.context,
-        });
-
-        if (yield* imageExists(snapshot)) {
-          yield* Effect.logDebug("Using cached Docker snapshot image", {
-            image: snapshot.name,
-            context: template.context,
-          });
-          return snapshot;
-        }
-
-        yield* Effect.logInfo("Building Docker snapshot image", {
+      if (yield* imageExists(snapshot)) {
+        yield* Effect.logDebug("Using cached Docker snapshot image", {
           image: snapshot.name,
           context: template.context,
-          cache,
         });
+        return snapshot;
+      }
 
-        const containerfilePath = yield* Match.value(template).pipe(
-          Match.tag("Containerfile", ({ filePath }) => Effect.succeed(filePath)),
-          Match.tag("Instructions", (instructionsTemplate) =>
-            Snapshot.writeInstructions(instructionsTemplate),
-          ),
-          Match.exhaustive,
-        );
+      yield* Effect.logInfo("Building Docker snapshot image", {
+        image: snapshot.name,
+        context: template.context,
+        cache,
+      });
 
-        yield* spawner.success(
-          CP.make`build \
+      const containerfilePath = yield* Match.value(template).pipe(
+        Match.tag("Containerfile", ({ filePath }) => Effect.succeed(filePath)),
+        Match.tag("Instructions", (instructionsTemplate) =>
+          Snapshot.writeInstructions(instructionsTemplate),
+        ),
+        Match.exhaustive,
+      );
+
+      yield* spawner.success(
+        CP.make`build \
             -f ${containerfilePath} \
             -t ${snapshot.name} \
             ${template.context}`.pipe(runtime),
-        );
-        yield* Effect.logInfo("Built Docker snapshot image", {
-          image: snapshot.name,
-          context: template.context,
-        });
+      );
+      yield* Effect.logInfo("Built Docker snapshot image", {
+        image: snapshot.name,
+        context: template.context,
+      });
 
-        if (!cache) {
-          yield* Effect.addFinalizer(() => removeImage(snapshot));
-        }
+      if (!cache) {
+        yield* Effect.addFinalizer(() => removeImage(snapshot));
+      }
 
-        return snapshot;
-      },
-      (effect, { template }) =>
-        effect.pipe(
-          Effect.provide(serviceContext),
-          Effect.annotateLogs({
-            snapshotContext: template.context,
-          }),
-          Effect.mapError(SandboxError.snapshot(Snapshot.SnapshotError.build(template))),
-        ),
-    ) satisfies Sandbox.Provider["acquireSnapshot"];
+      return snapshot;
+    },
+    (effect, { template }) =>
+      effect.pipe(
+        Effect.provide(serviceContext),
+        Effect.annotateLogs({
+          snapshotContext: template.context,
+        }),
+        Effect.mapError(SandboxError.snapshot(Snapshot.SnapshotError.build(template))),
+      ),
+  ) satisfies Sandbox.Provider["acquireSnapshot"];
 
-    const deriveSnapshot = Effect.fn(
-      function* ({ snapshot, context, instructions, cache }) {
-        const spawner = yield* Spawn.Service;
-        const derived = yield* Snapshot.derive({ snapshot, instructions });
-        yield* Effect.annotateCurrentSpan({
-          baseDockerImage: snapshot.name,
-          dockerImage: derived.name,
-          snapshotContext: context,
-        });
+  const deriveSnapshot = Effect.fn(
+    function* ({ snapshot, context, instructions, cache }) {
+      const spawner = yield* Spawn.Service;
+      const derived = yield* Snapshot.derive({ snapshot, instructions });
+      yield* Effect.annotateCurrentSpan({
+        baseDockerImage: snapshot.name,
+        dockerImage: derived.name,
+        snapshotContext: context,
+      });
 
-        if (yield* imageExists(derived)) {
-          yield* Effect.logDebug("Using cached derived Docker image", {
-            baseImage: snapshot.name,
-            image: derived.name,
-            context,
-          });
-          return derived;
-        }
-
-        yield* Effect.logInfo("Building derived Docker image", {
-          baseImage: snapshot.name,
-          image: derived.name,
-          context,
-          cache,
-        });
-
-        const containerfilePath = yield* Snapshot.writeInstructions(
-          Snapshot.extend(instructions)(
-            Snapshot.makeTemplate({ image: snapshot.name, instructions: [], context }),
-          ),
-        );
-
-        const build = CP.make`build -f ${containerfilePath} -t ${derived.name} ${context}`.pipe(
-          runtime,
-        );
-        yield* spawner.success(build);
-        yield* Effect.logInfo("Built derived Docker image", {
+      if (yield* imageExists(derived)) {
+        yield* Effect.logDebug("Using cached derived Docker image", {
           baseImage: snapshot.name,
           image: derived.name,
           context,
         });
-
-        if (!cache) {
-          yield* Effect.addFinalizer(() => removeImage(derived));
-        }
-
         return derived;
-      },
-      (effect, { snapshot, instructions }) =>
-        effect.pipe(
-          Effect.provide(serviceContext),
-          Effect.annotateLogs({
-            baseDockerImage: snapshot.name,
-          }),
-          Effect.mapError(
-            SandboxError.snapshot(Snapshot.SnapshotError.derive(snapshot.name, instructions)),
-          ),
+      }
+
+      yield* Effect.logInfo("Building derived Docker image", {
+        baseImage: snapshot.name,
+        image: derived.name,
+        context,
+        cache,
+      });
+
+      const containerfilePath = yield* Snapshot.writeInstructions(
+        Snapshot.extend(instructions)(
+          Snapshot.makeTemplate({ image: snapshot.name, instructions: [], context }),
         ),
-    ) satisfies Sandbox.Provider["deriveSnapshot"];
+      );
 
-    const runSandbox = Effect.fn(
-      function* ({ snapshot, resources }) {
-        const spawner = yield* Spawn.Service;
-        const fs = yield* FileSystem.FileSystem;
+      const build = CP.make`build -f ${containerfilePath} -t ${derived.name} ${context}`.pipe(
+        runtime,
+      );
+      yield* spawner.success(build);
+      yield* Effect.logInfo("Built derived Docker image", {
+        baseImage: snapshot.name,
+        image: derived.name,
+        context,
+      });
 
-        const getHostPort = Effect.fn(function* (name: string, sandboxPort: number) {
-          const command = CP.make`port ${name} ${sandboxPort}`.pipe(runtime);
-          const output = yield* spawner
-            .string(command)
-            .pipe(Effect.mapError(SandboxError.sandboxExpose(name, sandboxPort)));
+      if (!cache) {
+        yield* Effect.addFinalizer(() => removeImage(derived));
+      }
 
-          const port = Number(output.trim().split(":").at(-1));
-          if (!Number.isInteger(port)) {
-            return yield* Effect.fail(
-              SandboxError.sandboxExpose(
-                name,
-                sandboxPort,
-              )(new Error(`Docker did not report a host port for sandbox port ${sandboxPort}`)),
-            );
-          }
+      return derived;
+    },
+    (effect, { snapshot, instructions }) =>
+      effect.pipe(
+        Effect.provide(serviceContext),
+        Effect.annotateLogs({
+          baseDockerImage: snapshot.name,
+        }),
+        Effect.mapError(
+          SandboxError.snapshot(Snapshot.SnapshotError.derive(snapshot.name, instructions)),
+        ),
+      ),
+  ) satisfies Sandbox.Provider["deriveSnapshot"];
 
-          yield* Effect.logDebug("Resolved Docker sandbox port", {
-            containerName: name,
-            sandboxPort,
-            hostPort: port,
-          });
+  const runSandbox = Effect.fn(
+    function* ({ snapshot, resources }) {
+      const spawner = yield* Spawn.Service;
+      const fs = yield* FileSystem.FileSystem;
 
-          return port;
-        });
+      const getHostPort = Effect.fn(function* (name: string, sandboxPort: number) {
+        const command = CP.make`port ${name} ${sandboxPort}`.pipe(runtime);
+        const output = yield* spawner
+          .string(command)
+          .pipe(Effect.mapError(SandboxError.sandboxExpose(name, sandboxPort)));
 
-        const name = yield* Sandbox.makeName().pipe(
-          Effect.mapError(SandboxError.sandboxStart(snapshot.name)),
-        );
-        yield* Effect.annotateCurrentSpan({
-          dockerImage: snapshot.name,
+        const port = Number(output.trim().split(":").at(-1));
+        if (!Number.isInteger(port)) {
+          return yield* Effect.fail(
+            SandboxError.sandboxExpose(
+              name,
+              sandboxPort,
+            )(new Error(`Docker did not report a host port for sandbox port ${sandboxPort}`)),
+          );
+        }
+
+        yield* Effect.logDebug("Resolved Docker sandbox port", {
           containerName: name,
-        });
-        yield* Effect.logDebug("Starting Docker sandbox container", {
-          image: snapshot.name,
-          containerName: name,
-          ports,
-          resources,
+          sandboxPort,
+          hostPort: port,
         });
 
-        const portArgs = formatPorts(ports);
-        const resourceArgs = formatResources(resources);
-        const run = CP.make`run --rm --detach
+        return port;
+      });
+
+      const name = yield* Sandbox.makeName().pipe(
+        Effect.mapError(SandboxError.sandboxStart(snapshot.name)),
+      );
+      yield* Effect.annotateCurrentSpan({
+        dockerImage: snapshot.name,
+        containerName: name,
+      });
+      yield* Effect.logDebug("Starting Docker sandbox container", {
+        image: snapshot.name,
+        containerName: name,
+        ports,
+        resources,
+      });
+
+      const portArgs = formatPorts(ports);
+      const resourceArgs = formatResources(resources);
+      const run = CP.make`run --rm --detach
           --name ${name}
           ${portArgs}
           ${resourceArgs}
           ${snapshot.name}`.pipe(runtime);
 
-        yield* Effect.acquireRelease(
-          spawner.success(run).pipe(
-            Effect.timeout(timeout),
-            Effect.onError(() => removeContainer(name)),
-            Effect.mapError(SandboxError.sandboxStart(name)),
+      yield* Effect.acquireRelease(
+        spawner.success(run).pipe(
+          Effect.timeout(timeout),
+          Effect.onError(() => removeContainer(name)),
+          Effect.mapError(SandboxError.sandboxStart(name)),
+        ),
+        () => removeContainer(name),
+      );
+      yield* Effect.logDebug("Docker sandbox container was created", {
+        image: snapshot.name,
+        containerName: name,
+      });
+
+      const isRunning = yield* spawner
+        .string(CP.make`inspect --format {{.State.Running}} ${name}`.pipe(runtime))
+        .pipe(Effect.timeout(timeout))
+        .pipe(Effect.map((output) => output.trim() === "true"))
+        .pipe(Effect.mapError(SandboxError.sandboxStart(name)));
+
+      if (!isRunning) {
+        return yield* Effect.fail(
+          SandboxError.sandboxStart(name)(
+            new Error("Docker container was created but did not reach running state"),
           ),
-          () => removeContainer(name),
         );
-        yield* Effect.logDebug("Docker sandbox container was created", {
-          image: snapshot.name,
-          containerName: name,
-        });
+      }
+      yield* Effect.logDebug("Docker sandbox container is running", {
+        image: snapshot.name,
+        containerName: name,
+      });
 
-        const isRunning = yield* spawner
-          .string(CP.make`inspect --format {{.State.Running}} ${name}`.pipe(runtime))
-          .pipe(Effect.timeout(timeout))
-          .pipe(Effect.map((output) => output.trim() === "true"))
-          .pipe(Effect.mapError(SandboxError.sandboxStart(name)));
+      const spawnerLayer = yield* makeSandboxSpawner(name).pipe(
+        Effect.provideService(Runtime.Runtime, runtime),
+      );
+      const sandboxSpawner = yield* Effect.service(Sandbox.Spawn.Service).pipe(
+        Effect.provide(spawnerLayer),
+      );
 
-        if (!isRunning) {
-          return yield* Effect.fail(
-            SandboxError.sandboxStart(name)(
-              new Error("Docker container was created but did not reach running state"),
-            ),
-          );
-        }
-        yield* Effect.logDebug("Docker sandbox container is running", {
-          image: snapshot.name,
-          containerName: name,
-        });
+      return {
+        ...sandboxSpawner,
+        spawn: (command) => sandboxSpawner.spawn(command),
+        expose: Effect.fn(function* ({ sandboxPort }) {
+          yield* Effect.logDebug("Exposing Docker sandbox port", {
+            containerName: name,
+            sandboxPort,
+          });
 
-        const spawnerLayer = yield* makeSandboxSpawner(name).pipe(
-          Effect.provideService(Runtime.Runtime, runtime),
-        );
-        const sandboxSpawner = yield* Effect.service(Sandbox.Spawn.Service).pipe(
-          Effect.provide(spawnerLayer),
-        );
-
-        return {
-          ...sandboxSpawner,
-          spawn: (command) => sandboxSpawner.spawn(command),
-          expose: Effect.fn(function* ({ sandboxPort }) {
-            yield* Effect.logDebug("Exposing Docker sandbox port", {
-              containerName: name,
-              sandboxPort,
-            });
-
-            if (!hasPort(ports, sandboxPort)) {
-              return yield* Effect.fail(
-                SandboxError.sandboxExpose(
-                  snapshot.name,
-                  sandboxPort,
-                )(
-                  new Error(
-                    "The sandbox port cannot be exposed because it was not specified in the provider configuration. Docker requires ports to be published when the container is created.",
-                  ),
-                ),
-              );
-            }
-
-            const actualHostPort = yield* getHostPort(name, sandboxPort);
-
-            yield* Effect.logDebug("Exposed Docker sandbox port", {
-              containerName: name,
-              sandboxPort,
-              hostPort: actualHostPort,
-            });
-
-            return { hostUrl: `http://localhost:${actualHostPort}` };
-          }),
-          download: Effect.fn(function* ({ sandboxPath, hostPath }) {
-            const command = CP.make`cp ${name}:${sandboxPath} ${hostPath}`;
-            yield* Effect.logDebug("Downloading file from Docker sandbox", {
-              containerName: name,
-              sandboxPath,
-              hostPath,
-            });
-            yield* spawner
-              .success(command.pipe(runtime))
-              .pipe(Effect.timeout(timeout))
-              .pipe(Effect.mapError(SandboxError.sandboxExec(snapshot.name, Bash.format(command))));
-            yield* Effect.logDebug("Downloaded file from Docker sandbox", {
-              containerName: name,
-              sandboxPath,
-              hostPath,
-            });
-          }),
-          upload: Effect.fn(function* ({ sandboxPath, hostPath }) {
-            const command = CP.make`cp ${hostPath} ${name}:${sandboxPath}`;
-            yield* Effect.logDebug("Uploading file to Docker sandbox", {
-              containerName: name,
-              hostPath,
-              sandboxPath,
-            });
-            yield* spawner
-              .success(command.pipe(runtime))
-              .pipe(Effect.timeout(timeout))
-              .pipe(Effect.mapError(SandboxError.sandboxExec(snapshot.name, Bash.format(command))));
-            yield* Effect.logDebug("Uploaded file to Docker sandbox", {
-              containerName: name,
-              hostPath,
-              sandboxPath,
-            });
-          }),
-          readFile: Effect.fn(function* ({ sandboxPath }) {
-            const command = { command: "cat", args: [sandboxPath] };
-            return yield* sandboxSpawner
-              .stdout(command)
-              .pipe(
-                Effect.mapError(
-                  SandboxError.sandboxExec(snapshot.name, formatSandboxCommand(command)),
-                ),
-              );
-          }),
-          writeFile: Effect.fn(
-            function* ({ sandboxPath, content }) {
-              const hostPath = yield* fs.makeTempFile({
-                prefix: "open-insight-docker-upload-",
-              });
-              const command = CP.make`cp ${hostPath} ${name}:${sandboxPath}`;
-              yield* Effect.logDebug("Writing file to Docker sandbox", {
-                containerName: name,
-                sandboxPath,
-                bytes: new TextEncoder().encode(content).byteLength,
-              });
-              yield* fs.writeFileString(hostPath, content).pipe(
-                Effect.andThen(
-                  spawner
-                    .success(command.pipe(runtime))
-                    .pipe(Effect.timeout(timeout))
-                    .pipe(
-                      Effect.mapError(
-                        SandboxError.sandboxExec(snapshot.name, Bash.format(command)),
-                      ),
-                    ),
-                ),
-                Effect.ensuring(fs.remove(hostPath, { force: true }).pipe(Effect.ignore)),
-              );
-              yield* Effect.logDebug("Wrote file to Docker sandbox", {
-                containerName: name,
-                sandboxPath,
-              });
-            },
-            (effect, { sandboxPath }) =>
-              effect.pipe(
-                Effect.mapError(
-                  SandboxError.sandboxExec(snapshot.name, `write ${Bash.quote(sandboxPath)}`),
+          if (!hasPort(ports, sandboxPort)) {
+            return yield* Effect.fail(
+              SandboxError.sandboxExpose(
+                snapshot.name,
+                sandboxPort,
+              )(
+                new Error(
+                  "The sandbox port cannot be exposed because it was not specified in the provider configuration. Docker requires ports to be published when the container is created.",
                 ),
               ),
-          ),
-        } satisfies Sandbox.Sandbox;
-      },
-      (effect) =>
-        effect.pipe(Effect.provide(serviceContext), Effect.annotateLogs({ provider: "docker" })),
-    ) satisfies Sandbox.Provider["runSandbox"];
+            );
+          }
 
-    return {
-      acquireSnapshot,
-      deriveSnapshot,
-      runSandbox,
-    } satisfies Sandbox.Provider;
-  },
-  (effect) => effect.pipe(Effect.provide(Spawn.Service.layer)),
-);
+          const actualHostPort = yield* getHostPort(name, sandboxPort);
+
+          yield* Effect.logDebug("Exposed Docker sandbox port", {
+            containerName: name,
+            sandboxPort,
+            hostPort: actualHostPort,
+          });
+
+          return { hostUrl: `http://localhost:${actualHostPort}` };
+        }),
+        download: Effect.fn(function* ({ sandboxPath, hostPath }) {
+          const command = CP.make`cp ${name}:${sandboxPath} ${hostPath}`;
+          yield* Effect.logDebug("Downloading file from Docker sandbox", {
+            containerName: name,
+            sandboxPath,
+            hostPath,
+          });
+          yield* spawner
+            .success(command.pipe(runtime))
+            .pipe(Effect.timeout(timeout))
+            .pipe(Effect.mapError(SandboxError.sandboxExec(snapshot.name, Bash.format(command))));
+          yield* Effect.logDebug("Downloaded file from Docker sandbox", {
+            containerName: name,
+            sandboxPath,
+            hostPath,
+          });
+        }),
+        upload: Effect.fn(function* ({ sandboxPath, hostPath }) {
+          const command = CP.make`cp ${hostPath} ${name}:${sandboxPath}`;
+          yield* Effect.logDebug("Uploading file to Docker sandbox", {
+            containerName: name,
+            hostPath,
+            sandboxPath,
+          });
+          yield* spawner
+            .success(command.pipe(runtime))
+            .pipe(Effect.timeout(timeout))
+            .pipe(Effect.mapError(SandboxError.sandboxExec(snapshot.name, Bash.format(command))));
+          yield* Effect.logDebug("Uploaded file to Docker sandbox", {
+            containerName: name,
+            hostPath,
+            sandboxPath,
+          });
+        }),
+        readFile: Effect.fn(function* ({ sandboxPath }) {
+          const command = { command: "cat", args: [sandboxPath] };
+          return yield* sandboxSpawner
+            .stdout(command)
+            .pipe(
+              Effect.mapError(
+                SandboxError.sandboxExec(snapshot.name, formatSandboxCommand(command)),
+              ),
+            );
+        }),
+        writeFile: Effect.fn(
+          function* ({ sandboxPath, content }) {
+            const hostPath = yield* fs.makeTempFile({
+              prefix: "open-insight-docker-upload-",
+            });
+            const command = CP.make`cp ${hostPath} ${name}:${sandboxPath}`;
+            yield* Effect.logDebug("Writing file to Docker sandbox", {
+              containerName: name,
+              sandboxPath,
+              bytes: new TextEncoder().encode(content).byteLength,
+            });
+            yield* fs.writeFileString(hostPath, content).pipe(
+              Effect.andThen(
+                spawner
+                  .success(command.pipe(runtime))
+                  .pipe(Effect.timeout(timeout))
+                  .pipe(
+                    Effect.mapError(SandboxError.sandboxExec(snapshot.name, Bash.format(command))),
+                  ),
+              ),
+              Effect.ensuring(fs.remove(hostPath, { force: true }).pipe(Effect.ignore)),
+            );
+            yield* Effect.logDebug("Wrote file to Docker sandbox", {
+              containerName: name,
+              sandboxPath,
+            });
+          },
+          (effect, { sandboxPath }) =>
+            effect.pipe(
+              Effect.mapError(
+                SandboxError.sandboxExec(snapshot.name, `write ${Bash.quote(sandboxPath)}`),
+              ),
+            ),
+        ),
+      } satisfies Sandbox.Sandbox;
+    },
+    (effect) =>
+      effect.pipe(Effect.provide(serviceContext), Effect.annotateLogs({ provider: "docker" })),
+  ) satisfies Sandbox.Provider["runSandbox"];
+
+  return {
+    acquireSnapshot,
+    deriveSnapshot,
+    runSandbox,
+  } satisfies Sandbox.Provider;
+}, Effect.provide(Spawn.Service.layer));
 
 export const layerFrom = (
   options: Options,

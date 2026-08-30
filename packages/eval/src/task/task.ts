@@ -44,7 +44,7 @@ export const make = <ID extends string, G extends Schema.Constraint>(
     prompt,
     grader,
     snapshot = Snapshot.Alpine,
-    resources = Resource.empty,
+    resources = Resource.providerDefault,
     ...encoded
   } = options;
 

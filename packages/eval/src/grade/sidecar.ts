@@ -1,14 +1,14 @@
-import { Prompt, Resource, Sandbox, Trajectory, type Snapshot } from "@open-insight/core/internal";
-import type { BivariantFn } from "#/utils/variant.ts";
-import type { Verif } from "./verif.ts";
-import { Effect, FiberSet, FileSystem, Path, Schema, Scope } from "effect";
+import { Resource, Sandbox, Snapshot, Trajectory } from "@open-insight/core/internal";
+
+import { Effect, FileSystem, flow, Path, Schema } from "effect";
 import * as Retry from "./retry.ts";
-import type { GradeError } from "./error.ts";
+import { GradeError } from "./error.ts";
 import type { Tool } from "effect/unstable/ai";
+import { Readonly } from "effect/unstable/ai/Tool";
 
 export type SandboxScope = "per-task" | "per-trail";
 
-type TransferOptions = Readonly<{
+export type TransferOptions = Readonly<{
   /** Path in the agent sandbox to copy. Files and directories are supported. */
   agentPath: string;
   /** Destination in the grade sandbox. Defaults to `agentPath`. */
@@ -20,14 +20,22 @@ export type Context<Tools extends Record<string, Tool.Any>> = Sandbox.Sandbox &
     /** The sandbox in which the agent performed the task. */
     agent: Sandbox.Sandbox;
 
-    /** Trasfer a file or directory from the agent sandbox to the grade sandbox. */
-    transfer(options: TransferOptions): Promise<void>;
-
     trajectory: Trajectory.Trajectory<Tools>;
+
+    /** Trasfer a file or directory from the agent sandbox to the grade sandbox. */
+    transfer(options: TransferOptions): Effect.Effect<void, GradeError>;
   }>;
 
-const makeTransfer = ({ agent, grade }: { agent: Sandbox.Sandbox; grade: Sandbox.Sandbox }) =>
-  Effect.fn(
+const makeTransfer = Effect.fn(function* ({
+  agent,
+  grade,
+}: {
+  agent: Sandbox.Sandbox;
+  grade: Sandbox.Sandbox;
+}) {
+  const ctx = yield* Effect.context<FileSystem.FileSystem | Path.Path>();
+
+  return Effect.fn(
     function* ({ agentPath, gradePath = agentPath }: TransferOptions) {
       const fs = yield* FileSystem.FileSystem;
       const path = yield* Path.Path;
@@ -45,99 +53,102 @@ const makeTransfer = ({ agent, grade }: { agent: Sandbox.Sandbox; grade: Sandbox
       const gradeArchive = `${gradeTmp}/${archiveName}`;
       const stageDir = `${gradeTmp}/stage`;
 
-      const core = agent
-        .success({
-          command: "tar",
-          args: ["-czf", agentArchive, "-C", path.dirname(agentPath), path.basename(agentPath)],
-        })
-        .pipe(
-          Effect.andThen(agent.download({ sandboxPath: agentArchive, hostPath: hostArchive })),
-          Effect.andThen(grade.upload({ sandboxPath: gradeArchive, hostPath: hostArchive })),
-          Effect.andThen(grade.success({ command: "mkdir", args: ["-p", stageDir] })),
-          Effect.andThen(
-            grade.success({ command: "tar", args: ["-xzf", gradeArchive, "-C", stageDir] }),
-          ),
-          Effect.andThen(
-            grade.success({ command: "mkdir", args: ["-p", path.dirname(gradePath)] }),
-          ),
-          Effect.andThen(
-            grade.success({
-              command: "mv",
-              args: [`${stageDir}/${path.basename(agentPath)}`, gradePath],
-            }),
-          ),
-        );
+      yield* Effect.addFinalizer(() =>
+        Effect.all([
+          fs.remove(hostArchive, { force: true }),
+          agent.success({ command: "rm", args: ["-rf", agentTmp] }),
+          grade.success({ command: "rm", args: ["-rf", gradeTmp] }),
+        ]).pipe(Effect.ignore),
+      );
 
-      const cleanup = Effect.all([
-        fs.remove(hostArchive, { force: true }),
-        agent.success({ command: "rm", args: ["-rf", agentTmp] }),
-        grade.success({ command: "rm", args: ["-rf", gradeTmp] }),
-      ]).pipe(Effect.ignore);
-
-      return yield* core.pipe(Effect.ensuring(cleanup));
+      yield* agent.success({
+        command: "tar",
+        args: ["-czf", agentArchive, "-C", path.dirname(agentPath), path.basename(agentPath)],
+      });
+      yield* agent.download({ sandboxPath: agentArchive, hostPath: hostArchive });
+      yield* grade.upload({ sandboxPath: gradeArchive, hostPath: hostArchive });
+      yield* grade.success({ command: "mkdir", args: ["-p", stageDir] });
+      yield* grade.success({ command: "tar", args: ["-xzf", gradeArchive, "-C", stageDir] });
+      yield* grade.success({ command: "mkdir", args: ["-p", path.dirname(gradePath)] });
+      yield* grade.success({
+        command: "mv",
+        args: [`${stageDir}/${path.basename(agentPath)}`, gradePath],
+      });
     },
-    (effect) => effect.pipe(Effect.scoped),
+    flow(Effect.mapError(GradeError.exec), Effect.provide(ctx), Effect.scoped),
   );
+});
 
-export type MakeContextOptions = Readonly<{
+type MakeContextOptions<Tools extends Record<string, Tool.Any> = any> = Readonly<{
   agent: Sandbox.Sandbox;
   grade: Sandbox.Sandbox;
-  trajectory: Prompt.Trajectory;
+  trajectory: Trajectory.Trajectory<Tools>;
 }>;
 
-export const makeContext = Effect.fn(function* ({
+export const makeContext = Effect.fn(function* <Tools extends Record<string, Tool.Any>>({
   agent,
   grade,
   trajectory,
-}: MakeContextOptions): Effect.fn.Return<
-  Context,
-  never,
-  Scope.Scope | FileSystem.FileSystem | Path.Path
-> {
-  const runPromise = yield* FiberSet.makeRuntimePromise();
-  const fs = yield* FileSystem.FileSystem;
-  const path = yield* Path.Path;
-
-  const agentSandbox = yield* Sandbox.asPromise(agent);
-  const gradeSandbox = yield* Sandbox.asPromise(grade);
-
-  const transfer = makeTransfer({ agent, grade });
-  const transferPromise = (options: TransferOptions) =>
-    runPromise(
-      transfer(options).pipe(
-        Effect.provideService(FileSystem.FileSystem, fs),
-        Effect.provideService(Path.Path, path),
-      ),
-    );
+}: MakeContextOptions<Tools>) {
+  const transfer = yield* makeTransfer({ agent, grade });
 
   return {
-    ...gradeSandbox,
-    agent: agentSandbox,
-    transfer: transferPromise,
+    ...grade,
+    agent,
     trajectory,
-  } satisfies Context;
+    transfer,
+  } satisfies Context<Tools>;
 });
 
-export type Exec<R extends Schema.Constraint = any> = BivariantFn<
-  (ctx: Context) => PromiseLike<R["Type"]>
->;
+export type Exec<
+  Result extends Schema.Constraint = any,
+  Tools extends Record<string, Tool.Any> = any,
+  E = unknown,
+  R = never,
+> = (ctx: Context<Tools>) => Effect.Effect<Result["Type"], E | Retry.Retry, R>;
 
-export type Grader<R extends Schema.Constraint = any> = Readonly<{
-  grade: Exec<R>;
+export type Grader<
+  Result extends Schema.Constraint = any,
+  Tools extends Record<string, Tool.Any> = any,
+> = Readonly<{
+  grade: Exec<Result, Tools, GradeError>;
   snapshot: Snapshot.Template;
   resources: Resource.Resources;
-  verif: Verif<R> | null;
   scope: SandboxScope;
   concurrency: number;
 }>;
 
-export const run = <R extends Schema.Constraint = any>(grader: Grader<R>) =>
-  Effect.fn(function* (
-    options: MakeContextOptions,
-  ): Effect.fn.Return<R["Type"], GradeError | Retry.Retry, FileSystem.FileSystem | Path.Path> {
-    const ctx = yield* makeContext(options).pipe(Effect.scoped);
-    return yield* Effect.tryPromise({
-      try: () => grader.grade(ctx),
-      catch: Retry.mapError,
-    });
-  });
+export type Options<
+  Result extends Schema.Constraint = any,
+  Tools extends Record<string, Tool.Any> = any,
+  E = unknown,
+  R = never,
+> = Readonly<{
+  grade: Exec<Result, Tools, E, R>;
+  snapshot?: Snapshot.Template;
+  resources?: Resource.Resources;
+  scope?: SandboxScope;
+  concurrency?: number;
+}>;
+export const make = Effect.fn(function* <
+  Result extends Schema.Constraint,
+  Tools extends Record<string, Tool.Any>,
+  E,
+  R,
+>({
+  grade: gradeOption,
+  snapshot = Snapshot.Alpine,
+  resources = Resource.providerDefault,
+  scope = "per-trail",
+  concurrency = 1,
+}: Options<Result, Tools, E, R>) {
+  const ctx = yield* Effect.context<R>();
+  return {
+    grade: (context) =>
+      gradeOption(context).pipe(Effect.mapError(GradeError.exec), Effect.provide(ctx)),
+    snapshot,
+    resources,
+    scope,
+    concurrency,
+  } satisfies Grader<Result, Tools>;
+});
