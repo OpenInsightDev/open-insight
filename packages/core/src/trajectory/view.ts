@@ -53,5 +53,7 @@ export const prompt = <Tools extends Record<string, Tool.Any>>(
   turns(trajectory).pipe(
     Stream.map((turn) => Prompt.fromMessages(turn.prompt)),
     Stream.runCollect,
-    Effect.map((prompts) => prompts.reduce((acc, prompt) => Prompt.concat(acc, prompt))),
+    Effect.map((prompts) =>
+      Array.from(prompts).reduce((acc, prompt) => Prompt.concat(acc, prompt), Prompt.empty),
+    ),
   );
