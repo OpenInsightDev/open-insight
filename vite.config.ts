@@ -12,7 +12,16 @@ export default defineConfig({
   lint: {
     ignorePatterns: workspaceSourcePatterns,
     jsPlugins: [{ name: "vite-plus", specifier: "vite-plus/oxlint-plugin" }],
-    rules: { "vite-plus/prefer-vite-plus-imports": "error" },
+    rules: {
+      "vite-plus/prefer-vite-plus-imports": "error",
+      // avoid type hacking
+      "typescript/consistent-type-assertions": [
+        "error",
+        { assertionStyle: "never" },
+      ],
+      // avoid `as unknown as`
+      "typescript/no-unsafe-type-assertion": "error"
+    },
     options: { typeAware: true, typeCheck: true },
   },
   run: {
