@@ -3,6 +3,25 @@ import { Tool, Toolkit, Response } from "effect/unstable/ai";
 import { TrajectoryError } from "./error.ts";
 import { Part, Trajectory, TrajectoryEncoded } from "./trajectory.ts";
 
+export const encode = Effect.fn(function* <Tools extends Record<string, Tool.Any>>(
+  trajectory: Trajectory<Tools>,
+) {
+  const partSchema = Part(trajectory.toolkit);
+  const encodingContext = yield* Effect.context<typeof partSchema.EncodingServices>();
+  const encodePart = Schema.encodeEffect(partSchema);
+
+  const parts = trajectory.parts.pipe(
+    Stream.mapEffect((part) =>
+      encodePart(part).pipe(
+        Effect.mapError(TrajectoryError.decode),
+        Effect.provideContext(encodingContext),
+      ),
+    ),
+  );
+
+  return new TrajectoryEncoded({ parts });
+});
+
 export const decode = Effect.fn(function* <Toolkits extends ReadonlyArray<Toolkit.Any>>(
   trajectory: TrajectoryEncoded,
   ...toolkits: Toolkits

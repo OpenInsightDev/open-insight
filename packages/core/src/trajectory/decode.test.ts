@@ -1,7 +1,7 @@
 import { assert, describe, it } from "@effect/vitest";
 import { Effect, Schema, Stream } from "effect";
 import { Prompt, Response, Tool, Toolkit } from "effect/unstable/ai";
-import { decode, toolkits } from "./decode.ts";
+import { decode, encode, toolkits } from "./decode.ts";
 import { DecodeFailed } from "./error.ts";
 import { Trajectory, TrajectoryEncoded, type Part, type PartEncoded } from "./trajectory.ts";
 
@@ -21,6 +21,52 @@ const collect = <A, E>(stream: Stream.Stream<A, E>) =>
     Stream.runCollect,
     Effect.map((items) => Array.from(items)),
   );
+
+describe("encode", () => {
+  it.effect("encodes prompt messages and known tool payloads", () =>
+    Effect.gen(function* () {
+      const source = new Trajectory({
+        toolkit: convertToolkit,
+        parts: Stream.fromIterable<Part<Toolkit.Tools<typeof convertToolkit>>>([
+          {
+            _tag: "Prompt",
+            messages: [Prompt.userMessage({ content: [Prompt.textPart({ text: "convert it" })] })],
+          },
+          {
+            _tag: "Response",
+            response: Response.toolCallPart({
+              id: "call-1",
+              name: "convert",
+              params: { value: 12 },
+              providerExecuted: false,
+            }),
+          },
+        ]),
+      });
+
+      const encoded = yield* encode(source);
+      const parts = yield* collect(encoded.parts);
+
+      assert.deepStrictEqual(parts, [
+        {
+          _tag: "Prompt",
+          messages: [{ role: "user", content: "convert it", options: {} }],
+        },
+        {
+          _tag: "Response",
+          response: {
+            type: "tool-call",
+            id: "call-1",
+            name: "convert",
+            params: { value: "12" },
+            providerExecuted: false,
+            metadata: {},
+          },
+        },
+      ]);
+    }),
+  );
+});
 
 describe("decode", () => {
   it.effect("decodes prompt messages and known tool call and result payloads", () =>

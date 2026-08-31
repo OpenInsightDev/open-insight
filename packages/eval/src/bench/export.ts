@@ -1,3 +1,11 @@
-export { make, type Bench, Metadata, type MetadataEncoded, mapTask, fromArray } from "./index.ts";
+export {
+  make,
+  type Bench,
+  Metadata,
+  type MetadataEncoded,
+  mapTask,
+  mapTaskEffect,
+  fromArray,
+} from "./index.ts";
 export * from "./error.ts";
 export { result, type BenchResult } from "./result.ts";
