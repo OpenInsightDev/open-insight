@@ -49,13 +49,11 @@ export const make = <G extends Schema.Constraint, S extends Schema.Constraint, E
   ): Effect.fn.Return<T & Mixin<Aggregator<G, S>>, E | TaskError, R> {
     const ctx = yield* Effect.context<R>();
 
-    const aggFn = flow(fn, Effect.mapError(TaskError.result), Effect.provide(ctx)) satisfies Fn<
-      G,
-      S,
-      TaskError
-    >;
+    const aggFn = flow(
+      fn, //
+      Effect.mapError(TaskError.result),
+      Effect.provide(ctx),
+    ) satisfies Fn<G, S, TaskError>;
 
-    const agg = Object.assign(aggFn, { schema });
-
-    return Object.assign(task, { [Field]: agg });
+    return Object.assign(task, { [Field]: Object.assign(aggFn, { schema }) });
   });
