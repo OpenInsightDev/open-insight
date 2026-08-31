@@ -1,4 +1,5 @@
 import { Context, Effect, Layer, Scope, Stream } from "effect";
+import { ChildProcess as CP } from "effect/unstable/process";
 import type { Command } from "effect/unstable/process/ChildProcess";
 import {
   type ChildProcessHandle,
@@ -6,6 +7,24 @@ import {
   ExitCode,
 } from "effect/unstable/process/ChildProcessSpawner";
 import { SpawnError } from "./error.ts";
+import { makeScript, type TemplateExpression } from "#/utils/shell.ts";
+
+type ShellOptions = Readonly<{
+  readonly cwd?: string;
+  readonly env?: Record<string, string | undefined>;
+}>;
+
+const isTemplateStringsArray = (
+  value: TemplateStringsArray | ShellOptions,
+): value is TemplateStringsArray => Array.isArray(value);
+
+const makeShellCommand = (
+  strings: TemplateStringsArray,
+  values: ReadonlyArray<TemplateExpression>,
+  options: ShellOptions = {},
+): Command => {
+  return CP.make("sh", ["-c", makeScript(strings, values)], options);
+};
 
 export type ExecHandle = Readonly<{
   exitCode: ExitCode;
@@ -75,6 +94,20 @@ export class Service extends Context.Service<
       command: Command,
       options?: { readonly includeStderr?: boolean | undefined } & Options,
     ): Effect.Effect<ReadonlyArray<string>, SpawnError>;
+
+    $: {
+      (
+        strings: TemplateStringsArray,
+        ...values: ReadonlyArray<TemplateExpression>
+      ): Effect.Effect<string, SpawnError>;
+
+      (
+        options: ShellOptions,
+      ): (
+        strings: TemplateStringsArray,
+        ...values: ReadonlyArray<TemplateExpression>
+      ) => Effect.Effect<string, SpawnError>;
+    };
   }
 >()("packages/core/spawn/SpawnService") {
   static readonly layer: Layer.Layer<Service, never, ChildProcessSpawner> = Layer.effect(
@@ -126,6 +159,27 @@ export class Service extends Context.Service<
       const lines: Service["Service"]["lines"] = (command, options = {}) =>
         Stream.runCollect(streamLines(command, options));
 
+      function $(
+        strings: TemplateStringsArray,
+        ...values: ReadonlyArray<TemplateExpression>
+      ): Effect.Effect<string, SpawnError>;
+      function $(
+        options: ShellOptions,
+      ): (
+        strings: TemplateStringsArray,
+        ...values: ReadonlyArray<TemplateExpression>
+      ) => Effect.Effect<string, SpawnError>;
+      function $(
+        first: TemplateStringsArray | ShellOptions,
+        ...values: ReadonlyArray<TemplateExpression>
+      ) {
+        if (isTemplateStringsArray(first)) {
+          return string(makeShellCommand(first, values));
+        }
+        return (strings: TemplateStringsArray, ...innerValues: ReadonlyArray<TemplateExpression>) =>
+          string(makeShellCommand(strings, innerValues, first));
+      }
+
       const streamString: Service["Service"]["streamString"] = (
         command,
         { includeStderr, ...options } = {},
@@ -151,6 +205,7 @@ export class Service extends Context.Service<
         streamLines,
         lines,
         string,
+        $,
       } satisfies Service["Service"];
     }),
   );

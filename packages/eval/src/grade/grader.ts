@@ -35,7 +35,7 @@ export const embed = Effect.fn(function* <Result extends Schema.Constraint, E, R
   const grader = yield* Embed.make({ grade, ...options });
 
   return Object.assign(grader, {
-    _tag: "Embed",
+    _tag: "Embed" as const,
     schema,
     verif: Option.fromNullishOr(verif),
   });

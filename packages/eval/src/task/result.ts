@@ -1,9 +1,9 @@
 import { Data, Effect, flow, Option, type Schema } from "effect";
-import * as Grade from "#/grade/index.ts";
 import * as Task from "./task.ts";
 import { TaskError } from "./error.ts";
 import type { Trajectory, Response } from "@open-insight/core/internal";
 import { hasProperty } from "effect/Predicate";
+import type { Override } from "#/utils/index.ts";
 
 export class SessionResult extends Data.TaggedClass("SessionResult")<{
   trajectory: Trajectory.Trajectory;
@@ -40,20 +40,21 @@ export type AggregatorOf<T> = T extends Mixin<infer A> ? A : never;
 export const aggregatorOf = <T>(value: T) =>
   Option.fromNullOr(hasProperty(value, Field) ? (value[Field] as AggregatorOf<T>) : null);
 
-export const make = <G extends Schema.Constraint, S extends Schema.Constraint, E, R>(
+export const result = <T extends Task.Any, S extends Schema.Constraint, E, R>(
   schema: S,
-  fn: Fn<G, S, E, R>,
+  fn: (trails: ReadonlyArray<TrailResult<Task.GradeOf<T>>>) => Effect.Effect<S["Type"], E, R>,
 ) =>
-  Effect.fn(function* <Grader extends Grade.Grader<G>, T extends Task.Task<any, Grader>>(
+  Effect.fn(function* (
     task: T,
-  ): Effect.fn.Return<T & Mixin<Aggregator<G, S>>, E | TaskError, R> {
+  ): Effect.fn.Return<Override<T, Mixin<Aggregator<Task.GradeOf<T>, S>>>, E | TaskError, R> {
     const ctx = yield* Effect.context<R>();
 
     const aggFn = flow(
-      fn, //
+      fn,
+      Effect.map((result) => new TaskResult({ id: task.id, result })),
       Effect.mapError(TaskError.result),
       Effect.provide(ctx),
-    ) satisfies Fn<G, S, TaskError>;
+    ) satisfies Fn<Task.GradeOf<T>, S, TaskError>;
 
     return Object.assign(task, { [Field]: Object.assign(aggFn, { schema }) });
   });

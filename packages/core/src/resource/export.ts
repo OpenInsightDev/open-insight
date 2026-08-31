@@ -1,5 +1,3 @@
-export { Resources, make } from "./schema.ts";
-export type { MakeOptions } from "./schema.ts";
-export { Mode, Policy } from "./network.ts";
+export { make, providerDefault } from "./index.ts";
 
 export * as Internal from "./index.ts";
