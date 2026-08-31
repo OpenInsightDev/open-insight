@@ -59,10 +59,9 @@ export const aggregate = <
   schema: S,
   fn: Fn<GradeResult, Tools, S, E, R>,
 ) =>
-  Effect.fn(function* <
-    Grader extends Grade.Grader<GradeResult, Tools>,
-    T extends Task.Task<any, Grader>,
-  >(task: T): Effect.fn.Return<T & Mixin<Aggregator<GradeResult, Tools, S>>, E | TaskError, R> {
+  Effect.fn(function* <Grader extends Grade.Grader<GradeResult>, T extends Task.Task<any, Grader>>(
+    task: T,
+  ): Effect.fn.Return<T & Mixin<Aggregator<GradeResult, Tools, S>>, E | TaskError, R> {
     const ctx = yield* Effect.context<R>();
 
     const aggFn = ((trails) =>

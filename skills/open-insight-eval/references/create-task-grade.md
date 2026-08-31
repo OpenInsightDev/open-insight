@@ -43,7 +43,7 @@ The final `Task.stage` in the pipe uses the confirmed grade schema; intermediate
 `Grade.make(schema)` builds a grader: it takes the result schema first, then the grade function and an optional verifier.
 
 ```ts
-grader: Grade.make(GradeResult)(async ({ $, prevResults, trajectory }) => {
+grader: Grade.make(GradeResult)(async ({ $, prevResults }) => {
   // Run the benchmark's judge and parse its output here.
   // Use prevResults only when this stage depends on preceding stages.
   return {
@@ -52,10 +52,7 @@ grader: Grade.make(GradeResult)(async ({ $, prevResults, trajectory }) => {
 }),
 ```
 
-A normal stage grader runs against the agent sandbox and receives the promise-based sandbox operations together with:
-
-- `trajectory`, the agent trajectory for the current stage;
-- `prevResults`, all preceding stage results keyed by stage name.
+A normal stage grader runs against the agent sandbox and receives the promise-based sandbox operations together with `prevResults`, all preceding stage results keyed by stage name.
 
 The grade function returns the schema's encoded value (a `Promise`). Let infrastructure or malformed-output failures fail the grader unless the confirmed grade semantics explicitly classify them as a valid negative result. For example, a judge command's non-zero exit may represent a valid negative grade if the benchmark defines it that way, while failure to locate the judge usually indicates a broken benchmark and should not be silently converted.
 
@@ -67,12 +64,12 @@ Pass `verif` and `expect` together as the second argument to `Grade.make` to pro
 
 ```ts
 grader: Grade.make(GradeResult)(
-  async ({ $, prevResults, trajectory }) => {
+  async ({ $, prevResults }) => {
     // Compute the confirmed grade from the current sandbox state.
     return {};
   },
   {
-    verif: async ({ $, writeFile, trajectory }) => {
+      verif: async ({ $, writeFile }) => {
       // Prepare the confirmed reference state directly in this verifier.
       return null;
     },
@@ -92,7 +89,7 @@ Use `Grade.retry(prompt)` only when the agent can act on feedback and another at
 ```ts
 import { Grade } from "@open-insight/eval";
 
-grader: Grade.make(GradeResult)(async ({ $, prevResults, trajectory }) => {
+grader: Grade.make(GradeResult)(async ({ $, prevResults }) => {
   // Inspect the retry condition here.
   if (/* the confirmed retry condition */) {
     throw Grade.retry("<actionable follow-up prompt>");

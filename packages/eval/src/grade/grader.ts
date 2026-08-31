@@ -1,86 +1,55 @@
 import * as Sidecar from "./sidecar.ts";
 import * as Embed from "./embed.ts";
-import { Toolkit, type Tool } from "effect/unstable/ai";
 import { Effect, Match, Option, type Schema } from "effect";
 import * as Verif from "./verif.ts";
-import { Sandbox, type Trajectory } from "@open-insight/core/internal";
+import { Sandbox } from "@open-insight/core/internal";
 import { GradeError } from "./error.ts";
 import type { Retry } from "./retry.ts";
 
-export type Variant<Result extends Schema.Constraint, Tools extends Record<string, Tool.Any>> =
+export type Variant<Result extends Schema.Constraint> =
   // DataEnum with generic is painful
-  | (Embed.Grader<Result, Tools> & Readonly<{ _tag: "Embed" }>)
-  | (Sidecar.Grader<Result, Tools> & Readonly<{ _tag: "TrailSidecar" | "TaskSidecar" }>);
+  | (Embed.Grader<Result> & Readonly<{ _tag: "Embed" }>)
+  | (Sidecar.Grader<Result> & Readonly<{ _tag: "TrailSidecar" | "TaskSidecar" }>);
 
-export type Grader<
-  Result extends Schema.Constraint = any,
-  Tools extends Record<string, Tool.Any> = any,
-> = Variant<Result, Tools> &
+export type Grader<Result extends Schema.Constraint = any> = Variant<Result> &
   Readonly<{
     schema: Result;
     verif: Option.Option<Verif.Verif<Result>>;
-    toolkit: Toolkit.Toolkit<Tools>;
   }>;
-export type Any = Grader<any, any>;
-export type ResultOf<G> = G extends Grader<infer R, any> ? R : never;
-export type ToolsOf<G> = G extends Grader<any, infer T> ? T : never;
+export type Any = Grader<any>;
+export type ResultOf<G> = G extends Grader<infer R> ? R : never;
 
-export type Options<
-  Result extends Schema.Constraint,
-  Toolkits extends ReadonlyArray<Toolkit.Any>,
-> = Readonly<{
+export type Options<Result extends Schema.Constraint> = Readonly<{
   verif?: Verif.Verif<Result> | null;
-  toolkits?: Toolkits;
 }>;
 
-type EmbedOptions<
-  Result extends Schema.Constraint,
-  Toolkits extends ReadonlyArray<Toolkit.Any>,
-  E = unknown,
-  R = never,
-> = Options<Result, Toolkits> &
-  Omit<Embed.Options<Result, Toolkit.MergedTools<Toolkits>, E, R>, "grade">;
+type EmbedOptions<Result extends Schema.Constraint, E = unknown, R = never> = Options<Result> &
+  Omit<Embed.Options<Result, E, R>, "grade">;
 
-export const embed = Effect.fn(function* <
-  Result extends Schema.Constraint,
-  Toolkits extends ReadonlyArray<Toolkit.Any>,
-  E,
-  R,
->(
+export const embed = Effect.fn(function* <Result extends Schema.Constraint, E, R>(
   schema: Result,
-  grade: Embed.Exec<Result, Toolkit.MergedTools<Toolkits>, E, R>,
-  options: EmbedOptions<Result, Toolkits> = {},
+  grade: Embed.Exec<Result, E, R>,
+  options: EmbedOptions<Result, E, R> = {},
 ) {
-  const { verif = null, toolkits = [] } = options;
+  const { verif = null } = options;
   const grader = yield* Embed.make({ grade, ...options });
 
   return Object.assign(grader, {
     _tag: "Embed",
     schema,
     verif: Option.fromNullishOr(verif),
-    toolkit: Toolkit.merge(...toolkits),
   });
 });
 
-type SidecarOptions<
-  Result extends Schema.Constraint,
-  Toolkits extends ReadonlyArray<Toolkit.Any>,
-  E = unknown,
-  R = never,
-> = Options<Result, Toolkits> &
-  Omit<Sidecar.Options<Result, Toolkit.MergedTools<Toolkits>, E, R>, "grade">;
+type SidecarOptions<Result extends Schema.Constraint, E = unknown, R = never> = Options<Result> &
+  Omit<Sidecar.Options<Result, E, R>, "grade">;
 
-export const sidecar = Effect.fn(function* <
-  Result extends Schema.Constraint,
-  Toolkits extends ReadonlyArray<Toolkit.Any>,
-  E,
-  R,
->(
+export const sidecar = Effect.fn(function* <Result extends Schema.Constraint, E, R>(
   schema: Result,
-  grade: Sidecar.Exec<Result, Toolkit.MergedTools<Toolkits>, E, R>,
-  options: SidecarOptions<Result, Toolkits> = {},
+  grade: Sidecar.Exec<Result, E, R>,
+  options: SidecarOptions<Result, E, R> = {},
 ) {
-  const { verif = null, toolkits = [] } = options;
+  const { verif = null } = options;
 
   const _tag = Match.value(options.scope ?? "per-trail").pipe(
     Match.when("per-trail", () => "TrailSidecar" as const),
@@ -94,29 +63,26 @@ export const sidecar = Effect.fn(function* <
     _tag,
     schema,
     verif: Option.fromNullishOr(verif),
-    toolkit: Toolkit.merge(...toolkits),
   });
 });
 
-type RunOptions<Tools extends Record<string, Tool.Any>> = Readonly<{
+type RunOptions = Readonly<{
   sandbox: Sandbox.Sandbox;
-  trajectory: Trajectory.Trajectory<Tools>;
 }>;
 
-export type Run = <R extends Schema.Constraint = any, Tools extends Record<string, Tool.Any> = any>(
-  options: RunOptions<Tools>,
+export type Run = <R extends Schema.Constraint = any>(
+  options: RunOptions,
 ) => Effect.Effect<R["Type"], GradeError | Retry>;
 
-export const makeRun = Effect.fn(function* <
-  Result extends Schema.Constraint,
-  Tools extends Record<string, Tool.Any>,
->(grader: Grader<Result, Tools>) {
+export const makeRun = Effect.fn(function* <Result extends Schema.Constraint>(
+  grader: Grader<Result>,
+) {
   const sbxProvider = yield* Sandbox.ProviderService;
 
   switch (grader._tag) {
     case "Embed": {
-      return Effect.fn(function* ({ sandbox, trajectory }: RunOptions<Tools>) {
-        return yield* grader({ ...sandbox, trajectory });
+      return Effect.fn(function* ({ sandbox }: RunOptions) {
+        return yield* grader(sandbox);
       });
     }
     case "TrailSidecar": {
@@ -124,7 +90,7 @@ export const makeRun = Effect.fn(function* <
         .acquireSnapshot({ template: grader.snapshot, cache: true })
         .pipe(Effect.mapError(GradeError.sandbox));
 
-      return Effect.fn(function* ({ sandbox: agentSbx, trajectory }: RunOptions<Tools>) {
+      return Effect.fn(function* ({ sandbox: agentSbx }: RunOptions) {
         const gradeSbx = yield* sbxProvider
           .runSandbox({ snapshot, resources: grader.resources, cache: false })
           .pipe(Effect.mapError(GradeError.sandbox));
@@ -132,7 +98,6 @@ export const makeRun = Effect.fn(function* <
         const context = yield* Sidecar.makeContext({
           agent: agentSbx,
           grade: gradeSbx,
-          trajectory,
         });
         return yield* grader(context);
       }, Effect.scoped); // self scoped
@@ -149,11 +114,10 @@ export const makeRun = Effect.fn(function* <
         .runSandbox({ snapshot, resources: grader.resources, cache: false })
         .pipe(Effect.mapError(GradeError.sandbox));
 
-      return Effect.fn(function* ({ sandbox: agentSbx, trajectory }: RunOptions<Tools>) {
+      return Effect.fn(function* ({ sandbox: agentSbx }: RunOptions) {
         const context = yield* Sidecar.makeContext({
           agent: agentSbx,
           grade: gradeSbx,
-          trajectory,
         });
         return yield* grader(context);
       });

@@ -24,9 +24,9 @@ export const decode = Effect.fn(function* <Toolkits extends ReadonlyArray<Toolki
   return new Trajectory<Toolkit.MergedTools<Toolkits>>({ toolkit, parts });
 });
 
-export const toolkit = <Toolkit extends Toolkit.Any>(toolkit: Toolkit) =>
+export const toolkits = <Toolkits extends ReadonlyArray<Toolkit.Any>>(...toolkits: Toolkits) =>
   Effect.fn(function* <Tools extends Record<string, Tool.Any>>(trajectory: Trajectory<Tools>) {
-    const merged = Toolkit.merge(trajectory.toolkit, toolkit);
+    const merged = Toolkit.merge(trajectory.toolkit, ...toolkits);
 
     const sourceSchema = Response.PartView(trajectory.toolkit);
     const partSchema = Response.PartView(merged);

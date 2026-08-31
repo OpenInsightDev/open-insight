@@ -221,16 +221,13 @@ const next = <Tools extends Record<string, Tool.Any>>(
 const flush = <Tools extends Record<string, Tool.Any>>(
   state: State<Tools>,
 ): ReadonlyArray<Step<Tools>> =>
-  Array.from(
-    state.pending.values(),
-    (call, offset): Step<Tools> => ({
-      _tag: "ToolCall",
-      index: state.index + offset,
-      turn: state.turn,
-      call,
-      result: Option.none(),
-    }),
-  );
+  Array.from(state.pending.values(), (call, offset): Step<Tools> => ({
+    _tag: "ToolCall",
+    index: state.index + offset,
+    turn: state.turn,
+    call,
+    result: Option.none(),
+  }));
 
 /**
  * Normalizes a trajectory into the flat, indexed step sequence every analyzer

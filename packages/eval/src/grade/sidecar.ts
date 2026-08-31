@@ -1,10 +1,8 @@
-import { Resource, Sandbox, Snapshot, Trajectory } from "@open-insight/core/internal";
+import { Resource, Sandbox, Snapshot } from "@open-insight/core/internal";
 
 import { Effect, FileSystem, flow, Path, Schema } from "effect";
 import * as Retry from "./retry.ts";
 import { GradeError } from "./error.ts";
-import type { Tool } from "effect/unstable/ai";
-import { Readonly } from "effect/unstable/ai/Tool";
 
 export type SandboxScope = "per-task" | "per-trail";
 
@@ -15,12 +13,10 @@ export type TransferOptions = Readonly<{
   gradePath?: string;
 }>;
 
-export type Context<Tools extends Record<string, Tool.Any>> = Sandbox.Sandbox &
+export type Context = Sandbox.Sandbox &
   Readonly<{
     /** The sandbox in which the agent performed the task. */
     agent: Sandbox.Sandbox;
-
-    trajectory: Trajectory.Trajectory<Tools>;
 
     /** Trasfer a file or directory from the agent sandbox to the grade sandbox. */
     transfer(options: TransferOptions): Effect.Effect<void, GradeError>;
@@ -79,38 +75,26 @@ const makeTransfer = Effect.fn(function* ({
   );
 });
 
-type MakeContextOptions<Tools extends Record<string, Tool.Any> = any> = Readonly<{
+type MakeContextOptions = Readonly<{
   agent: Sandbox.Sandbox;
   grade: Sandbox.Sandbox;
-  trajectory: Trajectory.Trajectory<Tools>;
 }>;
 
-export const makeContext = Effect.fn(function* <Tools extends Record<string, Tool.Any>>({
-  agent,
-  grade,
-  trajectory,
-}: MakeContextOptions<Tools>) {
+export const makeContext = Effect.fn(function* ({ agent, grade }: MakeContextOptions) {
   const transfer = yield* makeTransfer({ agent, grade });
 
   return {
     ...grade,
     agent,
-    trajectory,
     transfer,
-  } satisfies Context<Tools>;
+  } satisfies Context;
 });
 
-export type Exec<
-  Result extends Schema.Constraint = any,
-  Tools extends Record<string, Tool.Any> = any,
-  E = unknown,
-  R = never,
-> = (ctx: Context<Tools>) => Effect.Effect<Result["Type"], E | Retry.Retry, R>;
+export type Exec<Result extends Schema.Constraint = any, E = unknown, R = never> = (
+  ctx: Context,
+) => Effect.Effect<Result["Type"], E | Retry.Retry, R>;
 
-export type Grader<
-  Result extends Schema.Constraint = any,
-  Tools extends Record<string, Tool.Any> = any,
-> = Exec<Result, Tools, GradeError> &
+export type Grader<Result extends Schema.Constraint = any> = Exec<Result, GradeError> &
   Readonly<{
     snapshot: Snapshot.Template;
     resources: Resource.Resources;
@@ -118,42 +102,32 @@ export type Grader<
     concurrency: number;
   }>;
 
-export type Options<
-  Result extends Schema.Constraint = any,
-  Tools extends Record<string, Tool.Any> = any,
-  E = unknown,
-  R = never,
-> = Readonly<{
-  grade: Exec<Result, Tools, E, R>;
+export type Options<Result extends Schema.Constraint = any, E = unknown, R = never> = Readonly<{
+  grade: Exec<Result, E, R>;
   snapshot?: Snapshot.Template;
   resources?: Resource.Resources;
   scope?: SandboxScope;
   concurrency?: number;
 }>;
-export const make = Effect.fn(function* <
-  Result extends Schema.Constraint,
-  Tools extends Record<string, Tool.Any>,
-  E,
-  R,
->({
+export const make = Effect.fn(function* <Result extends Schema.Constraint, E, R>({
   grade: gradeOption,
   snapshot = Snapshot.Alpine,
   resources = Resource.providerDefault,
   scope = "per-trail",
   concurrency = 1,
-}: Options<Result, Tools, E, R>) {
+}: Options<Result, E, R>) {
   const ctx = yield* Effect.context<R>();
 
-  const exec = ((context: Context<Tools>) =>
+  const exec = ((context: Context) =>
     gradeOption(context).pipe(
       Effect.mapError(GradeError.exec),
       Effect.provide(ctx),
-    )) satisfies Exec<Result, Tools, GradeError>;
+    )) satisfies Exec<Result, GradeError>;
 
   return Object.assign(exec, {
     snapshot,
     resources,
     scope,
     concurrency,
-  }) satisfies Grader<Result, Tools>;
+  }) satisfies Grader<Result>;
 });

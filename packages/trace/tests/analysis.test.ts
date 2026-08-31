@@ -126,7 +126,9 @@ test("combinators cover the questions that have no built-in analyzer", async () 
       stuck,
       Analyzer.all({
         // Where did it first go wrong?
-        firstFailure: Analyzer.first<Step.ToolCall<any>>().pipe(Analyzer.filterInput(Step.isFailed)),
+        firstFailure: Analyzer.first<Step.ToolCall<any>>().pipe(
+          Analyzer.filterInput(Step.isFailed),
+        ),
         // Why did it stop?
         outcome: Analyzer.last<Step.Finish>().pipe(Analyzer.filterInput(Step.isFinish)),
         // How much did it think?
@@ -155,9 +157,7 @@ test("a cohort of trajectories is summarized, aligned and contrasted", async () 
   });
 
   // The stuck run burned twice the context of the others, and it is named.
-  expect(Option.map(spend, (one) => one.max)).toEqual(
-    Option.some({ id: "stuck", value: 8_000 }),
-  );
+  expect(Option.map(spend, (one) => one.max)).toEqual(Option.some({ id: "stuck", value: 8_000 }));
   expect(Option.map(spend, (one) => one.median)).toEqual(Option.some(4_200));
 
   // Two runs that solved the task the same way, one extra search apart.

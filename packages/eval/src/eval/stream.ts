@@ -185,11 +185,8 @@ const makeTrail = Effect.fn(
         );
 
         const gradeResult = Effect.gen(function* () {
-          const trajectory = yield* Ref.get(agentSession.trajectory);
-
           const grade = yield* runGrader({
             sandbox: sbxSession.sandbox,
-            trajectory,
           }).pipe(Effect.catchTag("GradeError", (error) => Effect.fail(EvalError.grade(error))));
 
           const endEvent = Stream.succeed(Event.TrailEndEvent.make({ id, grade }));

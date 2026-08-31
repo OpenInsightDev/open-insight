@@ -60,8 +60,8 @@ Task.make({
 }).pipe(
   Task.stage("solve", {
     prompt: "<task-specific prompt>",
-    grader: Grade.make(SolveGrade)(async ({ $, prevResults, trajectory }) => {
-      // Inspect the sandbox and trajectory, then compute the confirmed grade fields here.
+    grader: Grade.make(SolveGrade)(async ({ $, prevResults }) => {
+      // Inspect the sandbox and compute the confirmed grade fields here.
       return {
         // Return exactly the encoded grade fields.
       };
@@ -116,14 +116,14 @@ Task.make({
 }).pipe(
   Task.stage("prepare", {
     prompt: "<preparation-stage prompt>",
-    grader: Grade.make(PreparationResult)(async ({ $, trajectory }) => {
+      grader: Grade.make(PreparationResult)(async ({ $ }) => {
       // Compute and return the PreparationResult fields here.
       return {};
     }),
   }),
   Task.stage("solve", {
     prompt: "<final-stage prompt>",
-    grader: Grade.make(SolveGrade)(async ({ $, prevResults, trajectory }) => {
+    grader: Grade.make(SolveGrade)(async ({ $, prevResults }) => {
       const preparation = prevResults.prepare;
       // Use preparation and the current sandbox state to compute the final grade here.
       return {};

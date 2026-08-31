@@ -1,6 +1,6 @@
 import { Data, Effect, Schema, Stream } from "effect";
 import { Prompt, Tool, Response, Toolkit } from "effect/unstable/ai";
-import { foldPart, makeFoldState } from "#/response/index.ts";
+import { Fold } from "#/response/index.ts";
 import { TrajectoryError } from "./error.ts";
 
 /**
@@ -14,19 +14,16 @@ export const PromptMessage = Schema.Union([
 export type PromptMessage = Schema.Schema.Type<typeof PromptMessage>;
 export type PromptMessageEncoded = Exclude<Prompt.MessageEncoded, Prompt.AssistantMessageEncoded>;
 
-export const PromptPart = Schema.TaggedStruct("Prompt", {
-  messages: Schema.Array(PromptMessage),
-});
+export const PromptPart = Schema.TaggedStruct("Prompt", { messages: Schema.Array(PromptMessage) });
 export type PromptPart = Schema.Schema.Type<typeof PromptPart>;
-export type PromptPartEncoded = typeof PromptPart.Encoded;
+export type PromptPartEncoded = Schema.Codec.Encoded<typeof PromptPart>;
 
 export const ResponsePart = <T extends Toolkit.Any>(toolkit: T) =>
-  Schema.TaggedStruct("Response", {
-    response: Response.PartView(toolkit),
-  });
-export type ResponsePart<Tools extends Record<string, Tool.Any>> = Schema.Schema.Type<
-  ReturnType<typeof ResponsePart<Toolkit.Toolkit<Tools>>>
->;
+  Schema.TaggedStruct("Response", { response: Response.PartView(toolkit) });
+export type ResponsePart<Tools extends Record<string, Tool.Any>> = Readonly<{
+  _tag: "Response";
+  response: Response.PartView<Tools>;
+}>;
 export type ResponsePartEncoded = Readonly<{
   _tag: "Response";
   response: Response.PartEncoded;
@@ -40,7 +37,9 @@ export type PartEncoded = PromptPartEncoded | ResponsePartEncoded;
 /**
  * A trajectory represents a sequence of turns in a conversation, where each turn consists of a prompt and the corresponding response.
  */
-export class Trajectory<Tools extends Record<string, Tool.Any>> extends Data.Class<{
+export class Trajectory<
+  Tools extends Record<string, Tool.Any> = Record<string, never>,
+> extends Data.Class<{
   toolkit: Toolkit.Toolkit<Tools>;
   parts: Stream.Stream<Part<Tools>, TrajectoryError>;
 }> {}
@@ -74,15 +73,15 @@ export const makeEncoded = Effect.fn(function* <E, R>(stream: EncodedStream<E, R
       }),
     ),
     Stream.mapAccum<
-      ReturnType<typeof makeFoldState>,
-      PromptMessageEncoded[] | Response.AllPartsView<Toolkit.Tools<typeof toolkit>>,
-      PromptPartEncoded | ResponsePart<Toolkit.Tools<typeof toolkit>>
-    >(makeFoldState, (state, part) => {
+      Fold.State,
+      Response.AllPartsView<{}> | PromptMessageEncoded[],
+      PromptPartEncoded | ResponsePart<{}>
+    >(Fold.makeState, (state, part) => {
       if (Array.isArray(part)) {
-        return [makeFoldState(), [{ _tag: "Prompt", messages: part }]] as const;
+        return [Fold.makeState(), [{ _tag: "Prompt", messages: part }]] as const;
       }
 
-      const [next, responses] = foldPart(state, part);
+      const [next, responses] = Fold.foldPart(state, part);
       return [
         next,
         responses.map((response) => ({ _tag: "Response", response }) as const),

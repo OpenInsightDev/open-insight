@@ -58,16 +58,16 @@
     "@effect/ai-anthropic": "catalog:",
     "@effect/ai-openai": "catalog:",
     "@effect/opentelemetry": "catalog:",
-    "ai": "catalog:",
     "@effect/sql-clickhouse": "catalog:",
+    "ai": "catalog:",
     "chdb": "catalog:",
     "eta": "^4.6.0",
+    "immer": "catalog:",
     "ipaddr.js": "catalog:",
     "openai": "catalog:",
     "picomatch": "catalog:",
     "semver": "catalog:",
-    "validator": "catalog:",
-    "immer": "catalog:"
+    "validator": "catalog:"
   },
   "devDependencies": {
     "@effect/vitest": "catalog:",

@@ -11,7 +11,7 @@ type Active =
       readonly value: string;
       readonly metadata: Metadata;
     };
-type State = ReadonlyMap<string, Active>;
+export type State = ReadonlyMap<string, Active>;
 
 const update = <A>(state: State, id: string, value: A): ReadonlyMap<string, A> => {
   const next = new Map(state as ReadonlyMap<string, A>);
@@ -35,7 +35,7 @@ const parse = (value: string): unknown => {
   }
 };
 
-export const makeFoldState = (): State => new Map();
+export const makeState = (): State => new Map();
 
 export const foldPart = <Tools extends Record<string, Tool.Any>>(
   state: State,
@@ -139,7 +139,7 @@ export function fold<Tools extends Record<string, Tool.Any>, E, R>(
 ): Stream.Stream<Response.PartView<Tools>, E, R> {
   return stream.pipe(
     Stream.mapAccum<State, Response.AllPartsView<Tools>, Response.PartView<Tools>>(
-      makeFoldState,
+      makeState,
       foldPart,
     ),
   );
