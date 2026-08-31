@@ -188,3 +188,9 @@ export const makeBench = Effect.fn(function* () {
 
   return Bench.fromArray("VerilogEval", tasks);
 });
+
+const main = Effect.fn(function* () {
+  const bench = yield* makeBench().pipe(
+    Effect.map((bench) => bench.pipe(Bench.mapTask("fuck", (task) => task))),
+  );
+});

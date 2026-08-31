@@ -3,6 +3,7 @@ export { TaskError } from "#/task/export.ts";
 export * as Tasks from "#/tasks/export.ts";
 
 export * as Bench from "#/bench/export.ts";
+export { BenchError } from "#/bench/export.ts";
 export * as Grade from "#/grade/export.ts";
 export * as Metric from "#/metric/export.ts";
 export { MetricError } from "#/metric/export.ts";

@@ -40,6 +40,8 @@ export type AggregatorOf<T> = T extends Mixin<infer A> ? A : never;
 export const aggregatorOf = <T>(value: T) =>
   Option.fromNullOr(hasProperty(value, Field) ? (value[Field] as AggregatorOf<T>) : null);
 
+export type TaskResultOf<T> = T extends Mixin<infer A> ? TaskResult<A["schema"]> : never;
+
 export const result = <T extends Task.Any, S extends Schema.Constraint, E, R>(
   schema: S,
   fn: (trails: ReadonlyArray<TrailResult<Task.GradeOf<T>>>) => Effect.Effect<S["Type"], E, R>,
