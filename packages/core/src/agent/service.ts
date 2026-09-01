@@ -10,14 +10,14 @@ export type Agent = Readonly<{
    * Ref of an append- and read-only view of the prompt trajectory, including
    * all prompts and responses that have been streamed so far.
    *
-   * Note that this trajectory does not equate to the internal state of the agent.
+   * Note that this trajectory may not equate to the internal state of the agent.
    */
   trajectory: Ref.Ref<Prompt.Prompt>;
 
   /**
    * Sends a prompt to the agent and returns a stream of response parts.
    */
-  prompt(prompt: Prompt.Prompt): Stream.Stream<Response.StreamPartEncoded, AgentError>;
+  prompt(prompt: Prompt.Prompt): Stream.Stream<Response.StreamPartView<{}>, AgentError>;
 }>;
 
 export type SnapshotExtension = Readonly<{
@@ -49,43 +49,42 @@ const makeAgent = Effect.fn("Agent.makeAgent")(function* ({
   const promptSem = Semaphore.makeUnsafe(1);
   const decodePart = Schema.decodeEffect(Response.StreamPart(Toolkit.empty));
 
-  const prompt = (prompt: Prompt.Prompt) =>
-    Effect.gen(function* () {
-      yield* promptSem.take(1);
-      const current = yield* Ref.get(trajectory);
-      const nextTrajectory = Prompt.concat(current, prompt);
+  const prompt = Effect.fn(function* (prompt: Prompt.Prompt) {
+    yield* promptSem.take(1);
 
-      const parts: Array<Response.AnyPart> = [];
-      const encoded = promptFn(nextTrajectory).pipe(Stream.mapError(AgentError.stream));
+    const current = yield* Ref.get(trajectory);
+    const nextTrajectory = Prompt.concat(current, prompt);
 
-      return encoded.pipe(
-        Stream.tap((part) =>
-          decodePart(part).pipe(
-            Effect.tap((decoded) => Effect.sync(() => parts.push(decoded))),
-            Effect.mapError(AgentError.stream),
-          ),
+    const parts: Array<Response.AnyPart> = [];
+    const encoded = promptFn(nextTrajectory).pipe(Stream.mapError(AgentError.stream));
+
+    return encoded.pipe(
+      Stream.mapEffect((part) => decodePart(part).pipe(Effect.mapError(AgentError.stream))),
+      Stream.tap(
+        Effect.fn(function* (part) {
+          parts.push(part);
+        }),
+      ),
+      Stream.ensuring(
+        Ref.set(trajectory, Prompt.concat(nextTrajectory, Prompt.fromResponseParts(parts))).pipe(
+          Effect.andThen(promptSem.release(1)),
         ),
-        Stream.ensuring(
-          Effect.andThen(
-            Ref.set(trajectory, Prompt.concat(nextTrajectory, Prompt.fromResponseParts(parts))),
-            promptSem.release(1),
-          ),
-        ),
-      );
-    }).pipe(Stream.unwrap);
+      ),
+    );
+  }, Stream.unwrap);
 
   return { trajectory, prompt } satisfies Agent;
 });
 
-export const make = (options: ProviderOptions): Effect.Effect<Provider> => {
-  const { snapshotExtension, runSession: runSessionFn } = options;
-  const runSession = Effect.fn("Agent.runSession")(function* (sandbox: Sandbox.Sandbox) {
-    const agentOptions = yield* runSessionFn(sandbox);
-    return yield* makeAgent(agentOptions);
-  });
-
-  return Effect.succeed({ snapshotExtension, runSession } satisfies Provider);
+export const make = (options: ProviderOptions) => {
+  return {
+    snapshotExtension: options.snapshotExtension,
+    runSession: Effect.fn(function* (sandbox) {
+      const agentOptions = yield* options.runSession(sandbox);
+      return yield* makeAgent(agentOptions);
+    }),
+  } satisfies Provider;
 };
 
 export const layerFrom = (options: ProviderOptions): Layer.Layer<ProviderService> =>
-  Layer.effect(ProviderService, make(options));
+  Layer.succeed(ProviderService, make(options));

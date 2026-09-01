@@ -146,8 +146,6 @@ const makeTrail = Effect.fn(
       .pipe(Effect.mapError(EvalError.harness));
     const sandbox = sbxSession.sandbox;
 
-    const runGrader = yield* Grade.Service;
-
     const sessionResultQueue = yield* Queue.make<Task.Result.SessionResult, Cause.Done>();
 
     const makeAttempt = ({
@@ -155,13 +153,13 @@ const makeTrail = Effect.fn(
       agentSession,
       sessionIdx,
     }: {
-      prompt: Prompt.Turns.Init;
+      prompt: Prompt.Turns;
       agentSession: Harness.AgentSession;
       sessionIdx: number;
     }): Stream.Stream<
       Event.TrailSuccessEvent,
-      Event.TrailFailedEvent | Task.Result.TrailResult | EvalError,
-      FileSystem.FileSystem | Path.Path | Prompt.Turns.Service
+      Event.TrailFailedEvent | Task.Result.TrailResult<any> | EvalError,
+      FileSystem.FileSystem | Path.Path
     > =>
       Effect.gen(function* () {
         const sessionID: Event.SessionID = { ...id, sessionIdx };
@@ -227,7 +225,7 @@ const makeTrail = Effect.fn(
     );
 
     const agentSession = yield* sbxSession.runAgent().pipe(Effect.mapError(EvalError.harness));
-    const attemptEvents = makeAttempt({ agentSession, sessionIdx: 0 }).pipe(Stream.provide(prompt));
+    const attemptEvents = makeAttempt({ agentSession, sessionIdx: 0 }));
 
     return Stream.empty.pipe(Stream.concat(startEvent), Stream.concat(attemptEvents));
   },

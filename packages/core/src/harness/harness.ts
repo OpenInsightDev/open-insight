@@ -7,21 +7,21 @@ import { HarnessError } from "./error.ts";
 import * as Prompt from "#/prompt/index.ts";
 import { Response, Tool, Toolkit } from "effect/unstable/ai";
 
-export type AgentSession = Readonly<{
+export type AgentSession<Tools extends Record<string, Tool.Any>> = Readonly<{
   trajectory: Ref.Ref<Prompt.Prompt>;
-  prompt(prompt: Prompt.Prompt): Stream.Stream<Response.StreamPartEncoded, HarnessError>;
+  prompt(prompt: Prompt.Prompt): Stream.Stream<Response.StreamPartView<Tools>, HarnessError>;
 }>;
 
-const makeAgentSession = (agent: Agent.Agent): AgentSession => {
+const makeAgentSession = <Tools extends Record<string, Tool.Any>>(agent: Agent.Agent) => {
   return {
     trajectory: agent.trajectory,
     prompt: (prompt) => agent.prompt(prompt).pipe(Stream.mapError(HarnessError.agent)),
-  } satisfies AgentSession;
+  } satisfies AgentSession<Tools>;
 };
 
-export type SandboxSession = Readonly<{
+export type SandboxSession<Tools extends Record<string, Tool.Any>> = Readonly<{
   sandbox: Sandbox.Sandbox;
-  runAgent(): Effect.Effect<AgentSession, HarnessError, Scope.Scope>;
+  runAgent(): Effect.Effect<AgentSession<Tools>, HarnessError, Scope.Scope>;
 }>;
 
 export type SandboxSessionConfig = Readonly<{
@@ -33,12 +33,12 @@ export const DefaultSandboxSessionConfig: SandboxSessionConfig = {
   cache: true,
 };
 
-export type SnapshotSession = Readonly<{
+export type SnapshotSession<Tools extends Record<string, Tool.Any>> = Readonly<{
   snapshot: Snapshot.Snapshot;
 
   runSandbox(
     options?: Partial<SandboxSessionConfig>,
-  ): Effect.Effect<SandboxSession, HarnessError, Scope.Scope>;
+  ): Effect.Effect<SandboxSession<Tools>, HarnessError, Scope.Scope>;
 }>;
 
 export class Metadata extends Schema.Class<Metadata>("HarnessMetadata")({
@@ -55,7 +55,7 @@ export class Harness<ID extends string, Tools extends Record<string, Tool.Any>> 
   toolkit: Toolkit.Toolkit<Tools>;
   runSnapshot(
     snapshot: Snapshot.Template,
-  ): Effect.Effect<SnapshotSession, HarnessError, Scope.Scope>;
+  ): Effect.Effect<SnapshotSession<Tools>, HarnessError, Scope.Scope>;
 }> {}
 export type Any = Harness<any, any>;
 export type IDOf<H> = H extends Harness<infer ID, any> ? ID : never;
@@ -119,19 +119,19 @@ export const make = Effect.fn(function* <ID extends string, Tools extends Record
         .runSession(sandbox)
         .pipe(Effect.mapError(HarnessError.agent));
       return makeAgentSession(agentSession);
-    }) satisfies SandboxSession["runAgent"];
+    }) satisfies SandboxSession<Tools>["runAgent"];
 
-    return { sandbox, runAgent } satisfies SandboxSession;
+    return { sandbox, runAgent } satisfies SandboxSession<Tools>;
   });
 
-  const makeSnapshotSession = (snapshot: Snapshot.Snapshot): SnapshotSession => {
+  const makeSnapshotSession = (snapshot: Snapshot.Snapshot): SnapshotSession<Tools> => {
     const runSandbox = Effect.fn("HarnessService.runSandbox")(function* (
       options?: Partial<SandboxSessionConfig>,
     ) {
       return yield* makeSandboxSession({ snapshot, options });
-    }) satisfies SnapshotSession["runSandbox"];
+    }) satisfies SnapshotSession<Tools>["runSandbox"];
 
-    return { snapshot, runSandbox } satisfies SnapshotSession;
+    return { snapshot, runSandbox } satisfies SnapshotSession<Tools>;
   };
 
   // Reference-counted snapshot session cache keyed by template equality

@@ -1,6 +1,6 @@
 import * as Sidecar from "./sidecar.ts";
 import * as Embed from "./embed.ts";
-import { Effect, Match, Option, type Schema } from "effect";
+import { Effect, FileSystem, flow, Match, Option, Path, Scope, type Schema } from "effect";
 import * as Verif from "./verif.ts";
 import { Sandbox } from "@open-insight/core/internal";
 import { GradeError } from "./error.ts";
@@ -66,22 +66,23 @@ export const sidecar = <Result extends Schema.Constraint>(
   });
 };
 
-type RunOptions = Readonly<{
-  sandbox: Sandbox.Sandbox;
-}>;
-
-export type Run = <R extends Schema.Constraint = any>(
-  options: RunOptions,
+export type Run<R extends Schema.Constraint = any> = (
+  sandbox: Sandbox.Sandbox,
 ) => Effect.Effect<R["Type"], GradeError | Retry>;
 
 export const makeRun = Effect.fn(function* <Result extends Schema.Constraint>(
   grader: Grader<Result>,
-) {
+): Effect.fn.Return<
+  Run<Result>,
+  GradeError,
+  Sandbox.ProviderService | FileSystem.FileSystem | Path.Path | Scope.Scope
+> {
   const sbxProvider = yield* Sandbox.ProviderService;
+  const ctx = yield* Effect.context<FileSystem.FileSystem | Path.Path>();
 
   switch (grader._tag) {
     case "Embed": {
-      return Effect.fn(function* ({ sandbox }: RunOptions) {
+      return Effect.fn(function* (sandbox) {
         return yield* grader(sandbox);
       });
     }
@@ -90,17 +91,20 @@ export const makeRun = Effect.fn(function* <Result extends Schema.Constraint>(
         .acquireSnapshot({ template: grader.snapshot, cache: true })
         .pipe(Effect.mapError(GradeError.sandbox));
 
-      return Effect.fn(function* ({ sandbox: agentSbx }: RunOptions) {
-        const gradeSbx = yield* sbxProvider
-          .runSandbox({ snapshot, resources: grader.resources, cache: false })
-          .pipe(Effect.mapError(GradeError.sandbox));
+      return Effect.fn(
+        function* (agentSbx) {
+          const gradeSbx = yield* sbxProvider
+            .runSandbox({ snapshot, resources: grader.resources, cache: false })
+            .pipe(Effect.mapError(GradeError.sandbox));
 
-        const context = yield* Sidecar.makeContext({
-          agent: agentSbx,
-          grade: gradeSbx,
-        });
-        return yield* grader(context);
-      }, Effect.scoped); // self scoped
+          const context = yield* Sidecar.makeContext({
+            agent: agentSbx,
+            grade: gradeSbx,
+          });
+          return yield* grader(context);
+        },
+        flow(Effect.provide(ctx), Effect.scoped),
+      ); // self scoped
     }
 
     case "TaskSidecar": {
@@ -114,13 +118,13 @@ export const makeRun = Effect.fn(function* <Result extends Schema.Constraint>(
         .runSandbox({ snapshot, resources: grader.resources, cache: false })
         .pipe(Effect.mapError(GradeError.sandbox));
 
-      return Effect.fn(function* ({ sandbox: agentSbx }: RunOptions) {
+      return Effect.fn(function* (agentSbx) {
         const context = yield* Sidecar.makeContext({
           agent: agentSbx,
           grade: gradeSbx,
         });
         return yield* grader(context);
-      });
+      }, Effect.provide(ctx));
     }
   }
 });
