@@ -1,7 +1,7 @@
-import { Stream } from "effect";
-import { Tool, Response } from "effect/unstable/ai";
+import { Effect, Match, Schema, Stream } from "effect";
+import { Tool, Response, Toolkit } from "effect/unstable/ai";
 import { TrajectoryError } from "./error.ts";
-import type { Trajectory } from "./trajectory.ts";
+import { Part, Trajectory } from "./trajectory.ts";
 import { responses } from "./view.ts";
 
 export type ToolTurns<Tools extends Record<string, Tool.Any>> = {
@@ -58,3 +58,42 @@ export const toolCalls = <Tools extends Record<string, Tool.Any>>(
   trajectory: Trajectory<Tools>,
 ): Stream.Stream<Response.ToolCallPartsView<Tools>, TrajectoryError> =>
   toolTurns(trajectory).pipe(Stream.map((turn) => turn.call));
+
+export const toolkits = <Toolkits extends ReadonlyArray<Toolkit.Any>>(...toolkits: Toolkits) =>
+  Effect.fn(function* <Tools extends Record<string, Tool.Any>>(trajectory: Trajectory<Tools>) {
+    const merged = Toolkit.merge(trajectory.toolkit, ...toolkits);
+
+    const sourceSchema = Response.PartView(trajectory.toolkit);
+    const partSchema = Response.PartView(merged);
+    const trajectoryPart = Part(merged);
+    const encode = Schema.encodeEffect(sourceSchema);
+    const decode = Schema.decodeEffect(partSchema);
+    const context = yield* Effect.context<
+      typeof sourceSchema.EncodingServices | typeof partSchema.DecodingServices
+    >();
+
+    const parts = trajectory.parts.pipe(
+      Stream.mapEffect((part) =>
+        Match.value(part).pipe(
+          Match.tag("Prompt", (prompt) => Effect.succeed(trajectoryPart.make(prompt))),
+          Match.tag("Response", (response) =>
+            Effect.gen(function* () {
+              const encoded = yield* encode(response.response).pipe(
+                Effect.mapError(TrajectoryError.decode),
+              );
+              const decoded = yield* decode(encoded).pipe(Effect.mapError(TrajectoryError.decode));
+              return trajectoryPart.make({
+                timestamp: response.timestamp,
+                uuid: response.uuid,
+                response: decoded,
+              });
+            }),
+          ),
+          Match.exhaustive,
+        ),
+      ),
+      Stream.provideContext(context),
+    );
+
+    return new Trajectory({ toolkit: merged, parts });
+  });

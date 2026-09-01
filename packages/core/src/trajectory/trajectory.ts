@@ -16,7 +16,7 @@ export type PromptMessageEncoded = Exclude<Prompt.MessageEncoded, Prompt.Assista
 
 const Timestamp = Schema.DateTimeUtcFromString.pipe(Schema.withConstructorDefault(DateTime.now));
 const Uuid = Schema.String.check(Schema.isUUID(7));
-const PartMetadata = Schema.Struct({ timestamp: Timestamp, uuid: Uuid });
+export const PartMetadata = Schema.Struct({ timestamp: Timestamp, uuid: Uuid });
 
 export const PromptPart = Schema.TaggedStruct("Prompt", {
   timestamp: Timestamp,
@@ -61,70 +61,53 @@ export class Trajectory<
 }> {}
 export type Any = Trajectory<any>;
 
-export class TrajectoryEncoded extends Data.Class<{
-  parts: Stream.Stream<PartEncoded, TrajectoryError>;
-}> {}
+type SessionTurn<Tools extends Record<string, Tool.Any>, E> = Readonly<{
+  prompt: Prompt.Prompt;
+  response: Stream.Stream<Response.StreamPartView<Tools>, E>;
+}>;
 
-export type EncodedStream<E, R> = Stream.Stream<
-  PromptMessageEncoded[] | Response.AllPartsEncoded,
+export type Session<Tools extends Record<string, Tool.Any>, E, R> = Stream.Stream<
+  SessionTurn<Tools, E>,
   E,
   R
 >;
 
-export const makeEncoded = Effect.fn(function* <E, R>(stream: EncodedStream<E, R>) {
+export const fromSession = Effect.fn(function* <Tools extends Record<string, Tool.Any>, E, R>(
+  stream: Session<Tools, E, R>,
+  toolkit: Toolkit.Toolkit<Tools>,
+) {
   const sourceContext = yield* Effect.context<R>();
   const crypto = yield* Crypto.Crypto;
-  const toolkit = Toolkit.empty;
-  const decodeResponse = Schema.decodeEffect(Response.AllPartsView(toolkit));
-  const encodeResponse = Schema.encodeEffect(Response.PartView(toolkit));
-  const encodeMetadata = Schema.encodeEffect(PartMetadata);
+  const responsePart = ResponsePart(toolkit);
+
+  const makeMetadata = Effect.fn(function* () {
+    const uuid = yield* crypto.randomUUIDv7.pipe(Effect.mapError(TrajectoryError.decode));
+    return yield* PartMetadata.makeEffect({ uuid }).pipe(Effect.mapError(TrajectoryError.decode));
+  });
 
   const parts = stream.pipe(
     Stream.provideContext(sourceContext),
     Stream.mapError(TrajectoryError.storage),
-    Stream.mapEffect((part) =>
-      Effect.gen(function* () {
-        if (Array.isArray(part)) {
-          return part;
-        }
-        return yield* decodeResponse(part).pipe(Effect.mapError(TrajectoryError.decode));
-      }),
-    ),
-    Stream.mapAccum<
-      Fold.State,
-      Response.AllPartsView<{}> | PromptMessageEncoded[],
-      | Readonly<{ _tag: "Prompt"; messages: PromptMessageEncoded[] }>
-      | Readonly<{ _tag: "Response"; response: Response.PartView<{}> }>
-    >(Fold.makeState, (state, part) => {
-      if (Array.isArray(part)) {
-        return [Fold.makeState(), [{ _tag: "Prompt", messages: part }]] as const;
-      }
+    Stream.flatMap((turn) => {
+      const messages = turn.prompt.content.filter(
+        (message): message is PromptMessage => message.role !== "assistant",
+      );
+      const prompt = Stream.fromEffect(
+        makeMetadata().pipe(Effect.map((metadata) => PromptPart.make({ ...metadata, messages }))),
+      );
+      const responses = Fold.fold(
+        turn.response.pipe(Stream.mapError(TrajectoryError.storage)),
+      ).pipe(
+        Stream.mapEffect((response) =>
+          makeMetadata().pipe(
+            Effect.map((metadata) => responsePart.make({ ...metadata, response })),
+          ),
+        ),
+      );
 
-      const [next, responses] = Fold.foldPart<{}>(state, part);
-      return [
-        next,
-        responses.map((response) => ({ _tag: "Response", response }) as const),
-      ] as const;
+      return prompt.pipe(Stream.concat(responses));
     }),
-    Stream.mapEffect((part) =>
-      Effect.gen(function* () {
-        const uuid = yield* crypto.randomUUIDv7.pipe(Effect.mapError(TrajectoryError.decode));
-        const metadata = yield* PartMetadata.makeEffect({ uuid }).pipe(
-          Effect.mapError(TrajectoryError.decode),
-        );
-        const encodedMetadata = yield* encodeMetadata(metadata).pipe(
-          Effect.mapError(TrajectoryError.decode),
-        );
-        if (part._tag === "Prompt") {
-          return { ...part, ...encodedMetadata };
-        }
-        const response = yield* encodeResponse(part.response).pipe(
-          Effect.mapError(TrajectoryError.decode),
-        );
-        return { ...part, ...encodedMetadata, response };
-      }),
-    ),
   );
 
-  return new TrajectoryEncoded({ parts });
+  return new Trajectory({ toolkit, parts });
 });

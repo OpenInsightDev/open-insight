@@ -1,7 +1,21 @@
-import { Effect, Match, Schema, Stream } from "effect";
+import { Array as Arr, Crypto, Data, Effect, Schema, Stream } from "effect";
 import { Tool, Toolkit, Response } from "effect/unstable/ai";
+import * as Fold from "#/response/fold.ts";
 import { TrajectoryError } from "./error.ts";
-import { Part, Trajectory, TrajectoryEncoded } from "./trajectory.ts";
+import {
+  Part,
+  PartMetadata,
+  PromptMessage,
+  PromptPart,
+  ResponsePart,
+  Trajectory,
+  type PartEncoded,
+  type PromptMessageEncoded,
+} from "./trajectory.ts";
+
+export class TrajectoryEncoded extends Data.Class<{
+  parts: Stream.Stream<PartEncoded, TrajectoryError>;
+}> {}
 
 export const encode = Effect.fn(function* <Tools extends Record<string, Tool.Any>>(
   trajectory: Trajectory<Tools>,
@@ -43,41 +57,55 @@ export const decode = Effect.fn(function* <Toolkits extends ReadonlyArray<Toolki
   return new Trajectory<Toolkit.MergedTools<Toolkits>>({ toolkit, parts });
 });
 
-export const toolkits = <Toolkits extends ReadonlyArray<Toolkit.Any>>(...toolkits: Toolkits) =>
-  Effect.fn(function* <Tools extends Record<string, Tool.Any>>(trajectory: Trajectory<Tools>) {
-    const merged = Toolkit.merge(trajectory.toolkit, ...toolkits);
+export type EncodedStream<E, R> = Stream.Stream<
+  PromptMessageEncoded[] | Response.AllPartsEncoded,
+  E,
+  R
+>;
 
-    const sourceSchema = Response.PartView(trajectory.toolkit);
-    const partSchema = Response.PartView(merged);
-    const trajectoryPart = Part(merged);
-    const encode = Schema.encodeEffect(sourceSchema);
-    const decode = Schema.decodeEffect(partSchema);
-    const context = yield* Effect.context<
-      typeof sourceSchema.EncodingServices | typeof partSchema.DecodingServices
-    >();
+export const makeEncoded = Effect.fn(function* <E, R>(stream: EncodedStream<E, R>) {
+  const sourceContext = yield* Effect.context<R>();
+  const crypto = yield* Crypto.Crypto;
+  const toolkit = Toolkit.empty;
+  const decodeMessages = Schema.decodeEffect(Schema.Array(PromptMessage));
+  const decodeResponse = Schema.decodeEffect(Response.AllPartsView(toolkit));
+  const responsePart = ResponsePart(toolkit);
 
-    const parts = trajectory.parts.pipe(
-      Stream.mapEffect((part) =>
-        Match.value(part).pipe(
-          Match.tag("Prompt", (prompt) => Effect.succeed(trajectoryPart.make(prompt))),
-          Match.tag("Response", (response) =>
-            Effect.gen(function* () {
-              const encoded = yield* encode(response.response).pipe(
-                Effect.mapError(TrajectoryError.decode),
-              );
-              const decoded = yield* decode(encoded).pipe(Effect.mapError(TrajectoryError.decode));
-              return trajectoryPart.make({
-                timestamp: response.timestamp,
-                uuid: response.uuid,
-                response: decoded,
-              });
-            }),
-          ),
-          Match.exhaustive,
-        ),
-      ),
-      Stream.provideContext(context),
-    );
-
-    return new Trajectory({ toolkit: merged, parts });
+  const makeMetadata = Effect.fn(function* () {
+    const uuid = yield* crypto.randomUUIDv7.pipe(Effect.mapError(TrajectoryError.decode));
+    return yield* PartMetadata.makeEffect({ uuid }).pipe(Effect.mapError(TrajectoryError.decode));
   });
+
+  const parts = stream.pipe(
+    Stream.provideContext(sourceContext),
+    Stream.mapError(TrajectoryError.storage),
+    Stream.mapAccumEffect<
+      Fold.State,
+      PromptMessageEncoded[] | Response.AllPartsEncoded,
+      Part<{}>,
+      TrajectoryError,
+      never
+    >(Fold.makeState, (state, part) =>
+      Effect.gen(function* () {
+        if (Arr.isArray(part)) {
+          const messages = yield* decodeMessages(part).pipe(
+            Effect.mapError(TrajectoryError.decode),
+          );
+          const metadata = yield* makeMetadata();
+          return [Fold.makeState(), [PromptPart.make({ ...metadata, messages })]] as const;
+        }
+
+        const response = yield* decodeResponse(part).pipe(Effect.mapError(TrajectoryError.decode));
+        const [next, responses] = Fold.foldPart(state, response);
+        const output = yield* Effect.forEach(responses, (response) =>
+          makeMetadata().pipe(
+            Effect.map((metadata) => responsePart.make({ ...metadata, response })),
+          ),
+        );
+        return [next, output] as const;
+      }),
+    ),
+  );
+
+  return yield* encode(new Trajectory({ toolkit, parts }));
+});

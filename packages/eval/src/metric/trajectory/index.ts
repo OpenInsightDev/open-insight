@@ -24,16 +24,20 @@ export const make = <S extends Schema.Constraint>(
     id,
     schema,
     metadata,
-    transform: (trajectory) =>
-      transformOption(trajectory).pipe(
-        Stream.map(
-          ({ result, part }) =>
-            ({
-              id,
-              result,
-              timestamp: part.timestamp,
-              partID: part.uuid,
-            }) satisfies Result<S>,
+    transform: (sessions) =>
+      sessions.pipe(
+        Stream.flatMap(({ trajectory }) =>
+          transformOption(trajectory).pipe(
+            Stream.map(
+              ({ result, part }) =>
+                ({
+                  id,
+                  result,
+                  timestamp: part.timestamp,
+                  partID: part.uuid,
+                }) satisfies Result<S>,
+            ),
+          ),
         ),
         Stream.mapError(MetricError.transform),
       ),

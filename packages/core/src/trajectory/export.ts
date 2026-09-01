@@ -4,6 +4,8 @@ export {
   type TrajectoryEncoded,
   type Part,
   type PartEncoded,
+  type Session,
+  fromSession,
   makeEncoded,
   encode,
   decode,

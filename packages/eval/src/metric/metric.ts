@@ -37,13 +37,18 @@ export type Result<S extends Schema.Constraint> = Readonly<{
   partID?: string;
 }>;
 
+export type Sessions = Readonly<{
+  sessionIdx: number;
+  trajectory: Trajectory.Trajectory;
+}>;
+
 export class Metric<S extends Schema.Constraint> extends Data.Class<{
   id: string;
   schema: S;
   metadata: Metadata;
 
   transform: (
-    trajectory: Trajectory.Trajectory,
+    sessions: Stream.Stream<Sessions>,
   ) => Stream.Stream<Result<S>, MetricError, Sandbox.Current>;
 }> {}
 export type Any = Metric<any>;
