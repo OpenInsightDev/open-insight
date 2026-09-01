@@ -21,7 +21,7 @@ import { type Any } from "./eval.ts";
 import * as Task from "#/task/index.ts";
 import * as Bench from "#/bench/index.ts";
 import * as Event from "#/event/index.ts";
-import { Harness, Prompt, Sandbox, Response } from "@open-insight/core/internal";
+import { Harness, Prompt, Sandbox, Response, Trajectory } from "@open-insight/core/internal";
 import { EvalError } from "./error.ts";
 import * as Config from "./config.ts";
 import type { BenchOf } from "./eval.ts";
@@ -39,11 +39,7 @@ const makeSession = Effect.fn(
 
     const decodePart = Schema.decodeSync(Response.StreamPart(Toolkit.empty));
 
-    type Turn = Readonly<{
-      prompt: Prompt.Prompt;
-      response: Stream.Stream<Response.StreamPartView<any>, EvalError>;
-    }>;
-    const turns = yield* Stream.callback<Turn, EvalError>(
+    const session = yield* Stream.callback<Trajectory.SessionTurn<any, EvalError>, EvalError>(
       Effect.fn(function* (queue) {
         let current: Option.Option<Prompt.Prompt> = Option.some(promptTurns.init);
 
@@ -96,7 +92,7 @@ const makeSession = Effect.fn(
 
     const startEvent = Stream.succeed(Event.SessionStartEvent.make({ id }));
 
-    const turnEvents = turns.pipe(
+    const sessionEvents = session.pipe(
       Stream.flatMap(({ prompt, response }) =>
         Stream.empty.pipe(
           Stream.concat(Stream.succeed(Event.SessionPromptEvent.make({ id, prompt }))),
@@ -112,19 +108,16 @@ const makeSession = Effect.fn(
       Stream.fromEffect,
     );
 
-    const result = Effect.all({
-      usage: Ref.get(usageRef),
-      trajectory: Ref.get(agentSession.trajectory),
-    }).pipe(
-      Effect.flatMap(({ usage, trajectory }) =>
-        Effect.fail(new Task.Result.SessionResult({ usage, trajectory })),
-      ),
+    const trajectory = yield* Trajectory.fromSession(session, Toolkit.empty);
+
+    const result = Ref.get(usageRef).pipe(
+      Effect.flatMap((usage) => Effect.fail(new Task.Result.SessionResult({ usage, trajectory }))),
       Stream.fromEffect,
     );
 
     return Stream.empty.pipe(
       Stream.concat(startEvent),
-      Stream.concat(turnEvents),
+      Stream.concat(sessionEvents),
       Stream.concat(endEvent),
       Stream.concat(result),
     );
