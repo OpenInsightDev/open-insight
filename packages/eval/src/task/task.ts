@@ -1,6 +1,6 @@
 import { Prompt, Resource, Snapshot } from "@open-insight/core/internal";
 import * as Grade from "#/grade/index.ts";
-import { Data, Match, Schema } from "effect";
+import { Data, Layer, Match, Schema } from "effect";
 
 export class Metadata extends Schema.Class<Metadata>("Metadata")({
   name: Schema.OptionFromOptionalNullOr(Schema.String),
@@ -12,7 +12,7 @@ export class Task<ID extends string, G extends Schema.Constraint> extends Data.T
   id: ID;
   metadata: Metadata;
 
-  prompt: Prompt.Turns;
+  prompt: Layer.Layer<Prompt.Session.Service>;
   snapshot: Snapshot.Template;
   resources: Resource.Resources;
   grader: Grade.Grader<G>;
@@ -25,7 +25,7 @@ export type IdOf<T> = T extends Task<infer ID, infer _> ? ID : never;
 
 type Options<G extends Schema.Constraint> = MetadataEncoded &
   Readonly<{
-    prompt: Prompt.RawInput | Prompt.Turns;
+    prompt: Prompt.RawInput | Prompt.Session.Provider;
     grader: Grade.Grader<G>;
 
     description?: string | null;
@@ -47,9 +47,9 @@ export const make = <ID extends string, G extends Schema.Constraint>(
 
   const metadata = Schema.decodeSync(Metadata)(encoded);
 
-  const turns = Match.value(prompt).pipe(
-    Match.tag("Turns", (turns) => turns),
-    Match.orElse((rawInput) => Prompt.makeTurns(Prompt.make(rawInput))),
+  const sessionLayer = Match.value(prompt).pipe(
+    Match.tag("Provider", (provider) => Layer.succeed(Prompt.Session.Service, provider)),
+    Match.orElse((rawInput) => Prompt.Session.layerFromPrompt(rawInput)),
   );
 
   return new Task({
@@ -57,7 +57,7 @@ export const make = <ID extends string, G extends Schema.Constraint>(
     metadata,
     snapshot,
     resources,
-    prompt: turns,
+    prompt: sessionLayer,
     grader,
   });
 };

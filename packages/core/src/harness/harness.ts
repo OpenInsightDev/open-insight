@@ -72,8 +72,6 @@ export const make = Effect.fn(function* <ID extends string, Tools extends Record
   HarnessError,
   Scope.Scope | Agent.ProviderService | Sandbox.ProviderService
 > {
-  type Service = Harness<ID, Tools>;
-
   const metadata = yield* Schema.decodeEffect(Metadata)({ id, ...options }).pipe(
     Effect.mapError(HarnessError.init),
   );
@@ -146,12 +144,7 @@ export const make = Effect.fn(function* <ID extends string, Tools extends Record
 
   const runSnapshot = Effect.fn("HarnessService.runSnapshot")(function* (template) {
     return yield* RcMap.get(cache, template);
-  }) satisfies Service["runSnapshot"];
+  }) satisfies Harness<ID, Tools>["runSnapshot"];
 
-  return new Harness({
-    id,
-    metadata,
-    toolkit,
-    runSnapshot,
-  });
+  return new Harness({ id, metadata, toolkit, runSnapshot });
 });
