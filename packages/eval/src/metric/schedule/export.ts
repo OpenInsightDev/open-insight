@@ -1,1 +1,1 @@
-export { fromRepeat as streamFromRepeat } from "./index.ts";
+export { fromSchedule as streamFromSchedule } from "./index.ts";

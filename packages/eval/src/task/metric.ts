@@ -1,11 +1,11 @@
 import * as Task from "./task.ts";
-import * as Metric from "#/metric/index.ts";
+import type * as Metric from "#/metric/metric.ts";
 import type { Override } from "#/utils/type.ts";
 import { Option } from "effect";
 import { hasProperty } from "effect/Predicate";
 
 const Field: unique symbol = Symbol("Field");
-export type Mixin<Metrics extends ReadonlyArray<Metric.Traj.Any>> = Readonly<{
+export type Mixin<Metrics extends ReadonlyArray<Metric.Any>> = Readonly<{
   [Field]: Metrics;
 }>;
 
@@ -17,12 +17,12 @@ export function metricsOf(value: unknown) {
   );
 }
 
-type Append<T, M extends Metric.Traj.Any> = T extends Mixin<infer Metrics> ? [...Metrics, M] : [M];
+type Append<T, M extends Metric.Any> = T extends Mixin<infer Metrics> ? [...Metrics, M] : [M];
 
-export function trajMetric<M extends Metric.Traj.Any>(
+export function metric<M extends Metric.Any>(
   metric: M,
 ): <T extends Task.Any>(task: T) => Override<T, Mixin<Append<T, M>>>;
-export function trajMetric(metric: Metric.Traj.Any) {
+export function metric(metric: Metric.Any) {
   return (task: Task.Any) => {
     if (hasProperty(task, Field) && Array.isArray(task[Field])) {
       task[Field].push(metric);

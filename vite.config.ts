@@ -1,6 +1,6 @@
 import { defineConfig } from "vite-plus";
 
-const workspaceSourcePatterns = ["*", "!apps", "!apps/**", "!packages", "!packages/**"];
+const workspaceSourcePatterns = ["*", "!apps", "!apps/**", "!packages", "!packages/**", "packages/effect", "packages/effect/**"];
 
 export default defineConfig({
   staged: {
