@@ -6,26 +6,19 @@ import { GradeError } from "./error.ts";
 
 export type Context = Sandbox.Sandbox;
 
-export type Exec<Result extends Schema.Constraint = any, E = unknown, R = never> = (
+export type Exec<Result extends Schema.Constraint = any> = (
   ctx: Context,
-) => Effect.Effect<Result["Type"], E | Retry.Retry, R>;
+) => Effect.Effect<Result["Type"], GradeError | Retry.Retry>;
 
-export type Grader<Result extends Schema.Constraint = any> = Exec<Result, GradeError>;
+export type Grader<Result extends Schema.Constraint = any> = Exec<Result>;
 
-export type Options<Result extends Schema.Constraint = any, E = unknown, R = never> = Readonly<{
-  grade: Exec<Result, E, R>;
+export type Options<Result extends Schema.Constraint = any> = Readonly<{
+  grade: (ctx: Context) => Effect.Effect<Result["Type"], unknown | Retry.Retry>;
 }>;
 
-export const make = Effect.fn(function* <Result extends Schema.Constraint, E, R>({
-  grade: gradeOption,
-}: Options<Result, E, R>) {
-  const ctx = yield* Effect.context<R>();
-
-  const exec = ((context) =>
+export const make = <Result extends Schema.Constraint>({ grade: gradeOption }: Options<Result>) => {
+  return (context: Context) =>
     gradeOption(context).pipe(
-      Effect.mapError(GradeError.exec),
-      Effect.provide(ctx),
-    )) satisfies Exec<Result, GradeError>;
-
-  return exec;
-});
+      Effect.mapError((err) => (err instanceof Retry.Retry ? err : GradeError.exec(err))),
+    );
+};
