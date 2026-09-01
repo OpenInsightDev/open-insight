@@ -28,12 +28,12 @@ import type { BenchOf } from "./eval.ts";
 
 type SessionOptions = Readonly<{
   id: Event.SessionID;
-  promptTurns: Prompt.Turns;
+  promptSession: Prompt.Session.Session;
   sandbox: Sandbox.Sandbox;
   agentSession: Harness.AgentSession;
 }>;
 const makeSession = Effect.fn(
-  function* ({ id, promptTurns, sandbox, agentSession }: SessionOptions) {
+  function* ({ id, sandbox, promptSession, agentSession }: SessionOptions) {
     const usageRef = yield* Ref.make<Response.Usage | null>(null);
     const finishRef = yield* Ref.make<Response.FinishReason>("unknown");
 
@@ -41,7 +41,7 @@ const makeSession = Effect.fn(
 
     const session = yield* Stream.callback<Trajectory.SessionTurn<any, EvalError>, EvalError>(
       Effect.fn(function* (queue) {
-        let current: Option.Option<Prompt.Prompt> = Option.some(promptTurns.init);
+        let current: Option.Option<Prompt.Prompt> = Option.some(promptSession.init);
 
         while (Option.isSome(current)) {
           const trajDeferred = yield* Deferred.make<Prompt.Prompt>();
@@ -78,7 +78,7 @@ const makeSession = Effect.fn(
 
           current = yield* Deferred.await(trajDeferred).pipe(
             Effect.flatMap((traj) =>
-              promptTurns
+              promptSession
                 .next(traj)
                 .pipe(
                   Effect.provideService(Sandbox.Current, sandbox),
@@ -149,11 +149,11 @@ const makeTrail = Effect.fn(
     const sessionResultQueue = yield* Queue.make<Task.Result.SessionResult, Cause.Done>();
 
     const makeAttempt = ({
-      prompt,
+      promptSession,
       agentSession,
       sessionIdx,
     }: {
-      prompt: Prompt.Turns;
+      promptSession: Prompt.Session.Session;
       agentSession: Harness.AgentSession;
       sessionIdx: number;
     }): Stream.Stream<
@@ -166,7 +166,7 @@ const makeTrail = Effect.fn(
 
         const session = makeSession({
           id: sessionID,
-          promptTurns: prompt,
+          promptSession,
           agentSession,
           sandbox,
         }).pipe(
@@ -175,47 +175,47 @@ const makeTrail = Effect.fn(
           ),
         );
 
-        const gradeResult = Effect.gen(function* () {
-          const grade = yield* runGrader({
-            sandbox: sbxSession.sandbox,
-          }).pipe(Effect.catchTag("GradeError", (error) => Effect.fail(EvalError.grade(error))));
+        // const gradeResult = Effect.gen(function* () {
+        //   const grade = yield* runGrader({
+        //     sandbox: sbxSession.sandbox,
+        //   }).pipe(Effect.catchTag("GradeError", (error) => Effect.fail(EvalError.grade(error))));
 
-          const endEvent = Stream.succeed(Event.TrailEndEvent.make({ id, grade }));
+        //   const endEvent = Stream.succeed(Event.TrailEndEvent.make({ id, grade }));
 
-          yield* Queue.end(sessionResultQueue);
-          const sessions = yield* Queue.collect(sessionResultQueue);
-          const result = Stream.fail(new Task.Result.TrailResult({ grade, sessions }));
+        //   yield* Queue.end(sessionResultQueue);
+        //   const sessions = yield* Queue.collect(sessionResultQueue);
+        //   const result = Stream.fail(new Task.Result.TrailResult({ grade, sessions }));
 
-          return Stream.empty.pipe(Stream.concat(endEvent), Stream.concat(result));
-        }).pipe(Stream.unwrap);
+        //   return Stream.empty.pipe(Stream.concat(endEvent), Stream.concat(result));
+        // }).pipe(Stream.unwrap);
 
-        const makeRetry = (retry: Grade.Retry) =>
-          Effect.gen(function* () {
-            yield* Effect.logDebug(
-              `Grader requested a "${retry.type}" retry for trail ${id.trailIdx}: ${retry.reason ?? "unknown reason"}`,
-            );
+        // const makeRetry = (retry: Grade.Retry) =>
+        //   Effect.gen(function* () {
+        //     yield* Effect.logDebug(
+        //       `Grader requested a "${retry.type}" retry for trail ${id.trailIdx}: ${retry.reason ?? "unknown reason"}`,
+        //     );
 
-            const nextSession = yield* Match.value(retry.type).pipe(
-              Match.when("restart", () =>
-                sbxSession.runAgent().pipe(Effect.mapError(EvalError.harness)),
-              ),
-              Match.when("continue", () => Effect.succeed(agentSession)),
-              Match.exhaustive,
-            );
-            const nextAttempt = makeAttempt({
-              agentSession: nextSession,
-              sessionIdx: sessionIdx + 1,
-            });
+        //     const nextSession = yield* Match.value(retry.type).pipe(
+        //       Match.when("restart", () =>
+        //         sbxSession.runAgent().pipe(Effect.mapError(EvalError.harness)),
+        //       ),
+        //       Match.when("continue", () => Effect.succeed(agentSession)),
+        //       Match.exhaustive,
+        //     );
+        //     const nextAttempt = makeAttempt({
+        //       agentSession: nextSession,
+        //       sessionIdx: sessionIdx + 1,
+        //     });
 
-            const retryEvent = Stream.succeed(
-              Event.SessionRetryEvent.make({ id: sessionID, reason: retry.reason }),
-            );
+        //     const retryEvent = Stream.succeed(
+        //       Event.SessionRetryEvent.make({ id: sessionID, reason: retry.reason }),
+        //     );
 
-            return Stream.empty.pipe(Stream.concat(retryEvent), Stream.concat(nextAttempt));
-          }).pipe(Stream.unwrap);
+        //     return Stream.empty.pipe(Stream.concat(retryEvent), Stream.concat(nextAttempt));
+        //   }).pipe(Stream.unwrap);
 
-        const grade = gradeResult.pipe(Stream.catchTag("Retry", makeRetry));
-        return Stream.empty.pipe(Stream.concat(session), Stream.concat(grade));
+        // const grade = gradeResult.pipe(Stream.catchTag("Retry", makeRetry));
+        // return Stream.empty.pipe(Stream.concat(session), Stream.concat(grade));
       }).pipe(Stream.unwrap);
 
     const startEvent = Stream.succeed(
@@ -238,206 +238,206 @@ const makeTrail = Effect.fn(
     ),
 );
 
-type TaskOptions = Readonly<{
-  id: Event.TaskID;
+// type TaskOptions = Readonly<{
+//   id: Event.TaskID;
 
-  task: Task.Any;
-  harness: Harness.Any;
+//   task: Task.Any;
+//   harness: Harness.Any;
 
-  snapSem: Semaphore.Semaphore;
-  trailSem: Semaphore.Semaphore;
-  trailCount: number;
-}>;
-const makeTask = Effect.fn(
-  function* (
-    options: TaskOptions,
-  ): Effect.fn.Return<
-    Stream.Stream<
-      Event.TaskSuccessEvent,
-      Event.TaskFailedEvent | Task.Result.TaskResult | EvalError,
-      FileSystem.FileSystem | Path.Path
-    >,
-    EvalError,
-    Sandbox.ProviderService | Scope.Scope
-  > {
-    const { id, task, harness, snapSem, trailSem, trailCount } = options;
-    const { grader, snapshot: taskTemplate } = task;
+//   snapSem: Semaphore.Semaphore;
+//   trailSem: Semaphore.Semaphore;
+//   trailCount: number;
+// }>;
+// const makeTask = Effect.fn(
+//   function* (
+//     options: TaskOptions,
+//   ): Effect.fn.Return<
+//     Stream.Stream<
+//       Event.TaskSuccessEvent,
+//       Event.TaskFailedEvent | Task.Result.TaskResult | EvalError,
+//       FileSystem.FileSystem | Path.Path
+//     >,
+//     EvalError,
+//     Sandbox.ProviderService | Scope.Scope
+//   > {
+//     const { id, task, harness, snapSem, trailSem, trailCount } = options;
+//     const { grader, snapshot: taskTemplate } = task;
 
-    const snapSession = yield* harness
-      .runSnapshot(taskTemplate)
-      .pipe(snapSem.withPermit)
-      .pipe(Effect.mapError(EvalError.harness));
+//     const snapSession = yield* harness
+//       .runSnapshot(taskTemplate)
+//       .pipe(snapSem.withPermit)
+//       .pipe(Effect.mapError(EvalError.harness));
 
-    const startEvent = Stream.succeed(
-      Event.TaskStartEvent.make({
-        id,
-        task: task.metadata,
-        extra: Task.Extra.extraOf(task),
-      }),
-    );
+//     const startEvent = Stream.succeed(
+//       Event.TaskStartEvent.make({
+//         id,
+//         task: task.metadata,
+//         extra: Task.Extra.extraOf(task),
+//       }),
+//     );
 
-    const trailResultQueue = yield* Queue.make<Task.Result.TrailResult, Cause.Done>();
+//     const trailResultQueue = yield* Queue.make<Task.Result.TrailResult, Cause.Done>();
 
-    const trailSchedMutex = yield* Semaphore.make(1);
-    const trails = Array.range(0, trailCount - 1).map(
-      Effect.fn(
-        function* (trailIdx) {
-          // once aquired trailSem, release mutex to allow siblings to start waiting
-          yield* trailSchedMutex.release(1);
+//     const trailSchedMutex = yield* Semaphore.make(1);
+//     const trails = Array.range(0, trailCount - 1).map(
+//       Effect.fn(
+//         function* (trailIdx) {
+//           // once aquired trailSem, release mutex to allow siblings to start waiting
+//           yield* trailSchedMutex.release(1);
 
-          const trailID: Event.TrailID = { ...id, trailIdx };
-          return makeTrail({ id: trailID, snapSession, task })
-            .pipe(
-              Stream.provide(Grade.layerFrom(grader)),
-              Stream.catchTag("GradeError", (error) => Stream.fail(EvalError.grade(error))),
-            )
-            .pipe(
-              Stream.catchTag("TrailResult", (result) =>
-                Queue.offer(trailResultQueue, result).pipe(Stream.fromEffect, Stream.drain),
-              ),
-            );
-        },
-        flow(trailSem.withPermit, Stream.unwrap),
-      ),
-    );
+//           const trailID: Event.TrailID = { ...id, trailIdx };
+//           return makeTrail({ id: trailID, snapSession, task })
+//             .pipe(
+//               Stream.provide(Grade.layerFrom(grader)),
+//               Stream.catchTag("GradeError", (error) => Stream.fail(EvalError.grade(error))),
+//             )
+//             .pipe(
+//               Stream.catchTag("TrailResult", (result) =>
+//                 Queue.offer(trailResultQueue, result).pipe(Stream.fromEffect, Stream.drain),
+//               ),
+//             );
+//         },
+//         flow(trailSem.withPermit, Stream.unwrap),
+//       ),
+//     );
 
-    const sbxProvider = yield* Sandbox.ProviderService;
-    const trailEvents = Stream.mergeAll(
-      trails.map((trail) =>
-        trail.pipe(
-          Stream.onStart(
-            // one trail at a time per task is waiting trailSem to ensure inter-task fairness
-            trailSchedMutex.take(1).pipe(Effect.andThen(Effect.yieldNow)),
-          ),
-        ),
-      ),
-      { concurrency: "unbounded" },
-    ).pipe(Stream.provideService(Sandbox.ProviderService, sbxProvider));
+//     const sbxProvider = yield* Sandbox.ProviderService;
+//     const trailEvents = Stream.mergeAll(
+//       trails.map((trail) =>
+//         trail.pipe(
+//           Stream.onStart(
+//             // one trail at a time per task is waiting trailSem to ensure inter-task fairness
+//             trailSchedMutex.take(1).pipe(Effect.andThen(Effect.yieldNow)),
+//           ),
+//         ),
+//       ),
+//       { concurrency: "unbounded" },
+//     ).pipe(Stream.provideService(Sandbox.ProviderService, sbxProvider));
 
-    const endEvent = Stream.succeed(Event.TaskEndEvent.make({ id }));
+//     const endEvent = Stream.succeed(Event.TaskEndEvent.make({ id }));
 
-    const result = Task.Result.fnOf(task as any).pipe(
-      Option.match({
-        onSome: ({ exec }) =>
-          Queue.end(trailResultQueue)
-            .pipe(Effect.andThen(Queue.collect(trailResultQueue)))
-            .pipe(Effect.flatMap(exec), Effect.mapError(EvalError.task))
-            .pipe(Effect.flatMap(Effect.fail), Stream.fromEffect),
-        onNone: () => Stream.empty,
-      }),
-    );
+//     const result = Task.Result.fnOf(task as any).pipe(
+//       Option.match({
+//         onSome: ({ exec }) =>
+//           Queue.end(trailResultQueue)
+//             .pipe(Effect.andThen(Queue.collect(trailResultQueue)))
+//             .pipe(Effect.flatMap(exec), Effect.mapError(EvalError.task))
+//             .pipe(Effect.flatMap(Effect.fail), Stream.fromEffect),
+//         onNone: () => Stream.empty,
+//       }),
+//     );
 
-    return Stream.empty.pipe(
-      Stream.concat(startEvent),
-      Stream.concat(trailEvents),
-      Stream.concat(endEvent),
-      Stream.concat(result),
-    );
-  },
-  (eff, { id }) =>
-    eff.pipe(
-      Stream.unwrap,
-      Stream.catchTag("EvalError", (error) =>
-        Stream.fail(Event.TaskErrorEvent.make({ id, error })),
-      ),
-    ),
-);
+//     return Stream.empty.pipe(
+//       Stream.concat(startEvent),
+//       Stream.concat(trailEvents),
+//       Stream.concat(endEvent),
+//       Stream.concat(result),
+//     );
+//   },
+//   (eff, { id }) =>
+//     eff.pipe(
+//       Stream.unwrap,
+//       Stream.catchTag("EvalError", (error) =>
+//         Stream.fail(Event.TaskErrorEvent.make({ id, error })),
+//       ),
+//     ),
+// );
 
-type EvalOptions<Eval extends Any> = Readonly<{
-  eval_: Eval;
-  config?: Partial<Config.Config>;
-}>;
-export const make = Effect.fn(
-  function* <E extends Any>({
-    eval_,
-    config: configOptions,
-  }: EvalOptions<E>): Effect.fn.Return<
-    Stream.Stream<
-      Event.EvalSuccessEvent,
-      Event.EvalFailedEvent | Bench.Result.ResultOf<BenchOf<E>> | EvalError
-    >,
-    EvalError,
-    FileSystem.FileSystem | Path.Path | Sandbox.ProviderService | Scope.Scope
-  > {
-    const bench: Bench.Any = eval_.bench;
-    const harness: Harness.Any = eval_.harness;
-    const { tasks } = bench;
+// type EvalOptions<Eval extends Any> = Readonly<{
+//   eval_: Eval;
+//   config?: Partial<Config.Config>;
+// }>;
+// export const make = Effect.fn(
+//   function* <E extends Any>({
+//     eval_,
+//     config: configOptions,
+//   }: EvalOptions<E>): Effect.fn.Return<
+//     Stream.Stream<
+//       Event.EvalSuccessEvent,
+//       Event.EvalFailedEvent | Bench.Result.ResultOf<BenchOf<E>> | EvalError
+//     >,
+//     EvalError,
+//     FileSystem.FileSystem | Path.Path | Sandbox.ProviderService | Scope.Scope
+//   > {
+//     const bench: Bench.Any = eval_.bench;
+//     const harness: Harness.Any = eval_.harness;
+//     const { tasks } = bench;
 
-    const id: Event.EvalID = {
-      harnessID: harness.metadata.id,
-      benchID: bench.metadata.id,
-    };
+//     const id: Event.EvalID = {
+//       harnessID: harness.metadata.id,
+//       benchID: bench.metadata.id,
+//     };
 
-    const config = Config.make(configOptions);
-    const { trailConcurrency, snapshotConcurrency, trailCount } = config;
+//     const config = Config.make(configOptions);
+//     const { trailConcurrency, snapshotConcurrency, trailCount } = config;
 
-    const trailSem = yield* Semaphore.make(trailConcurrency);
-    const snapSem = yield* Semaphore.make(snapshotConcurrency);
+//     const trailSem = yield* Semaphore.make(trailConcurrency);
+//     const snapSem = yield* Semaphore.make(snapshotConcurrency);
 
-    const taskResultQueue = yield* Queue.make<[string, Task.Result.TaskResult], Cause.Done>();
+//     const taskResultQueue = yield* Queue.make<[string, Task.Result.TaskResult], Cause.Done>();
 
-    const taskStreams = Object.entries(tasks).map(([taskID, task]) =>
-      makeTask({
-        id: { benchID: bench.id, harnessID: harness.id, taskID },
-        task,
-        harness,
-        snapSem,
-        trailSem,
-        trailCount,
-      }).pipe(
-        Stream.catchTag("TaskResult", (result) =>
-          Stream.empty.pipe(Stream.onStart(Queue.offer(taskResultQueue, [result.id, result]))),
-        ),
-      ),
-    );
-    const taskEvents = Stream.mergeAll(taskStreams, { concurrency: "unbounded" });
+//     const taskStreams = Object.entries(tasks).map(([taskID, task]) =>
+//       makeTask({
+//         id: { benchID: bench.id, harnessID: harness.id, taskID },
+//         task,
+//         harness,
+//         snapSem,
+//         trailSem,
+//         trailCount,
+//       }).pipe(
+//         Stream.catchTag("TaskResult", (result) =>
+//           Stream.empty.pipe(Stream.onStart(Queue.offer(taskResultQueue, [result.id, result]))),
+//         ),
+//       ),
+//     );
+//     const taskEvents = Stream.mergeAll(taskStreams, { concurrency: "unbounded" });
 
-    const startEvent = Stream.succeed(
-      Event.EvalStartEvent.make({ id, bench: bench.metadata, harness: harness.metadata }),
-    );
+//     const startEvent = Stream.succeed(
+//       Event.EvalStartEvent.make({ id, bench: bench.metadata, harness: harness.metadata }),
+//     );
 
-    const endEvent = Stream.succeed(Event.EvalEndEvent.make({ id }));
+//     const endEvent = Stream.succeed(Event.EvalEndEvent.make({ id }));
 
-    const result = Bench.Result.mixinOf(eval_.bench).pipe(
-      Option.match({
-        onSome: ({ exec }) =>
-          Queue.end(taskResultQueue).pipe(
-            Effect.andThen(Queue.collect(taskResultQueue)),
-            Effect.flatMap((taskResults) =>
-              exec(Object.fromEntries(taskResults)).pipe(
-                Effect.mapError(EvalError.task),
-                Effect.flatMap((result) =>
-                  Effect.fail(result as Bench.Result.ResultOf<BenchOf<E>>),
-                ),
-              ),
-            ),
-            Stream.fromEffect,
-          ),
-        onNone: () => Stream.empty,
-      }),
-    );
+//     const result = Bench.Result.mixinOf(eval_.bench).pipe(
+//       Option.match({
+//         onSome: ({ exec }) =>
+//           Queue.end(taskResultQueue).pipe(
+//             Effect.andThen(Queue.collect(taskResultQueue)),
+//             Effect.flatMap((taskResults) =>
+//               exec(Object.fromEntries(taskResults)).pipe(
+//                 Effect.mapError(EvalError.task),
+//                 Effect.flatMap((result) =>
+//                   Effect.fail(result as Bench.Result.ResultOf<BenchOf<E>>),
+//                 ),
+//               ),
+//             ),
+//             Stream.fromEffect,
+//           ),
+//         onNone: () => Stream.empty,
+//       }),
+//     );
 
-    const stream = yield* Stream.empty
-      .pipe(
-        Stream.concat(startEvent),
-        Stream.concat(taskEvents),
-        Stream.concat(endEvent),
-        Stream.concat(result),
-      )
-      .pipe(Stream.share({ capacity: "unbounded" }));
+//     const stream = yield* Stream.empty
+//       .pipe(
+//         Stream.concat(startEvent),
+//         Stream.concat(taskEvents),
+//         Stream.concat(endEvent),
+//         Stream.concat(result),
+//       )
+//       .pipe(Stream.share({ capacity: "unbounded" }));
 
-    return stream;
-  },
-  (eff, { eval_ }) =>
-    eff.pipe(
-      Stream.unwrap,
-      Stream.catchTag("EvalError", (error) =>
-        Stream.fail(
-          Event.EvalErrorEvent.make({
-            id: { harnessID: eval_.harness.id, benchID: eval_.bench.id },
-            error,
-          }),
-        ),
-      ),
-    ),
-);
+//     return stream;
+//   },
+//   (eff, { eval_ }) =>
+//     eff.pipe(
+//       Stream.unwrap,
+//       Stream.catchTag("EvalError", (error) =>
+//         Stream.fail(
+//           Event.EvalErrorEvent.make({
+//             id: { harnessID: eval_.harness.id, benchID: eval_.bench.id },
+//             error,
+//           }),
+//         ),
+//       ),
+//     ),
+// );

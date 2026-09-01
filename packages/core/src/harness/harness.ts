@@ -7,10 +7,11 @@ import { HarnessError } from "./error.ts";
 import * as Prompt from "#/prompt/index.ts";
 import { Response, Tool, Toolkit } from "effect/unstable/ai";
 
-export type AgentSession<Tools extends Record<string, Tool.Any>> = Readonly<{
-  trajectory: Ref.Ref<Prompt.Prompt>;
-  prompt(prompt: Prompt.Prompt): Stream.Stream<Response.StreamPartView<Tools>, HarnessError>;
-}>;
+export type AgentSession<Tools extends Record<string, Tool.Any> = Record<string, never>> =
+  Readonly<{
+    trajectory: Ref.Ref<Prompt.Prompt>;
+    prompt(prompt: Prompt.Prompt): Stream.Stream<Response.StreamPartView<Tools>, HarnessError>;
+  }>;
 
 const makeAgentSession = <Tools extends Record<string, Tool.Any>>(agent: Agent.Agent) => {
   return {
@@ -19,10 +20,11 @@ const makeAgentSession = <Tools extends Record<string, Tool.Any>>(agent: Agent.A
   } satisfies AgentSession<Tools>;
 };
 
-export type SandboxSession<Tools extends Record<string, Tool.Any>> = Readonly<{
-  sandbox: Sandbox.Sandbox;
-  runAgent(): Effect.Effect<AgentSession<Tools>, HarnessError, Scope.Scope>;
-}>;
+export type SandboxSession<Tools extends Record<string, Tool.Any> = Record<string, never>> =
+  Readonly<{
+    sandbox: Sandbox.Sandbox;
+    runAgent(): Effect.Effect<AgentSession<Tools>, HarnessError, Scope.Scope>;
+  }>;
 
 export type SandboxSessionConfig = Readonly<{
   resources: Resource.Resources;
@@ -33,13 +35,14 @@ export const DefaultSandboxSessionConfig: SandboxSessionConfig = {
   cache: true,
 };
 
-export type SnapshotSession<Tools extends Record<string, Tool.Any>> = Readonly<{
-  snapshot: Snapshot.Snapshot;
+export type SnapshotSession<Tools extends Record<string, Tool.Any> = Record<string, never>> =
+  Readonly<{
+    snapshot: Snapshot.Snapshot;
 
-  runSandbox(
-    options?: Partial<SandboxSessionConfig>,
-  ): Effect.Effect<SandboxSession<Tools>, HarnessError, Scope.Scope>;
-}>;
+    runSandbox(
+      options?: Partial<SandboxSessionConfig>,
+    ): Effect.Effect<SandboxSession<Tools>, HarnessError, Scope.Scope>;
+  }>;
 
 export class Metadata extends Schema.Class<Metadata>("HarnessMetadata")({
   id: Schema.String,

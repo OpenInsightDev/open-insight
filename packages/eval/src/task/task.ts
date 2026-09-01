@@ -1,6 +1,6 @@
 import { Prompt, Resource, Snapshot } from "@open-insight/core/internal";
 import * as Grade from "#/grade/index.ts";
-import { Data, Layer, Match, Schema } from "effect";
+import { Data, Match, Schema } from "effect";
 
 export class Metadata extends Schema.Class<Metadata>("Metadata")({
   name: Schema.OptionFromOptionalNullOr(Schema.String),
@@ -12,7 +12,7 @@ export class Task<ID extends string, G extends Schema.Constraint> extends Data.T
   id: ID;
   metadata: Metadata;
 
-  prompt: Layer.Layer<Prompt.Session.Service>;
+  prompt: Prompt.Session.Provider;
   snapshot: Snapshot.Template;
   resources: Resource.Resources;
   grader: Grade.Grader<G>;
@@ -48,8 +48,8 @@ export const make = <ID extends string, G extends Schema.Constraint>(
   const metadata = Schema.decodeSync(Metadata)(encoded);
 
   const sessionLayer = Match.value(prompt).pipe(
-    Match.tag("Provider", (provider) => Layer.succeed(Prompt.Session.Service, provider)),
-    Match.orElse((rawInput) => Prompt.Session.layerFromPrompt(rawInput)),
+    Match.tag("Provider", (provider) => provider),
+    Match.orElse((rawInput) => Prompt.Session.fromPrompt(rawInput)),
   );
 
   return new Task({
