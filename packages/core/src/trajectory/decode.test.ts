@@ -1,5 +1,5 @@
 import { assert, describe, it } from "@effect/vitest";
-import { Effect, Schema, Stream } from "effect";
+import { DateTime, Effect, Schema, Stream } from "effect";
 import { Prompt, Response, Tool, Toolkit } from "effect/unstable/ai";
 import { decode, encode, toolkits } from "./decode.ts";
 import { DecodeFailed } from "./error.ts";
@@ -15,6 +15,9 @@ const Label = Tool.make("label", {
 });
 const convertToolkit = Toolkit.make(Convert);
 const labelToolkit = Toolkit.make(Label);
+const timestamp = DateTime.makeUnsafe("2024-01-01T00:00:00.000Z");
+const timestampEncoded = DateTime.formatIso(timestamp);
+const uuid = "01890f47-3d90-7cc3-98c8-683a927d7851";
 
 const collect = <A, E>(stream: Stream.Stream<A, E>) =>
   stream.pipe(
@@ -30,10 +33,14 @@ describe("encode", () => {
         parts: Stream.fromIterable<Part<Toolkit.Tools<typeof convertToolkit>>>([
           {
             _tag: "Prompt",
+            timestamp,
+            uuid,
             messages: [Prompt.userMessage({ content: [Prompt.textPart({ text: "convert it" })] })],
           },
           {
             _tag: "Response",
+            timestamp,
+            uuid,
             response: Response.toolCallPart({
               id: "call-1",
               name: "convert",
@@ -50,10 +57,14 @@ describe("encode", () => {
       assert.deepStrictEqual(parts, [
         {
           _tag: "Prompt",
+          timestamp: timestampEncoded,
+          uuid,
           messages: [{ role: "user", content: "convert it", options: {} }],
         },
         {
           _tag: "Response",
+          timestamp: timestampEncoded,
+          uuid,
           response: {
             type: "tool-call",
             id: "call-1",
@@ -72,9 +83,16 @@ describe("decode", () => {
   it.effect("decodes prompt messages and known tool call and result payloads", () =>
     Effect.gen(function* () {
       const encodedParts: PartEncoded[] = [
-        { _tag: "Prompt", messages: [{ role: "user", content: "convert it" }] },
+        {
+          _tag: "Prompt",
+          timestamp: timestampEncoded,
+          uuid,
+          messages: [{ role: "user", content: "convert it" }],
+        },
         {
           _tag: "Response",
+          timestamp: timestampEncoded,
+          uuid,
           response: {
             type: "tool-call",
             id: "call-1",
@@ -85,6 +103,8 @@ describe("decode", () => {
         },
         {
           _tag: "Response",
+          timestamp: timestampEncoded,
+          uuid,
           response: {
             type: "tool-result",
             id: "call-1",
@@ -129,6 +149,8 @@ describe("decode", () => {
         parts: Stream.fromIterable<PartEncoded>([
           {
             _tag: "Response",
+            timestamp: timestampEncoded,
+            uuid,
             response: {
               type: "tool-call",
               id: "unknown-1",
@@ -180,10 +202,14 @@ describe("toolkits", () => {
     Effect.gen(function* () {
       const prompt = {
         _tag: "Prompt" as const,
+        timestamp,
+        uuid,
         messages: [Prompt.userMessage({ content: [Prompt.textPart({ text: "convert" })] })],
       };
       const unknownCall: Part<{}> = {
         _tag: "Response",
+        timestamp,
+        uuid,
         response: yield* Schema.decodeUnknownEffect(Response.PartView(Toolkit.empty))({
           type: "tool-call",
           id: "call-1",
@@ -214,6 +240,8 @@ describe("toolkits", () => {
     Effect.gen(function* () {
       const part: Part<Toolkit.Tools<typeof convertToolkit>> = {
         _tag: "Response",
+        timestamp,
+        uuid,
         response: Response.toolCallPart({
           id: "call-1",
           name: "convert",
@@ -241,6 +269,8 @@ describe("toolkits", () => {
     Effect.gen(function* () {
       const invalidCall: Part<{}> = {
         _tag: "Response",
+        timestamp,
+        uuid,
         response: yield* Schema.decodeUnknownEffect(Response.PartView(Toolkit.empty))({
           type: "tool-call",
           id: "call-1",

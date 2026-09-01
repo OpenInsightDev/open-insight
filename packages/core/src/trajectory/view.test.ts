@@ -1,18 +1,24 @@
 import { assert, describe, it } from "@effect/vitest";
-import { Effect, Stream } from "effect";
+import { DateTime, Effect, Stream } from "effect";
 import { Prompt, Response, Toolkit } from "effect/unstable/ai";
 import { TrajectoryError } from "./error.ts";
 import { Trajectory, type Part, type PromptPart } from "./trajectory.ts";
 import { prompt, prompts, responses, turns } from "./view.ts";
 
+const timestamp = DateTime.makeUnsafe("2024-01-01T00:00:00.000Z");
+const uuid = "01890f47-3d90-7cc3-98c8-683a927d7851";
 const user = (text: string): Prompt.UserMessage =>
   Prompt.userMessage({ content: [Prompt.textPart({ text })] });
 const promptPart = (...messages: Prompt.UserMessage[]): PromptPart => ({
   _tag: "Prompt",
+  timestamp,
+  uuid,
   messages,
 });
 const responsePart = (text: string): Part<{}> => ({
   _tag: "Response",
+  timestamp,
+  uuid,
   response: Response.makePart("text", { text }),
 });
 const trajectory = (...parts: ReadonlyArray<Part<{}>>): Trajectory<{}> =>

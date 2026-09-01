@@ -66,7 +66,11 @@ export const toolkits = <Toolkits extends ReadonlyArray<Toolkit.Any>>(...toolkit
                 Effect.mapError(TrajectoryError.decode),
               );
               const decoded = yield* decode(encoded).pipe(Effect.mapError(TrajectoryError.decode));
-              return trajectoryPart.make({ response: decoded });
+              return trajectoryPart.make({
+                timestamp: response.timestamp,
+                uuid: response.uuid,
+                response: decoded,
+              });
             }),
           ),
           Match.exhaustive,

@@ -1,5 +1,5 @@
 import { assert, describe, it } from "@effect/vitest";
-import { Effect, Schema, Stream } from "effect";
+import { DateTime, Effect, Schema, Stream } from "effect";
 import { Response, Tool, Toolkit } from "effect/unstable/ai";
 import { TrajectoryError } from "./error.ts";
 import { toolCalls, toolTurns } from "./tool.ts";
@@ -12,8 +12,12 @@ const Convert = Tool.make("convert", {
 const toolkit = Toolkit.make(Convert);
 type Tools = Toolkit.Tools<typeof toolkit>;
 
+const timestamp = DateTime.makeUnsafe("2024-01-01T00:00:00.000Z");
+const uuid = "01890f47-3d90-7cc3-98c8-683a927d7851";
 const response = (part: Response.PartView<Tools>): Part<Tools> => ({
   _tag: "Response",
+  timestamp,
+  uuid,
   response: part,
 });
 const decodeResponse = Schema.decodeUnknownSync(Response.PartView(toolkit));

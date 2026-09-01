@@ -1,4 +1,4 @@
-import { Data, Effect, Schema, Stream } from "effect";
+import { Crypto, Data, DateTime, Effect, Schema, Stream } from "effect";
 import { Prompt, Tool, Response, Toolkit } from "effect/unstable/ai";
 import * as Fold from "#/response/fold.ts";
 import { TrajectoryError } from "./error.ts";
@@ -14,18 +14,34 @@ export const PromptMessage = Schema.Union([
 export type PromptMessage = Schema.Schema.Type<typeof PromptMessage>;
 export type PromptMessageEncoded = Exclude<Prompt.MessageEncoded, Prompt.AssistantMessageEncoded>;
 
-export const PromptPart = Schema.TaggedStruct("Prompt", { messages: Schema.Array(PromptMessage) });
+const Timestamp = Schema.DateTimeUtcFromString.pipe(Schema.withConstructorDefault(DateTime.now));
+const Uuid = Schema.String.check(Schema.isUUID(7));
+const PartMetadata = Schema.Struct({ timestamp: Timestamp, uuid: Uuid });
+
+export const PromptPart = Schema.TaggedStruct("Prompt", {
+  timestamp: Timestamp,
+  uuid: Uuid,
+  messages: Schema.Array(PromptMessage),
+});
 export type PromptPart = Schema.Schema.Type<typeof PromptPart>;
 export type PromptPartEncoded = Schema.Codec.Encoded<typeof PromptPart>;
 
 export const ResponsePart = <T extends Toolkit.Any>(toolkit: T) =>
-  Schema.TaggedStruct("Response", { response: Response.PartView(toolkit) });
+  Schema.TaggedStruct("Response", {
+    timestamp: Timestamp,
+    uuid: Uuid,
+    response: Response.PartView(toolkit),
+  });
 export type ResponsePart<Tools extends Record<string, Tool.Any>> = Readonly<{
   _tag: "Response";
+  timestamp: DateTime.Utc;
+  uuid: string;
   response: Response.PartView<Tools>;
 }>;
 export type ResponsePartEncoded = Readonly<{
   _tag: "Response";
+  timestamp: string;
+  uuid: string;
   response: Response.PartEncoded;
 }>;
 
@@ -57,9 +73,11 @@ export type EncodedStream<E, R> = Stream.Stream<
 
 export const makeEncoded = Effect.fn(function* <E, R>(stream: EncodedStream<E, R>) {
   const sourceContext = yield* Effect.context<R>();
+  const crypto = yield* Crypto.Crypto;
   const toolkit = Toolkit.empty;
   const decodeResponse = Schema.decodeEffect(Response.AllPartsView(toolkit));
   const encodeResponse = Schema.encodeEffect(Response.PartView(toolkit));
+  const encodeMetadata = Schema.encodeEffect(PartMetadata);
 
   const parts = stream.pipe(
     Stream.provideContext(sourceContext),
@@ -75,13 +93,14 @@ export const makeEncoded = Effect.fn(function* <E, R>(stream: EncodedStream<E, R
     Stream.mapAccum<
       Fold.State,
       Response.AllPartsView<{}> | PromptMessageEncoded[],
-      PromptPartEncoded | ResponsePart<{}>
+      | Readonly<{ _tag: "Prompt"; messages: PromptMessageEncoded[] }>
+      | Readonly<{ _tag: "Response"; response: Response.PartView<{}> }>
     >(Fold.makeState, (state, part) => {
       if (Array.isArray(part)) {
         return [Fold.makeState(), [{ _tag: "Prompt", messages: part }]] as const;
       }
 
-      const [next, responses] = Fold.foldPart(state, part);
+      const [next, responses] = Fold.foldPart<{}>(state, part);
       return [
         next,
         responses.map((response) => ({ _tag: "Response", response }) as const),
@@ -89,13 +108,20 @@ export const makeEncoded = Effect.fn(function* <E, R>(stream: EncodedStream<E, R
     }),
     Stream.mapEffect((part) =>
       Effect.gen(function* () {
+        const uuid = yield* crypto.randomUUIDv7.pipe(Effect.mapError(TrajectoryError.decode));
+        const metadata = yield* PartMetadata.makeEffect({ uuid }).pipe(
+          Effect.mapError(TrajectoryError.decode),
+        );
+        const encodedMetadata = yield* encodeMetadata(metadata).pipe(
+          Effect.mapError(TrajectoryError.decode),
+        );
         if (part._tag === "Prompt") {
-          return part;
+          return { ...part, ...encodedMetadata };
         }
         const response = yield* encodeResponse(part.response).pipe(
           Effect.mapError(TrajectoryError.decode),
         );
-        return { _tag: "Response", response } as const;
+        return { ...part, ...encodedMetadata, response };
       }),
     ),
   );

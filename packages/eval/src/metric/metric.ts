@@ -1,9 +1,16 @@
-import { Data, Schema } from "effect";
-import * as Sched from "./schedule/index.ts";
-import * as Traj from "./trajectory/index.ts";
+import { Sandbox, Trajectory } from "@open-insight/core/internal";
+import type { Metadata, Result } from "./schema.ts";
+import type { MetricError } from "./error.ts";
+import { Data, Stream, type Schema } from "effect";
 
-export type Metric<ID extends string, S extends Schema.Constraint> = Data.TaggedEnum<{
-  Sched: Sched.Metric<ID, S>;
-  Traj: Traj.Metric<ID, S>;
-}>;
-export type Any = Metric<any, any>;
+export class Metric<S extends Schema.Constraint> extends Data.Class<{
+  id: string;
+  schema: S;
+  metadata: Metadata;
+
+  map: (
+    trajectory: Trajectory.Trajectory,
+  ) => Stream.Stream<Result<S>, MetricError, Sandbox.Current>;
+}> {}
+
+export type Any = Metric<any>;

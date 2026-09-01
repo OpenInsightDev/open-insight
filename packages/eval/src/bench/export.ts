@@ -5,6 +5,7 @@ export {
   type MetadataEncoded,
   mapTask,
   mapTaskEffect,
+  mapTasks,
   fromArray,
 } from "./index.ts";
 export * from "./error.ts";

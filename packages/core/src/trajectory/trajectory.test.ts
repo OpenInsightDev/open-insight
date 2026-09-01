@@ -1,5 +1,6 @@
+import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import { assert, describe, it } from "@effect/vitest";
-import { Effect, Equal, Schema, Stream } from "effect";
+import { DateTime, Effect, Equal, Schema, Stream } from "effect";
 import { Prompt, Response, Tool, Toolkit } from "effect/unstable/ai";
 import { DecodeFailed, StorageFailed } from "./error.ts";
 import {
@@ -20,6 +21,7 @@ const Convert = Tool.make("convert", {
   success: Schema.String,
 });
 const toolkit = Toolkit.make(Convert);
+const uuid = "01890f47-3d90-7cc3-98c8-683a927d7851";
 
 const userMessage = (text: string): Prompt.UserMessage =>
   Prompt.userMessage({ content: [Prompt.textPart({ text })] });
@@ -61,12 +63,19 @@ describe("trajectory schemas and models", () => {
 
   it.effect("constructs and decodes prompt, response, and union parts", () =>
     Effect.gen(function* () {
-      const prompt = PromptPart.make({ messages: [userMessage("hello")] });
-      const decodedPrompt = yield* Schema.decodeUnknownEffect(Part(toolkit))(prompt);
+      const prompt = yield* PromptPart.makeEffect({ messages: [userMessage("hello")] }).pipe(
+        Effect.provide(NodeCrypto.layer),
+      );
+      assert.isTrue(DateTime.isDateTime(prompt.timestamp));
+      yield* Schema.decodeEffect(Schema.String.check(Schema.isUUID(7)))(prompt.uuid);
+      const encodedPrompt = yield* Schema.encodeEffect(PromptPart)(prompt);
+      const decodedPrompt = yield* Schema.decodeUnknownEffect(Part(toolkit))(encodedPrompt);
       assert.strictEqual(decodedPrompt._tag, "Prompt");
 
       const encodedResponse = {
         _tag: "Response" as const,
+        timestamp: "2024-01-01T00:00:00.000Z",
+        uuid,
         response: {
           type: "tool-call" as const,
           id: "call-1",
@@ -75,7 +84,15 @@ describe("trajectory schemas and models", () => {
           providerExecuted: false,
         },
       };
-      const response = yield* Schema.decodeUnknownEffect(ResponsePart(toolkit))(encodedResponse);
+      const responseSchema = ResponsePart(toolkit);
+      const response = yield* Schema.decodeUnknownEffect(responseSchema)(encodedResponse);
+      const constructedResponse = yield* responseSchema
+        .makeEffect({ response: response.response })
+        .pipe(Effect.provide(NodeCrypto.layer));
+      assert.isTrue(DateTime.isDateTime(constructedResponse.timestamp));
+      yield* Schema.decodeEffect(Schema.String.check(Schema.isUUID(7)))(
+        constructedResponse.uuid,
+      );
       assert.strictEqual(response.response.type, "tool-call");
       if (response.response.type === "tool-call") {
         assert.deepStrictEqual(response.response.params, { value: 42 });
@@ -83,6 +100,9 @@ describe("trajectory schemas and models", () => {
 
       const decodedResponse = yield* Schema.decodeUnknownEffect(Part(toolkit))(encodedResponse);
       assert.strictEqual(decodedResponse._tag, "Response");
+
+      const { timestamp: _, ...missingTimestamp } = encodedResponse;
+      yield* Schema.decodeUnknownEffect(Part(toolkit))(missingTimestamp).pipe(Effect.flip);
     }),
   );
 
@@ -123,16 +143,26 @@ describe("makeEncoded", () => {
         const trajectory = yield* makeEncoded(Stream.fromIterable(input));
         const parts = yield* collect(trajectory.parts);
 
-        assert.deepStrictEqual(parts, [
-          { _tag: "Prompt", messages: firstPrompt },
-          { _tag: "Response", response: { type: "text", text: "Hello world", metadata: {} } },
-          {
-            _tag: "Response",
-            response: { type: "reasoning", text: "complete", metadata: {} },
-          },
-          { _tag: "Prompt", messages: secondPrompt },
-        ]);
-      }),
+        for (const part of parts) {
+          yield* Schema.decodeEffect(Schema.DateTimeUtcFromString)(part.timestamp);
+          yield* Schema.decodeEffect(Schema.String.check(Schema.isUUID(7)))(part.uuid);
+        }
+        assert.deepStrictEqual(
+          parts.map(({ timestamp: _, uuid: __, ...part }) => part),
+          [
+            { _tag: "Prompt", messages: firstPrompt },
+            {
+              _tag: "Response",
+              response: { type: "text", text: "Hello world", metadata: {} },
+            },
+            {
+              _tag: "Response",
+              response: { type: "reasoning", text: "complete", metadata: {} },
+            },
+            { _tag: "Prompt", messages: secondPrompt },
+          ],
+        );
+      }).pipe(Effect.provide(NodeCrypto.layer)),
   );
 
   it.effect("maps source stream failures to StorageFailed", () =>
@@ -144,7 +174,7 @@ describe("makeEncoded", () => {
 
       assert.instanceOf(error.reason, StorageFailed);
       assert.strictEqual(error.reason.cause, cause);
-    }),
+    }).pipe(Effect.provide(NodeCrypto.layer)),
   );
 
   it.effect("maps invalid response payloads to DecodeFailed", () =>
@@ -155,7 +185,7 @@ describe("makeEncoded", () => {
       const error = yield* collect(trajectory.parts).pipe(Effect.flip);
 
       assert.instanceOf(error.reason, DecodeFailed);
-    }),
+    }).pipe(Effect.provide(NodeCrypto.layer)),
   );
 
   it.effect("supports an empty source", () =>
@@ -164,6 +194,6 @@ describe("makeEncoded", () => {
       const trajectory = yield* makeEncoded(source);
       const parts: PartEncoded[] = yield* collect(trajectory.parts);
       assert.deepStrictEqual(parts, []);
-    }),
+    }).pipe(Effect.provide(NodeCrypto.layer)),
   );
 });

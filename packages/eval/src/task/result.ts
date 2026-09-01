@@ -20,15 +20,9 @@ export class TaskResult<S extends Schema.Constraint> extends Data.TaggedClass("T
   result: S["Type"];
 }> {}
 
-export type Fn<G extends Schema.Constraint, S extends Schema.Constraint, E = unknown, R = never> = (
+export type Aggregator<G extends Schema.Constraint, S extends Schema.Constraint> = ((
   trails: ReadonlyArray<TrailResult<G>>,
-) => Effect.Effect<TaskResult<S>, E, R>;
-
-export type Aggregator<G extends Schema.Constraint, S extends Schema.Constraint> = Fn<
-  G,
-  S,
-  TaskError
-> &
+) => Effect.Effect<TaskResult<S>, TaskError>) &
   Readonly<{ schema: S }>;
 
 export type Any = Aggregator<any, any>;
@@ -56,7 +50,7 @@ export const result = <T extends Task.Any, S extends Schema.Constraint, E, R>(
       Effect.map((result) => new TaskResult({ id: task.id, result })),
       Effect.mapError(TaskError.result),
       Effect.provide(ctx),
-    ) satisfies Fn<Task.GradeOf<T>, S, TaskError>;
+    ) satisfies Omit<Aggregator<Task.GradeOf<T>, S>, "schema">;
 
     return Object.assign(task, { [Field]: Object.assign(aggFn, { schema }) });
   });
