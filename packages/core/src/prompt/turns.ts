@@ -10,15 +10,13 @@ export class Turns extends Data.TaggedClass("Turns")<{
   ) => Effect.Effect<Option.Option<Prompt.Prompt>, PromptError, Sandox.Current>;
 }> {}
 
-export const makeTurns = Effect.fn(function* <E, R>(
+export const makeTurns = (
   init: Prompt.RawInput,
   next?: (
     trajectory: Prompt.Prompt,
-  ) => Effect.Effect<Prompt.RawInput | null, E, R | Sandox.Current>,
-) {
-  const ctx = yield* Effect.context<R>();
-
-  return new Turns({
+  ) => Effect.Effect<Prompt.RawInput | null, unknown, Sandox.Current>,
+) =>
+  new Turns({
     init: Prompt.make(init),
     next: Effect.fn(function* (response) {
       const nextPrompt = next?.(response) ?? Effect.succeed(null);
@@ -27,6 +25,5 @@ export const makeTurns = Effect.fn(function* <E, R>(
         Effect.map(Option.fromNullOr),
         Effect.map(Option.map(Prompt.make)),
       );
-    }, Effect.provide(ctx)),
+    }),
   });
-});

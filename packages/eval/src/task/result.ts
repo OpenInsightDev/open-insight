@@ -36,21 +36,17 @@ export const aggregatorOf = <T>(value: T) =>
 
 export type TaskResultOf<T> = T extends Mixin<infer A> ? TaskResult<A["schema"]> : never;
 
-export const result = <T extends Task.Any, S extends Schema.Constraint, E, R>(
-  schema: S,
-  fn: (trails: ReadonlyArray<TrailResult<Task.GradeOf<T>>>) => Effect.Effect<S["Type"], E, R>,
-) =>
-  Effect.fn(function* (
-    task: T,
-  ): Effect.fn.Return<Override<T, Mixin<Aggregator<Task.GradeOf<T>, S>>>, E | TaskError, R> {
-    const ctx = yield* Effect.context<R>();
-
+export const result =
+  <T extends Task.Any, S extends Schema.Constraint>(
+    schema: S,
+    fn: (trails: ReadonlyArray<TrailResult<Task.GradeOf<T>>>) => Effect.Effect<S["Type"], unknown>,
+  ) =>
+  (task: T): Override<T, Mixin<Aggregator<Task.GradeOf<T>, S>>> => {
     const aggFn = flow(
       fn,
       Effect.map((result) => new TaskResult({ id: task.id, result })),
       Effect.mapError(TaskError.result),
-      Effect.provide(ctx),
     ) satisfies Omit<Aggregator<Task.GradeOf<T>, S>, "schema">;
 
     return Object.assign(task, { [Field]: Object.assign(aggFn, { schema }) });
-  });
+  };

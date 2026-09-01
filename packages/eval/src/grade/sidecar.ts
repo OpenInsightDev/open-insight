@@ -90,11 +90,13 @@ export const makeContext = Effect.fn(function* ({ agent, grade }: MakeContextOpt
   } satisfies Context;
 });
 
-export type Exec<Result extends Schema.Constraint = any, E = unknown, R = never> = (
+export type Exec<Result extends Schema.Constraint = any> = (
   ctx: Context,
-) => Effect.Effect<Result["Type"], E | Retry.Retry, R>;
+) => Effect.Effect<Result["Type"], unknown>;
 
-export type Grader<Result extends Schema.Constraint = any> = Exec<Result, GradeError> &
+export type Grader<Result extends Schema.Constraint = any> = ((
+  ctx: Context,
+) => Effect.Effect<Result["Type"], GradeError | Retry.Retry>) &
   Readonly<{
     snapshot: Snapshot.Template;
     resources: Resource.Resources;
@@ -102,27 +104,21 @@ export type Grader<Result extends Schema.Constraint = any> = Exec<Result, GradeE
     concurrency: number;
   }>;
 
-export type Options<Result extends Schema.Constraint = any, E = unknown, R = never> = Readonly<{
-  grade: Exec<Result, E, R>;
+export type Options<Result extends Schema.Constraint = any> = Readonly<{
+  grade: Exec<Result>;
   snapshot?: Snapshot.Template;
   resources?: Resource.Resources;
   scope?: SandboxScope;
   concurrency?: number;
 }>;
-export const make = Effect.fn(function* <Result extends Schema.Constraint, E, R>({
+export const make = <Result extends Schema.Constraint>({
   grade: gradeOption,
   snapshot = Snapshot.Alpine,
   resources = Resource.providerDefault,
   scope = "per-trail",
   concurrency = 1,
-}: Options<Result, E, R>) {
-  const ctx = yield* Effect.context<R>();
-
-  const exec = ((context: Context) =>
-    gradeOption(context).pipe(
-      Effect.mapError(GradeError.exec),
-      Effect.provide(ctx),
-    )) satisfies Exec<Result, GradeError>;
+}: Options<Result>) => {
+  const exec = (context: Context) => gradeOption(context).pipe(Effect.mapError(GradeError.exec));
 
   return Object.assign(exec, {
     snapshot,
@@ -130,4 +126,4 @@ export const make = Effect.fn(function* <Result extends Schema.Constraint, E, R>
     scope,
     concurrency,
   }) satisfies Grader<Result>;
-});
+};

@@ -115,7 +115,7 @@ const loadTasks = Effect.fn(function* (repoPath: string) {
     const refPath = path.resolve(datasetDir, `${id}_ref.sv`);
     const testPath = path.resolve(datasetDir, `${id}_test.sv`);
 
-    const grader = yield* Grade.embed(
+    const grader = Grade.embed(
       Schema.Struct({ simPass: Schema.Boolean, category: Schema.String }),
       Effect.fn(function* ({ $, upload }) {
         yield* $`mkdir -p /tmp/verilog-eval`;
@@ -160,14 +160,14 @@ const loadTasks = Effect.fn(function* (repoPath: string) {
       }),
     );
 
-    const task = yield* Task.make(id, {
+    const task = Task.make(id, {
       prompt,
       grader,
       snapshot,
       resources: Resource.providerDefault,
     });
 
-    return yield* task.pipe(
+    return task.pipe(
       Task.result(
         Schema.Struct({ passAt1: Schema.Number }),
         Effect.fn(function* (trails) {
@@ -190,7 +190,5 @@ export const makeBench = Effect.fn(function* () {
 });
 
 const main = Effect.fn(function* () {
-  const bench = yield* makeBench().pipe(
-    Effect.map((bench) => bench.pipe(Bench.mapTask("fuck", (task) => task))),
-  );
+  const bench = yield* makeBench().pipe();
 });

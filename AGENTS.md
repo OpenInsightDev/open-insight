@@ -46,7 +46,7 @@ If you need to learn more about particular Effect apis and concepts that the gui
 - **Code quality is top priority**: Code that merely "works" but has messy, convoluted design is STILL unacceptable. Deliver clean, minimal, and well-structured code — nothing more, nothing less.
 - **Do not be "smart"**: Do NOT make extra designs or additions that the user did NOT explicitly request.
 - **No unnecessary abstractions**: Do NOT add forward compatibility layers, premature generalization, or speculative features unless explicitly asked.
-- **DO NOT dig for outdated implementations** unless explicitly asked. Always implement features from a fresh, simplest perspective.
+- **DO NOT dig for outdated implementations** unless explicitly asked. This includes searching through git history for historical implementations. Always implement features from a fresh, simplest perspective.
 
 ### Effect
 

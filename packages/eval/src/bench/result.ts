@@ -16,17 +16,13 @@ export class BenchResult<S extends Schema.Constraint = any> extends Data.TaggedC
   result: S["Type"];
 }> {}
 
-export type Fn<
-  Tasks extends Record<string, Task.Any>,
-  S extends Schema.Constraint,
-  E = unknown,
-  R = never,
-> = (tasks: TaskResultsOf<Tasks>) => Effect.Effect<BenchResult<S>, E, R>;
+export type Fn<Tasks extends Record<string, Task.Any>, S extends Schema.Constraint> = (
+  tasks: TaskResultsOf<Tasks>,
+) => Effect.Effect<BenchResult<S>, BenchError>;
 
 export type Aggregator<Tasks extends Record<string, Task.Any>, S extends Schema.Constraint> = Fn<
   Tasks,
-  S,
-  BenchError
+  S
 > &
   Readonly<{ schema: S }>;
 
@@ -46,21 +42,17 @@ export const aggregatorOf = <T>(value: T) =>
 export const mixinOf = <T extends object>(value: T) =>
   Option.fromNullOr(hasProperty(value, Field) ? (value[Field] as MixinOf<T>) : null);
 
-export const result = <B extends Bench.Any, S extends Schema.Constraint, E, R>(
-  schema: S,
-  fn: (tasks: TaskResultsOf<Bench.TasksOf<B>>) => Effect.Effect<S["Type"], E, R>,
-) =>
-  Effect.fn(function* (
-    bench: B,
-  ): Effect.fn.Return<Override<B, Mixin<Aggregator<Bench.TasksOf<B>, S>>>, E | BenchError, R> {
-    const ctx = yield* Effect.context<R>();
-
+export const result =
+  <B extends Bench.Any, S extends Schema.Constraint>(
+    schema: S,
+    fn: (tasks: TaskResultsOf<Bench.TasksOf<B>>) => Effect.Effect<S["Type"], unknown>,
+  ) =>
+  (bench: B): Override<B, Mixin<Aggregator<Bench.TasksOf<B>, S>>> => {
     const aggFn = flow(
       fn,
       Effect.map((result) => new BenchResult({ id: bench.id, result })),
       Effect.mapError(BenchError.result),
-      Effect.provide(ctx),
-    ) satisfies Fn<Bench.TasksOf<B>, S, BenchError>;
+    ) satisfies Fn<Bench.TasksOf<B>, S>;
 
     return Object.assign(bench, { [Field]: Object.assign(aggFn, { schema }) });
-  });
+  };

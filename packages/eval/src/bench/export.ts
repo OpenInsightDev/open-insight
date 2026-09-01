@@ -6,6 +6,7 @@ export {
   mapTask,
   mapTaskEffect,
   mapTasks,
+  mapTasksEffect,
   fromArray,
 } from "./index.ts";
 export * from "./error.ts";

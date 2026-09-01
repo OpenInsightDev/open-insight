@@ -1,6 +1,6 @@
 import { Prompt, Resource, Snapshot } from "@open-insight/core/internal";
 import * as Grade from "#/grade/index.ts";
-import { Data, Effect, Match, Schema } from "effect";
+import { Data, Match, Schema } from "effect";
 
 export class Metadata extends Schema.Class<Metadata>("Metadata")({
   name: Schema.OptionFromOptionalNullOr(Schema.String),
@@ -33,10 +33,10 @@ type Options<G extends Schema.Constraint> = MetadataEncoded &
     resources?: Resource.Resources;
   }>;
 
-export const make = Effect.fn(function* <ID extends string, G extends Schema.Constraint>(
+export const make = <ID extends string, G extends Schema.Constraint>(
   id: ID,
   options: Options<G>,
-) {
+) => {
   const {
     prompt,
     grader,
@@ -47,8 +47,8 @@ export const make = Effect.fn(function* <ID extends string, G extends Schema.Con
 
   const metadata = Schema.decodeSync(Metadata)(encoded);
 
-  const turns = yield* Match.value(prompt).pipe(
-    Match.tag("Turns", (turns) => Effect.succeed(turns)),
+  const turns = Match.value(prompt).pipe(
+    Match.tag("Turns", (turns) => turns),
     Match.orElse((rawInput) => Prompt.makeTurns(Prompt.make(rawInput))),
   );
 
@@ -60,4 +60,4 @@ export const make = Effect.fn(function* <ID extends string, G extends Schema.Con
     prompt: turns,
     grader,
   });
-});
+};

@@ -13,10 +13,9 @@ export class Bench<ID extends string, Tasks extends Record<string, Task.Any>> ex
   metadata: Metadata;
   tasks: Tasks;
 }> {}
-export type IDOf<B> = B extends Bench<infer ID, any> ? ID : never;
-export type TasksOf<B> = B extends Bench<any, infer Tasks> ? Tasks : never;
-
 export type Any = Bench<string, Record<string, Task.Any>>;
+export type IDOf<B extends Any> = B["id"];
+export type TasksOf<B extends Any> = B["tasks"];
 
 type Options = MetadataEncoded & Readonly<{}>;
 export const fromArray = <ID extends string, Tasks extends ReadonlyArray<Task.Any>>(

@@ -21,16 +21,15 @@ export const fromSchedule = (
 ): Stream.Stream<DateTime.Utc, MetricError> =>
   schedule ? toTimestamps(schedule) : toTimestamps(Schedule.forever);
 
-export const make = Effect.fn(function* <S extends Schema.Constraint, E, R>(
+export const make = <S extends Schema.Constraint>(
   id: string,
   schema: S,
   transform: (
     sched: Stream.Stream<DateTime.DateTime, MetricError>,
-  ) => Stream.Stream<S["Type"], E, R | Sandbox.Current>,
+  ) => Stream.Stream<S["Type"], unknown, Sandbox.Current>,
   options: Options = {},
-) {
+) => {
   const metadata = Schema.decodeSync(Metadata)(options);
-  const context = yield* Effect.context<R>();
   const schedule = fromSchedule(options.schedule);
 
   return new Metric({
@@ -44,8 +43,7 @@ export const make = Effect.fn(function* <S extends Schema.Constraint, E, R>(
             Effect.map((timestamp) => ({ id, result, timestamp }) satisfies Result<S>),
           ),
         ),
-        Stream.provideContext(context),
         Stream.mapError(MetricError.transform),
       ),
   });
-});
+};

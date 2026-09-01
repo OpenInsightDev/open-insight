@@ -23,32 +23,32 @@ export type Options<Result extends Schema.Constraint> = Readonly<{
   verif?: Verif.Verif<Result> | null;
 }>;
 
-type EmbedOptions<Result extends Schema.Constraint, E = unknown, R = never> = Options<Result> &
-  Omit<Embed.Options<Result, E, R>, "grade">;
+type EmbedOptions<Result extends Schema.Constraint> = Options<Result> &
+  Omit<Embed.Options<Result>, "grade">;
 
-export const embed = Effect.fn(function* <Result extends Schema.Constraint, E, R>(
+export const embed = <Result extends Schema.Constraint>(
   schema: Result,
-  grade: Embed.Exec<Result, E, R>,
-  options: EmbedOptions<Result, E, R> = {},
-) {
+  grade: Embed.Options<Result>["grade"],
+  options: EmbedOptions<Result> = {},
+) => {
   const { verif = null } = options;
-  const grader = yield* Embed.make({ grade, ...options });
+  const grader = Embed.make({ grade, ...options });
 
   return Object.assign(grader, {
     _tag: "Embed" as const,
     schema,
     verif: Option.fromNullishOr(verif),
   });
-});
+};
 
-type SidecarOptions<Result extends Schema.Constraint, E = unknown, R = never> = Options<Result> &
-  Omit<Sidecar.Options<Result, E, R>, "grade">;
+type SidecarOptions<Result extends Schema.Constraint> = Options<Result> &
+  Omit<Sidecar.Options<Result>, "grade">;
 
-export const sidecar = Effect.fn(function* <Result extends Schema.Constraint, E, R>(
+export const sidecar = <Result extends Schema.Constraint>(
   schema: Result,
-  grade: Sidecar.Exec<Result, E, R>,
-  options: SidecarOptions<Result, E, R> = {},
-) {
+  grade: Sidecar.Exec<Result>,
+  options: SidecarOptions<Result> = {},
+) => {
   const { verif = null } = options;
 
   const _tag = Match.value(options.scope ?? "per-trail").pipe(
@@ -57,14 +57,14 @@ export const sidecar = Effect.fn(function* <Result extends Schema.Constraint, E,
     Match.exhaustive,
   );
 
-  const grader = yield* Sidecar.make({ grade, ...options });
+  const grader = Sidecar.make({ grade, ...options });
 
   return Object.assign(grader, {
     _tag,
     schema,
     verif: Option.fromNullishOr(verif),
   });
-});
+};
 
 type RunOptions = Readonly<{
   sandbox: Sandbox.Sandbox;
