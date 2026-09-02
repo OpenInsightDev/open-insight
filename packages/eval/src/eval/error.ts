@@ -1,11 +1,11 @@
 import { Formatter, Schema } from "effect";
-import * as Metric from "#/metric/index.ts";
+
 import * as Grade from "#/grade/index.ts";
 import * as Tasks from "#/tasks/index.ts";
 import * as Task from "#/task/index.ts";
 import * as Bench from "#/bench/index.ts";
 import * as Event from "#/event/index.ts";
-import { Agent, Git, Harness, Prompt, Snapshot } from "@open-insight/core/internal";
+import { Agent, Git, Harness, Metric, Prompt, Snapshot } from "@open-insight/core/internal";
 
 const NonNegativeInt = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0));
 type ExecTask = Task.AnyTask;

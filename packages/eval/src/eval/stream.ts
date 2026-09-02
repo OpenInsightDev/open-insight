@@ -18,14 +18,12 @@ import {
 } from "effect";
 import * as Grade from "#/grade/index.ts";
 import { Toolkit } from "effect/unstable/ai";
-import { type Any } from "./eval.ts";
 import * as Task from "#/task/index.ts";
 import * as Bench from "#/bench/index.ts";
 import * as Event from "#/event/index.ts";
 import { Harness, Prompt, Sandbox, Response, Trajectory } from "@open-insight/core/internal";
 import { EvalError } from "./error.ts";
 import * as Config from "./config.ts";
-import type { BenchOf } from "./eval.ts";
 
 type SessionOptions = Readonly<{
   id: Event.SessionID;

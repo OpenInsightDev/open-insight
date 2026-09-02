@@ -23,6 +23,10 @@ export { PromptError } from "./prompt/export.ts";
 export * as Trajectory from "./trajectory/export.ts";
 export { TrajectoryError } from "./trajectory/export.ts";
 
+export * as Metric from "./metric/export.ts";
+export { MetricError } from "./metric/export.ts";
+export { TrajMetric, SchedMetric } from "./metric/export.ts";
+
 export * as Acp from "./acp/export.ts";
 export { AcpError } from "./acp/export.ts";
 

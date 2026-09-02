@@ -1,5 +1,5 @@
 import * as Task from "./task.ts";
-import type * as Metric from "#/metric/metric.ts";
+import type { Metric } from "@open-insight/core/internal";
 import type { Override } from "#/utils/type.ts";
 import { Option } from "effect";
 import { hasProperty } from "effect/Predicate";

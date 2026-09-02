@@ -1,4 +1,5 @@
-import { Sandbox, Trajectory } from "@open-insight/core/internal";
+import * as Sandbox from "../sandbox/index.ts";
+import * as Trajectory from "../trajectory/index.ts";
 import type { MetricError } from "./error.ts";
 import { Data, DateTime, Schema, Stream } from "effect";
 

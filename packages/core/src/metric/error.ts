@@ -2,7 +2,7 @@ import { Formatter, Schema } from "effect";
 
 /** A response part does not match the schema declared by its tool. */
 export class ToolSchemaMismatch extends Schema.TaggedError<ToolSchemaMismatch>(
-  "open-insight/eval/MetricError/ToolSchemaMismatch",
+  "open-insight/core/MetricError/ToolSchemaMismatch",
 )("ToolSchemaMismatch", {
   name: Schema.String,
   cause: Schema.Defect(),
@@ -14,7 +14,7 @@ export class ToolSchemaMismatch extends Schema.TaggedError<ToolSchemaMismatch>(
 }
 
 export class TransformFailed extends Schema.TaggedError<TransformFailed>(
-  "open-insight/eval/MetricError/TransformFailed",
+  "open-insight/core/MetricError/TransformFailed",
 )("TransformFailed", {
   cause: Schema.Defect(),
 }) {
@@ -27,7 +27,7 @@ export const ErrorReason = Schema.Union([ToolSchemaMismatch, TransformFailed]);
 export type ErrorReason = Schema.Schema.Type<typeof ErrorReason>;
 
 /** Errors raised while evaluating a metric. */
-export class MetricError extends Schema.TaggedError<MetricError>("open-insight/eval/MetricError")(
+export class MetricError extends Schema.TaggedError<MetricError>("open-insight/core/MetricError")(
   "MetricError",
   {
     reason: ErrorReason,
