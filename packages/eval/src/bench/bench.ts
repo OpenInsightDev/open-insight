@@ -1,5 +1,5 @@
 import * as Task from "#/task/index.ts";
-import type { IndexByKey } from "#/utils/type.ts";
+import type { IndexByKey } from "@open-insight/core/internal/utils";
 import { Data, Schema } from "effect";
 
 export class Metadata extends Schema.Class<Metadata>("BenchMetadata")({

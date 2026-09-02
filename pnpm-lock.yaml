@@ -444,7 +444,7 @@ importers:
         version: 4.0.0-rc.110(effect@packages+effect+packages+effect)(redis@6.2.1(@opentelemetry/api@1.9.1))
       '@effect/sql-clickhouse':
         specifier: 'catalog:'
-        version: 4.0.0-rc.112(@effect/platform-node@4.0.0-rc.110(effect@packages+effect+packages+effect))(effect@packages+effect+packages+effect)
+        version: 4.0.0-rc.112(@effect/platform-node@4.0.0-rc.110(effect@packages+effect+packages+effect)(redis@6.2.1(@opentelemetry/api@1.9.1)))(effect@packages+effect+packages+effect)
       ai:
         specifier: 'catalog:'
         version: 7.0.84(zod@4.5.2)
@@ -1386,7 +1386,7 @@ importers:
         version: 4.0.0-rc.110(effect@packages+effect+packages+effect)(redis@6.2.1(@opentelemetry/api@1.9.1))
       '@effect/sql-clickhouse':
         specifier: 'catalog:'
-        version: 4.0.0-rc.112(@effect/platform-node@4.0.0-rc.110(effect@packages+effect+packages+effect))(effect@packages+effect+packages+effect)
+        version: 4.0.0-rc.112(@effect/platform-node@4.0.0-rc.110(effect@packages+effect+packages+effect)(redis@6.2.1(@opentelemetry/api@1.9.1)))(effect@packages+effect+packages+effect)
       '@effect/sql-sqlite-node':
         specifier: 'catalog:'
         version: 4.0.0-rc.110(effect@packages+effect+packages+effect)
@@ -1865,6 +1865,24 @@ importers:
         version: 12.2.2
       typescript:
         specifier: 'catalog:'
+        version: 7.0.2
+      vite:
+        specifier: npm:@voidzero-dev/vite-plus-core@^0.2.6
+        version: '@voidzero-dev/vite-plus-core@0.2.9(@types/node@26.4.0)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.12)(typescript@7.0.2)(yaml@2.9.0)'
+      vite-plus:
+        specifier: 'catalog:'
+        version: 0.2.9(@opentelemetry/api@1.9.1)(@types/node@26.4.0)(@voidzero-dev/vite-plus-core@0.2.9(@types/node@26.4.0)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.12)(typescript@7.0.2)(yaml@2.9.0))(esbuild@0.28.2)(happy-dom@20.11.15)(jiti@2.7.0)(jsdom@30.0.1)(terser@5.51.2)(tsx@4.23.12)(typescript@7.0.2)(yaml@2.9.0)
+
+  packages/utils:
+    devDependencies:
+      '@types/node':
+        specifier: ^26.1.1
+        version: 26.4.0
+      bumpp:
+        specifier: ^11.1.0
+        version: 11.1.0
+      typescript:
+        specifier: ^7.0.2
         version: 7.0.2
       vite:
         specifier: npm:@voidzero-dev/vite-plus-core@^0.2.6
@@ -10796,7 +10814,7 @@ snapshots:
       - bufferutil
       - utf-8-validate
 
-  '@effect/sql-clickhouse@4.0.0-rc.112(@effect/platform-node@4.0.0-rc.110(effect@packages+effect+packages+effect))(effect@packages+effect+packages+effect)':
+  '@effect/sql-clickhouse@4.0.0-rc.112(@effect/platform-node@4.0.0-rc.110(effect@packages+effect+packages+effect)(redis@6.2.1(@opentelemetry/api@1.9.1)))(effect@packages+effect+packages+effect)':
     dependencies:
       '@clickhouse/client': 1.23.1
       '@effect/platform-node': 4.0.0-rc.110(effect@packages+effect+packages+effect)(redis@6.2.1(@opentelemetry/api@1.9.1))
@@ -13424,6 +13442,19 @@ snapshots:
       - utf-8-validate
       - vite
 
+  '@vitest/browser-preview@4.1.10(@voidzero-dev/vite-plus-core@0.2.9(@types/node@26.4.0)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.12)(typescript@6.0.3)(yaml@2.9.0))(vitest@4.1.10)':
+    dependencies:
+      '@testing-library/dom': 10.4.1
+      '@testing-library/user-event': 14.6.6(@testing-library/dom@10.4.1)
+      '@vitest/browser': 4.1.10(@voidzero-dev/vite-plus-core@0.2.9(@types/node@26.4.0)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.12)(typescript@6.0.3)(yaml@2.9.0))(vitest@4.1.10)
+      vitest: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@26.4.0)(@vitest/browser-preview@4.1.10)(@voidzero-dev/vite-plus-core@0.2.9(@types/node@26.4.0)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.12)(typescript@6.0.3)(yaml@2.9.0))(happy-dom@20.11.15)(jsdom@30.0.1)
+    transitivePeerDependencies:
+      - bufferutil
+      - msw
+      - utf-8-validate
+      - vite
+    optional: true
+
   '@vitest/browser-preview@4.1.10(@voidzero-dev/vite-plus-core@0.2.9(@types/node@26.4.0)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.12)(typescript@7.0.2)(yaml@2.9.0))(vitest@4.1.10)':
     dependencies:
       '@testing-library/dom': 10.4.1
@@ -13452,6 +13483,24 @@ snapshots:
       - msw
       - utf-8-validate
       - vite
+
+  '@vitest/browser@4.1.10(@voidzero-dev/vite-plus-core@0.2.9(@types/node@26.4.0)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.12)(typescript@6.0.3)(yaml@2.9.0))(vitest@4.1.10)':
+    dependencies:
+      '@blazediff/core': 1.9.1
+      '@vitest/mocker': 4.1.10(@voidzero-dev/vite-plus-core@0.2.9(@types/node@26.4.0)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.12)(typescript@6.0.3)(yaml@2.9.0))
+      '@vitest/utils': 4.1.10
+      magic-string: 0.30.21
+      pngjs: 7.0.0
+      sirv: 3.0.2
+      tinyrainbow: 3.1.1
+      vitest: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@26.4.0)(@vitest/browser-preview@4.1.10)(@voidzero-dev/vite-plus-core@0.2.9(@types/node@26.4.0)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.12)(typescript@6.0.3)(yaml@2.9.0))(happy-dom@20.11.15)(jsdom@30.0.1)
+      ws: 8.21.3
+    transitivePeerDependencies:
+      - bufferutil
+      - msw
+      - utf-8-validate
+      - vite
+    optional: true
 
   '@vitest/browser@4.1.10(@voidzero-dev/vite-plus-core@0.2.9(@types/node@26.4.0)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.12)(typescript@7.0.2)(yaml@2.9.0))(vitest@4.1.10)':
     dependencies:
@@ -18127,7 +18176,7 @@ snapshots:
     optionalDependencies:
       '@opentelemetry/api': 1.9.1
       '@types/node': 26.4.0
-      '@vitest/browser-preview': 4.1.10(@voidzero-dev/vite-plus-core@0.2.9(@types/node@26.4.0)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.12)(typescript@7.0.2)(yaml@2.9.0))(vitest@4.1.10)
+      '@vitest/browser-preview': 4.1.10(@voidzero-dev/vite-plus-core@0.2.9(@types/node@26.4.0)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.12)(typescript@6.0.3)(yaml@2.9.0))(vitest@4.1.10)
       happy-dom: 20.11.15
       jsdom: 30.0.1
     transitivePeerDependencies:

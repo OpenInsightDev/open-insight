@@ -1,5 +1,5 @@
-import * as Sandbox from "../../sandbox/index.ts";
-import * as Trajectory from "../../trajectory/index.ts";
+import * as Sandbox from "#/sandbox/index.ts";
+import * as Trajectory from "#/trajectory/index.ts";
 
 import { Schema, Stream } from "effect";
 import { MetricError } from "../error.ts";

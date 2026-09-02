@@ -1,4 +1,4 @@
-import * as Sandbox from "../../sandbox/index.ts";
+import * as Sandbox from "#/sandbox/index.ts";
 import { DateTime, Effect, Schedule, Schema, Stream } from "effect";
 import { MetricError } from "../error.ts";
 import { Metadata, Metric, type MetadataEncoded, type Result } from "../metric.ts";
