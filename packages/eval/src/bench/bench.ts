@@ -3,6 +3,7 @@ import type { IndexByKey } from "#/utils/type.ts";
 import { Data, Schema } from "effect";
 
 export class Metadata extends Schema.Class<Metadata>("BenchMetadata")({
+  id: Schema.String,
   name: Schema.OptionFromOptionalNullOr(Schema.String),
   description: Schema.OptionFromOptionalNullOr(Schema.String),
 }) {}
@@ -17,13 +18,13 @@ export type Any = Bench<string, Record<string, Task.Any>>;
 export type IDOf<B extends Any> = B["id"];
 export type TasksOf<B extends Any> = B["tasks"];
 
-type Options = MetadataEncoded & Readonly<{}>;
+type Options = Omit<MetadataEncoded, "id"> & Readonly<{}>;
 export const fromArray = <ID extends string, Tasks extends ReadonlyArray<Task.Any>>(
   id: ID,
   tasks: Tasks,
   options: Options = {},
 ): Bench<ID, IndexByKey<Tasks, "id">> => {
-  const metadata = Schema.decodeSync(Metadata)(options);
+  const metadata = Schema.decodeSync(Metadata)({ id, ...options });
   return new Bench({
     id,
     metadata,

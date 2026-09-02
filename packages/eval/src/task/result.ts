@@ -10,12 +10,14 @@ export class SessionResult extends Data.TaggedClass("SessionResult")<{
   usage: Response.Usage | null;
 }> {}
 
-export class TrailResult<G extends Schema.Constraint> extends Data.TaggedClass("TrailResult")<{
+export class TrailResult<G extends Schema.Constraint = any> extends Data.TaggedClass(
+  "TrailResult",
+)<{
   grade: G["Type"];
   sessions: Array<SessionResult>;
 }> {}
 
-export class TaskResult<S extends Schema.Constraint> extends Data.TaggedClass("TaskResult")<{
+export class TaskResult<S extends Schema.Constraint = any> extends Data.TaggedClass("TaskResult")<{
   id: string;
   result: S["Type"];
 }> {}

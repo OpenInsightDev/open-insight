@@ -124,8 +124,7 @@ export const ErrorReason = Schema.Union([
   Git.GitError,
   Agent.AgentError,
   Task.TaskError,
-  Tasks.TasksError,
-  Event.EventError,
+  Bench.BenchError,
   Grade.GradeError,
   Harness.HarnessError,
   Metric.MetricError,
@@ -165,13 +164,11 @@ export class EvalError extends Schema.TaggedError<EvalError>("open-insight/eval/
 
   static task = (cause: Task.TaskError): EvalError => EvalError.make({ reason: cause });
 
-  static tasks = (cause: Tasks.TasksError): EvalError => EvalError.make({ reason: cause });
-
-  static event = (cause: Event.EventError): EvalError => EvalError.make({ reason: cause });
-
-  static grade = (cause: Grade.GradeError): EvalError => EvalError.make({ reason: cause });
+  static bench = (cause: Bench.BenchError): EvalError => EvalError.make({ reason: cause });
 
   static harness = (cause: Harness.HarnessError): EvalError => EvalError.make({ reason: cause });
+
+  static grade = (cause: Grade.GradeError): EvalError => EvalError.make({ reason: cause });
 
   static metric = (cause: Metric.MetricError): EvalError => EvalError.make({ reason: cause });
 
