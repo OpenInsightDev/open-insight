@@ -1,4 +1,4 @@
-import { DateTime, Schema, Stream } from "effect";
+import { DateTime, Effect, Schema, Scope, Stream, Crypto } from "effect";
 import { Prompt, Tool, Response, Toolkit } from "effect/unstable/ai";
 import { TrajectoryError } from "./error.ts";
 
@@ -14,7 +14,14 @@ export type PromptMessage = Schema.Schema.Type<typeof PromptMessage>;
 export type PromptMessageEncoded = Exclude<Prompt.MessageEncoded, Prompt.AssistantMessageEncoded>;
 
 const Timestamp = Schema.DateTimeUtcFromString.pipe(Schema.withConstructorDefault(DateTime.now));
-const Uuid = Schema.String.check(Schema.isUUID(7));
+const Uuid = Schema.String.check(Schema.isUUID(7)).pipe(
+  Schema.withConstructorDefault(
+    Effect.gen(function* () {
+      const crypto = yield* Crypto.Crypto;
+      return yield* crypto.randomUUIDv7.pipe(Effect.mapError(TrajectoryError.decode));
+    }),
+  ),
+);
 export const PartMetadata = Schema.Struct({ timestamp: Timestamp, uuid: Uuid });
 
 export const PromptPart = Schema.TaggedStruct("Prompt", {
@@ -49,7 +56,7 @@ export const Part = <T extends Toolkit.Any>(toolkit: T) =>
 export type Part<Tools extends Record<string, Tool.Any>> = PromptPart | ResponsePart<Tools>;
 export type PartEncoded = PromptPartEncoded | ResponsePartEncoded;
 
-export type PartStream<Tools extends Record<string, Tool.Any>> = Stream.Stream<
+export type PartStream<Tools extends Record<string, Tool.Any> = any> = Stream.Stream<
   Part<Tools>,
   TrajectoryError
 >;
@@ -60,3 +67,10 @@ export type PartStream<Tools extends Record<string, Tool.Any>> = Stream.Stream<
 export type Trajectory<Tools extends Record<string, Tool.Any> = Record<string, never>> =
   PartStream<Tools> & Readonly<{ toolkit: Toolkit.Toolkit<Tools> }>;
 export type Any = Trajectory<any>;
+
+export const share = Effect.fn(function* <T extends Any>(
+  trajectory: T,
+): Effect.fn.Return<T, never, Scope.Scope> {
+  const shared = yield* trajectory.pipe(Stream.share({ capacity: "unbounded" }));
+  return Object.assign(shared, { toolkit: trajectory.toolkit }) as T;
+});

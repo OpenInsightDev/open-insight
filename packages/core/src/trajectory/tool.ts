@@ -76,8 +76,9 @@ export const toolkits = <Toolkits extends ReadonlyArray<Toolkit.Any>>(...toolkit
       Stream.mapEffect((part) =>
         Match.value(part).pipe(
           Match.tag("Prompt", (prompt) => Effect.succeed(trajectoryPart.make(prompt))),
-          Match.tag("Response", (response) =>
-            Effect.gen(function* () {
+          Match.tag(
+            "Response",
+            Effect.fn(function* (response) {
               const encoded = yield* encode(response.response).pipe(
                 Effect.mapError(TrajectoryError.decode),
               );
@@ -95,7 +96,5 @@ export const toolkits = <Toolkits extends ReadonlyArray<Toolkit.Any>>(...toolkit
       Stream.provideContext(context),
     );
 
-    return Object.assign(parts, { toolkit: merged }) as Trajectory<
-      Toolkit.MergedTools<[T, ...Toolkits]>
-    >;
+    return Object.assign(parts, { toolkit: merged });
   });

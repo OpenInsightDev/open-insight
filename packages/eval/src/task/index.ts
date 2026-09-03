@@ -10,4 +10,6 @@ export { toolkit } from "./tool.ts";
 export * as Result from "./result.ts";
 export { result } from "./result.ts";
 
+export * as Metric from "./metric.ts";
+
 export { grade, mapGrade } from "./grade.ts";

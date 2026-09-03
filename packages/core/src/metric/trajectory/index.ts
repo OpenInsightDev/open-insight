@@ -11,10 +11,10 @@ type Observation<S extends Schema.Constraint> = Readonly<{
   part: Trajectory.ResponsePart<any>;
 }>;
 
-export const make = <S extends Schema.Constraint>(
-  id: string,
+export const make = <ID extends string, S extends Schema.Constraint>(
+  id: ID,
   schema: S,
-  transformOption: (
+  transform: (
     trajectory: Trajectory.Trajectory,
   ) => Stream.Stream<Observation<S>, unknown, Sandbox.Current>,
   options: Options = {},
@@ -28,15 +28,15 @@ export const make = <S extends Schema.Constraint>(
     transform: (sessions) =>
       sessions.pipe(
         Stream.flatMap(({ trajectory }) =>
-          transformOption(trajectory).pipe(
+          transform(trajectory).pipe(
             Stream.map(
-              ({ result, part }) =>
+              ({ result, part: { timestamp, uuid } }) =>
                 ({
                   id,
                   result,
-                  timestamp: part.timestamp,
-                  partID: part.uuid,
-                }) satisfies Result<S>,
+                  timestamp,
+                  partID: uuid,
+                }) satisfies Result<ID, S>,
             ),
           ),
         ),

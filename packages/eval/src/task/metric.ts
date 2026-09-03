@@ -1,34 +1,16 @@
 import * as Task from "./task.ts";
 import type { Metric } from "@open-insight/core/internal";
-import type { Override } from "#/utils/type.ts";
+import type { Override } from "@open-insight/core/internal/utils";
 import { Option } from "effect";
 import { hasProperty } from "effect/Predicate";
 
 const Field: unique symbol = Symbol("Field");
-export type Mixin<Metrics extends ReadonlyArray<Metric.Any>> = Readonly<{
-  [Field]: Metrics;
+export type Mixin<Metrics extends Record<string, Metric.Any>> = Readonly<{
+  [Field]: Metric.Registry<Metrics>;
 }>;
 
-export type MetricsOf<T> = T extends Mixin<infer M> ? M : never;
-export function metricsOf<T>(value: T): Option.Option<MetricsOf<T>>;
-export function metricsOf(value: unknown) {
-  return Option.fromNullOr(
-    hasProperty(value, Field) && Array.isArray(value[Field]) ? value[Field] : null,
-  );
-}
+export type RegistryOf<T> = T extends Mixin<infer Metrics> ? Metric.Registry<Metrics> : never;
+export const registryOf = <T>(value: T) =>
+  Option.fromNullOr(hasProperty(value, Field) ? (value[Field] as RegistryOf<T>) : null);
 
-type Append<T, M extends Metric.Any> = T extends Mixin<infer Metrics> ? [...Metrics, M] : [M];
-
-export function metric<M extends Metric.Any>(
-  metric: M,
-): <T extends Task.Any>(task: T) => Override<T, Mixin<Append<T, M>>>;
-export function metric(metric: Metric.Any) {
-  return (task: Task.Any) => {
-    if (hasProperty(task, Field) && Array.isArray(task[Field])) {
-      task[Field].push(metric);
-      return task;
-    }
-
-    return Object.assign(task, { [Field]: [metric] });
-  };
-}
+export type MetricsOf<T> = Metric.MetricsOf<RegistryOf<T>>;

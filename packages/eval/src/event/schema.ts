@@ -1,8 +1,7 @@
 import { Schema } from "effect";
-import * as Chart from "#/chart/index.ts";
 import * as Task from "#/task/index.ts";
 import * as Bench from "#/bench/index.ts";
-import { Harness } from "@open-insight/core/internal";
+import { Harness, Metric } from "@open-insight/core/internal";
 import { Prompt, Response } from "@open-insight/core/internal";
 import { Toolkit } from "effect/unstable/ai";
 
@@ -67,29 +66,12 @@ export class SessionEndEvent extends Schema.TaggedClass<SessionEndEvent>()("Sess
   reason: Schema.NullOr(Response.FinishReason),
 }) {}
 
-export class TrajMetricEvent extends Schema.TaggedClass<TrajMetricEvent>()("TrajMetricEvent", {
-  id: SessionID,
-  metricID: Schema.String,
-  chart: Chart.Points,
-}) {}
-
-export class TrajMetricErrorEvent extends Schema.TaggedClass<TrajMetricErrorEvent>()(
-  "TrajMetricErrorEvent",
-  {
-    id: SessionID,
-    metricID: Schema.String,
-    error: Schema.Defect(),
-  },
-) {}
-
 export const SessionSuccessEvent = Schema.Union([
   SessionStartEvent,
   SessionPromptEvent,
   SessionStreamEvent,
   SessionRetryEvent,
   SessionEndEvent,
-  TrajMetricEvent,
-  TrajMetricErrorEvent,
 ]);
 export type SessionSuccessEvent = Schema.Schema.Type<typeof SessionSuccessEvent>;
 
@@ -113,27 +95,24 @@ export class TrailEndEvent extends Schema.TaggedClass<TrailEndEvent>()("TrailEnd
   grade: Schema.Unknown,
 }) {}
 
-export class SchedMetricEvent extends Schema.TaggedClass<SchedMetricEvent>()("SchedMetricEvent", {
+export class MetricEvent extends Schema.TaggedClass<MetricEvent>()("MetricEvent", {
   id: TrailID,
   metricID: Schema.String,
-  chart: Chart.Points,
+  result: Metric.Result(Schema.Unknown),
 }) {}
 
-export class SchedMetricErrorEvent extends Schema.TaggedClass<SchedMetricErrorEvent>()(
-  "SchedMetricErrorEvent",
-  {
-    id: TrailID,
-    metricID: Schema.String,
-    error: Schema.Defect(),
-  },
-) {}
+export class MetricErrorEvent extends Schema.TaggedClass<MetricErrorEvent>()("MetricErrorEvent", {
+  id: TrailID,
+  metricID: Schema.String,
+  error: Schema.Defect(),
+}) {}
 
 export const TrailSuccessEvent = Schema.Union([
   TrailStartEvent,
   SessionSuccessEvent,
-  SchedMetricEvent,
-  SchedMetricErrorEvent,
   TrailEndEvent,
+  MetricEvent,
+  MetricErrorEvent,
 ]);
 export type TrailSuccessEvent = Schema.Schema.Type<typeof TrailSuccessEvent>;
 

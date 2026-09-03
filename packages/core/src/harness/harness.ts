@@ -23,7 +23,7 @@ const makeAgentSession = <Tools extends Record<string, Tool.Any>>(agent: Agent.A
 export type SandboxSession<Tools extends Record<string, Tool.Any> = Record<string, never>> =
   Readonly<{
     sandbox: Sandbox.Sandbox;
-    runAgent(): Effect.Effect<AgentSession<Tools>, HarnessError, Scope.Scope>;
+    runAgent: Effect.Effect<AgentSession<Tools>, HarnessError, Scope.Scope>;
   }>;
 
 export type SandboxSessionConfig = Readonly<{
@@ -115,7 +115,7 @@ export const make = Effect.fn(function* <ID extends string, Tools extends Record
       .runSandbox({ snapshot, resources, cache })
       .pipe(Effect.mapError(HarnessError.sandbox));
 
-    const runAgent = Effect.fn("HarnessService.runAgent")(function* () {
+    const runAgent = Effect.gen(function* () {
       const agentSession = yield* agentProvider
         .runSession(sandbox)
         .pipe(Effect.mapError(HarnessError.agent));

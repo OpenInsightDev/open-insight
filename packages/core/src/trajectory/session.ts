@@ -15,7 +15,7 @@ export type SessionTurn<Tools extends Record<string, Tool.Any>, E> = Readonly<{
   response: Stream.Stream<Response.StreamPartView<Tools>, E>;
 }>;
 
-export type Session<Tools extends Record<string, Tool.Any>, E, R> = Stream.Stream<
+export type Session<Tools extends Record<string, Tool.Any>, E = unknown, R = never> = Stream.Stream<
   SessionTurn<Tools, E>,
   E,
   R
@@ -29,10 +29,10 @@ export const fromSession = Effect.fn(function* <Tools extends Record<string, Too
   const crypto = yield* Crypto.Crypto;
   const responsePart = ResponsePart(toolkit);
 
-  const makeMetadata = Effect.fn(function* () {
-    const uuid = yield* crypto.randomUUIDv7.pipe(Effect.mapError(TrajectoryError.decode));
-    return yield* PartMetadata.makeEffect({ uuid }).pipe(Effect.mapError(TrajectoryError.decode));
-  });
+  const metadata = crypto.randomUUIDv7.pipe(
+    Effect.map((uuid) => PartMetadata.make({ uuid })),
+    Effect.mapError(TrajectoryError.decode),
+  );
 
   const parts = stream.pipe(
     Stream.provideContext(sourceContext),
@@ -42,15 +42,13 @@ export const fromSession = Effect.fn(function* <Tools extends Record<string, Too
         (message): message is PromptMessage => message.role !== "assistant",
       );
       const prompt = Stream.fromEffect(
-        makeMetadata().pipe(Effect.map((metadata) => PromptPart.make({ ...metadata, messages }))),
+        metadata.pipe(Effect.map((metadata) => PromptPart.make({ ...metadata, messages }))),
       );
       const responses = Fold.fold(
         turn.response.pipe(Stream.mapError(TrajectoryError.storage)),
       ).pipe(
         Stream.mapEffect((response) =>
-          makeMetadata().pipe(
-            Effect.map((metadata) => responsePart.make({ ...metadata, response })),
-          ),
+          metadata.pipe(Effect.map((metadata) => responsePart.make({ ...metadata, response }))),
         ),
       );
 

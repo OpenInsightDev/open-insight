@@ -435,21 +435,8 @@ export const makeProvider = Effect.fn("Acp.makeProvider")(function* (
     };
   });
 
-  return yield* Agent.make({
+  return Agent.make({
     snapshotExtension: Option.some(snapshotExtension(agentId, options)),
     runSession,
   });
 });
-
-export const layerFrom = (
-  agentId: string,
-  options: Options & Harness.ConfigOptions = {},
-): Layer.Layer<Harness.Service, HarnessError, Path.Path | Sandbox.ProviderService> =>
-  Harness.Service.layer(agentId, options).pipe(
-    Layer.provide(
-      Layer.effect(
-        Agent.ProviderService,
-        makeProvider(agentId, options).pipe(Effect.mapError(HarnessError.agent)),
-      ),
-    ),
-  );
