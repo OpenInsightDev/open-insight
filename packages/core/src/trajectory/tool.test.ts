@@ -3,7 +3,7 @@ import { DateTime, Effect, Schema, Stream } from "effect";
 import { Response, Tool, Toolkit } from "effect/unstable/ai";
 import { TrajectoryError } from "./error.ts";
 import { toolCalls, toolTurns } from "./tool.ts";
-import { Trajectory, type Part } from "./trajectory.ts";
+import { type Trajectory, type Part } from "./trajectory.ts";
 
 const Convert = Tool.make("convert", {
   parameters: Schema.Struct({ value: Schema.Number }),
@@ -44,7 +44,7 @@ const result = (id: string, name: string, preliminary = false): Part<Tools> =>
     }),
   );
 const trajectory = (...parts: ReadonlyArray<Part<Tools>>): Trajectory<Tools> =>
-  new Trajectory({ toolkit, parts: Stream.fromIterable(parts) });
+  Object.assign(Stream.fromIterable(parts), { toolkit }) as Trajectory<Tools>;
 const collect = <A, E>(stream: Stream.Stream<A, E>) =>
   stream.pipe(
     Stream.runCollect,
@@ -143,7 +143,7 @@ describe("tool trajectory views", () => {
   it.effect("preserves trajectory failures", () =>
     Effect.gen(function* () {
       const failure = TrajectoryError.storage("offline");
-      const source = new Trajectory<Tools>({ toolkit, parts: Stream.fail(failure) });
+      const source = Object.assign(Stream.fail(failure), { toolkit }) as Trajectory<Tools>;
 
       const turnsError = yield* collect(toolTurns(source)).pipe(Effect.flip);
       const callsError = yield* collect(toolCalls(source)).pipe(Effect.flip);

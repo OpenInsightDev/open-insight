@@ -2,7 +2,13 @@ import { Crypto, Effect, Stream } from "effect";
 import { Prompt, Tool, Response, Toolkit } from "effect/unstable/ai";
 import * as Fold from "#/response/fold.ts";
 import { TrajectoryError } from "./error.ts";
-import { PartMetadata, PromptMessage, PromptPart, ResponsePart, Trajectory } from "./trajectory.ts";
+import {
+  PartMetadata,
+  PromptMessage,
+  PromptPart,
+  ResponsePart,
+  type Trajectory,
+} from "./trajectory.ts";
 
 export type SessionTurn<Tools extends Record<string, Tool.Any>, E> = Readonly<{
   prompt: Prompt.Prompt;
@@ -52,5 +58,5 @@ export const fromSession = Effect.fn(function* <Tools extends Record<string, Too
     }),
   );
 
-  return new Trajectory({ toolkit, parts });
+  return Object.assign(parts, { toolkit }) as Trajectory<Tools>;
 });

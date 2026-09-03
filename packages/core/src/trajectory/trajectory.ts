@@ -1,4 +1,4 @@
-import { Data, DateTime, Schema, Stream } from "effect";
+import { DateTime, Schema, Stream } from "effect";
 import { Prompt, Tool, Response, Toolkit } from "effect/unstable/ai";
 import { TrajectoryError } from "./error.ts";
 
@@ -49,13 +49,14 @@ export const Part = <T extends Toolkit.Any>(toolkit: T) =>
 export type Part<Tools extends Record<string, Tool.Any>> = PromptPart | ResponsePart<Tools>;
 export type PartEncoded = PromptPartEncoded | ResponsePartEncoded;
 
+export type PartStream<Tools extends Record<string, Tool.Any>> = Stream.Stream<
+  Part<Tools>,
+  TrajectoryError
+>;
+
 /**
  * A trajectory represents a sequence of turns in a conversation, where each turn consists of a prompt and the corresponding response.
  */
-export class Trajectory<
-  Tools extends Record<string, Tool.Any> = Record<string, never>,
-> extends Data.Class<{
-  toolkit: Toolkit.Toolkit<Tools>;
-  parts: Stream.Stream<Part<Tools>, TrajectoryError>;
-}> {}
+export type Trajectory<Tools extends Record<string, Tool.Any> = Record<string, never>> =
+  PartStream<Tools> & Readonly<{ toolkit: Toolkit.Toolkit<Tools> }>;
 export type Any = Trajectory<any>;

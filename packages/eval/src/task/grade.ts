@@ -1,8 +1,8 @@
 import { Function, type Schema } from "effect";
 import { castDraft, produce } from "immer";
-import type { Override } from "#/utils/type.ts";
 import * as Task from "./task.ts";
 import * as Grade from "#/grade/index.ts";
+import type { Override } from "@open-insight/core/internal/utils";
 
 /**
  * Replaces a task's grader with a new one.

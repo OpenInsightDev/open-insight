@@ -3,11 +3,10 @@ import * as Task from "./task.ts";
 import { TaskError } from "./error.ts";
 import type { Trajectory, Response } from "@open-insight/core/internal";
 import { hasProperty } from "effect/Predicate";
-import type { Override } from "#/utils/index.ts";
+import type { Override } from "@open-insight/core/internal/utils";
 
 export class SessionResult extends Data.TaggedClass("SessionResult")<{
   trajectory: Trajectory.Trajectory;
-  usage: Response.Usage | null;
 }> {}
 
 export class TrailResult<G extends Schema.Constraint = any> extends Data.TaggedClass(

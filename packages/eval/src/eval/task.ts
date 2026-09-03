@@ -1,8 +1,8 @@
 import * as Bench from "#/bench/index.ts";
 import { produce } from "immer";
 import type { Harness } from "@open-insight/core/internal";
-import type { Override } from "../utils/type.ts";
 import type { Any, BenchOf, Eval, HarnessOf } from "./eval.ts";
+import type { Override } from "@open-insight/core/internal/utils";
 
 type MappedBench<E extends Any, Mapped extends Bench.Any> = Override<E, Eval<Mapped, HarnessOf<E>>>;
 

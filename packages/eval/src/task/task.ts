@@ -3,6 +3,7 @@ import * as Grade from "#/grade/index.ts";
 import { Data, Match, Schema } from "effect";
 
 export class Metadata extends Schema.Class<Metadata>("Metadata")({
+  id: Schema.String,
   name: Schema.OptionFromOptionalNullOr(Schema.String),
   description: Schema.OptionFromOptionalNullOr(Schema.String),
 }) {}
@@ -23,7 +24,7 @@ export type Any = Task<any, any>;
 export type GradeOf<T> = T extends Task<infer _, infer G> ? G : never;
 export type IdOf<T> = T extends Task<infer ID, infer _> ? ID : never;
 
-type Options<G extends Schema.Constraint> = MetadataEncoded &
+type Options<G extends Schema.Constraint> = Omit<MetadataEncoded, "id"> &
   Readonly<{
     prompt: Prompt.RawInput | Prompt.Session.Provider;
     grader: Grade.Grader<G>;
@@ -42,10 +43,9 @@ export const make = <ID extends string, G extends Schema.Constraint>(
     grader,
     snapshot = Snapshot.Alpine,
     resources = Resource.providerDefault,
-    ...encoded
   } = options;
 
-  const metadata = Schema.decodeSync(Metadata)(encoded);
+  const metadata = Schema.decodeSync(Metadata)({ id, ...options });
 
   const sessionLayer = Match.value(prompt).pipe(
     Match.tag("Provider", (provider) => provider),

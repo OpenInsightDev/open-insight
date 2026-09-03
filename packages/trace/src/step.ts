@@ -256,4 +256,4 @@ const flush = <Tools extends Record<string, Tool.Any>>(
 export const stream = <Tools extends Record<string, Tool.Any>>(
   trajectory: Trajectory.Trajectory<Tools>,
 ): Stream.Stream<Step<Tools>, Trajectory.TrajectoryError> =>
-  trajectory.parts.pipe(Stream.mapAccum(initial<Tools>, next, { onHalt: flush }));
+  trajectory.pipe(Stream.mapAccum(initial<Tools>, next, { onHalt: flush }));

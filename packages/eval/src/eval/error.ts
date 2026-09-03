@@ -5,10 +5,18 @@ import * as Tasks from "#/tasks/index.ts";
 import * as Task from "#/task/index.ts";
 import * as Bench from "#/bench/index.ts";
 import * as Event from "#/event/index.ts";
-import { Agent, Git, Harness, Metric, Prompt, Snapshot } from "@open-insight/core/internal";
+import {
+  Agent,
+  Git,
+  Harness,
+  Metric,
+  Prompt,
+  Snapshot,
+  Trajectory,
+} from "@open-insight/core/internal";
 
 const NonNegativeInt = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0));
-type ExecTask = Task.AnyTask;
+type ExecTask = Task.Any;
 
 /** The evaluation could not be initialized. */
 export class InitFailed extends Schema.TaggedError<InitFailed>(
@@ -25,7 +33,7 @@ export class InitFailed extends Schema.TaggedError<InitFailed>(
 export class TaskInitFailed extends Schema.TaggedError<TaskInitFailed>(
   "open-insight/eval/EvalError/TaskInitFailed",
 )("TaskInitFailed", {
-  task: Task.ID,
+  task: Schema.String,
   cause: Schema.Defect(),
 }) {
   override get message(): string {
@@ -37,7 +45,7 @@ export class TaskInitFailed extends Schema.TaggedError<TaskInitFailed>(
 export class TaskExecFailed extends Schema.TaggedError<TaskExecFailed>(
   "open-insight/eval/EvalError/TaskExecFailed",
 )("TaskExecFailed", {
-  task: Task.ID,
+  task: Schema.String,
   trailIdx: NonNegativeInt,
   cause: Schema.Defect(),
 }) {
@@ -50,7 +58,7 @@ export class TaskExecFailed extends Schema.TaggedError<TaskExecFailed>(
 export class VerifExecFailed extends Schema.TaggedError<VerifExecFailed>(
   "open-insight/eval/EvalError/VerifExecFailed",
 )("VerifExecFailed", {
-  task: Task.ID,
+  task: Schema.String,
   cause: Schema.Defect(),
 }) {
   override get message(): string {
@@ -62,7 +70,7 @@ export class VerifExecFailed extends Schema.TaggedError<VerifExecFailed>(
 export class MissingVerifier extends Schema.TaggedError<MissingVerifier>(
   "open-insight/eval/EvalError/MissingVerifier",
 )("MissingVerifier", {
-  task: Task.ID,
+  task: Schema.String,
   stages: Schema.Array(Schema.String),
 }) {
   override get message(): string {
@@ -74,7 +82,7 @@ export class MissingVerifier extends Schema.TaggedError<MissingVerifier>(
 export class VerifMismatch extends Schema.TaggedError<VerifMismatch>(
   "open-insight/eval/EvalError/VerifMismatch",
 )("VerifMismatch", {
-  task: Task.ID,
+  task: Schema.String,
   expect: Schema.Unknown,
   actual: Schema.Unknown,
 }) {
@@ -87,7 +95,7 @@ export class VerifMismatch extends Schema.TaggedError<VerifMismatch>(
 export class VerifInitialMatch extends Schema.TaggedError<VerifInitialMatch>(
   "open-insight/eval/EvalError/VerifInitialMatch",
 )("VerifInitialMatch", {
-  task: Task.ID,
+  task: Schema.String,
   expect: Schema.Unknown,
 }) {
   override get message(): string {
@@ -99,7 +107,7 @@ export class VerifInitialMatch extends Schema.TaggedError<VerifInitialMatch>(
 export class SnapshotFailed extends Schema.TaggedError<SnapshotFailed>(
   "open-insight/eval/EvalError/SnapshotFailed",
 )("SnapshotFailed", {
-  task: Task.ID,
+  task: Schema.String,
   snapshot: Snapshot.Template,
   cause: Schema.Defect(),
 }) {
@@ -123,6 +131,7 @@ export const ErrorReason = Schema.Union([
   InitFailed,
   Git.GitError,
   Agent.AgentError,
+  Trajectory.TrajectoryError,
   Task.TaskError,
   Bench.BenchError,
   Grade.GradeError,
@@ -161,6 +170,9 @@ export class EvalError extends Schema.TaggedError<EvalError>("open-insight/eval/
   static git = (cause: Git.GitError): EvalError => EvalError.make({ reason: cause });
 
   static agent = (cause: Agent.AgentError): EvalError => EvalError.make({ reason: cause });
+
+  static trajectory = (cause: Trajectory.TrajectoryError): EvalError =>
+    EvalError.make({ reason: cause });
 
   static task = (cause: Task.TaskError): EvalError => EvalError.make({ reason: cause });
 

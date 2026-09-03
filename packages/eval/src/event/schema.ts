@@ -64,7 +64,7 @@ export class SessionRetryEvent extends Schema.TaggedClass<SessionRetryEvent>()(
 export class SessionEndEvent extends Schema.TaggedClass<SessionEndEvent>()("SessionEndEvent", {
   id: SessionID,
   usage: Schema.NullOr(Response.Usage),
-  reason: Response.FinishReason,
+  reason: Schema.NullOr(Response.FinishReason),
 }) {}
 
 export class TrajMetricEvent extends Schema.TaggedClass<TrajMetricEvent>()("TrajMetricEvent", {

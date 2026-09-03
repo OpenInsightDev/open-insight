@@ -15,6 +15,7 @@ import {
   Scope,
   flow,
   Deferred,
+  Sink,
 } from "effect";
 import * as Grade from "#/grade/index.ts";
 import { Toolkit } from "effect/unstable/ai";
@@ -24,90 +25,98 @@ import * as Event from "#/event/index.ts";
 import { Harness, Prompt, Sandbox, Response, Trajectory } from "@open-insight/core/internal";
 import { EvalError } from "./error.ts";
 import * as Config from "./config.ts";
+import { reason } from "effect/Filter";
 
-type SessionOptions = Readonly<{
-  id: Event.SessionID;
+type TrajOptions = Readonly<{
   promptSession: Prompt.Session.Session;
   sandbox: Sandbox.Sandbox;
   agentSession: Harness.AgentSession;
 }>;
-const makeSession = Effect.fn(
-  function* ({ id, sandbox, promptSession, agentSession }: SessionOptions) {
-    const usageRef = yield* Ref.make<Response.Usage | null>(null);
-    const finishRef = yield* Ref.make<Response.FinishReason>("unknown");
+const makeTrajectory = Effect.fn(function* ({ sandbox, promptSession, agentSession }: TrajOptions) {
+  const usageRef = yield* Ref.make<Response.Usage | null>(null);
+  const finishRef = yield* Ref.make<Response.FinishReason>("unknown");
 
-    const decodePart = Schema.decodeSync(Response.StreamPart(Toolkit.empty));
+  const session = yield* Stream.callback<Trajectory.SessionTurn<any, EvalError>, EvalError>(
+    Effect.fn(function* (queue) {
+      let current: Option.Option<Prompt.Prompt> = Option.some(promptSession.init);
 
-    const session = yield* Stream.callback<Trajectory.SessionTurn<any, EvalError>, EvalError>(
-      Effect.fn(function* (queue) {
-        let current: Option.Option<Prompt.Prompt> = Option.some(promptSession.init);
+      while (Option.isSome(current)) {
+        const trajDeferred = yield* Deferred.make<Prompt.Prompt>();
 
-        while (Option.isSome(current)) {
-          const trajDeferred = yield* Deferred.make<Prompt.Prompt>();
-
-          const response = yield* agentSession
-            .prompt(current.value)
-            .pipe(Stream.mapError(EvalError.harness))
-            .pipe(
-              Stream.tap(
-                Effect.fn(function* (part) {
-                  if (part.type !== "finish") {
-                    return;
-                  }
-                  yield* Effect.all([
-                    Ref.set(finishRef, part.reason),
-                    Ref.set(usageRef, part.usage),
-                  ]);
-                }),
-              ),
-            )
-            .pipe(
-              Stream.onEnd(
-                Ref.get(agentSession.trajectory).pipe(
-                  Effect.flatMap((traj) => Deferred.succeed(trajDeferred, traj)),
-                ),
-              ),
-            )
-            .pipe(Stream.share({ capacity: "unbounded" }));
-
-          yield* Queue.offer(queue, { prompt: current.value, response });
-
-          current = yield* Deferred.await(trajDeferred).pipe(
-            Effect.flatMap((traj) =>
-              promptSession
-                .next(traj)
-                .pipe(
-                  Effect.provideService(Sandbox.Current, sandbox),
-                  Effect.mapError(EvalError.prompt),
-                ),
+        const response = yield* agentSession
+          .prompt(current.value)
+          .pipe(Stream.mapError(EvalError.harness))
+          .pipe(
+            Stream.tap(
+              Effect.fn(function* (part) {
+                if (part.type !== "finish") {
+                  return;
+                }
+                yield* Effect.all([Ref.set(finishRef, part.reason), Ref.set(usageRef, part.usage)]);
+              }),
             ),
-          );
-        }
-      }),
-    ).pipe(Stream.share({ capacity: "unbounded" }));
+          )
+          .pipe(
+            Stream.onEnd(
+              Ref.get(agentSession.trajectory).pipe(
+                Effect.flatMap((traj) => Deferred.succeed(trajDeferred, traj)),
+              ),
+            ),
+          )
+          .pipe(Stream.share({ capacity: "unbounded" }));
+
+        yield* Queue.offer(queue, { prompt: current.value, response });
+
+        current = yield* Deferred.await(trajDeferred).pipe(
+          Effect.flatMap((traj) =>
+            promptSession
+              .next(traj)
+              .pipe(
+                Effect.provideService(Sandbox.Current, sandbox),
+                Effect.mapError(EvalError.prompt),
+              ),
+          ),
+        );
+      }
+    }),
+  ).pipe(Stream.share({ capacity: "unbounded" }));
+
+  return yield* Trajectory.fromSession(session, Toolkit.empty);
+});
+
+type SessionOptions = Readonly<{
+  id: Event.SessionID;
+  trajectory: Trajectory.Trajectory;
+}>;
+const makeSession = Effect.fn(
+  function* ({ id, trajectory }: SessionOptions) {
+    const shared = yield* trajectory.pipe(Stream.share({ capacity: "unbounded" }));
 
     const startEvent = Stream.succeed(Event.SessionStartEvent.make({ id }));
 
-    const sessionEvents = session.pipe(
-      Stream.flatMap(({ prompt, response }) =>
-        Stream.empty.pipe(
-          Stream.concat(Stream.succeed(Event.SessionPromptEvent.make({ id, prompt }))),
-          Stream.concat(
-            response.pipe(Stream.map((part) => Event.SessionStreamEvent.make({ id, part }))),
+    const sessionEvents = shared.pipe(
+      Stream.map((part) =>
+        Match.value(part).pipe(
+          Match.tag("Prompt", (prompt) => Event.SessionPromptEvent.make({ id, prompt })),
+          Match.tag("Response", (response) =>
+            Event.SessionStreamEvent.make({ id, part: response.response }),
           ),
         ),
       ),
     );
 
-    const endEvent = Effect.all([Ref.get(finishRef), Ref.get(usageRef)]).pipe(
-      Effect.map(([reason, usage]) => Event.SessionEndEvent.make({ id, reason, usage })),
+    const endEvent = Stream.run(shared, Trajectory.finishPart).pipe(
+      Effect.map(
+        Option.match({
+          onSome: ({ reason, usage }) => Event.SessionEndEvent.make({ id, reason, usage }),
+          onNone: () => Event.SessionEndEvent.make({ id, reason: null, usage: null }),
+        }),
+      ),
+      Effect.mapError(EvalError.trajectory),
       Stream.fromEffect,
     );
 
-    const trajectory = yield* Trajectory.fromSession(session, Toolkit.empty);
-
-    const result = Ref.get(usageRef).pipe(
-      Effect.flatMap((usage) => Effect.fail(new Task.Result.SessionResult({ usage, trajectory }))),
+    const result = Effect.fail(new Task.Result.SessionResult({ trajectory })).pipe(
       Stream.fromEffect,
     );
 

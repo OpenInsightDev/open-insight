@@ -2,7 +2,7 @@ import { assert, describe, it } from "@effect/vitest";
 import { DateTime, Effect, Stream } from "effect";
 import { Prompt, Response, Toolkit } from "effect/unstable/ai";
 import { TrajectoryError } from "./error.ts";
-import { Trajectory, type Part, type PromptPart } from "./trajectory.ts";
+import { type Trajectory, type Part, type PromptPart } from "./trajectory.ts";
 import { prompt, prompts, responses, turns } from "./view.ts";
 
 const timestamp = DateTime.makeUnsafe("2024-01-01T00:00:00.000Z");
@@ -22,7 +22,7 @@ const responsePart = (text: string): Part<{}> => ({
   response: Response.makePart("text", { text }),
 });
 const trajectory = (...parts: ReadonlyArray<Part<{}>>): Trajectory<{}> =>
-  new Trajectory({ toolkit: Toolkit.empty, parts: Stream.fromIterable(parts) });
+  Object.assign(Stream.fromIterable(parts), { toolkit: Toolkit.empty }) as Trajectory<{}>;
 const collect = <A, E>(stream: Stream.Stream<A, E>) =>
   stream.pipe(
     Stream.runCollect,
@@ -114,10 +114,9 @@ describe("trajectory views", () => {
   it.effect("preserves trajectory failures in every stream view", () =>
     Effect.gen(function* () {
       const failure = TrajectoryError.storage("offline");
-      const source = new Trajectory<{}>({
+      const source = Object.assign(Stream.fail(failure), {
         toolkit: Toolkit.empty,
-        parts: Stream.fail(failure),
-      });
+      }) as Trajectory<{}>;
 
       const turnsError = yield* collect(turns(source)).pipe(Effect.flip);
       const promptsError = yield* collect(prompts(source)).pipe(Effect.flip);

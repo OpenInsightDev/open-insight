@@ -1,5 +1,5 @@
 import type { Trajectory as Traj } from "@open-insight/core/internal";
-import { Data, Stream } from "effect";
+import { Stream } from "effect";
 import { Prompt, Response, Toolkit, type Tool } from "effect/unstable/ai";
 
 /**
@@ -10,13 +10,8 @@ import { Prompt, Response, Toolkit, type Tool } from "effect/unstable/ai";
 export type Tools = Record<string, Tool.Any>;
 export type Part = Traj.Part<Tools>;
 
-class Trajectory extends Data.Class<{
-  readonly toolkit: Toolkit.Toolkit<any>;
-  readonly parts: Stream.Stream<Part, Traj.TrajectoryError>;
-}> {}
-
 export const trajectory = (...parts: ReadonlyArray<Part>): Traj.Trajectory<Tools> =>
-  new Trajectory({ toolkit: Toolkit.empty, parts: Stream.fromIterable(parts) });
+  Object.assign(Stream.fromIterable(parts), { toolkit: Toolkit.empty }) as Traj.Trajectory<Tools>;
 
 export const prompt = (text: string): Part => ({
   _tag: "Prompt",

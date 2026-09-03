@@ -53,3 +53,13 @@ export class Metric<S extends Schema.Constraint> extends Data.Class<{
   ) => Stream.Stream<Result<S>, MetricError, Sandbox.Current>;
 }> {}
 export type Any = Metric<any>;
+export type ResultOf<M> = M extends Metric<infer S> ? Result<S> : never;
+export type ResultsOf<Ms extends Record<string, Any>> = { [K in keyof Ms]: ResultOf<Ms[K]> };
+
+export class Registry<Metrics extends Record<string, Any>> extends Data.Class<{
+  metrics: Metrics;
+}> {}
+
+export class Collector<Metrics extends Record<string, Any>> extends Data.Class<{
+  results: ResultsOf<Metrics>;
+}> {}

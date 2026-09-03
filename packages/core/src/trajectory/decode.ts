@@ -1,4 +1,4 @@
-import { Array as Arr, Crypto, Data, Effect, Schema, Stream } from "effect";
+import { Array as Arr, Crypto, Effect, Schema, Stream } from "effect";
 import { Tool, Toolkit, Response } from "effect/unstable/ai";
 import * as Fold from "#/response/fold.ts";
 import { TrajectoryError } from "./error.ts";
@@ -8,14 +8,12 @@ import {
   PromptMessage,
   PromptPart,
   ResponsePart,
-  Trajectory,
+  type Trajectory,
   type PartEncoded,
   type PromptMessageEncoded,
 } from "./trajectory.ts";
 
-export class TrajectoryEncoded extends Data.Class<{
-  parts: Stream.Stream<PartEncoded, TrajectoryError>;
-}> {}
+export type TrajectoryEncoded = Stream.Stream<PartEncoded, TrajectoryError>;
 
 export const encode = Effect.fn(function* <Tools extends Record<string, Tool.Any>>(
   trajectory: Trajectory<Tools>,
@@ -24,7 +22,7 @@ export const encode = Effect.fn(function* <Tools extends Record<string, Tool.Any
   const encodingContext = yield* Effect.context<typeof partSchema.EncodingServices>();
   const encodePart = Schema.encodeEffect(partSchema);
 
-  const parts = trajectory.parts.pipe(
+  const parts = trajectory.pipe(
     Stream.mapEffect((part) =>
       encodePart(part).pipe(
         Effect.mapError(TrajectoryError.decode),
@@ -33,7 +31,7 @@ export const encode = Effect.fn(function* <Tools extends Record<string, Tool.Any
     ),
   );
 
-  return new TrajectoryEncoded({ parts });
+  return parts as TrajectoryEncoded;
 });
 
 export const decode = Effect.fn(function* <Toolkits extends ReadonlyArray<Toolkit.Any>>(
@@ -45,7 +43,7 @@ export const decode = Effect.fn(function* <Toolkits extends ReadonlyArray<Toolki
   const decodingContext = yield* Effect.context<typeof partSchema.DecodingServices>();
   const decodePart = Schema.decodeEffect(partSchema);
 
-  const parts = trajectory.parts.pipe(
+  const parts = trajectory.pipe(
     Stream.mapEffect((part) =>
       decodePart(part).pipe(
         Effect.mapError(TrajectoryError.decode),
@@ -54,7 +52,7 @@ export const decode = Effect.fn(function* <Toolkits extends ReadonlyArray<Toolki
     ),
   );
 
-  return new Trajectory<Toolkit.MergedTools<Toolkits>>({ toolkit, parts });
+  return Object.assign(parts, { toolkit }) as Trajectory<Toolkit.MergedTools<Toolkits>>;
 });
 
 export type EncodedStream<E, R> = Stream.Stream<
@@ -107,5 +105,5 @@ export const makeEncoded = Effect.fn(function* <E, R>(stream: EncodedStream<E, R
     ),
   );
 
-  return yield* encode(new Trajectory({ toolkit, parts }));
+  return yield* encode(Object.assign(parts, { toolkit }) as Trajectory<{}>);
 });

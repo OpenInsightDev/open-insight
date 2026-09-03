@@ -1,7 +1,7 @@
 import * as Task from "#/task/index.ts";
 import { Effect } from "effect";
-import type { Override } from "../utils/type.ts";
 import { Bench, type Any, type IDOf, type TasksOf } from "./bench.ts";
+import type { Override } from "@open-insight/core/internal/utils";
 
 export type MappedTasks<
   Tasks extends Record<string, Task.Any>,

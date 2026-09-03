@@ -14,6 +14,7 @@ export {
   prompts,
   responses,
   prompt,
+  usage,
   type ToolTurns,
   toolTurns,
   toolCalls,

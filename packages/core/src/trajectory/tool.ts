@@ -1,7 +1,7 @@
 import { Effect, Match, Schema, Stream } from "effect";
 import { Tool, Response, Toolkit } from "effect/unstable/ai";
 import { TrajectoryError } from "./error.ts";
-import { Part, Trajectory } from "./trajectory.ts";
+import { Part, type Trajectory } from "./trajectory.ts";
 import { responses } from "./view.ts";
 
 export type ToolTurns<Tools extends Record<string, Tool.Any>> = {
@@ -72,7 +72,7 @@ export const toolkits = <Toolkits extends ReadonlyArray<Toolkit.Any>>(...toolkit
       typeof sourceSchema.EncodingServices | typeof partSchema.DecodingServices
     >();
 
-    const parts = trajectory.parts.pipe(
+    const parts = trajectory.pipe(
       Stream.mapEffect((part) =>
         Match.value(part).pipe(
           Match.tag("Prompt", (prompt) => Effect.succeed(trajectoryPart.make(prompt))),
@@ -95,5 +95,7 @@ export const toolkits = <Toolkits extends ReadonlyArray<Toolkit.Any>>(...toolkit
       Stream.provideContext(context),
     );
 
-    return new Trajectory({ toolkit: merged, parts });
+    return Object.assign(parts, { toolkit: merged }) as Trajectory<
+      Toolkit.MergedTools<[T, ...Toolkits]>
+    >;
   });

@@ -1,7 +1,7 @@
 import { hasProperty } from "effect/Predicate";
 import { type Tool, Toolkit } from "effect/unstable/ai";
-import type { Override } from "#/utils/type.ts";
 import * as Task from "./task.ts";
+import type { Override } from "@open-insight/core/internal/utils";
 
 const Field: unique symbol = Symbol.for("TaskToolkitField");
 export type Mixin<Tools extends Record<string, Tool.Any>> = Readonly<{

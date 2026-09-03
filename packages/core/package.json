@@ -67,8 +67,8 @@
     "openai": "catalog:",
     "picomatch": "catalog:",
     "semver": "catalog:",
-    "validator": "catalog:",
-    "utils": "workspace:*"
+    "utils": "workspace:*",
+    "validator": "catalog:"
   },
   "devDependencies": {
     "@effect/vitest": "catalog:",
