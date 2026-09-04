@@ -5,14 +5,11 @@ import { Harness, Metric } from "@open-insight/core/internal";
 import { Prompt, Response } from "@open-insight/core/internal";
 import { Toolkit } from "effect/unstable/ai";
 
-export const EvalID = Schema.Struct({
-  benchID: Schema.String,
-  harnessID: Schema.String,
-});
+export const EvalID = Schema.String;
 export type EvalID = Schema.Schema.Type<typeof EvalID>;
 
 export const TaskID = Schema.Struct({
-  ...EvalID.fields,
+  evalID: EvalID,
   taskID: Schema.String,
 });
 export type TaskID = Schema.Schema.Type<typeof TaskID>;
@@ -165,3 +162,6 @@ export class EvalErrorEvent extends Schema.TaggedClass<EvalErrorEvent>()("EvalEr
 
 export const EvalFailedEvent = Schema.Union([EvalErrorEvent, TaskFailedEvent]);
 export type EvalFailedEvent = Schema.Schema.Type<typeof EvalFailedEvent>;
+
+export const Event = Schema.Union([EvalSuccessEvent, EvalFailedEvent]);
+export type Event = Schema.Schema.Type<typeof Event>;

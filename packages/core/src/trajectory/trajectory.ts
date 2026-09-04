@@ -1,4 +1,4 @@
-import { DateTime, Effect, Schema, Scope, Stream, Crypto } from "effect";
+import { DateTime, Effect, Schema, Scope, Stream } from "effect";
 import { Prompt, Tool, Response, Toolkit } from "effect/unstable/ai";
 import { TrajectoryError } from "./error.ts";
 
@@ -14,14 +14,7 @@ export type PromptMessage = Schema.Schema.Type<typeof PromptMessage>;
 export type PromptMessageEncoded = Exclude<Prompt.MessageEncoded, Prompt.AssistantMessageEncoded>;
 
 const Timestamp = Schema.DateTimeUtcFromString.pipe(Schema.withConstructorDefault(DateTime.now));
-const Uuid = Schema.String.check(Schema.isUUID(7)).pipe(
-  Schema.withConstructorDefault(
-    Effect.gen(function* () {
-      const crypto = yield* Crypto.Crypto;
-      return yield* crypto.randomUUIDv7.pipe(Effect.mapError(TrajectoryError.decode));
-    }),
-  ),
-);
+const Uuid = Schema.String.check(Schema.isUUID(7));
 export const PartMetadata = Schema.Struct({ timestamp: Timestamp, uuid: Uuid });
 
 export const PromptPart = Schema.TaggedStruct("Prompt", {

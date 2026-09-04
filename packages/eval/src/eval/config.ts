@@ -11,8 +11,11 @@ export type Config = Readonly<{
   /** Maximum number of evaluation trails executed concurrently. Defaults to `32`. */
   trailConcurrency: number;
 
-  /** Number of independent evaluation trails run for each task. Defaults to `1`. */
+  /** Number of successful independent evaluation trails run for each task. Defaults to `1`. */
   trailCount: number;
+
+  /** Number of times to retry a trail if it fails. Defaults to `3`. */
+  trailRetry: number | "unlimited";
 
   /** Whether to run verification instead of run agent. Defaults to `false`. */
   verify: boolean;
@@ -24,6 +27,7 @@ export const DefaultConfig: Required<Config> = {
   snapshotConcurrency: 32,
   trailConcurrency: 32,
   trailCount: 1,
+  trailRetry: 3,
   verify: false,
 };
 

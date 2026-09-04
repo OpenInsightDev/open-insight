@@ -23,7 +23,7 @@ import * as Event from "#/event/index.ts";
 import { Harness, Metric, Prompt, Sandbox, Trajectory } from "@open-insight/core/internal";
 import { EvalError } from "./error.ts";
 import * as Config from "./config.ts";
-import { t } from "tar";
+import * as Eval from "./eval.ts";
 
 type TrajOptions = Readonly<{
   agentSession: Harness.AgentSession;
@@ -103,9 +103,7 @@ const makeSession = Effect.fn(
       Stream.fromEffect,
     );
 
-    const result = Effect.fail(new Task.Result.SessionResult({ trajectory })).pipe(
-      Stream.fromEffect,
-    );
+    const result = Stream.fail(new Task.Result.SessionResult({ trajectory }));
 
     return Stream.empty.pipe(
       Stream.concat(startEvent),
@@ -132,6 +130,8 @@ type TrailOptions<T extends Task.Any> = Readonly<{
 const makeTrail = Effect.fn(
   function* <T extends Task.Any>({ id, task, snapSession }: TrailOptions<T>) {
     const { resources, prompt } = task;
+
+    const persist = yield* Event.Persist.Service;
 
     const sbxSession = yield* snapSession
       .runSandbox({ resources })
@@ -260,6 +260,7 @@ const makeTrail = Effect.fn(
   },
   (eff, { id }) =>
     eff.pipe(
+      Effect.provide(Event.Persist.layer),
       Stream.unwrap,
       Stream.catchTag("EvalError", (error) =>
         Stream.fail(Event.TrailErrorEvent.make({ id, error })),
@@ -372,17 +373,19 @@ const makeTask = Effect.fn(
     ),
 );
 
-type EvalOptions<B extends Bench.Any> = Readonly<{
-  bench: B;
-  harness: Harness.Any;
+type EvalOptions<
+  B extends Bench.Any,
+  H extends Harness.Any,
+  Eval extends Eval.Eval<string, B, H>,
+> = Readonly<{
+  eval_: Eval;
   config?: Partial<Config.Config>;
 }>;
 export const make = Effect.fn(
-  function* <B extends Bench.Any>({
-    bench,
-    harness,
+  function* <B extends Bench.Any, H extends Harness.Any, Eval extends Eval.Eval<string, B, H>>({
+    eval_,
     config: configOptions,
-  }: EvalOptions<B>): Effect.fn.Return<
+  }: EvalOptions<B, H, Eval>): Effect.fn.Return<
     Stream.Stream<
       Event.EvalSuccessEvent,
       Event.EvalFailedEvent | Bench.Result.BenchResult | EvalError
@@ -390,12 +393,8 @@ export const make = Effect.fn(
     EvalError,
     FileSystem.FileSystem | Path.Path | Crypto.Crypto | Sandbox.ProviderService | Scope.Scope
   > {
+    const { id, bench, harness } = eval_;
     const { tasks } = bench;
-
-    const id: Event.EvalID = {
-      harnessID: harness.metadata.id,
-      benchID: bench.metadata.id,
-    };
 
     const config = Config.make(configOptions);
     const { trailConcurrency, snapshotConcurrency, trailCount } = config;
@@ -407,7 +406,7 @@ export const make = Effect.fn(
 
     const taskStreams = Object.entries(tasks).map(([taskID, task]) =>
       makeTask({
-        id: { benchID: bench.id, harnessID: harness.id, taskID },
+        id: { evalID: id, taskID },
         task,
         harness,
         snapSem,
@@ -455,16 +454,11 @@ export const make = Effect.fn(
 
     return stream;
   },
-  (eff, { bench, harness }) =>
+  (eff, { eval_: { id } }) =>
     eff.pipe(
       Stream.unwrap,
       Stream.catchTag("EvalError", (error) =>
-        Stream.fail(
-          Event.EvalErrorEvent.make({
-            id: { harnessID: harness.id, benchID: bench.id },
-            error,
-          }),
-        ),
+        Stream.fail(Event.EvalErrorEvent.make({ id, error })),
       ),
     ),
 );

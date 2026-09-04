@@ -1,7 +1,7 @@
 import { Data, Effect, flow, Option, type Schema } from "effect";
 import * as Task from "./task.ts";
 import { TaskError } from "./error.ts";
-import type { Trajectory, Response } from "@open-insight/core/internal";
+import type { Trajectory } from "@open-insight/core/internal";
 import { hasProperty } from "effect/Predicate";
 import type { Override } from "@open-insight/core/internal/utils";
 

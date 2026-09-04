@@ -2,12 +2,12 @@ import { SandboxError } from "#/sandbox/export.ts";
 import * as Sandbox from "#/sandbox/export.ts";
 import * as Snapshot from "#/snapshot/export.ts";
 import * as Spawn from "#/spawn/export.ts";
-import { Bash } from "#/utils/export.ts";
 import { Crypto, Duration, Effect, FileSystem, Layer, Match } from "effect";
 import { ChildProcessSpawner, ChildProcess as CP } from "effect/unstable/process";
 import { formatPorts, formatResources, hasPort } from "./utils.ts";
 import { makeSandboxSpawner } from "./spawn.ts";
 import * as Runtime from "./runtime.ts";
+import { Bash } from "#/utils/index.ts";
 
 export type Options = Readonly<{
   ports?: Array<number>;
