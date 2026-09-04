@@ -1,12 +1,12 @@
 import type { SessionUpdate } from "@agentclientprotocol/sdk";
 import { assert, it } from "@effect/vitest";
 import { Cause, Effect, Option, Stream } from "effect";
-import type { StreamPartEncoded } from "effect/unstable/ai/Response";
+import { Response } from "effect/unstable/ai";
 import { transform } from "./stream.ts";
 
 const collect = (
   updates: ReadonlyArray<SessionUpdate>,
-): Effect.Effect<Array<StreamPartEncoded>, never, never> =>
+): Effect.Effect<Array<Response.StreamPartView<{}>>, never, never> =>
   Stream.fromIterable(updates).pipe(
     transform,
     Stream.runCollect,
@@ -154,7 +154,9 @@ it.effect("maps tool events to real tool-call and tool-result parts", () =>
     );
     assert.strictEqual(parts[0]?.type === "tool-call" && parts[0].id, "tool-1");
     assert.strictEqual(parts[0]?.type === "tool-call" && parts[0].name, "filesystem_read");
+    assert.isTrue(Response.isAnyToolCallPart(parts[0]));
     assert.strictEqual(parts[1]?.type === "tool-result" && parts[1].id, "tool-1");
+    assert.isTrue(Response.isAnyToolResultPart(parts[1]));
     assert.strictEqual(parts[1]?.type === "tool-result" && parts[1].name, "filesystem_read");
     assert.strictEqual(parts[1]?.type === "tool-result" && parts[1].isFailure, false);
     assert.strictEqual(parts[1]?.type === "tool-result" && parts[1].preliminary, false);
@@ -306,7 +308,7 @@ it.effect("uses the latest usage update when the stream finishes", () =>
 it.effect("preserves upstream errors without emitting successful completion", () =>
   Effect.gen(function* () {
     const error = "boom";
-    const observed: Array<StreamPartEncoded> = [];
+    const observed: Array<Response.StreamPartView<{}>> = [];
     const result = yield* Stream.make(textChunk("partial")).pipe(
       Stream.concat(Stream.fail(error)),
       transform,

@@ -13,18 +13,16 @@ import {
   type PromptCapabilities,
   type SessionUpdate,
 } from "@agentclientprotocol/sdk";
-import { Cause, Effect, FiberSet, Layer, Option, Path, Queue, Ref, Schedule, Stream } from "effect";
+import { Cause, Effect, FiberSet, Option, Path, Queue, Ref, Schedule, Stream } from "effect";
 import { Prompt, Response } from "effect/unstable/ai";
 import * as Agent from "#/agent/index.ts";
+import * as Sandbox from "#/sandbox/index.ts";
 import * as Snapshot from "#/snapshot/index.ts";
 import { Bash } from "#/utils/index.ts";
 import { type HttpStreamOptions, openStream, type WebSocketStreamOptions } from "./http.ts";
 import { AcpError } from "./error.ts";
 import { toAcpPrompt } from "./prompt.ts";
-import * as Harness from "#/harness/index.ts";
 import { transform } from "./stream.ts";
-import { Sandbox } from "../export.ts";
-import { HarnessError } from "#/harness/index.ts";
 
 const DEFAULT_CWD = "/workspace";
 const DEFAULT_PORT = 7689;
@@ -277,7 +275,7 @@ const sessionUpdateStream = (
 const promptStream = (
   context: SessionContext,
   trajectory: Prompt.Prompt,
-): Stream.Stream<Response.StreamPartEncoded, Agent.AgentError> =>
+): Stream.Stream<Response.StreamPartView<{}>, Agent.AgentError> =>
   Effect.gen(function* () {
     const message = yield* userMessage(trajectory);
     const prompt = yield* toAcpPrompt(message, {
