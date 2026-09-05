@@ -8,5 +8,6 @@ export * as Grade from "#/grade/export.ts";
 
 export * as Eval from "#/eval/export.ts";
 export * as Event from "#/event/export.ts";
+export { EventError } from "#/event/export.ts";
 
 export * from "@open-insight/core";

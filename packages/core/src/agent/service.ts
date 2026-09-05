@@ -38,7 +38,7 @@ type AgentOptions = Readonly<{
   prompt(prompt: Prompt.Prompt): Stream.Stream<Response.StreamPartView<{}>, AgentError>;
 }>;
 type ProviderOptions = Readonly<{
-  snapshotExtension: Option.Option<SnapshotExtension>;
+  snapshotExtension?: SnapshotExtension;
   runSession(sandbox: Sandbox.Sandbox): Effect.Effect<AgentOptions, AgentError, Scope.Scope>;
 }>;
 
@@ -56,6 +56,11 @@ const makeAgent = Effect.fn("Agent.makeAgent")(function* ({
 
     const parts: Array<Response.AnyPart> = [];
 
+    const finalize = Effect.gen(function* () {
+      yield* Ref.set(trajectory, Prompt.concat(nextTrajectory, Prompt.fromResponseParts(parts)));
+      yield* promptSem.release(1);
+    });
+
     return promptFn(nextTrajectory)
       .pipe(Stream.mapError(AgentError.stream))
       .pipe(
@@ -64,24 +69,17 @@ const makeAgent = Effect.fn("Agent.makeAgent")(function* ({
             parts.push(part);
           }),
         ),
-        Stream.ensuring(
-          Ref.set(trajectory, Prompt.concat(nextTrajectory, Prompt.fromResponseParts(parts))).pipe(
-            Effect.andThen(promptSem.release(1)),
-          ),
-        ),
+        Stream.ensuring(finalize),
       );
   }, Stream.unwrap);
 
   return { trajectory, prompt } satisfies Agent;
 });
 
-export const make = (options: ProviderOptions) => {
+export const make = ({ snapshotExtension, runSession }: ProviderOptions) => {
   return {
-    snapshotExtension: options.snapshotExtension,
-    runSession: Effect.fn(function* (sandbox) {
-      const agentOptions = yield* options.runSession(sandbox);
-      return yield* makeAgent(agentOptions);
-    }),
+    snapshotExtension: Option.fromNullishOr(snapshotExtension),
+    runSession: (sandbox) => runSession(sandbox).pipe(Effect.flatMap(makeAgent)),
   } satisfies Provider;
 };
 

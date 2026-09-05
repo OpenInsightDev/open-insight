@@ -27,7 +27,7 @@ export class Eval<
 
   options: RunOptions;
 }> {}
-export type Any = Eval<any, any, any>;
+export type Any = Eval<string, Bench.Any, Harness.Any>;
 
 export type IDOf<E> = E extends Eval<infer ID, any, any> ? ID : never;
 export type BenchOf<E> = E extends Eval<any, infer B, any> ? B : never;

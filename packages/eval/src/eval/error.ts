@@ -138,6 +138,7 @@ export const ErrorReason = Schema.Union([
   Harness.HarnessError,
   Metric.MetricError,
   Prompt.PromptError,
+  Event.EventError,
   SnapshotFailed,
   TaskInitFailed,
   TaskExecFailed,
@@ -186,6 +187,8 @@ export class EvalError extends Schema.TaggedError<EvalError>("open-insight/eval/
 
   static prompt = (cause: Prompt.PromptError): EvalError => EvalError.make({ reason: cause });
 
+  static event = (cause: Event.EventError): EvalError => EvalError.make({ reason: cause });
+
   static snapshot =
     (task: ExecTask) =>
     (cause: unknown): EvalError =>
@@ -206,15 +209,15 @@ export class EvalError extends Schema.TaggedError<EvalError>("open-insight/eval/
   static missingVerifier = (task: ExecTask, stages: string[]): EvalError =>
     EvalError.make({ reason: MissingVerifier.make({ task: task.metadata.id, stages }) });
 
-  static verifMismatch = (
-    task: ExecTask,
-    expect: Grade.AnyResult["Encoded"],
-    actual: unknown,
-  ): EvalError =>
-    EvalError.make({ reason: VerifMismatch.make({ task: task.metadata.id, expect, actual }) });
+  // static verifMismatch = (
+  //   task: ExecTask,
+  //   expect: Grade.AnyResult["Encoded"],
+  //   actual: unknown,
+  // ): EvalError =>
+  //   EvalError.make({ reason: VerifMismatch.make({ task: task.metadata.id, expect, actual }) });
 
-  static verifInitialMatch = (task: ExecTask, expect: Grade.AnyResult["Encoded"]): EvalError =>
-    EvalError.make({ reason: VerifInitialMatch.make({ task: task.metadata.id, expect }) });
+  // static verifInitialMatch = (task: ExecTask, expect: Grade.AnyResult["Encoded"]): EvalError =>
+  //   EvalError.make({ reason: VerifInitialMatch.make({ task: task.metadata.id, expect }) });
 
   static verifExec =
     (task: ExecTask) =>

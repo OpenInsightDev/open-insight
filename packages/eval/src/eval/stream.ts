@@ -14,6 +14,7 @@ import {
   Scope,
   flow,
   Deferred,
+  Fiber,
 } from "effect";
 import * as Grade from "#/grade/index.ts";
 import { Toolkit } from "effect/unstable/ai";
@@ -24,6 +25,7 @@ import { Harness, Metric, Prompt, Sandbox, Trajectory } from "@open-insight/core
 import { EvalError } from "./error.ts";
 import * as Config from "./config.ts";
 import * as Eval from "./eval.ts";
+import { trailCache } from "./cache.ts";
 
 type TrajOptions = Readonly<{
   agentSession: Harness.AgentSession;
@@ -121,17 +123,27 @@ const makeSession = Effect.fn(
     ),
 );
 
-type TrailOptions<T extends Task.Any> = Readonly<{
+type TrailOptions = Readonly<{
   id: Event.TrailID;
-  task: T;
+  task: Task.Any;
   snapSession: Harness.SnapshotSession;
 }>;
 
 const makeTrail = Effect.fn(
-  function* <T extends Task.Any>({ id, task, snapSession }: TrailOptions<T>) {
+  function* ({ id, task, snapSession }: TrailOptions) {
     const { resources, prompt } = task;
 
     const persist = yield* Event.Persist.Service;
+    const { file: cacheFile, exists: cacheExists } = yield* trailCache(id);
+
+    if (cacheExists) {
+      const cached = persist.load(cacheFile).pipe(Stream.mapError(EvalError.event));
+      const result = Stream.run(cached, Event.trailResult).pipe(
+        Effect.flatMap(Effect.fail),
+        Stream.fromEffect,
+      );
+      return cached.pipe(Stream.concat(result));
+    }
 
     const sbxSession = yield* snapSession
       .runSandbox({ resources })
@@ -250,13 +262,12 @@ const makeTrail = Effect.fn(
       Stream.map((result) => Event.MetricEvent.make({ id, metricID: result.id, result })),
     );
 
-    const stream = Stream.empty.pipe(
-      Stream.concat(startEvent),
-      Stream.concat(attemptEvents),
-      Stream.merge(metricEvents),
-    );
+    const stream = yield* Stream.empty
+      .pipe(Stream.concat(startEvent), Stream.concat(attemptEvents), Stream.merge(metricEvents))
+      .pipe(Stream.share({ capacity: "unbounded" }));
 
-    return stream;
+    const persistFiber = yield* persist.save(cacheFile, stream).pipe(Effect.forkScoped);
+    return stream.pipe(Stream.onEnd(Fiber.join(persistFiber)));
   },
   (eff, { id }) =>
     eff.pipe(
@@ -373,19 +384,15 @@ const makeTask = Effect.fn(
     ),
 );
 
-type EvalOptions<
-  B extends Bench.Any,
-  H extends Harness.Any,
-  Eval extends Eval.Eval<string, B, H>,
-> = Readonly<{
-  eval_: Eval;
+type EvalOptions = Readonly<{
+  eval_: Eval.Any;
   config?: Partial<Config.Config>;
 }>;
 export const make = Effect.fn(
-  function* <B extends Bench.Any, H extends Harness.Any, Eval extends Eval.Eval<string, B, H>>({
+  function* ({
     eval_,
     config: configOptions,
-  }: EvalOptions<B, H, Eval>): Effect.fn.Return<
+  }: EvalOptions): Effect.fn.Return<
     Stream.Stream<
       Event.EvalSuccessEvent,
       Event.EvalFailedEvent | Bench.Result.BenchResult | EvalError
@@ -426,7 +433,7 @@ export const make = Effect.fn(
 
     const endEvent = Stream.succeed(Event.EvalEndEvent.make({ id }));
 
-    const result = Bench.Result.aggregatorOf(bench).pipe(
+    const result = Bench.Result.aggregatorOf(bench as any).pipe(
       Option.match({
         onSome: (agg) =>
           Queue.end(taskResultQueue).pipe(

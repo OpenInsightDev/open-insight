@@ -1,9 +1,10 @@
-import { Crypto, Effect, Match, Schema, Sink, Stream } from "effect";
+import { Crypto, Effect, Match, Result, Schema, Sink, Stream } from "effect";
 import { Trajectory } from "@open-insight/core/internal";
 import { Prompt, Response, Toolkit } from "effect/unstable/ai";
 import { castDraft, enableMapSet, produce } from "immer";
 import * as Task from "#/task/index.ts";
-import type { TrailSuccessEvent } from "./schema.ts";
+import type { Event, EvalFailedEvent } from "./schema.ts";
+import { EventError } from "./error.ts";
 
 enableMapSet();
 
@@ -17,32 +18,59 @@ type State = Readonly<{
   sessions: ReadonlyMap<number, ReadonlyArray<Turn>>;
 }>;
 
-const initialState = (): State => ({ grade: undefined, sessions: new Map() });
+type ResultState = Result.Result<State, EvalFailedEvent>;
 
-const reduceState = (state: State, event: TrailSuccessEvent) =>
-  produce(state, (draft) => {
-    Match.value(event).pipe(
-      Match.tagsExhaustive({
-        TrailStartEvent: () => undefined,
-        SessionStartEvent: ({ id }) => {
-          draft.sessions.set(id.sessionIdx, []);
-        },
-        SessionPromptEvent: ({ id, prompt }) => {
-          draft.sessions.get(id.sessionIdx)?.push({ prompt: castDraft(prompt), parts: [] });
-        },
-        SessionStreamEvent: ({ id, part }) => {
-          draft.sessions.get(id.sessionIdx)?.at(-1)?.parts.push(castDraft(part));
-        },
-        SessionRetryEvent: () => undefined,
-        SessionEndEvent: () => undefined,
-        TrailEndEvent: ({ grade }) => {
-          draft.grade = grade;
-        },
-        MetricEvent: () => undefined,
-        MetricErrorEvent: () => undefined,
-      }),
-    );
+const initialState = (): ResultState =>
+  Result.succeed({
+    grade: undefined,
+    sessions: new Map(),
   });
+
+const reduceState = (state: ResultState, event: Event): ResultState => {
+  if (Result.isFailure(state)) return state;
+
+  return Match.value(event).pipe(
+    Match.tagsExhaustive({
+      TrailStartEvent: () => state,
+      SessionStartEvent: ({ id }) =>
+        Result.succeed(
+          produce(state.success, (draft) => {
+            draft.sessions.set(id.sessionIdx, []);
+          }),
+        ),
+      SessionPromptEvent: ({ id, prompt }) =>
+        Result.succeed(
+          produce(state.success, (draft) => {
+            draft.sessions.get(id.sessionIdx)?.push({ prompt: castDraft(prompt), parts: [] });
+          }),
+        ),
+      SessionStreamEvent: ({ id, part }) =>
+        Result.succeed(
+          produce(state.success, (draft) => {
+            draft.sessions.get(id.sessionIdx)?.at(-1)?.parts.push(castDraft(part));
+          }),
+        ),
+      SessionRetryEvent: () => state,
+      SessionEndEvent: () => state,
+      TrailEndEvent: ({ grade }) =>
+        Result.succeed(
+          produce(state.success, (draft) => {
+            draft.grade = grade;
+          }),
+        ),
+      MetricEvent: () => state,
+      MetricErrorEvent: () => state,
+      TaskStartEvent: () => state,
+      TaskEndEvent: () => state,
+      EvalStartEvent: () => state,
+      EvalEndEvent: () => state,
+      SessionErrorEvent: Result.fail,
+      TrailErrorEvent: Result.fail,
+      TaskErrorEvent: Result.fail,
+      EvalErrorEvent: Result.fail,
+    }),
+  );
+};
 
 const encodeMessages = Schema.encodeEffect(Schema.mutable(Schema.Array(Trajectory.PromptMessage)));
 const encodeResponse = Schema.encodeEffect(Response.AllPartsView(Toolkit.empty));
@@ -65,15 +93,20 @@ const makeSessionResult = Effect.fn("makeSessionResult")(function* (turns: Reado
   return new Task.Result.SessionResult({ trajectory });
 });
 
-const makeTrailResult = Effect.fn("makeTrailResult")(function* (state: State) {
-  const sessions = yield* Effect.forEach(state.sessions.values(), makeSessionResult);
-  return new Task.Result.TrailResult({ grade: state.grade, sessions });
+const makeTrailResult = Effect.fn("makeTrailResult")(function* (state: ResultState) {
+  if (Result.isFailure(state)) return state.failure;
+
+  const sessions = yield* Effect.forEach(state.success.sessions.values(), makeSessionResult);
+  return new Task.Result.TrailResult({ grade: state.success.grade, sessions });
 });
 
 export const trailResult: Sink.Sink<
-  Task.Result.TrailResult,
-  TrailSuccessEvent,
+  Task.Result.TrailResult | EvalFailedEvent,
+  Event,
   never,
-  never,
+  EventError,
   Crypto.Crypto
-> = Sink.reduce(initialState, reduceState).pipe(Sink.mapEffect(makeTrailResult));
+> = Sink.reduce(initialState, reduceState).pipe(
+  Sink.mapEffect(makeTrailResult),
+  Sink.mapError(EventError.result),
+);
