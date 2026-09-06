@@ -20,8 +20,11 @@ type State = Readonly<{
 
 type ResultState = Result.Result<State, EvalFailedEvent>;
 
+const stateSuccess = (state: State): ResultState => Result.succeed(state);
+const stateFailure = (event: EvalFailedEvent): ResultState => Result.fail(event);
+
 const initialState = (): ResultState =>
-  Result.succeed({
+  stateSuccess({
     grade: undefined,
     sessions: new Map(),
   });
@@ -33,19 +36,19 @@ const reduceState = (state: ResultState, event: Event): ResultState => {
     Match.tagsExhaustive({
       TrailStartEvent: () => state,
       SessionStartEvent: ({ id }) =>
-        Result.succeed(
+        stateSuccess(
           produce(state.success, (draft) => {
             draft.sessions.set(id.sessionIdx, []);
           }),
         ),
       SessionPromptEvent: ({ id, prompt }) =>
-        Result.succeed(
+        stateSuccess(
           produce(state.success, (draft) => {
             draft.sessions.get(id.sessionIdx)?.push({ prompt: castDraft(prompt), parts: [] });
           }),
         ),
       SessionStreamEvent: ({ id, part }) =>
-        Result.succeed(
+        stateSuccess(
           produce(state.success, (draft) => {
             draft.sessions.get(id.sessionIdx)?.at(-1)?.parts.push(castDraft(part));
           }),
@@ -53,7 +56,7 @@ const reduceState = (state: ResultState, event: Event): ResultState => {
       SessionRetryEvent: () => state,
       SessionEndEvent: () => state,
       TrailEndEvent: ({ grade }) =>
-        Result.succeed(
+        stateSuccess(
           produce(state.success, (draft) => {
             draft.grade = grade;
           }),
@@ -64,10 +67,10 @@ const reduceState = (state: ResultState, event: Event): ResultState => {
       TaskEndEvent: () => state,
       EvalStartEvent: () => state,
       EvalEndEvent: () => state,
-      SessionErrorEvent: Result.fail,
-      TrailErrorEvent: Result.fail,
-      TaskErrorEvent: Result.fail,
-      EvalErrorEvent: Result.fail,
+      SessionErrorEvent: stateFailure,
+      TrailErrorEvent: stateFailure,
+      TaskErrorEvent: stateFailure,
+      EvalErrorEvent: stateFailure,
     }),
   );
 };

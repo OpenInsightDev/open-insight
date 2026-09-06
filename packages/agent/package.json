@@ -1,3 +1,4 @@
+
 {
   "name": "@open-insight/agent",
   "version": "1.0.4",
@@ -52,8 +53,6 @@
     "ajv": "catalog:",
     "cloudflare": "catalog:",
     "immer": "catalog:",
-    "memfs": "catalog:",
-    "ripgrep": "catalog:",
     "smolmachines": "catalog:",
     "yaml": "catalog:"
   },

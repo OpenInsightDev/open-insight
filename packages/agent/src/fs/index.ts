@@ -1,1 +1,0 @@
-import { ripgrep } from "ripgrep";

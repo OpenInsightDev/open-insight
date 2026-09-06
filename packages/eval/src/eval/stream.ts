@@ -342,7 +342,6 @@ const makeTask = Effect.fn(
       ),
     );
 
-    const sbxProvider = yield* Sandbox.ProviderService;
     const trailEvents = Stream.mergeAll(
       trails.map((trail) =>
         trail.pipe(
@@ -353,7 +352,7 @@ const makeTask = Effect.fn(
         ),
       ),
       { concurrency: "unbounded" },
-    ).pipe(Stream.provideService(Sandbox.ProviderService, sbxProvider));
+    );
 
     const endEvent = Stream.succeed(Event.TaskEndEvent.make({ id }));
 
