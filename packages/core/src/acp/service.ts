@@ -13,7 +13,7 @@ import {
   type PromptCapabilities,
   type SessionUpdate,
 } from "@agentclientprotocol/sdk";
-import { Cause, Effect, FiberSet, Option, Path, Queue, Ref, Schedule, Stream } from "effect";
+import { Cause, Effect, FiberSet, Path, Queue, Ref, Schedule, Stream } from "effect";
 import { Prompt, Response } from "effect/unstable/ai";
 import * as Agent from "#/agent/index.ts";
 import * as Sandbox from "#/sandbox/index.ts";
@@ -344,7 +344,7 @@ export const waitForAgentReady = Effect.fn(function* (url: URL, options: Options
 export const makeProvider = Effect.fn("Acp.makeProvider")(function* (
   agentId: string,
   options: Options,
-) {
+): Effect.fn.Return<Agent.Provider, Agent.AgentError, Path.Path> {
   yield* validateOptions(agentId, options);
 
   const runSession = Effect.fn("Acp.runSession")(function* (sandbox: Sandbox.Sandbox) {
@@ -434,7 +434,7 @@ export const makeProvider = Effect.fn("Acp.makeProvider")(function* (
   });
 
   return Agent.make({
-    snapshotExtension: Option.some(snapshotExtension(agentId, options)),
+    snapshotExtension: snapshotExtension(agentId, options),
     runSession,
   });
 });

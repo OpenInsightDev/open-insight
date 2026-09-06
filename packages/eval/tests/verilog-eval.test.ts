@@ -13,7 +13,6 @@ const loadTasks = Effect.fn(function* (repoPath: string) {
 
   const snapshot = Snapshot.makeTemplate({
     image: "ubuntu:24.04",
-    context: import.meta.dirname,
     instructions: [
       Snapshot.run(
         `DEBIAN_FRONTEND=noninteractive apt-get update && \\
