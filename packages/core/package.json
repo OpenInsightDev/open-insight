@@ -67,6 +67,7 @@
     "openai": "catalog:",
     "picomatch": "catalog:",
     "semver": "catalog:",
+    "ssh2": "catalog:",
     "validator": "catalog:"
   },
   "devDependencies": {

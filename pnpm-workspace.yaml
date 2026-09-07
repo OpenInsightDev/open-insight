@@ -102,6 +102,7 @@ catalog:
   '@effect/sql-clickhouse': 4.0.0-rc.112
   '@json-render/core': ^0.20.0
   '@json-render/shadcn': ^0.20.0
+  ssh2: ^1.17.0
 overrides:
   vite: "catalog:"
   vitest: "catalog:"
