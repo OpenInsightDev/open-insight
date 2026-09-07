@@ -13,7 +13,7 @@ import {
   type PromptCapabilities,
   type SessionUpdate,
 } from "@agentclientprotocol/sdk";
-import { Cause, Effect, FiberSet, Path, Queue, Ref, Schedule, Stream } from "effect";
+import { Cause, Effect, FiberSet, Layer, Path, Queue, Ref, Schedule, Stream } from "effect";
 import { Prompt, Response } from "effect/unstable/ai";
 import * as Agent from "#/agent/index.ts";
 import * as Sandbox from "#/sandbox/index.ts";
@@ -438,3 +438,6 @@ export const makeProvider = Effect.fn("Acp.makeProvider")(function* (
     runSession,
   });
 });
+
+export const layerFrom = (agentID: string, options: Options) =>
+  Layer.effect(Agent.ProviderService, makeProvider(agentID, options));
