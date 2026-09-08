@@ -466,6 +466,9 @@ importers:
       semver:
         specifier: 'catalog:'
         version: 7.8.5
+      uuid:
+        specifier: 'catalog:'
+        version: 14.0.2
       validator:
         specifier: 'catalog:'
         version: 13.15.35

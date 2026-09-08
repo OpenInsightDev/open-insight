@@ -15,7 +15,11 @@ export type TrajectoryEncoded = Stream.Stream<PartEncoded, TrajectoryError>;
 
 export const encode = Effect.fn(function* <Tools extends Record<string, Tool.Any>>(
   trajectory: Trajectory<Tools>,
-) {
+): Effect.fn.Return<
+  TrajectoryEncoded,
+  TrajectoryError,
+  Tool.ResultEncodingServices<Tools[keyof Tools]>
+> {
   const partSchema = Part(trajectory.toolkit);
   const encodingContext = yield* Effect.context<typeof partSchema.EncodingServices>();
   const encodePart = Schema.encodeEffect(partSchema);
@@ -29,8 +33,8 @@ export const encode = Effect.fn(function* <Tools extends Record<string, Tool.Any
     ),
   );
 
-  return parts as TrajectoryEncoded;
-});
+  return parts;
+}, Stream.unwrap);
 
 export const decode = Effect.fn(function* <Toolkits extends ReadonlyArray<Toolkit.Any>>(
   trajectory: TrajectoryEncoded,
@@ -106,5 +110,5 @@ export const makeEncoded = Effect.fn(function* <E, R>(stream: EncodedStream<E, R
     ),
   );
 
-  return yield* encode(Object.assign(parts, { toolkit }) as Trajectory<{}>);
+  return encode(Object.assign(parts, { toolkit }) as Trajectory<{}>);
 });

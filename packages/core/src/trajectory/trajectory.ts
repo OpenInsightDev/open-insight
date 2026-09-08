@@ -1,4 +1,5 @@
-import { DateTime, Effect, Schema, Scope, Stream, Tuple } from "effect";
+import { DateTime, Effect, Schema, Scope, Stream, Tuple, Crypto } from "effect";
+import * as uuid from "uuid";
 import { Prompt, Tool, Response, Toolkit } from "effect/unstable/ai";
 import { TrajectoryError } from "./error.ts";
 
@@ -13,9 +14,14 @@ export const PromptMessage = Schema.Union([
 export type PromptMessage = Schema.Schema.Type<typeof PromptMessage>;
 export type PromptMessageEncoded = Exclude<Prompt.MessageEncoded, Prompt.AssistantMessageEncoded>;
 
-const Timestamp = Schema.DateTimeUtcFromString.pipe(Schema.withConstructorDefault(DateTime.now));
-const Uuid = Schema.String.check(Schema.isUUID(7));
-export const PartMetadata = Schema.Struct({ timestamp: Timestamp, uuid: Uuid });
+const Uuid = Schema.String.check(Schema.isUUID(7)).pipe(
+  Schema.withConstructorDefault(Effect.succeed(uuid.v7())),
+);
+export const PartMetadata = Schema.Struct({
+  uuid: Uuid,
+  session: Schema.optional(Schema.String),
+  extra: Schema.optional(Schema.Json),
+});
 export type PartMetadata = Schema.Schema.Type<typeof PartMetadata>;
 
 export const PromptPart = Schema.TaggedStruct("Prompt", {
@@ -23,6 +29,11 @@ export const PromptPart = Schema.TaggedStruct("Prompt", {
 });
 type PromptPartContent = Schema.Schema.Type<typeof PromptPart>;
 type PromptPartContentEncoded = Schema.Codec.Encoded<typeof PromptPart>;
+
+const Timestamp = Schema.DateTimeUtcFromString.pipe(Schema.withConstructorDefault(DateTime.now));
+export const ResponseMetadata = Schema.Struct({
+  timestamp: Timestamp,
+});
 
 export const ResponsePart = <T extends Toolkit.Any>(toolkit: T) =>
   Schema.TaggedStruct("Response", {
