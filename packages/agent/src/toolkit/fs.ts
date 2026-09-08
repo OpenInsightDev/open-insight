@@ -1,64 +1,87 @@
-import * as Fs from "#/fs/index.ts";
+import { Sandbox } from "@open-insight/core";
 import { Schema } from "effect";
 import { Tool, Toolkit } from "effect/unstable/ai";
 
 export const OpenFile = Tool.make("OpenFile", {
   parameters: Schema.Struct({
-    space: Schema.String,
+    filePath: Schema.String,
+    space: Schema.optional(Schema.String),
+    startLine: Schema.optional(Schema.Number),
+    endLine: Schema.optional(Schema.Number),
   }),
   success: Schema.Struct({}),
   failureMode: "return",
   needsApproval: false,
-  dependencies: [Fs.FileSystem],
+  dependencies: [Sandbox.Sandbox],
 });
 
 export const CloseFile = Tool.make("CloseFile", {
   parameters: Schema.Struct({
-    space: Schema.String,
+    filePath: Schema.String,
+    space: Schema.optional(Schema.String),
   }),
   success: Schema.Struct({}),
   failureMode: "return",
   needsApproval: false,
-  dependencies: [Fs.FileSystem],
+  dependencies: [Sandbox.Sandbox],
 });
 
 export const Search = Tool.make("Search", {
   parameters: Schema.Struct({
-    space: Schema.String,
+    path: Schema.String,
+    pattern: Schema.String,
+    space: Schema.optional(Schema.String),
   }),
   success: Schema.Struct({}),
   failureMode: "return",
   needsApproval: false,
-  dependencies: [Fs.FileSystem],
+  dependencies: [Sandbox.Sandbox],
+});
+
+export const Glob = Tool.make("Glob", {
+  parameters: Schema.Struct({
+    path: Schema.String,
+    pattern: Schema.String,
+    space: Schema.optional(Schema.String),
+  }),
+  success: Schema.Struct({}),
+  failureMode: "return",
+  needsApproval: false,
+  dependencies: [Sandbox.Sandbox],
 });
 
 export const Patch = Tool.make("Patch", {
   parameters: Schema.Struct({
-    space: Schema.String,
+    filePath: Schema.String,
+    diff: Schema.String,
+    space: Schema.optional(Schema.String),
   }),
   success: Schema.Struct({}),
   failureMode: "return",
   needsApproval: false,
-  dependencies: [Fs.FileSystem],
+  dependencies: [Sandbox.Sandbox],
 });
 
-export const InspectParams = Schema.Struct({
-  absPath: Schema.String,
-  space: Schema.String,
-});
-
-export const InspectItem = Schema.Struct({
-  absPath: Schema.String,
-});
-
-export const InspectSuccess = Schema.Struct({});
-
-export const Inspect = Tool.make("Inspect", {
-  parameters: InspectParams,
-  success: InspectSuccess,
+export const Remove = Tool.make("Remove", {
+  parameters: Schema.Struct({
+    space: Schema.optional(Schema.String),
+  }),
+  success: Schema.Struct({}),
   failureMode: "return",
   needsApproval: false,
-  dependencies: [Fs.FileSystem],
+  dependencies: [Sandbox.Sandbox],
 });
 
-export const FileSystemToolkit = Toolkit.make(OpenFile, CloseFile, Patch);
+export const ListDirectory = Tool.make("ListDirectory", {
+  parameters: Schema.Struct({
+    dirPath: Schema.String,
+    depth: Schema.optional(Schema.Number),
+    space: Schema.optional(Schema.String),
+  }),
+  success: Schema.Struct({}),
+  failureMode: "return",
+  needsApproval: false,
+  dependencies: [Sandbox.Sandbox],
+});
+
+export const FileSystemToolkit = Toolkit.make(OpenFile, CloseFile, Search, Glob, Patch);

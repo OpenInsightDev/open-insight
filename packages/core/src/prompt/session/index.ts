@@ -1,13 +1,13 @@
 import { Prompt } from "effect/unstable/ai";
 import { Context, Effect, Layer, Option } from "effect";
-import { PromptError } from "./error.ts";
 import * as Sandox from "#/sandbox/index.ts";
+import { PromptError } from "../error.ts";
 
 export type Session = Readonly<{
   init: Prompt.Prompt;
   next: (
     response: Prompt.Prompt,
-  ) => Effect.Effect<Option.Option<Prompt.Prompt>, PromptError, Sandox.Current>;
+  ) => Effect.Effect<Option.Option<Prompt.Prompt>, PromptError, Sandox.Sandbox>;
 }>;
 
 export type Provider = Readonly<{
@@ -18,7 +18,7 @@ type SessionOptions = Readonly<{
   init: Prompt.RawInput;
   next: (
     response: Prompt.Prompt,
-  ) => Effect.Effect<Prompt.RawInput | null, PromptError, Sandox.Current>;
+  ) => Effect.Effect<Prompt.RawInput | null, PromptError, Sandox.Sandbox>;
 }>;
 
 type ProviderOptions = Readonly<{

@@ -92,15 +92,33 @@ describe("trajectory views", () => {
     }),
   );
 
-  it.effect("combines all turn prompts into one Prompt", () =>
+  it.effect("converts every trajectory part into one Prompt", () =>
     Effect.gen(function* () {
       const first = user("first");
       const second = user("second");
       const value = yield* prompt(
-        trajectory(promptPart(first), responsePart("ignored"), promptPart(second)),
+        trajectory(promptPart(first), responsePart("answer"), promptPart(second)),
       );
 
-      assert.deepStrictEqual(value.content, [first, second]);
+      assert.deepStrictEqual(value.content, [
+        first,
+        Prompt.assistantMessage({
+          content: [Prompt.textPart({ text: "answer" })],
+        }),
+        second,
+      ]);
+    }),
+  );
+
+  it.effect("converts response-only trajectories and preserves response order", () =>
+    Effect.gen(function* () {
+      const value = yield* prompt(trajectory(responsePart("first"), responsePart("second")));
+
+      assert.deepStrictEqual(value.content, [
+        Prompt.assistantMessage({
+          content: [Prompt.textPart({ text: "first" }), Prompt.textPart({ text: "second" })],
+        }),
+      ]);
     }),
   );
 

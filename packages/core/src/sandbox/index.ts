@@ -1,4 +1,8 @@
 export * from "./error.ts";
-export * from "./service.ts";
-export * from "./sandbox/index.ts";
-export * as Spawn from "./sandbox/service.ts";
+
+export * from "./sandbox.ts";
+export * from "./provider.ts";
+
+export * as Process from "./process.ts";
+export * as FileSystem from "./fs.ts";
+export * from "./builtin/index.ts";

@@ -10,3 +10,5 @@ export * as Template from "./template/export.ts";
 export * as Session from "./session/export.ts";
 
 export * as Internal from "./index.ts";
+
+export * from "effect/unstable/ai/Prompt";

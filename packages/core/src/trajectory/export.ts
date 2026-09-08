@@ -1,4 +1,5 @@
 export * from "./error.ts";
+export { persist } from "./persist.ts";
 export {
   type Trajectory,
   type TrajectoryEncoded,

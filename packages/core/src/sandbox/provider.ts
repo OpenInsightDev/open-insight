@@ -1,8 +1,14 @@
-import { Context, Effect, type Scope } from "effect";
+import { Context, Effect, Layer, type Scope } from "effect";
 import type { SandboxError } from "./error.ts";
 import type { Resources } from "#/resource/index.ts";
 import type { Sandbox } from "./sandbox.ts";
 import * as Snapshot from "#/snapshot/index.ts";
+
+export type RunSandboxOptions = Readonly<{
+  snapshot: Snapshot.Snapshot;
+  resources: Resources;
+  cache: boolean;
+}>;
 
 export type Provider = Readonly<{
   /**
@@ -40,12 +46,13 @@ export type Provider = Readonly<{
    * Run a sandbox with the given snapshot.
    */
   runSandbox(
-    options: Readonly<{
-      snapshot: Snapshot.Snapshot;
-      resources: Resources;
-      cache: boolean;
-    }>,
-  ): Effect.Effect<Sandbox, SandboxError, Scope.Scope>;
+    options: RunSandboxOptions,
+  ): Effect.Effect<Sandbox["Service"], SandboxError, Scope.Scope>;
+
+  /**
+   * Create a layer that provides a sandbox.
+   */
+  sandboxLayer(options: RunSandboxOptions): Layer.Layer<Sandbox, SandboxError, Scope.Scope>;
 }>;
 
 export class ProviderService extends Context.Service<ProviderService, Provider>()(
