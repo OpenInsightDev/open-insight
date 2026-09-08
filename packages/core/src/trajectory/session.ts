@@ -2,13 +2,7 @@ import { Crypto, Effect, Stream } from "effect";
 import { Prompt, Tool, Response, Toolkit } from "effect/unstable/ai";
 import * as Fold from "#/response/fold.ts";
 import { TrajectoryError } from "./error.ts";
-import {
-  PartMetadata,
-  PromptMessage,
-  PromptPart,
-  ResponsePart,
-  type Trajectory,
-} from "./trajectory.ts";
+import { Part, PartMetadata, PromptMessage, type Trajectory } from "./trajectory.ts";
 
 export type SessionTurn<Tools extends Record<string, Tool.Any>, E> = Readonly<{
   prompt: Prompt.Prompt;
@@ -27,7 +21,7 @@ export const fromSession = Effect.fn(function* <Tools extends Record<string, Too
 ) {
   const sourceContext = yield* Effect.context<R>();
   const crypto = yield* Crypto.Crypto;
-  const responsePart = ResponsePart(toolkit);
+  const partSchema = Part(toolkit);
 
   const metadata = crypto.randomUUIDv7.pipe(
     Effect.map((uuid) => PartMetadata.make({ uuid })),
@@ -42,13 +36,17 @@ export const fromSession = Effect.fn(function* <Tools extends Record<string, Too
         (message): message is PromptMessage => message.role !== "assistant",
       );
       const prompt = Stream.fromEffect(
-        metadata.pipe(Effect.map((metadata) => PromptPart.make({ ...metadata, messages }))),
+        metadata.pipe(
+          Effect.map((metadata) => partSchema.make({ ...metadata, _tag: "Prompt", messages })),
+        ),
       );
       const responses = Fold.fold(
         turn.response.pipe(Stream.mapError(TrajectoryError.storage)),
       ).pipe(
         Stream.mapEffect((response) =>
-          metadata.pipe(Effect.map((metadata) => responsePart.make({ ...metadata, response }))),
+          metadata.pipe(
+            Effect.map((metadata) => partSchema.make({ ...metadata, _tag: "Response", response })),
+          ),
         ),
       );
 

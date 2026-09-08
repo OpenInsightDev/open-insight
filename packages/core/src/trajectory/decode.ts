@@ -6,8 +6,6 @@ import {
   Part,
   PartMetadata,
   PromptMessage,
-  PromptPart,
-  ResponsePart,
   type Trajectory,
   type PartEncoded,
   type PromptMessageEncoded,
@@ -67,7 +65,7 @@ export const makeEncoded = Effect.fn(function* <E, R>(stream: EncodedStream<E, R
   const toolkit = Toolkit.empty;
   const decodeMessages = Schema.decodeEffect(Schema.Array(PromptMessage));
   const decodeResponse = Schema.decodeEffect(Response.AllPartsView(toolkit));
-  const responsePart = ResponsePart(toolkit);
+  const partSchema = Part(toolkit);
 
   const makeMetadata = Effect.fn(function* () {
     const uuid = yield* crypto.randomUUIDv7.pipe(Effect.mapError(TrajectoryError.decode));
@@ -90,14 +88,17 @@ export const makeEncoded = Effect.fn(function* <E, R>(stream: EncodedStream<E, R
             Effect.mapError(TrajectoryError.decode),
           );
           const metadata = yield* makeMetadata();
-          return [Fold.makeState(), [PromptPart.make({ ...metadata, messages })]] as const;
+          return [
+            Fold.makeState(),
+            [partSchema.make({ ...metadata, _tag: "Prompt", messages })],
+          ] as const;
         }
 
         const response = yield* decodeResponse(part).pipe(Effect.mapError(TrajectoryError.decode));
         const [next, responses] = Fold.foldPart(state, response);
         const output = yield* Effect.forEach(responses, (response) =>
           makeMetadata().pipe(
-            Effect.map((metadata) => responsePart.make({ ...metadata, response })),
+            Effect.map((metadata) => partSchema.make({ ...metadata, _tag: "Response", response })),
           ),
         );
         return [next, output] as const;

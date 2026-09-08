@@ -86,6 +86,7 @@ export const toolkits = <Toolkits extends ReadonlyArray<Toolkit.Any>>(...toolkit
               return trajectoryPart.make({
                 timestamp: response.timestamp,
                 uuid: response.uuid,
+                _tag: "Response",
                 response: decoded,
               });
             }),

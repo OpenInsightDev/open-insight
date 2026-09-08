@@ -1,4 +1,4 @@
-import { DateTime, Effect, Schema, Scope, Stream } from "effect";
+import { DateTime, Effect, Schema, Scope, Stream, Tuple } from "effect";
 import { Prompt, Tool, Response, Toolkit } from "effect/unstable/ai";
 import { TrajectoryError } from "./error.ts";
 
@@ -16,37 +16,39 @@ export type PromptMessageEncoded = Exclude<Prompt.MessageEncoded, Prompt.Assista
 const Timestamp = Schema.DateTimeUtcFromString.pipe(Schema.withConstructorDefault(DateTime.now));
 const Uuid = Schema.String.check(Schema.isUUID(7));
 export const PartMetadata = Schema.Struct({ timestamp: Timestamp, uuid: Uuid });
+export type PartMetadata = Schema.Schema.Type<typeof PartMetadata>;
 
 export const PromptPart = Schema.TaggedStruct("Prompt", {
-  timestamp: Timestamp,
-  uuid: Uuid,
   messages: Schema.Array(PromptMessage),
 });
-export type PromptPart = Schema.Schema.Type<typeof PromptPart>;
-export type PromptPartEncoded = Schema.Codec.Encoded<typeof PromptPart>;
+type PromptPartContent = Schema.Schema.Type<typeof PromptPart>;
+type PromptPartContentEncoded = Schema.Codec.Encoded<typeof PromptPart>;
 
 export const ResponsePart = <T extends Toolkit.Any>(toolkit: T) =>
   Schema.TaggedStruct("Response", {
-    timestamp: Timestamp,
-    uuid: Uuid,
     response: Response.PartView(toolkit),
   });
-export type ResponsePart<Tools extends Record<string, Tool.Any>> = Readonly<{
-  _tag: "Response";
-  timestamp: DateTime.Utc;
-  uuid: string;
-  response: Response.PartView<Tools>;
-}>;
-export type ResponsePartEncoded = Readonly<{
-  _tag: "Response";
-  timestamp: string;
-  uuid: string;
-  response: Response.PartEncoded;
-}>;
+export type ResponsePart<Tools extends Record<string, Tool.Any>> = Readonly<
+  PartMetadata & {
+    _tag: "Response";
+    response: Response.PartView<Tools>;
+  }
+>;
+export type ResponsePartEncoded = Readonly<
+  PartMetadataEncoded & {
+    _tag: "Response";
+    response: Response.PartEncoded;
+  }
+>;
 
 export const Part = <T extends Toolkit.Any>(toolkit: T) =>
-  Schema.Union([PromptPart, ResponsePart(toolkit)]);
+  Schema.Union([PromptPart, ResponsePart(toolkit)]).mapMembers(
+    Tuple.map(Schema.fieldsAssign(PartMetadata.fields)),
+  );
+export type PromptPart = Readonly<PartMetadata & PromptPartContent>;
+export type PromptPartEncoded = Readonly<PartMetadataEncoded & PromptPartContentEncoded>;
 export type Part<Tools extends Record<string, Tool.Any>> = PromptPart | ResponsePart<Tools>;
+export type PartMetadataEncoded = Schema.Codec.Encoded<typeof PartMetadata>;
 export type PartEncoded = PromptPartEncoded | ResponsePartEncoded;
 
 export type PartStream<Tools extends Record<string, Tool.Any> = any> = Stream.Stream<

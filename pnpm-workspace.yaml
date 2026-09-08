@@ -103,6 +103,8 @@ catalog:
   '@json-render/core': ^0.20.0
   '@json-render/shadcn': ^0.20.0
   ssh2: ^1.17.0
+  '@daytona/sdk': ^0.210.0
+  '@docker/node-sdk': ^0.0.17
 overrides:
   vite: "catalog:"
   vitest: "catalog:"

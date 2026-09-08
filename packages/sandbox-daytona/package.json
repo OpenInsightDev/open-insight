@@ -1,21 +1,24 @@
 {
   "name": "@open-insight/sandbox-daytona",
   "version": "1.0.4",
-  "description": "A starter for creating a TypeScript package.",
-  "homepage": "https://github.com/author/library#readme",
+  "description": "Daytona sandbox provider for Open Insight.",
+  "homepage": "https://github.com/OpenInsightDev/open-insight#readme",
   "bugs": {
-    "url": "https://github.com/author/library/issues"
+    "url": "https://github.com/OpenInsightDev/open-insight/issues"
   },
   "license": "MIT",
-  "author": "Author Name <author.name@mail.com>",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/author/library.git"
+    "url": "git+https://github.com/OpenInsightDev/open-insight.git",
+    "directory": "packages/sandbox-daytona"
   },
   "files": [
     "dist"
   ],
   "type": "module",
+  "imports": {
+    "#/*": "./src/*"
+  },
   "exports": {
     ".": "./dist/index.mjs",
     "./package.json": "./package.json"
@@ -29,6 +32,10 @@
     "test": "vp test",
     "check": "vp check",
     "prepublishOnly": "vp run build"
+  },
+  "dependencies": {
+    "@daytona/sdk": "catalog:",
+    "effect": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "catalog:",

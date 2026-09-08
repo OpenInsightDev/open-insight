@@ -2,7 +2,7 @@ import { assert, describe, it } from "@effect/vitest";
 import { DateTime, Effect, Stream } from "effect";
 import { Prompt, Response, Toolkit } from "effect/unstable/ai";
 import { TrajectoryError } from "./error.ts";
-import { type Trajectory, type Part, type PromptPart } from "./trajectory.ts";
+import { type Part, type PromptPart, type Trajectory } from "./trajectory.ts";
 import { prompt, prompts, responses, turns } from "./view.ts";
 
 const timestamp = DateTime.makeUnsafe("2024-01-01T00:00:00.000Z");
