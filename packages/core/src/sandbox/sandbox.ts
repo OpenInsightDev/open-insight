@@ -1,46 +1,30 @@
-import { Cause, Context, Effect, Layer, Queue, Scope, Terminal as EffectTerminal } from "effect";
+import * as Snapshot from "#/snapshot/index.ts";
 import { FileSystem } from "./fs.ts";
 import { Process } from "./process.ts";
-import { SandboxError } from "./error.ts";
-
-export class Terminal extends Context.Service<
-  Terminal,
-  {
-    readonly columns: Effect.Effect<number>;
-    readonly rows: Effect.Effect<number>;
-    readonly readInput: Effect.Effect<Queue.Dequeue<UserInput, Cause.Done>, never, Scope.Scope>;
-    readonly readLine: Effect.Effect<string, QuitError>;
-    readonly display: (text: string) => Effect.Effect<void, SandboxError>;
-  }
->()("open-insight/sandbox/Terminal") {
-  static make = (service: TerminalService): TerminalService => service;
-}
-
-export namespace Terminal {
-  export type UserInput = EffectTerminal.UserInput;
-  export const QuitError = EffectTerminal.QuitError;
-}
-
-export type TerminalService = Terminal["Service"];
-
-export type UserInput = Terminal.UserInput;
-export type QuitError = EffectTerminal.QuitError;
+import { Terminal } from "./terminal.ts";
+import { Network } from "./network.ts";
+import { Context, Effect, Layer } from "effect";
 
 export class Sandbox extends Context.Service<
   Sandbox,
   {
+    snapshot: Snapshot.Snapshot;
     fs: FileSystem["Service"];
     process: Process["Service"];
-    pty: TerminalService;
+    pty: Terminal["Service"];
+    network: Network["Service"];
   }
 >()("Sandbox") {}
 
-export const layer = Layer.effect(
-  Sandbox,
-  Effect.gen(function* () {
-    const fs = yield* FileSystem;
-    const process = yield* Process;
-    const pty = yield* Terminal;
-    return { fs, process, pty };
-  }),
-);
+export const layerFrom = (snapshot: Snapshot.Snapshot) =>
+  Layer.effect(
+    Sandbox,
+    Effect.gen(function* () {
+      const fs = yield* FileSystem;
+      const process = yield* Process;
+      const pty = yield* Terminal;
+      const network = yield* Network;
+
+      return { snapshot, fs, process, pty, network };
+    }),
+  );

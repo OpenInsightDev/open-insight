@@ -1,5 +1,5 @@
 import { Brand, Effect, Match, Crypto, Encoding } from "effect";
-import { SNAPSHOT_NAME, type Template, hash as hashTemplate } from "./template.ts";
+import * as Template from "./template.ts";
 import type { Instructions } from "./inst.ts";
 
 export type Snapshot = Readonly<{
@@ -16,16 +16,16 @@ const nominal = Brand.nominal<Snapshot>();
 type Format = "oci" | "pascal";
 const formatName = ({ hashed, format }: { hashed: string; format: Format }) =>
   Match.value(format).pipe(
-    Match.when("oci", () => `${SNAPSHOT_NAME}:${hashed}`),
-    Match.when("pascal", () => `${SNAPSHOT_NAME}_${hashed}`),
+    Match.when("oci", () => `${Template.SNAPSHOT_NAME}:${hashed}`),
+    Match.when("pascal", () => `${Template.SNAPSHOT_NAME}_${hashed}`),
     Match.exhaustive,
   );
 
 export const make = Effect.fn(function* (
-  template: Template,
+  template: Template.Template,
   { format = "oci" }: { format?: Format } = {},
 ) {
-  const hashed = yield* hashTemplate(template);
+  const hashed = yield* Template.hash(template);
   return nominal({ name: formatName({ hashed, format }) });
 });
 

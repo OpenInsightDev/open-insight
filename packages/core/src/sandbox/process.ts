@@ -2,7 +2,7 @@ import { Context, Effect, type PlatformError } from "effect";
 import { ChildProcess as CP } from "effect/unstable/process";
 import type { TemplateExpression } from "effect/unstable/process/ChildProcess";
 import type { ExitCode } from "effect/unstable/process/ChildProcessSpawner";
-import { makeScript } from "../utils/shell.ts";
+import { makeScript } from "#/utils/shell.ts";
 import { SandboxError } from "./error.ts";
 
 /**
@@ -77,10 +77,17 @@ const makeShellCommand = (
   return CP.make(shell, ["-c", makeScript(strings, values)], commandOptions);
 };
 
-export interface Command {
-  readonly command: string;
-  readonly args: ReadonlyArray<string>;
-}
+export type Command = Readonly<{
+  command: string;
+  args: ReadonlyArray<string>;
+  options?: CommandOptions;
+}>;
+
+export const makeCommand = (
+  command: string,
+  args: ReadonlyArray<string> = [],
+  options?: CommandOptions,
+): Command => ({ command, args, options });
 
 export class Process extends Context.Service<
   Process,

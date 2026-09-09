@@ -1,6 +1,8 @@
-import { Context, Effect, Scope, Sink, Stream } from "effect";
+import { Context, Effect, Layer, Scope, Sink, Stream } from "effect";
 import { SandboxError } from "./error.ts";
 import type { OpenFlag, SizeInput } from "effect/FileSystem";
+import type { Process } from "./process.ts";
+import type { Network } from "./network.ts";
 
 /** Metadata that can be represented by WebDAV properties. */
 export interface ResourceInfo {
@@ -236,3 +238,5 @@ export class FileSystem extends Context.Service<
     ) => Effect.Effect<void, SandboxError>;
   }
 >()("@open-insight/agent/fs/FileSystem") {}
+
+export declare const layerWebDAV: Layer.Layer<FileSystem, SandboxError, Process | Network>;

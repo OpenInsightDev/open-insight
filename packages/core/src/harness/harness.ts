@@ -22,7 +22,7 @@ const makeAgentSession = <Tools extends Record<string, Tool.Any>>(agent: Agent.A
 
 export type SandboxSession<Tools extends Record<string, Tool.Any> = Record<string, never>> =
   Readonly<{
-    sandbox: Sandbox.Sandbox;
+    sandbox: Sandbox.Sandbox["Service"];
     runAgent: Effect.Effect<AgentSession<Tools>, HarnessError, Scope.Scope>;
   }>;
 
@@ -34,15 +34,6 @@ export const DefaultSandboxSessionConfig: SandboxSessionConfig = {
   resources: Resource.make(),
   cache: true,
 };
-
-export type SnapshotSession<Tools extends Record<string, Tool.Any> = Record<string, never>> =
-  Readonly<{
-    snapshot: Snapshot.Snapshot;
-
-    runSandbox(
-      options?: Partial<SandboxSessionConfig>,
-    ): Effect.Effect<SandboxSession<Tools>, HarnessError, Scope.Scope>;
-  }>;
 
 export class Metadata extends Schema.Class<Metadata>("HarnessMetadata")({
   id: Schema.String,
@@ -56,9 +47,10 @@ export class Harness<ID extends string, Tools extends Record<string, Tool.Any>> 
   metadata: Metadata;
 
   toolkit: Toolkit.Toolkit<Tools>;
-  runSnapshot(
-    snapshot: Snapshot.Template,
-  ): Effect.Effect<SnapshotSession<Tools>, HarnessError, Scope.Scope>;
+  runSandbox(
+    template: Snapshot.Template,
+    options?: Partial<SandboxSessionConfig>,
+  ): Effect.Effect<SandboxSession<Tools>, HarnessError, Scope.Scope>;
 }> {}
 export type Any = Harness<any, any>;
 export type IDOf<H> = H extends Harness<infer ID, any> ? ID : never;
@@ -125,29 +117,19 @@ export const make = Effect.fn(function* <ID extends string, Tools extends Record
     return { sandbox, runAgent } satisfies SandboxSession<Tools>;
   });
 
-  const makeSnapshotSession = (snapshot: Snapshot.Snapshot): SnapshotSession<Tools> => {
-    const runSandbox = Effect.fn("HarnessService.runSandbox")(function* (
-      options?: Partial<SandboxSessionConfig>,
-    ) {
-      return yield* makeSandboxSession({ snapshot, options });
-    }) satisfies SnapshotSession<Tools>["runSandbox"];
-
-    return { snapshot, runSandbox } satisfies SnapshotSession<Tools>;
-  };
-
-  // Reference-counted snapshot session cache keyed by template equality
+  // RcMap keeps one acquired snapshot per equal template and releases it when unused.
   const cache = yield* RcMap.make({
     lookup: (template: Snapshot.Template) =>
       Effect.succeed(template).pipe(
         Effect.flatMap(acquireSnapshot),
         Effect.flatMap(extendSnapshot(template)),
-        Effect.map(makeSnapshotSession),
       ),
   });
 
-  const runSnapshot = Effect.fn("HarnessService.runSnapshot")(function* (template) {
-    return yield* RcMap.get(cache, template);
-  }) satisfies Harness<ID, Tools>["runSnapshot"];
+  const runSandbox = Effect.fn("HarnessService.runSandbox")(function* (template, options) {
+    const snapshot = yield* RcMap.get(cache, template);
+    return yield* makeSandboxSession({ snapshot, options });
+  }) satisfies Harness<ID, Tools>["runSandbox"];
 
-  return new Harness({ id, metadata, toolkit, runSnapshot });
+  return new Harness<ID, Tools>({ id, metadata, toolkit, runSandbox });
 });
