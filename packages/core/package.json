@@ -59,7 +59,6 @@
     "@effect/ai-openai": "catalog:",
     "@effect/opentelemetry": "catalog:",
     "@effect/sql-clickhouse": "catalog:",
-    "uuid": "catalog:",
     "ai": "catalog:",
     "eta": "^4.6.0",
     "immer": "catalog:",
@@ -67,6 +66,7 @@
     "openai": "catalog:",
     "picomatch": "catalog:",
     "semver": "catalog:",
+    "uuid": "catalog:",
     "validator": "catalog:"
   },
   "devDependencies": {

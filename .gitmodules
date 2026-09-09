@@ -1,3 +1,6 @@
 [submodule "packages/effect"]
 	path = packages/effect
 	url = https://github.com/OpenInsightDev/effect.git
+[submodule "tools/oxlint/anti-slop"]
+	path = tools/oxlint/anti-slop
+	url = https://github.com/dmmulroy/anti-slop.git

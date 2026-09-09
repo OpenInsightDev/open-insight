@@ -36,7 +36,7 @@
 - 随机写、原地写和追加写。
 - `truncate`。
 - `OpenFlag` 的完整语义：`r+`、`wx`、`wx+`、`a`、`ax`、`a+`、`ax+` 不能由标准 `PUT` 无
-损表达。
+  损表达。
 - POSIX `chmod`。
 - POSIX `chown` 及 UID/GID 所有权修改。
 - POSIX hard link 的完整语义。

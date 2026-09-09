@@ -3,6 +3,7 @@ packages:
   - packages/*
   - packages/effect/packages/*
   - packages/effect/packages/**/*
+  - tools/**
 
 catalogMode: strict
 
@@ -35,76 +36,76 @@ catalog:
   class-variance-authority: ^0.7.1
   tw-animate-css: ^1.4.0
   radix-ui: ^1.6.1
-  '@fontsource-variable/geist': ^5.2.9
+  "@fontsource-variable/geist": ^5.2.9
   zustand: ^5.0.14
   react-charts: 3.0.0-beta.57
   recharts: ^3.9.2
   semver: ^7.8.5
-  '@types/semver': ^7.7.1
+  "@types/semver": ^7.7.1
   idb-keyval: ^6.3.0
   tailwindcss: ^4.3.2
-  '@tailwindcss/vite': ^4.3.2
+  "@tailwindcss/vite": ^4.3.2
   lucide-react: ^1.23.0
-  '@shadcn/react': ^0.2.0
+  "@shadcn/react": ^0.2.0
   smolmachines: ^1.6.13
   skills: ^1.5.22
-  '@base-ui/react': ^1.6.0
+  "@base-ui/react": ^1.6.0
   hyparquet: ^1.26.2
-  '@opentelemetry/sdk-trace-node': ^2.10.0
-  '@opentelemetry/sdk-metrics': ^2.10.0
-  '@openai/agents': ^0.13.5
+  "@opentelemetry/sdk-trace-node": ^2.10.0
+  "@opentelemetry/sdk-metrics": ^2.10.0
+  "@openai/agents": ^0.13.5
   picomatch: ^4.0.5
-  '@types/picomatch': ^4.0.3
-  '@opentelemetry/api-logs': ^0.221.0
-  '@opentelemetry/sdk-logs': ^0.221.0
-  '@opentelemetry/sdk-trace-web': ^2.10.0
-  '@effect/ai-openai-compat': 4.0.0-beta.101
-  '@effect/ai-anthropic': 4.0.0-rc.110
-  '@babel/core': ^8.0.1
-  '@rolldown/plugin-babel': ^0.2.3
-  '@types/babel__core': ^7.20.5
-  '@types/react': ^19.2.17
-  '@types/react-dom': ^19.2.3
-  '@vitejs/plugin-react': ^6.0.4
+  "@types/picomatch": ^4.0.3
+  "@opentelemetry/api-logs": ^0.221.0
+  "@opentelemetry/sdk-logs": ^0.221.0
+  "@opentelemetry/sdk-trace-web": ^2.10.0
+  "@effect/ai-openai-compat": 4.0.0-beta.101
+  "@effect/ai-anthropic": 4.0.0-rc.110
+  "@babel/core": ^8.0.1
+  "@rolldown/plugin-babel": ^0.2.3
+  "@types/babel__core": ^7.20.5
+  "@types/react": ^19.2.17
+  "@types/react-dom": ^19.2.3
+  "@vitejs/plugin-react": ^6.0.4
   babel-plugin-react-compiler: ^1.0.0
   react: ^19.2.8
   react-dom: ^19.2.8
   bumpp: ^12.0.0
-  '@agentclientprotocol/sdk': ^1.3.0
-  '@modelcontextprotocol/sdk': ^1.29.0
-  '@astryxdesign/core': ^0.1.8
-  '@astryxdesign/theme-neutral': ^0.1.8
-  '@astryxdesign/cli': ^0.1.8
-  '@heroicons/react': ^2.2.0
+  "@agentclientprotocol/sdk": ^1.3.0
+  "@modelcontextprotocol/sdk": ^1.29.0
+  "@astryxdesign/core": ^0.1.8
+  "@astryxdesign/theme-neutral": ^0.1.8
+  "@astryxdesign/cli": ^0.1.8
+  "@heroicons/react": ^2.2.0
   openai: ^6.49.0
   smol-toml: ^1.7.1
   uuid: ^14.0.1
   yaml: ^2.9.0
   zod: ^4.4.3
-  '@cloudflare/sandbox': ^0.12.4
-  '@typescript/native-preview': 7.0.0-dev.20260707.2
+  "@cloudflare/sandbox": ^0.12.4
+  "@typescript/native-preview": 7.0.0-dev.20260707.2
   ipaddr.js: ^2.4.0
   hyparquet-writer: ^0.16.1
   tar: ^7.5.22
   validator: ^13.15.35
-  '@types/validator': ^13.15.10
-  '@kubernetes/client-node': ^1.4.0
+  "@types/validator": ^13.15.10
+  "@kubernetes/client-node": ^1.4.0
   memfs: ^4.66.0
-  '@cloudflare/computer': ^0.1.1
+  "@cloudflare/computer": ^0.1.1
   computesdk: ^4.1.4
-  '@computesdk/e2b': ^1.7.52
-  '@computesdk/provider': ^2.1.4
-  '@effect/sql-sqlite-node': 4.0.0-rc.110
+  "@computesdk/e2b": ^1.7.52
+  "@computesdk/provider": ^2.1.4
+  "@effect/sql-sqlite-node": 4.0.0-rc.110
   ajv: ^8.20.0
   ripgrep: ^0.3.1
   cloudflare: ^7.0.0
   chdb: ^3.3.0
-  '@effect/sql-clickhouse': 4.0.0-rc.112
-  '@json-render/core': ^0.20.0
-  '@json-render/shadcn': ^0.20.0
+  "@effect/sql-clickhouse": 4.0.0-rc.112
+  "@json-render/core": ^0.20.0
+  "@json-render/shadcn": ^0.20.0
   ssh2: ^1.17.0
-  '@daytona/sdk': ^0.210.0
-  '@docker/node-sdk': ^0.0.17
+  "@daytona/sdk": ^0.210.0
+  "@docker/node-sdk": ^0.0.17
 overrides:
   vite: "catalog:"
   vitest: "catalog:"
@@ -116,7 +117,7 @@ peerDependencyRules:
     vite: "*"
     vitest: "*"
 allowBuilds:
-  '@mongodb-js/zstd': true
+  "@mongodb-js/zstd": true
   chdb: true
   core-js: true
   cpu-features: true
@@ -131,24 +132,24 @@ allowBuilds:
   tree-sitter-typescript: true
   workerd: true
 minimumReleaseAgeExclude:
-  - '@typescript/typescript-aix-ppc64@7.0.2'
-  - '@typescript/typescript-darwin-arm64@7.0.2'
-  - '@typescript/typescript-darwin-x64@7.0.2'
-  - '@typescript/typescript-freebsd-arm64@7.0.2'
-  - '@typescript/typescript-freebsd-x64@7.0.2'
-  - '@typescript/typescript-linux-arm64@7.0.2'
-  - '@typescript/typescript-linux-arm@7.0.2'
-  - '@typescript/typescript-linux-loong64@7.0.2'
-  - '@typescript/typescript-linux-mips64el@7.0.2'
-  - '@typescript/typescript-linux-ppc64@7.0.2'
-  - '@typescript/typescript-linux-riscv64@7.0.2'
-  - '@typescript/typescript-linux-s390x@7.0.2'
-  - '@typescript/typescript-linux-x64@7.0.2'
-  - '@typescript/typescript-netbsd-arm64@7.0.2'
-  - '@typescript/typescript-netbsd-x64@7.0.2'
-  - '@typescript/typescript-openbsd-arm64@7.0.2'
-  - '@typescript/typescript-openbsd-x64@7.0.2'
-  - '@typescript/typescript-sunos-x64@7.0.2'
-  - '@typescript/typescript-win32-arm64@7.0.2'
-  - '@typescript/typescript-win32-x64@7.0.2'
+  - "@typescript/typescript-aix-ppc64@7.0.2"
+  - "@typescript/typescript-darwin-arm64@7.0.2"
+  - "@typescript/typescript-darwin-x64@7.0.2"
+  - "@typescript/typescript-freebsd-arm64@7.0.2"
+  - "@typescript/typescript-freebsd-x64@7.0.2"
+  - "@typescript/typescript-linux-arm64@7.0.2"
+  - "@typescript/typescript-linux-arm@7.0.2"
+  - "@typescript/typescript-linux-loong64@7.0.2"
+  - "@typescript/typescript-linux-mips64el@7.0.2"
+  - "@typescript/typescript-linux-ppc64@7.0.2"
+  - "@typescript/typescript-linux-riscv64@7.0.2"
+  - "@typescript/typescript-linux-s390x@7.0.2"
+  - "@typescript/typescript-linux-x64@7.0.2"
+  - "@typescript/typescript-netbsd-arm64@7.0.2"
+  - "@typescript/typescript-netbsd-x64@7.0.2"
+  - "@typescript/typescript-openbsd-arm64@7.0.2"
+  - "@typescript/typescript-openbsd-x64@7.0.2"
+  - "@typescript/typescript-sunos-x64@7.0.2"
+  - "@typescript/typescript-win32-arm64@7.0.2"
+  - "@typescript/typescript-win32-x64@7.0.2"
   - typescript@7.0.2

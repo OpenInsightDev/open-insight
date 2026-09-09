@@ -1,26 +1,55 @@
 import { defineConfig } from "vite-plus";
 
-const workspaceSourcePatterns = ["*", "!apps", "!apps/**", "!packages", "!packages/**", "packages/effect", "packages/effect/**"];
+const workspaceSourcePatterns = [
+  "*",
+  "!apps",
+  "!apps/**",
+  "!packages",
+  "!packages/**",
+  "packages/effect",
+  "packages/effect/**",
+];
 
 export default defineConfig({
   staged: {
     "{apps,packages}/**": "vp check --fix",
   },
   fmt: {
-    ignorePatterns: workspaceSourcePatterns,
+    ignorePatterns: [...workspaceSourcePatterns, ".agents/**", "tools/**"],
   },
   lint: {
-    ignorePatterns: workspaceSourcePatterns,
-    jsPlugins: [{ name: "vite-plus", specifier: "vite-plus/oxlint-plugin" }],
+    ignorePatterns: [...workspaceSourcePatterns, ".agents/**", "tools/**"],
+    jsPlugins: [
+      { name: "vite-plus", specifier: "vite-plus/oxlint-plugin" },
+      { name: "anti-slop", specifier: "./tools/oxlint/anti-slop/src/index.ts" },
+      { name: "anti-slop-effect", specifier: "./tools/oxlint/anti-slop/effect/index.ts" },
+    ],
     rules: {
       "vite-plus/prefer-vite-plus-imports": "error",
       // avoid type hacking
-      "typescript/consistent-type-assertions": [
-        "error",
-        { assertionStyle: "never" },
-      ],
+      "typescript/consistent-type-assertions": ["error", { assertionStyle: "never" }],
       // avoid `as unknown as`
       "typescript/no-unsafe-type-assertion": "error",
+      // anti-slop rules
+      "oxc/no-accumulating-spread": "error",
+      "anti-slop/no-array-filter-map": "error",
+      "anti-slop/no-reduce-accumulator-copy": "error",
+      "anti-slop/no-chained-type-assertions": "error",
+      "anti-slop/no-conditional-empty-object-spread": "error",
+      "anti-slop/no-known-value-widening": "error",
+      "anti-slop/no-module-mocking": "error",
+      "anti-slop/no-object-parameters": "error",
+      "anti-slop/no-reflect-apply": "error",
+      "anti-slop/no-reflect-get": "error",
+      "anti-slop/no-runtime-typeof": "error",
+      "anti-slop/no-shape-in-symbol-names": "error",
+      "anti-slop/no-unknown-parameters": "error",
+      "anti-slop/no-unknown-returns": "error",
+      "anti-slop/no-unknown-type-aliases": "error",
+      "anti-slop/no-unsafe-dictionary-type": "error",
+      "anti-slop/no-widen-then-assert": "error",
+      "anti-slop/require-safety-comment-for-type-assertion": "error",
+      "anti-slop-effect/no-service-constructor-imports": "error",
     },
     options: { typeAware: true, typeCheck: true },
   },

@@ -30,6 +30,10 @@
     "check": "vp check",
     "prepublishOnly": "vp run build"
   },
+  "dependencies": {
+    "@docker/node-sdk": "catalog:",
+    "effect": "catalog:"
+  },
   "devDependencies": {
     "@types/node": "^26.1.1",
     "bumpp": "^11.1.0",
@@ -39,9 +43,5 @@
   },
   "peerDependencies": {
     "@open-insight/core": "workspace:*"
-  },
-  "dependencies": {
-    "effect": "catalog:",
-    "@docker/node-sdk": "catalog:"
   }
 }
