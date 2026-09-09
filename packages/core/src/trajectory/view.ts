@@ -4,43 +4,54 @@ import { castDraft, produce } from "immer";
 import { TrajectoryError } from "./error.ts";
 import type { Part, Trajectory } from "./trajectory.ts";
 
-export type Turn<Tools extends Record<string, Tool.Any>> = Readonly<{
+export type SessionTurn<Tools extends Record<string, Tool.Any>> = Readonly<{
   prompt: Prompt.Prompt;
   response: Response.PartView<Tools>[];
 }>;
 
-export const turns = <Tools extends Record<string, Tool.Any>>(
+export type Session<Tools extends Record<string, Tool.Any>> = Stream.Stream<
+  SessionTurn<Tools>,
+  TrajectoryError
+>;
+
+export const session = <Tools extends Record<string, Tool.Any>>(
   trajectory: Trajectory<Tools>,
-): Stream.Stream<Turn<Tools>, TrajectoryError> =>
-  trajectory.pipe(
-    Stream.mapAccum<Turn<Tools> | undefined, Part<Tools>, Turn<Tools>>(
-      () => undefined,
-      (turn, part) => {
-        if (part._tag === "Prompt") {
-          const next: Turn<Tools> = {
-            prompt: Prompt.fromMessages(part.messages),
-            response: [],
-          };
-          return [next, turn === undefined ? [] : [turn]] as const;
-        }
-        if (turn === undefined) {
-          return [turn, []] as const;
-        }
-        return [
-          produce(turn, (draft) => {
-            draft.response.push(castDraft(part.response));
+): Session<Tools> => {
+  const initial = (): SessionTurn<Tools> | undefined => undefined;
+  const appendResponse = (
+    turn: SessionTurn<Tools>,
+    part: Extract<Part<Tools>, { readonly _tag: "Response" }>,
+  ): SessionTurn<Tools> =>
+    produce(turn, (draft) => {
+      draft.response.push(castDraft(part.response));
+    });
+
+  return trajectory.pipe(
+    Stream.mapAccum<SessionTurn<Tools> | undefined, Part<Tools>, SessionTurn<Tools>>(
+      initial,
+      (turn, part): readonly [SessionTurn<Tools> | undefined, readonly SessionTurn<Tools>[]] =>
+        Match.value(part).pipe(
+          Match.tagsExhaustive({
+            Prompt: (prompt) =>
+              [
+                {
+                  prompt: Prompt.fromMessages(prompt.messages),
+                  response: [] as Response.PartView<Tools>[],
+                },
+                turn ? [turn] : [],
+              ] as const,
+            Response: (response) => [turn ? appendResponse(turn, response) : turn, []] as const,
           }),
-          [],
-        ] as const;
-      },
-      { onHalt: (turn) => (turn === undefined ? [] : [turn]) },
+        ),
+      { onHalt: (turn) => (turn ? [turn] : []) },
     ),
   );
+};
 
 export const prompt = <Tools extends Record<string, Tool.Any>>(
   trajectory: Trajectory<Tools>,
 ): Effect.Effect<Prompt.Prompt, TrajectoryError> =>
-  turns(trajectory).pipe(
+  session(trajectory).pipe(
     Stream.runFold(
       () => Prompt.empty,
       (curr, { prompt, response }) =>

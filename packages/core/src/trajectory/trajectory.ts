@@ -1,7 +1,8 @@
-import { DateTime, Effect, Encoding, Match, Result, Schema, Stream, Tuple } from "effect";
+import { DateTime, Effect, Schema, Stream, Tuple } from "effect";
 import { Prompt, Tool, Response, Toolkit } from "effect/unstable/ai";
 import * as uuid from "uuid";
 import type { TrajectoryError } from "./error.ts";
+import type { Metadata } from "./metadata.ts";
 
 export const PromptPart = Schema.TaggedStruct("Prompt", {
   messages: Schema.Array(Prompt.Message),
@@ -39,13 +40,15 @@ export type Part<Tools extends Record<string, Tool.Any>> = Schema.Schema.Type<
 >;
 export type PartEncoded = Schema.Codec.Encoded<ReturnType<typeof Part<any>>>;
 
+export type PartStream<Tools extends Record<string, Tool.Any>> = Stream.Stream<
+  Part<Tools>,
+  TrajectoryError
+>;
+
 /**
  * A trajectory represents a sequence of turns in a conversation, where each turn consists of a prompt and the corresponding response.
  */
-export type Trajectory<Tools extends Record<string, Tool.Any>> = Stream.Stream<
-  Part<Tools>,
-  TrajectoryError
-> &
-  Readonly<{ toolkit: Toolkit.Toolkit<Tools> }>;
+export type Trajectory<Tools extends Record<string, Tool.Any>> = PartStream<Tools> &
+  Readonly<{ toolkit: Toolkit.Toolkit<Tools>; metadata: Metadata }>;
 export type Any = Trajectory<Record<string, never>>;
 export type TrajectoryEncoded = Stream.Stream<PartEncoded, TrajectoryError>;

@@ -1,8 +1,7 @@
-import { Array as Arr, Crypto, Effect, Schema, Stream } from "effect";
-import { Tool, Toolkit, Response } from "effect/unstable/ai";
-import * as Fold from "#/response/fold.ts";
+import { Effect, Schema, Stream } from "effect";
+import { Tool, Toolkit } from "effect/unstable/ai";
 import { TrajectoryError } from "./error.ts";
-import { Part, PartMetadata, type Trajectory, type PartEncoded } from "./trajectory.ts";
+import { Part, type Trajectory, type PartEncoded } from "./trajectory.ts";
 
 export type TrajectoryEncoded = Stream.Stream<PartEncoded, TrajectoryError>;
 

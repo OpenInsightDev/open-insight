@@ -1,6 +1,8 @@
 import { expect, test } from "vite-plus/test";
-import { fn } from "../src/index.ts";
+import { NetworkOperationFailed } from "../src/index.ts";
 
-test("fn", () => {
-  expect(fn()).toBe("Hello, tsdown!");
+test("NetworkOperationFailed is tagged with its operation", () => {
+  const error = NetworkOperationFailed.make({ operation: "create", cause: new Error("boom") });
+  expect(error._tag).toBe("NetworkOperationFailed");
+  expect(error.operation).toBe("create");
 });

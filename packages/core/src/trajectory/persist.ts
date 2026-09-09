@@ -1,76 +1,78 @@
-import { Effect, FileSystem, JsonSchema, Schema, Sink, Stream } from "effect";
-import { Ndjson } from "effect/unstable/encoding";
+import { Context, Effect, FileSystem, Layer, Schema, Stream } from "effect";
 import { Tool, Toolkit } from "effect/unstable/ai";
+import { decode, encode, type TrajectoryEncoded } from "./decode.ts";
 import { TrajectoryError } from "./error.ts";
-import type { PartEncoded } from "./trajectory.ts";
+import { Metadata } from "./metadata.ts";
+import { toJsonSchema } from "./toolkit.ts";
+import type { Any, Trajectory } from "./trajectory.ts";
 
-type JsonSchemaDocument = JsonSchema.Document<"draft-2020-12">;
-
-const mergeDefinitions = (
-  target: Record<string, JsonSchema.JsonSchema>,
-  document: JsonSchemaDocument,
-): void => {
-  Object.assign(target, document.definitions);
-};
-
-const toolkitJsonSchema = (toolkit: Toolkit.Any): JsonSchema.JsonSchema => {
-  const properties: Record<string, JsonSchema.JsonSchema> = {};
-  const definitions: Record<string, JsonSchema.JsonSchema> = {};
-
-  for (const tool of Object.values(toolkit.tools) as ReadonlyArray<Tool.Any>) {
-    const parameters = Schema.toJsonSchemaDocument(tool.parametersSchema);
-    const success = Schema.toJsonSchemaDocument(tool.successSchema);
-    const failure = Schema.toJsonSchemaDocument(tool.failureSchema);
-
-    mergeDefinitions(definitions, parameters);
-    mergeDefinitions(definitions, success);
-    mergeDefinitions(definitions, failure);
-
-    properties[tool.name] = {
-      type: "object",
-      properties: {
-        id: { type: "string", const: tool.id },
-        name: { type: "string", const: tool.name },
-        ...(tool.description === undefined
-          ? {}
-          : { description: { type: "string", const: tool.description } }),
-        failureMode: { type: "string", enum: [tool.failureMode] },
-        parameters: parameters.schema,
-        success: success.schema,
-        failure: failure.schema,
-      },
-      required: ["id", "name", "failureMode", "parameters", "success", "failure"],
-      additionalProperties: false,
-    };
+export class Persist extends Context.Service<
+  Persist,
+  {
+    readonly save: <Tools extends Record<string, Tool.Any>>(
+      path: string,
+      trajectory: Trajectory<Tools>,
+    ) => Effect.Effect<void, TrajectoryError, Tool.ResultEncodingServices<Tools[keyof Tools]>>;
+    readonly load: (
+      path: string,
+      ...toolkits: ReadonlyArray<Toolkit.Any>
+    ) => Effect.Effect<Any, TrajectoryError>;
   }
-
-  return {
-    $schema: "https://json-schema.org/draft/2020-12/schema",
-    title: "Trajectory toolkit",
-    type: "object",
-    properties,
-    required: Object.keys(properties),
-    additionalProperties: false,
-    ...(Object.keys(definitions).length === 0 ? {} : { $defs: definitions }),
-  };
-};
-
-/**
- * Creates a sink that persists a trajectory as a `.traj` JSONL file.
- *
- * The first line contains the toolkit JSON Schema. Every following line is one
- * encoded trajectory part. The file is overwritten when the sink starts.
- */
-export const persist = (
-  path: string,
-  toolkit: Toolkit.Any,
-): Sink.Sink<void, PartEncoded, never, TrajectoryError, FileSystem.FileSystem> =>
-  Sink.make<PartEncoded>()((parts) =>
+>()("open-insight/TrajectoryPersist") {
+  static readonly layer = Layer.effect(
+    Persist,
     Effect.gen(function* () {
       const fs = yield* FileSystem.FileSystem;
-      return yield* Stream.concat(Stream.succeed(toolkitJsonSchema(toolkit)), parts)
-        .pipe(Stream.pipeThroughChannel(Ndjson.encode()))
-        .pipe(Stream.run(fs.sink(path)))
-        .pipe(Effect.mapError(TrajectoryError.storage));
+
+      const save = Effect.fn(function* <Tools extends Record<string, Tool.Any>>(
+        path: string,
+        trajectory: Trajectory<Tools>,
+      ) {
+        const metadata = yield* Effect.try({
+          try: () => JSON.stringify(trajectory.metadata),
+          catch: TrajectoryError.storage,
+        });
+        const toolkit = yield* Effect.try({
+          try: () => JSON.stringify(toJsonSchema(trajectory.toolkit)),
+          catch: TrajectoryError.storage,
+        });
+        const lines = yield* Stream.runFold(
+          encode(trajectory),
+          () => `${metadata}\n${toolkit}\n`,
+          (text, part) => `${text}${JSON.stringify(part)}\n`,
+        );
+        yield* fs
+          .writeFileString(path.endsWith(".traj") ? path : `${path}.traj`, lines)
+          .pipe(Effect.mapError(TrajectoryError.storage));
+      }) satisfies Persist["Service"]["save"];
+
+      const load = Effect.fn(function* (path: string, ...toolkits: ReadonlyArray<Toolkit.Any>) {
+        const content = yield* fs
+          .readFileString(path.endsWith(".traj") ? path : `${path}.traj`)
+          .pipe(Effect.mapError(TrajectoryError.storage));
+        const lines = content.split("\n").filter((line) => line.length > 0);
+        if (lines.length < 2)
+          return yield* Effect.fail(TrajectoryError.storage(new Error("Invalid trajectory file")));
+        const metadata = yield* Effect.try({
+          try: () => JSON.parse(lines[0]),
+          catch: TrajectoryError.decode,
+        }).pipe(
+          Effect.flatMap(Schema.decodeUnknownEffect(Metadata)),
+          Effect.mapError(TrajectoryError.decode),
+        );
+        const encoded: TrajectoryEncoded = Stream.fromIterable(
+          yield* Effect.forEach(lines.slice(2), (line) =>
+            Effect.try({
+              try: () => JSON.parse(line),
+              catch: TrajectoryError.decode,
+            }),
+          ),
+        );
+        const trajectory = yield* decode(encoded, ...toolkits);
+        return Object.assign(trajectory, { metadata });
+      }) satisfies Persist["Service"]["load"];
+
+      return { save, load };
     }),
   );
+}

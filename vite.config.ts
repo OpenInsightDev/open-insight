@@ -22,10 +22,13 @@ export default defineConfig({
     jsPlugins: [
       { name: "vite-plus", specifier: "vite-plus/oxlint-plugin" },
       { name: "anti-slop", specifier: "./tools/oxlint/anti-slop/src/index.ts" },
-      { name: "anti-slop-effect", specifier: "./tools/oxlint/anti-slop/effect/index.ts" },
+      { name: "anti-slop-effect", specifier: "./tools/oxlint/anti-slop/src/effect/index.ts" },
     ],
     rules: {
       "vite-plus/prefer-vite-plus-imports": "error",
+      // remove unused imports; safe-fix (not fix) so a plain `--fix` run applies them
+      // (`fix` marks them dangerous, which only --fix-dangerously would apply)
+      "no-unused-vars": ["error", { fix: { imports: "safe-fix", variables: "suggestion" } }],
       // anti-slop rules
       "oxc/no-accumulating-spread": "error",
       "anti-slop/no-array-filter-map": "error",

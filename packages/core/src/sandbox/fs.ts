@@ -1,7 +1,17 @@
-import { Context, Effect, pipe, Scope, Sink, Stream } from "effect";
-import type { OpenFlag, SizeInput } from "effect/FileSystem";
-import { badArgument, type PlatformError } from "effect/PlatformError";
+import { Context, Effect, Scope, Sink, Stream } from "effect";
 import { SandboxError } from "./error.ts";
+import type { OpenFlag, SizeInput } from "effect/FileSystem";
+
+/** Metadata that can be represented by WebDAV properties. */
+export interface ResourceInfo {
+  /** `Directory` represents a WebDAV collection; other resources are `File`. */
+  readonly type: "File" | "Directory";
+  readonly size?: bigint;
+  readonly etag?: string;
+  readonly lastModified?: Date;
+  readonly creationDate?: Date;
+  readonly contentType?: string;
+}
 
 export class FileSystem extends Context.Service<
   FileSystem,
@@ -226,180 +236,3 @@ export class FileSystem extends Context.Service<
     ) => Effect.Effect<void, SandboxError>;
   }
 >()("@open-insight/agent/fs/FileSystem") {}
-
-export type FileSystemService = FileSystem["Service"];
-
-type PlatformImplementation<T> = T extends (
-  ...args: infer Arguments
-) => Effect.Effect<infer A, SandboxError, infer Requirements>
-  ? (...args: Arguments) => Effect.Effect<A, PlatformError, Requirements>
-  : T extends (...args: infer Arguments) => Stream.Stream<infer A, SandboxError, infer Requirements>
-    ? (...args: Arguments) => Stream.Stream<A, PlatformError, Requirements>
-    : T extends (
-          ...args: infer Arguments
-        ) => Sink.Sink<infer A, infer In, infer Leftover, SandboxError, infer Requirements>
-      ? (...args: Arguments) => Sink.Sink<A, In, Leftover, PlatformError, Requirements>
-      : never;
-
-type CoreFileSystem = {
-  readonly [Key in keyof Omit<
-    FileSystemService,
-    "exists" | "readFileString" | "stream" | "writeFileString"
-  >]: PlatformImplementation<
-    Omit<FileSystemService, "exists" | "readFileString" | "stream" | "writeFileString">[Key]
-  >;
-};
-
-const temporaryPath = (directory: string | undefined): string => directory ?? "temporary directory";
-
-const mapPlatformError = <A, Requirements>(
-  operation: string,
-  path: string,
-  effect: Effect.Effect<A, PlatformError, Requirements>,
-): Effect.Effect<A, SandboxError, Requirements> =>
-  effect.pipe(Effect.mapError(SandboxError.fileSystem(operation, path)));
-
-/**
- * Creates a FileSystem implementation from WebDAV core operations.
- *
- * The derived stream reads the resource once and chunks the result locally;
- * an adapter that supports HTTP Range can provide a more efficient override.
- */
-export const make = (impl: CoreFileSystem): FileSystemService =>
-  FileSystem.of({
-    access: (path, options) => mapPlatformError("access", path, impl.access(path, options)),
-    copy: (fromPath, toPath, options) =>
-      mapPlatformError("copy", `${fromPath} -> ${toPath}`, impl.copy(fromPath, toPath, options)),
-    copyFile: (fromPath, toPath, options) =>
-      mapPlatformError(
-        "copyFile",
-        `${fromPath} -> ${toPath}`,
-        impl.copyFile(fromPath, toPath, options),
-      ),
-    glob: (pattern, options) => mapPlatformError("glob", pattern, impl.glob(pattern, options)),
-    exists: (path) =>
-      pipe(
-        impl.access(path),
-        Effect.as(true),
-        Effect.catchTag("PlatformError", (error) =>
-          error.reason._tag === "NotFound"
-            ? Effect.succeed(false)
-            : Effect.fail(SandboxError.fileSystem("exists", path)(error)),
-        ),
-      ),
-    makeDirectory: (path, options) =>
-      mapPlatformError("makeDirectory", path, impl.makeDirectory(path, options)),
-    makeTempDirectory: (options) =>
-      mapPlatformError(
-        "makeTempDirectory",
-        temporaryPath(options?.directory),
-        impl.makeTempDirectory(options),
-      ),
-    makeTempDirectoryScoped: (options) =>
-      mapPlatformError(
-        "makeTempDirectoryScoped",
-        temporaryPath(options?.directory),
-        impl.makeTempDirectoryScoped(options),
-      ),
-    makeTempFile: (options) =>
-      mapPlatformError(
-        "makeTempFile",
-        temporaryPath(options?.directory),
-        impl.makeTempFile(options),
-      ),
-    makeTempFileScoped: (options) =>
-      mapPlatformError(
-        "makeTempFileScoped",
-        temporaryPath(options?.directory),
-        impl.makeTempFileScoped(options),
-      ),
-    readDirectory: (path, options) =>
-      mapPlatformError("readDirectory", path, impl.readDirectory(path, options)),
-    readFile: (path) => mapPlatformError("readFile", path, impl.readFile(path)),
-    readFileString: (path, encoding = "utf-8") =>
-      Effect.flatMap(impl.readFile(path), (data) =>
-        Effect.try({
-          try: () => new TextDecoder(encoding).decode(data),
-          catch: (cause) =>
-            badArgument({
-              module: "FileSystem",
-              method: "readFileString",
-              description: "invalid encoding",
-              cause,
-            }),
-        }),
-      ).pipe(Effect.mapError(SandboxError.fileSystem("readFileString", path))),
-    remove: (path, options) => mapPlatformError("remove", path, impl.remove(path, options)),
-    rename: (oldPath, newPath, options) =>
-      mapPlatformError(
-        "rename",
-        `${oldPath} -> ${newPath}`,
-        impl.rename(oldPath, newPath, options),
-      ),
-    sink: (path, options) =>
-      impl.sink(path, options).pipe(Sink.mapError(SandboxError.fileSystem("sink", path))),
-    stat: (path) => mapPlatformError("stat", path, impl.stat(path)),
-    stream: (path, options) =>
-      Stream.unwrap(
-        impl.readFile(path).pipe(
-          Effect.mapError(SandboxError.fileSystem("stream", path)),
-          Effect.map((data) => {
-            const offset = options?.offset ?? 0n;
-            const bytesToRead = options?.bytesToRead;
-            const chunkSize = options?.chunkSize ?? 64n * 1024n;
-
-            if (offset < 0n || chunkSize <= 0n || (bytesToRead !== undefined && bytesToRead < 0n)) {
-              return Stream.fail(
-                SandboxError.fileSystem(
-                  "stream",
-                  path,
-                )(
-                  badArgument({
-                    module: "FileSystem",
-                    method: "stream",
-                    description:
-                      "offset, bytesToRead, and chunkSize must be non-negative and chunkSize must be positive",
-                  }),
-                ),
-              );
-            }
-
-            const start = Number(offset);
-            const end = bytesToRead === undefined ? data.length : start + Number(bytesToRead);
-            const selected = data.slice(start, end);
-            const size = Number(chunkSize);
-            const chunks = Array.from({ length: Math.ceil(selected.length / size) }, (_, index) =>
-              selected.slice(index * size, (index + 1) * size),
-            );
-            return Stream.fromIterable(chunks);
-          }),
-        ),
-      ),
-    truncate: (path, length) => mapPlatformError("truncate", path, impl.truncate(path, length)),
-    writeFile: (path, data, options) =>
-      mapPlatformError("writeFile", path, impl.writeFile(path, data, options)),
-    writeFileString: (path, data, options) =>
-      Effect.suspend(() => {
-        if (options?.encoding !== undefined && options.encoding.toLowerCase() !== "utf-8") {
-          return Effect.fail(
-            badArgument({
-              module: "FileSystem",
-              method: "writeFileString",
-              description: "only utf-8 encoding is supported",
-            }),
-          );
-        }
-        return impl.writeFile(path, new TextEncoder().encode(data), options);
-      }).pipe(Effect.mapError(SandboxError.fileSystem("writeFileString", path))),
-  });
-
-/** Metadata that can be represented by WebDAV properties. */
-export interface ResourceInfo {
-  /** `Directory` represents a WebDAV collection; other resources are `File`. */
-  readonly type: "File" | "Directory";
-  readonly size?: bigint;
-  readonly etag?: string;
-  readonly lastModified?: Date;
-  readonly creationDate?: Date;
-  readonly contentType?: string;
-}

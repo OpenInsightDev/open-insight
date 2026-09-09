@@ -26,11 +26,11 @@ release. Add a tool name to select part of the graph. For example, run
 
 <!--VITE PLUS END-->
 
-# Learning more about Effect
+# Effect-TS
 
 This repository uses the Effect Typescript library.
 
-Before writing any Effect code, first read `packages/effect/LLMS.md` **completely**, and follow the links in the file when required.
+Before writing any Effect code, first read `packages/effect/LLMS.md` and follow the links in the file when required.
 
 If you need to learn more about particular Effect apis and concepts that the guide doesn't cover, search through the source code in `packages/effect/src`.
 
