@@ -1,10 +1,11 @@
-import { Effect, Stream } from "effect";
+import { Effect, Match, Stream, Result } from "effect";
 import { Prompt, Tool, Response } from "effect/unstable/ai";
+import { castDraft, produce } from "immer";
 import { TrajectoryError } from "./error.ts";
-import type { Part, PromptMessage, PromptPart, ResponsePart, Trajectory } from "./trajectory.ts";
+import type { Part, Trajectory } from "./trajectory.ts";
 
 export type Turn<Tools extends Record<string, Tool.Any>> = Readonly<{
-  prompt: PromptMessage[];
+  prompt: Prompt.Prompt;
   response: Response.PartView<Tools>[];
 }>;
 
@@ -17,7 +18,7 @@ export const turns = <Tools extends Record<string, Tool.Any>>(
       (turn, part) => {
         if (part._tag === "Prompt") {
           const next: Turn<Tools> = {
-            prompt: Array.from(part.messages),
+            prompt: Prompt.fromMessages(part.messages),
             response: [],
           };
           return [next, turn === undefined ? [] : [turn]] as const;
@@ -25,26 +26,15 @@ export const turns = <Tools extends Record<string, Tool.Any>>(
         if (turn === undefined) {
           return [turn, []] as const;
         }
-        return [{ ...turn, response: [...turn.response, part.response] }, []] as const;
+        return [
+          produce(turn, (draft) => {
+            draft.response.push(castDraft(part.response));
+          }),
+          [],
+        ] as const;
       },
       { onHalt: (turn) => (turn === undefined ? [] : [turn]) },
     ),
-  );
-
-export const prompts = <Tools extends Record<string, Tool.Any>>(
-  trajectory: Trajectory<Tools>,
-): Stream.Stream<PromptMessage[], TrajectoryError> =>
-  trajectory.pipe(
-    Stream.filter((part): part is PromptPart => part._tag === "Prompt"),
-    Stream.map((prompt) => Array.from(prompt.messages)),
-  );
-
-export const responses = <Tools extends Record<string, Tool.Any>>(
-  trajectory: Trajectory<Tools>,
-): Stream.Stream<Response.AllPartsView<Tools>, TrajectoryError> =>
-  trajectory.pipe(
-    Stream.filter((part): part is ResponsePart<Tools> => part._tag === "Response"),
-    Stream.map((response) => response.response),
   );
 
 export const prompt = <Tools extends Record<string, Tool.Any>>(
@@ -53,10 +43,21 @@ export const prompt = <Tools extends Record<string, Tool.Any>>(
   turns(trajectory).pipe(
     Stream.runFold(
       () => Prompt.empty,
-      (prompt, turn) =>
-        Prompt.concat(
-          prompt,
-          Prompt.concat(Prompt.fromMessages(turn.prompt), Prompt.fromResponseParts(turn.response)),
-        ),
+      (curr, { prompt, response }) =>
+        Prompt.concat(curr, Prompt.concat(prompt, Prompt.fromResponseParts(response))),
+    ),
+  );
+
+export const responses = <Tools extends Record<string, Tool.Any>>(
+  trajectory: Trajectory<Tools>,
+): Stream.Stream<Response.AllPartsView<Tools>, TrajectoryError> =>
+  trajectory.pipe(
+    Stream.filterMap((part) =>
+      Match.value(part).pipe(
+        Match.tagsExhaustive({
+          Response: ({ response }) => Result.succeed(response),
+          Prompt: Result.fail,
+        }),
+      ),
     ),
   );
