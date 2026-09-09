@@ -3,6 +3,7 @@ import { ChildProcess as CP } from "effect/unstable/process";
 import type { TemplateExpression } from "effect/unstable/process/ChildProcess";
 import type { ExitCode } from "effect/unstable/process/ChildProcessSpawner";
 import { makeScript } from "../utils/shell.ts";
+import { SandboxError } from "./error.ts";
 
 /**
  * A handle to a running child process.
@@ -87,25 +88,25 @@ export class Process extends Context.Service<
     /**
      * Spawn a command and return a handle for interaction.
      */
-    spawn(command: Command): Effect.Effect<Result, PlatformError.PlatformError>;
+    spawn(command: Command): Effect.Effect<Result, SandboxError>;
 
     $: {
       (
         strings: TemplateStringsArray,
         ...values: ReadonlyArray<TemplateExpression>
-      ): Effect.Effect<string, PlatformError.PlatformError>;
+      ): Effect.Effect<string, SandboxError>;
       (
         options: ShellCommandOptions,
       ): (
         strings: TemplateStringsArray,
         ...values: ReadonlyArray<TemplateExpression>
-      ) => Effect.Effect<string, PlatformError.PlatformError>;
+      ) => Effect.Effect<string, SandboxError>;
     };
 
     /**
      * Run a command and return its exit code.
      */
-    exitCode(command: Command): Effect.Effect<ExitCode, PlatformError.PlatformError>;
+    exitCode(command: Command): Effect.Effect<ExitCode, SandboxError>;
 
     /**
      * Run a command and return the lines of its output as an array of strings.
@@ -115,7 +116,7 @@ export class Process extends Context.Service<
       options?: {
         readonly includeStderr?: boolean | undefined;
       },
-    ): Effect.Effect<Array<string>, PlatformError.PlatformError>;
+    ): Effect.Effect<Array<string>, SandboxError>;
 
     /**
      * Run a command and return its output as a string.
@@ -125,24 +126,31 @@ export class Process extends Context.Service<
       options?: {
         readonly includeStderr?: boolean | undefined;
       },
-    ): Effect.Effect<string, PlatformError.PlatformError>;
+    ): Effect.Effect<string, SandboxError>;
   }
 >()("effect/process/ChildProcessSpawner") {}
 
-export const make = (spawn: Process["Service"]["spawn"]) => {
+type PlatformSpawn = (command: Command) => Effect.Effect<Result, PlatformError.PlatformError>;
+
+const formatCommand = ({ command, args }: Command): string => [command, ...args].join(" ");
+
+export const make = (spawn: PlatformSpawn): Process["Service"] => {
+  const spawnSandbox = (command: Command) =>
+    spawn(command).pipe(Effect.mapError(SandboxError.process("spawn", formatCommand(command))));
+
   const string: Process["Service"]["string"] = (command) =>
-    spawn(command).pipe(Effect.map(({ stdout }) => new TextDecoder().decode(stdout)));
+    spawnSandbox(command).pipe(Effect.map(({ stdout }) => new TextDecoder().decode(stdout)));
 
   function $(
     strings: TemplateStringsArray,
     ...values: ReadonlyArray<TemplateExpression>
-  ): Effect.Effect<string, PlatformError.PlatformError>;
+  ): Effect.Effect<string, SandboxError>;
   function $(
     options: ShellCommandOptions,
   ): (
     strings: TemplateStringsArray,
     ...values: ReadonlyArray<TemplateExpression>
-  ) => Effect.Effect<string, PlatformError.PlatformError>;
+  ) => Effect.Effect<string, SandboxError>;
   function $(
     first: TemplateStringsArray | ShellCommandOptions,
     ...values: ReadonlyArray<TemplateExpression>
@@ -155,10 +163,10 @@ export const make = (spawn: Process["Service"]["spawn"]) => {
   }
 
   return Process.of({
-    spawn,
+    spawn: spawnSandbox,
     $,
     string,
     lines: (command) => string(command).pipe(Effect.map((stdout) => stdout.split("\n"))),
-    exitCode: (command) => Effect.map(spawn(command), ({ exitCode }) => exitCode),
+    exitCode: (command) => Effect.map(spawnSandbox(command), ({ exitCode }) => exitCode),
   });
 };

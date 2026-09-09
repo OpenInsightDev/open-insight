@@ -1,4 +1,5 @@
 import { Formatter, Schema } from "effect";
+import * as PlatformError from "effect/PlatformError";
 import { Assertion } from "../assert/index.ts";
 import * as Snapshot from "../snapshot/index.ts";
 
@@ -68,6 +69,41 @@ export class AssertionFailure extends Schema.Class<AssertionFailure>(
   actual: Schema.optionalKey(Schema.String),
 }) {}
 
+export class FileSystemOperationFailed extends Schema.TaggedError<FileSystemOperationFailed>(
+  "open-insight/SandboxError/FileSystemOperationFailed",
+)("FileSystemOperationFailed", {
+  operation: Schema.String,
+  path: Schema.String,
+  cause: Schema.Defect(),
+}) {
+  override get message(): string {
+    return `Sandbox filesystem operation "${this.operation}" failed for "${this.path}": ${Formatter.format(this.cause)}`;
+  }
+}
+
+export class ProcessOperationFailed extends Schema.TaggedError<ProcessOperationFailed>(
+  "open-insight/SandboxError/ProcessOperationFailed",
+)("ProcessOperationFailed", {
+  operation: Schema.String,
+  command: Schema.String,
+  cause: Schema.Defect(),
+}) {
+  override get message(): string {
+    return `Sandbox process operation "${this.operation}" failed for "${this.command}": ${Formatter.format(this.cause)}`;
+  }
+}
+
+export class TerminalOperationFailed extends Schema.TaggedError<TerminalOperationFailed>(
+  "open-insight/SandboxError/TerminalOperationFailed",
+)("TerminalOperationFailed", {
+  operation: Schema.String,
+  cause: Schema.Defect(),
+}) {
+  override get message(): string {
+    return `Sandbox terminal operation "${this.operation}" failed: ${Formatter.format(this.cause)}`;
+  }
+}
+
 export class AssertionError extends Schema.TaggedError<AssertionError>(
   "open-insight/SandboxError/AssertionError",
 )("AssertionError", {
@@ -88,6 +124,10 @@ export const ErrorReason = Schema.Union([
   SandboxExposeError,
   SnapshotBuildUnsupported,
   AssertionError,
+  Schema.instanceOf(PlatformError.PlatformError),
+  FileSystemOperationFailed,
+  ProcessOperationFailed,
+  TerminalOperationFailed,
 ]);
 export type ErrorReason = Schema.Schema.Type<typeof ErrorReason>;
 
@@ -130,6 +170,24 @@ export class SandboxError extends Schema.TaggedError<SandboxError>("open-insight
     (name: string, operation: string) =>
     (cause: unknown): SandboxError =>
       SandboxError.make({ reason: SandboxExecError.make({ name, operation, cause }) });
+
+  static platform = (cause: PlatformError.PlatformError): SandboxError =>
+    SandboxError.make({ reason: cause });
+
+  static fileSystem =
+    (operation: string, path: string) =>
+    (cause: unknown): SandboxError =>
+      SandboxError.make({ reason: FileSystemOperationFailed.make({ operation, path, cause }) });
+
+  static process =
+    (operation: string, command: string) =>
+    (cause: unknown): SandboxError =>
+      SandboxError.make({ reason: ProcessOperationFailed.make({ operation, command, cause }) });
+
+  static terminal =
+    (operation: string) =>
+    (cause: unknown): SandboxError =>
+      SandboxError.make({ reason: TerminalOperationFailed.make({ operation, cause }) });
 
   static sandboxExpose =
     (name: string, sandboxPort: number) =>

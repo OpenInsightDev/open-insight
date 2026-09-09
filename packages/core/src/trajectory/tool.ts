@@ -84,7 +84,6 @@ export const toolkits = <Toolkits extends ReadonlyArray<Toolkit.Any>>(...toolkit
               );
               const decoded = yield* decode(encoded).pipe(Effect.mapError(TrajectoryError.decode));
               return trajectoryPart.make({
-                timestamp: response.timestamp,
                 uuid: response.uuid,
                 _tag: "Response",
                 response: decoded,

@@ -11,6 +11,7 @@ export {
   encode,
   decode,
   type Turn,
+  fromPrompt,
   turns,
   prompts,
   responses,

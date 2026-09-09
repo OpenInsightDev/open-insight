@@ -1,4 +1,5 @@
-import { DateTime, Effect, Schema, Scope, Stream, Tuple, Crypto } from "effect";
+import { DateTime, Effect, Encoding, Match, Result, Schema, Stream, Tuple } from "effect";
+import { castDraft, produce } from "immer";
 import * as uuid from "uuid";
 import { Prompt, Tool, Response, Toolkit } from "effect/unstable/ai";
 import { TrajectoryError } from "./error.ts";
@@ -14,6 +15,29 @@ export const PromptMessage = Schema.Union([
 export type PromptMessage = Schema.Schema.Type<typeof PromptMessage>;
 export type PromptMessageEncoded = Exclude<Prompt.MessageEncoded, Prompt.AssistantMessageEncoded>;
 
+export const PromptPart = Schema.TaggedStruct("Prompt", {
+  messages: Schema.Array(PromptMessage),
+});
+export type PromptPart = Schema.Schema.Type<typeof PromptPart>;
+type PromptPartEncoded = Schema.Codec.Encoded<typeof PromptPart>;
+
+const Timestamp = Schema.DateTimeUtcFromString.pipe(Schema.withConstructorDefault(DateTime.now));
+export const ResponsePart = <T extends Toolkit.Any>(toolkit: T) =>
+  Schema.TaggedStruct("Response", {
+    response: Response.PartView(toolkit),
+    timestamp: Timestamp,
+  });
+export type ResponsePart<Tools extends Record<string, Tool.Any>> = Readonly<{
+  _tag: "Response";
+  response: Response.PartView<Tools>;
+  timestamp: DateTime.Utc;
+}>;
+export type ResponsePartEncoded = Readonly<{
+  _tag: "Response";
+  response: Response.PartEncoded;
+  timestamp: string;
+}>;
+
 const Uuid = Schema.String.check(Schema.isUUID(7)).pipe(
   Schema.withConstructorDefault(Effect.succeed(uuid.v7())),
 );
@@ -24,59 +48,205 @@ export const PartMetadata = Schema.Struct({
 });
 export type PartMetadata = Schema.Schema.Type<typeof PartMetadata>;
 
-export const PromptPart = Schema.TaggedStruct("Prompt", {
-  messages: Schema.Array(PromptMessage),
-});
-type PromptPartContent = Schema.Schema.Type<typeof PromptPart>;
-type PromptPartContentEncoded = Schema.Codec.Encoded<typeof PromptPart>;
-
-const Timestamp = Schema.DateTimeUtcFromString.pipe(Schema.withConstructorDefault(DateTime.now));
-export const ResponseMetadata = Schema.Struct({
-  timestamp: Timestamp,
-});
-
-export const ResponsePart = <T extends Toolkit.Any>(toolkit: T) =>
-  Schema.TaggedStruct("Response", {
-    response: Response.PartView(toolkit),
-  });
-export type ResponsePart<Tools extends Record<string, Tool.Any>> = Readonly<
-  PartMetadata & {
-    _tag: "Response";
-    response: Response.PartView<Tools>;
-  }
->;
-export type ResponsePartEncoded = Readonly<
-  PartMetadataEncoded & {
-    _tag: "Response";
-    response: Response.PartEncoded;
-  }
->;
-
 export const Part = <T extends Toolkit.Any>(toolkit: T) =>
   Schema.Union([PromptPart, ResponsePart(toolkit)]).mapMembers(
     Tuple.map(Schema.fieldsAssign(PartMetadata.fields)),
   );
-export type PromptPart = Readonly<PartMetadata & PromptPartContent>;
-export type PromptPartEncoded = Readonly<PartMetadataEncoded & PromptPartContentEncoded>;
+
 export type Part<Tools extends Record<string, Tool.Any>> = PromptPart | ResponsePart<Tools>;
 export type PartMetadataEncoded = Schema.Codec.Encoded<typeof PartMetadata>;
 export type PartEncoded = PromptPartEncoded | ResponsePartEncoded;
 
-export type PartStream<Tools extends Record<string, Tool.Any> = any> = Stream.Stream<
-  Part<Tools>,
-  TrajectoryError
->;
+export type Turn<Tools extends Record<string, Tool.Any>> = Readonly<{
+  prompt: PromptPart;
+  response: Stream.Stream<ResponsePart<Tools>, TrajectoryError>;
+}>;
 
 /**
  * A trajectory represents a sequence of turns in a conversation, where each turn consists of a prompt and the corresponding response.
  */
-export type Trajectory<Tools extends Record<string, Tool.Any> = Record<string, never>> =
-  PartStream<Tools> & Readonly<{ toolkit: Toolkit.Toolkit<Tools> }>;
-export type Any = Trajectory<any>;
+export type Trajectory<Tools extends Record<string, Tool.Any>> = Stream.Stream<
+  Turn<Tools>,
+  TrajectoryError
+> &
+  Readonly<{ toolkit: Toolkit.Toolkit<Tools> }>;
+export type Any = Trajectory<Record<string, never>>;
 
-export const share = Effect.fn(function* <T extends Any>(
-  trajectory: T,
-): Effect.fn.Return<T, never, Scope.Scope> {
-  const shared = yield* trajectory.pipe(Stream.share({ capacity: "unbounded" }));
-  return Object.assign(shared, { toolkit: trajectory.toolkit }) as T;
+const responseFileData = (data: Prompt.FilePart["data"]): Uint8Array => {
+  if (data instanceof Uint8Array) {
+    return data;
+  }
+
+  const encoded = data instanceof URL ? undefined : data;
+  const base64 = encoded?.startsWith("data:") ? encoded.slice(encoded.indexOf(",") + 1) : encoded;
+
+  return base64 === undefined
+    ? new TextEncoder().encode(data.toString())
+    : Result.match(Encoding.decodeBase64(base64), {
+        onFailure: () => new TextEncoder().encode(encoded),
+        onSuccess: (bytes) => bytes,
+      });
+};
+
+const responsePart = (part: Prompt.AssistantMessagePart): Response.PartView<{}> =>
+  Match.value(part).pipe(
+    Match.when({ type: "text" }, ({ text, options }) =>
+      Response.makePart("text", { text, metadata: options }),
+    ),
+    Match.when({ type: "reasoning" }, ({ text, options }) =>
+      Response.makePart("reasoning", { text, metadata: options }),
+    ),
+    Match.when({ type: "file" }, ({ data, fileName, mediaType, options }) =>
+      Match.value(data).pipe(
+        Match.when(Match.instanceOf(URL), (url) => {
+          const source = {
+            sourceType: "url" as const,
+            id: url.toString(),
+            url,
+            title: fileName ?? url.toString(),
+            metadata: options,
+          };
+          return Response.makePart("source", source);
+        }),
+        Match.orElse((data) =>
+          Response.makePart("file", {
+            mediaType,
+            data: responseFileData(data),
+            metadata: options,
+          }),
+        ),
+      ),
+    ),
+    Match.when({ type: "tool-call" }, (part) =>
+      Response.anyToolCallPart({
+        id: part.id,
+        name: part.name,
+        params: part.params,
+        providerExecuted: part.providerExecuted,
+        metadata: part.options,
+      }),
+    ),
+    Match.when({ type: "tool-result" }, (part) =>
+      Response.anyToolResultPart({
+        id: part.id,
+        name: part.name,
+        result: part.result,
+        encodedResult: part.result,
+        isFailure: part.isFailure,
+        providerExecuted: part.providerExecuted,
+        preliminary: false,
+        metadata: part.options,
+      }),
+    ),
+    Match.when({ type: "tool-approval-request" }, (part) =>
+      Response.toolApprovalRequestPart({
+        approvalId: part.approvalId,
+        toolCallId: part.toolCallId,
+        metadata: part.options,
+      }),
+    ),
+    Match.exhaustive,
+  );
+
+type FromPromptTurn = {
+  messages: Array<PromptMessage>;
+  responses: Array<ResponsePart<{}>>;
+};
+
+type FromPromptState = {
+  turns: Array<FromPromptTurn>;
+  current: FromPromptTurn;
+  hasAssistant: boolean;
+};
+
+const emptyFromPromptTurn = (): FromPromptTurn => ({
+  messages: [],
+  responses: [],
 });
+
+const emptyFromPromptState = (): FromPromptState => ({
+  turns: [],
+  current: emptyFromPromptTurn(),
+  hasAssistant: false,
+});
+
+const completeTurn = (state: FromPromptState): FromPromptState => ({
+  turns: [...state.turns, state.current],
+  current: emptyFromPromptTurn(),
+  hasAssistant: false,
+});
+
+const responseParts = Effect.fn(function* (
+  message: Prompt.AssistantMessage,
+): Effect.fn.Return<ReadonlyArray<ResponsePart<{}>>> {
+  return yield* Effect.forEach(message.content, (part) =>
+    DateTime.now.pipe(
+      Effect.flatMap((timestamp) =>
+        Effect.succeed(responsePart(part)).pipe(
+          Effect.map(
+            (response) =>
+              ({
+                _tag: "Response",
+                response,
+                timestamp,
+              }) satisfies ResponsePart<{}>,
+          ),
+        ),
+      ),
+    ),
+  );
+});
+
+export const fromPrompt = Effect.fn("Trajectory.fromPrompt")(function* (
+  prompt: Prompt.Prompt,
+): Effect.fn.Return<Any> {
+  const state = yield* Effect.reduce(prompt.content, emptyFromPromptState, (state, message) =>
+    message.role === "assistant"
+      ? responseParts(message).pipe(
+          Effect.map((responses) =>
+            produce(state, (draft) => {
+              draft.current.responses.push(...castDraft(responses));
+              draft.hasAssistant = true;
+            }),
+          ),
+        )
+      : Effect.succeed(
+          produce(state.hasAssistant ? completeTurn(state) : state, (draft) => {
+            draft.current.messages.push(castDraft(message));
+          }),
+        ),
+  );
+  const { turns } =
+    state.hasAssistant || state.current.messages.length > 0 ? completeTurn(state) : state;
+  const trajectory = turns.map(
+    ({ messages, responses }) =>
+      ({
+        prompt: { _tag: "Prompt", messages },
+        response: Stream.fromIterable(responses),
+      }) satisfies Turn<{}>,
+  );
+
+  return Object.assign(Stream.fromIterable(trajectory), { toolkit: Toolkit.empty });
+});
+
+// type TurnOptions<Tools extends Record<string, Tool.Any>, E> = Readonly<{
+//   prompt: Prompt.Prompt;
+//   response: Stream.Stream<Response.AllParts<Tools>, E>;
+// }>;
+
+// export const make = Effect.fn(function* <Tools extends Record<string, Tool.Any>, E, R>(
+//   stream: Stream.Stream<TurnOptions<Tools, E>, E, R>,
+//   toolkit: Toolkit.Toolkit<Tools>,
+// ) {});
+
+// export type TrajectoryEncoded = Stream.Stream<
+//   PromptPartEncoded | ResponsePartEncoded,
+//   TrajectoryError
+// >;
+
+// export const share = Effect.fn(function* <T extends Any>(
+//   trajectory: T,
+// ): Effect.fn.Return<T, never, Scope.Scope> {
+//   const shared = yield* trajectory.pipe(Stream.share({ capacity: "unbounded" }));
+//   return Object.assign(shared, { toolkit: trajectory.toolkit }) as T;
+// });

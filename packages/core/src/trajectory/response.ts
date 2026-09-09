@@ -1,6 +1,6 @@
 import { Effect, Option, Sink, Stream } from "effect";
 import { Response } from "effect/unstable/ai";
-import type { Part, Trajectory } from "./trajectory.ts";
+import type { Part, PartStream, Trajectory } from "./trajectory.ts";
 import type { TrajectoryError } from "./error.ts";
 import { responses } from "./view.ts";
 
@@ -15,8 +15,19 @@ export const finishPart: Sink.Sink<Option.Option<Response.FinishPart>, Part<any>
       : state,
 );
 
+export const metadataPart: Sink.Sink<
+  Option.Option<Response.ResponseMetadataPart>,
+  Part<any>
+> = Sink.reduce(
+  () => Option.none<Response.ResponseMetadataPart>(),
+  (state, part) =>
+    part._tag === "Response" && part.response.type === "response-metadata"
+      ? Option.some(part.response)
+      : state,
+);
+
 export const usage = (
-  trajectory: Trajectory<any>,
+  trajectory: PartStream<any>,
 ): Effect.Effect<Option.Option<Response.Usage>, TrajectoryError> =>
   trajectory.pipe(
     Stream.run(finishPart),
@@ -24,7 +35,7 @@ export const usage = (
   );
 
 export const finishReason = (
-  trajectory: Trajectory<any>,
+  trajectory: PartStream<any>,
 ): Effect.Effect<Option.Option<Response.FinishReason>, TrajectoryError> =>
   trajectory.pipe(
     Stream.run(finishPart),

@@ -20,7 +20,7 @@ export default defineConfig({
         { assertionStyle: "never" },
       ],
       // avoid `as unknown as`
-      "typescript/no-unsafe-type-assertion": "error"
+      "typescript/no-unsafe-type-assertion": "error",
     },
     options: { typeAware: true, typeCheck: true },
   },
