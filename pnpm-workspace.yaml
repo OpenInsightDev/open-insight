@@ -106,7 +106,6 @@ catalog:
   ssh2: ^1.17.0
   "@daytona/sdk": ^0.210.0
   "@docker/node-sdk": ^0.0.17
-  webdav-client: github:OpenInsightDev/webdav-client
 overrides:
   vite: "catalog:"
   vitest: "catalog:"

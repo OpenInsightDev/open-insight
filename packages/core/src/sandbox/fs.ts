@@ -1,8 +1,7 @@
 import { Context, Effect, Layer, Scope, Sink, Stream } from "effect";
 import { SandboxError } from "./error.ts";
 import type { OpenFlag, SizeInput } from "effect/FileSystem";
-import type { Process } from "./process.ts";
-import type { Network } from "./network.ts";
+import type { Client, FileStat } from "webdav-client";
 
 /** Metadata that can be represented by WebDAV properties. */
 export interface ResourceInfo {
@@ -20,16 +19,8 @@ export class FileSystem extends Context.Service<
   {
     /**
      * Checks whether a file can be accessed.
-     * You can optionally specify the level of access to check for.
      */
-    readonly access: (
-      path: string,
-      options?: {
-        readonly ok?: boolean;
-        readonly readable?: boolean;
-        readonly writable?: boolean;
-      },
-    ) => Effect.Effect<void, SandboxError>;
+    readonly access: (path: string) => Effect.Effect<void, SandboxError>;
 
     /**
      * Copy a file or directory from `fromPath` to `toPath`.
@@ -260,4 +251,78 @@ export class FileSystem extends Context.Service<
   }
 >()("@open-insight/agent/fs/FileSystem") {}
 
-export declare const layerWebDAV: Layer.Layer<FileSystem, SandboxError, Process | Network>;
+/** An initialized WebDAV client whose `Auth`/`Transport` requirements are already satisfied. */
+export type WebDAVClient = {
+  readonly [K in keyof Client]: Client[K] extends (
+    ...args: infer Args
+  ) => Effect.Effect<infer A, infer E, infer _R>
+    ? (...args: Args) => Effect.Effect<A, E>
+    : never;
+};
+
+export type WebDAVOptions = Readonly<{
+  /** A fully-initialized WebDAV client. */
+  readonly client: WebDAVClient;
+}>;
+
+const notImplemented = (name: string) =>
+  Effect.die(new Error(`FileSystem.${name} is not implemented`));
+
+const parseHttpDate = (value: string): Date | undefined => {
+  if (value === "") return undefined;
+  const time = Date.parse(value);
+  return Number.isNaN(time) ? undefined : new Date(time);
+};
+
+const toResourceInfo = (info: FileStat): ResourceInfo => {
+  const lastModified = parseHttpDate(info.lastmod);
+  return {
+    type: info.type === "directory" ? "Directory" : "File",
+    ...(info.type === "file" ? { size: BigInt(info.size) } : {}),
+    ...(info.etag === null ? {} : { etag: info.etag }),
+    ...(info.mime === undefined ? {} : { contentType: info.mime }),
+    ...(lastModified === undefined ? {} : { lastModified }),
+  };
+};
+
+export const layerWebDAV = (options: WebDAVOptions): Layer.Layer<FileSystem, SandboxError> =>
+  Layer.succeed(
+    FileSystem,
+    FileSystem.of({
+      access: (path) =>
+        options.client
+          .stat(path)
+          .pipe(Effect.mapError(SandboxError.fileSystem("access", path)), Effect.asVoid),
+
+      exists: (path) =>
+        options.client.exists(path).pipe(Effect.mapError(SandboxError.fileSystem("exists", path))),
+
+      stat: (path) =>
+        options.client
+          .stat(path)
+          .pipe(Effect.mapError(SandboxError.fileSystem("stat", path)), Effect.map(toResourceInfo)),
+
+      // TODO: implemented in subsequent batches.
+      copy: (_fromPath, _toPath) => notImplemented("copy"),
+      copyFile: (_fromPath, _toPath) => notImplemented("copyFile"),
+      glob: (_pattern) => notImplemented("glob"),
+      makeDirectory: (_path) => notImplemented("makeDirectory"),
+      makeTempDirectory: () => notImplemented("makeTempDirectory"),
+      makeTempDirectoryScoped: () => notImplemented("makeTempDirectoryScoped"),
+      makeTempFile: () => notImplemented("makeTempFile"),
+      makeTempFileScoped: () => notImplemented("makeTempFileScoped"),
+      readDirectory: (_path) => notImplemented("readDirectory"),
+      readFile: (_path) => notImplemented("readFile"),
+      readFileString: (_path) => notImplemented("readFileString"),
+      remove: (_path) => notImplemented("remove"),
+      rename: (_oldPath, _newPath) => notImplemented("rename"),
+      sink: (_path, _options) => Sink.unwrap(notImplemented("sink")),
+      stream: (_path, _options) => Stream.unwrap(notImplemented("stream")),
+      truncate: (_path) => notImplemented("truncate"),
+      upload: (_path, _data) => notImplemented("upload"),
+      uploadStream: <E, R>(_path: string, _stream: Stream.Stream<Uint8Array, E, R>) =>
+        notImplemented("uploadStream"),
+      writeFile: (_path, _data) => notImplemented("writeFile"),
+      writeFileString: (_path, _data) => notImplemented("writeFileString"),
+    }),
+  );
