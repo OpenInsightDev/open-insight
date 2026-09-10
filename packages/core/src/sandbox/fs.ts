@@ -1,7 +1,7 @@
-import { Context, Effect, Layer, Scope, Sink, Stream } from "effect";
+import { Context, Effect, Layer, Option, Schema, Sink, Stream, type Types } from "effect";
+import picomatch from "picomatch";
 import { SandboxError } from "./error.ts";
-import type { OpenFlag, SizeInput } from "effect/FileSystem";
-import type { Client, FileStat } from "webdav-client";
+import * as WebDAV from "webdav-client";
 
 /** Metadata that can be represented by WebDAV properties. */
 export interface ResourceInfo {
@@ -18,7 +18,12 @@ export class FileSystem extends Context.Service<
   FileSystem,
   {
     /**
-     * Checks whether a file can be accessed.
+     * Checks whether a path can be accessed.
+     *
+     * **Details**
+     *
+     * WebDAV only reports whether the resource is visible to the authenticated
+     * user; POSIX read/write/execute bits cannot be queried.
      */
     readonly access: (path: string) => Effect.Effect<void, SandboxError>;
 
@@ -37,6 +42,10 @@ export class FileSystem extends Context.Service<
 
     /**
      * Copy a file from `fromPath` to `toPath`.
+     *
+     * **Details**
+     *
+     * Members of a directory are not copied.
      */
     readonly copyFile: (
       fromPath: string,
@@ -46,6 +55,12 @@ export class FileSystem extends Context.Service<
 
     /**
      * Glob a directory.
+     *
+     * **Details**
+     *
+     * WebDAV has no server-side glob, so the tree below `root` (the WebDAV root
+     * by default) is listed and matched locally. The returned paths, and the
+     * paths `pattern` and `exclude` are matched against, are relative to `root`.
      */
     readonly glob: (
       pattern: string,
@@ -62,6 +77,12 @@ export class FileSystem extends Context.Service<
 
     /**
      * Create a directory at `path`. You can optionally specify whether to recursively create nested directories.
+     *
+     * **Details**
+     *
+     * `MKCOL` never creates intermediate collections, so `recursive` sends one
+     * request per path segment. Creating a directory that already exists is not
+     * an error.
      */
     readonly makeDirectory: (
       path: string,
@@ -69,66 +90,14 @@ export class FileSystem extends Context.Service<
     ) => Effect.Effect<void, SandboxError>;
 
     /**
-     * Create a temporary directory.
-     *
-     * **Details**
-     *
-     * By default the directory will be created inside the system's default
-     * temporary directory, but you can specify a different location by setting
-     * the `directory` option.
-     *
-     * You can also specify a prefix for the directory name by setting the
-     * `prefix` option.
-     */
-    readonly makeTempDirectory: (options?: {
-      readonly directory?: string | undefined;
-      readonly prefix?: string | undefined;
-    }) => Effect.Effect<string, SandboxError>;
-
-    /**
-     * Create a temporary directory inside a scope.
-     *
-     * **Details**
-     *
-     * Functionally equivalent to `makeTempDirectory`, but the directory will be
-     * automatically deleted when the scope is closed.
-     */
-    readonly makeTempDirectoryScoped: (options?: {
-      readonly directory?: string | undefined;
-      readonly prefix?: string | undefined;
-    }) => Effect.Effect<string, SandboxError, Scope.Scope>;
-
-    /**
-     * Create a temporary file.
-     * The directory creation is functionally equivalent to `makeTempDirectory`.
-     * The file name will be a randomly generated string.
-     */
-    readonly makeTempFile: (options?: {
-      readonly directory?: string | undefined;
-      readonly prefix?: string | undefined;
-      readonly suffix?: string | undefined;
-    }) => Effect.Effect<string, SandboxError>;
-    /**
-     * Create a temporary file inside a scope.
-     *
-     * **Details**
-     *
-     * Functionally equivalent to `makeTempFile`, but the file will be
-     * automatically deleted when the scope is closed.
-     */
-    readonly makeTempFileScoped: (options?: {
-      readonly directory?: string | undefined;
-      readonly prefix?: string | undefined;
-      readonly suffix?: string | undefined;
-    }) => Effect.Effect<string, SandboxError, Scope.Scope>;
-
-    /**
      * List the contents of a directory.
      *
      * **Details**
      *
-     * You can recursively list the contents of nested directories by setting the
-     * `recursive` option.
+     * Returns entry names relative to `path`. You can recursively list the
+     * contents of nested directories by setting the `recursive` option, which
+     * walks the tree with one request per directory because servers are only
+     * required to support `Depth: 0` and `Depth: 1`.
      */
     readonly readDirectory: (
       path: string,
@@ -141,7 +110,8 @@ export class FileSystem extends Context.Service<
     readonly readFile: (path: string) => Effect.Effect<Uint8Array, SandboxError>;
 
     /**
-     * Read the contents of a file.
+     * Read the contents of a file and decode it with `encoding`, which defaults
+     * to `utf-8`.
      */
     readonly readFileString: (
       path: string,
@@ -150,11 +120,13 @@ export class FileSystem extends Context.Service<
 
     /**
      * Remove a file or directory.
+     *
+     * **Details**
+     *
+     * Equivalent to `rm -rf`: `DELETE` always removes a directory together with
+     * its members, and removing a path that does not exist succeeds.
      */
-    readonly remove: (
-      path: string,
-      options?: { readonly recursive?: boolean; readonly force?: boolean },
-    ) => Effect.Effect<void, SandboxError>;
+    readonly remove: (path: string) => Effect.Effect<void, SandboxError>;
 
     /**
      * Rename a file or directory.
@@ -167,14 +139,13 @@ export class FileSystem extends Context.Service<
 
     /**
      * Create a writable `Sink` for the specified `path`.
+     *
+     * **Details**
+     *
+     * WebDAV can only replace a resource as a whole, so the sink buffers the
+     * incoming chunks and writes them with a single `PUT` once the stream ends.
      */
-    readonly sink: (
-      path: string,
-      options?: {
-        readonly flag?: OpenFlag | undefined;
-        readonly mode?: number | undefined;
-      },
-    ) => Sink.Sink<void, Uint8Array, never, SandboxError>;
+    readonly sink: (path: string) => Sink.Sink<void, Uint8Array, never, SandboxError>;
 
     /**
      * Get information about a file at `path`.
@@ -186,53 +157,24 @@ export class FileSystem extends Context.Service<
      *
      * **Details**
      *
-     * Changing the `bufferSize` option will change the internal buffer size of
-     * the stream. It defaults to `4`.
-     *
-     * The `chunkSize` option will change the size of the chunks emitted by the
-     * stream. It defaults to 64kb.
-     *
-     * Changing `offset` and `bytesToRead` will change the offset and the number
-     * of bytes to read from the file.
+     * `offset` and `bytesToRead` are requested with an HTTP `Range` header, so
+     * the server has to support ranged reads. The size of the emitted chunks is
+     * decided by the transport.
      */
     readonly stream: (
       path: string,
       options?: {
         readonly bytesToRead?: bigint;
-        readonly chunkSize?: bigint;
         readonly offset?: bigint;
       },
     ) => Stream.Stream<Uint8Array, SandboxError>;
 
     /**
-     * Truncate a file to a specified length. If the `length` is not specified,
-     * the file will be truncated to length `0`.
-     */
-    readonly truncate: (path: string, length?: SizeInput) => Effect.Effect<void, SandboxError>;
-
-    /**
-     * Upload a host file directly to `path`.
-     *
-     * The implementation may use the provider's native file transfer mechanism.
-     *
-     * Returns the number of bytes uploaded.
-     */
-    readonly upload: (path: string, data: Uint8Array) => Effect.Effect<number, SandboxError>;
-
-    /**
-     * Upload a host file to `path` using a stream.
-     *
-     * Streaming avoids loading the complete host file into memory at once.
-     *
-     * Returns the number of bytes uploaded.
-     */
-    readonly uploadStream: <E, R>(
-      path: string,
-      stream: Stream.Stream<Uint8Array, E, R>,
-    ) => Effect.Effect<number, SandboxError | E, R>;
-
-    /**
      * Write data to a file at `path`.
+     *
+     * **Details**
+     *
+     * Fails when `overwrite` is `false` and the file already exists.
      */
     readonly writeFile: (
       path: string,
@@ -241,88 +183,235 @@ export class FileSystem extends Context.Service<
     ) => Effect.Effect<void, SandboxError>;
 
     /**
-     * Write a string to a file at `path`.
+     * Write a string to a file at `path`, encoded as UTF-8.
      */
     readonly writeFileString: (
       path: string,
       data: string,
-      options?: { readonly overwrite?: boolean; readonly encoding?: string },
+      options?: { readonly overwrite?: boolean },
     ) => Effect.Effect<void, SandboxError>;
   }
 >()("@open-insight/agent/fs/FileSystem") {}
 
-/** An initialized WebDAV client whose `Auth`/`Transport` requirements are already satisfied. */
-export type WebDAVClient = {
-  readonly [K in keyof Client]: Client[K] extends (
-    ...args: infer Args
-  ) => Effect.Effect<infer A, infer E, infer _R>
-    ? (...args: Args) => Effect.Effect<A, E>
-    : never;
-};
-
 export type WebDAVOptions = Readonly<{
-  /** A fully-initialized WebDAV client. */
-  readonly client: WebDAVClient;
+  /**
+   * A WebDAV client. Its `Auth` and `Transport` services are taken from the
+   * context the layer is built in.
+   */
+  readonly client: WebDAV.Client;
 }>;
 
-const notImplemented = (name: string) =>
-  Effect.die(new Error(`FileSystem.${name} is not implemented`));
+/** Decode a WebDAV date property; servers omit or malform them freely. */
+const decodeDate = Schema.decodeUnknownOption(Schema.DateFromString);
 
-const parseHttpDate = (value: string): Date | undefined => {
-  if (value === "") return undefined;
-  const time = Date.parse(value);
-  return Number.isNaN(time) ? undefined : new Date(time);
-};
-
-const toResourceInfo = (info: FileStat): ResourceInfo => {
-  const lastModified = parseHttpDate(info.lastmod);
-  return {
+const toResourceInfo = (info: WebDAV.FileStat): ResourceInfo => {
+  const resource: Types.Mutable<ResourceInfo> = {
     type: info.type === "directory" ? "Directory" : "File",
-    ...(info.type === "file" ? { size: BigInt(info.size) } : {}),
-    ...(info.etag === null ? {} : { etag: info.etag }),
-    ...(info.mime === undefined ? {} : { contentType: info.mime }),
-    ...(lastModified === undefined ? {} : { lastModified }),
   };
+  if (info.type === "file") {
+    resource.size = BigInt(info.size);
+  }
+  if (info.etag !== null) {
+    resource.etag = info.etag;
+  }
+  if (info.mime !== undefined) {
+    resource.contentType = info.mime;
+  }
+  const lastModified = decodeDate(info.lastmod);
+  if (Option.isSome(lastModified)) {
+    resource.lastModified = lastModified.value;
+  }
+  const creationDate = decodeDate(info.props?.creationdate);
+  if (Option.isSome(creationDate)) {
+    resource.creationDate = creationDate.value;
+  }
+  return resource;
 };
 
-export const layerWebDAV = (options: WebDAVOptions): Layer.Layer<FileSystem, SandboxError> =>
-  Layer.succeed(
+/** A directory path with exactly one leading and one trailing slash. */
+const directoryPrefix = (path: string): string => {
+  const trimmed = path.replace(/^\/+|\/+$/g, "");
+  return trimmed === "" ? "/" : `/${trimmed}/`;
+};
+
+const childPath = (path: string, name: string): string => `${directoryPrefix(path)}${name}`;
+
+const concatChunks = (chunks: ReadonlyArray<Uint8Array>): Uint8Array => {
+  const data = new Uint8Array(chunks.reduce((size, chunk) => size + chunk.byteLength, 0));
+  let offset = 0;
+  for (const chunk of chunks) {
+    data.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return data;
+};
+
+/**
+ * Translate an offset and a length into the inclusive byte range of a `Range`
+ * header, or `undefined` when the whole resource is requested.
+ */
+const toRange = (options?: {
+  readonly bytesToRead?: bigint;
+  readonly offset?: bigint;
+}): WebDAV.Range | undefined => {
+  if (options?.offset === undefined && options?.bytesToRead === undefined) return undefined;
+  const start = Number(options.offset ?? 0n);
+  if (options.bytesToRead === undefined) return { start };
+  return { start, end: start + Number(options.bytesToRead) - 1 };
+};
+
+const make = (
+  client: WebDAV.Client,
+  context: Context.Context<WebDAV.OperationRequirements>,
+): FileSystem["Service"] => {
+  /** Run a WebDAV request with the client's services and report failures as `SandboxError`. */
+  const request = <A>(
+    operation: string,
+    path: string,
+    effect: Effect.Effect<A, WebDAV.OperationError, WebDAV.OperationRequirements>,
+  ): Effect.Effect<A, SandboxError> =>
+    effect.pipe(
+      Effect.provideContext(context),
+      Effect.mapError(SandboxError.fileSystem(operation, path)),
+    );
+
+  /** `PUT` the whole resource, failing when the server refused to replace it. */
+  const put = (
+    operation: string,
+    path: string,
+    data: WebDAV.UploadData,
+    options?: { readonly overwrite?: boolean },
+  ): Effect.Effect<void, SandboxError> =>
+    request(operation, path, client.putFileContents(path, data, { ...options })).pipe(
+      Effect.flatMap((written) =>
+        written
+          ? Effect.void
+          : Effect.fail(
+              SandboxError.fileSystem(operation, path)(new Error(`"${path}" already exists`)),
+            ),
+      ),
+    );
+
+  const entries = (
+    operation: string,
+    path: string,
+  ): Effect.Effect<ReadonlyArray<WebDAV.FileStat>, SandboxError> =>
+    request(operation, path, client.getDirectoryContents(path));
+
+  /** List the tree below `path`, returning directory and file names relative to it. */
+  const walk = (operation: string, path: string): Effect.Effect<Array<string>, SandboxError> =>
+    entries(operation, path).pipe(
+      Effect.flatMap((items) =>
+        Effect.forEach(items, (item) =>
+          item.type === "file"
+            ? Effect.succeed([item.basename])
+            : walk(operation, childPath(path, item.basename)).pipe(
+                Effect.map((nested) => [
+                  item.basename,
+                  ...nested.map((name) => `${item.basename}/${name}`),
+                ]),
+              ),
+        ),
+      ),
+      Effect.map((names) => names.flat()),
+    );
+
+  const readStream = (
+    operation: string,
+    path: string,
+    options?: { readonly bytesToRead?: bigint; readonly offset?: bigint },
+  ): Stream.Stream<Uint8Array, SandboxError> => {
+    const range = toRange(options);
+    return request(
+      operation,
+      path,
+      client.createReadStream(path, range === undefined ? {} : { range }),
+    ).pipe(Effect.map(Stream.mapError(SandboxError.fileSystem(operation, path))), Stream.unwrap);
+  };
+
+  const readBytes = (operation: string, path: string): Effect.Effect<Uint8Array, SandboxError> =>
+    Stream.runCollect(readStream(operation, path)).pipe(Effect.map(concatChunks));
+
+  return FileSystem.of({
+    access: (path) => request("access", path, client.stat(path)).pipe(Effect.asVoid),
+
+    copy: (fromPath, toPath, options) =>
+      request("copy", fromPath, client.copyFile(fromPath, toPath, { ...options, shallow: false })),
+
+    copyFile: (fromPath, toPath, options) =>
+      request(
+        "copyFile",
+        fromPath,
+        client.copyFile(fromPath, toPath, { ...options, shallow: true }),
+      ),
+
+    glob: (pattern, options) => {
+      const included = picomatch(pattern);
+      const excluded =
+        options?.exclude === undefined ? () => false : picomatch([...options.exclude]);
+      return walk("glob", options?.root ?? "/").pipe(
+        Effect.map((paths) => paths.filter((path) => included(path) && !excluded(path))),
+      );
+    },
+
+    exists: (path) => request("exists", path, client.exists(path)),
+
+    makeDirectory: (path, options) =>
+      request("makeDirectory", path, client.createDirectory(path, { ...options })),
+
+    readDirectory: (path, options) =>
+      options?.recursive === true
+        ? walk("readDirectory", path)
+        : entries("readDirectory", path).pipe(
+            Effect.map((items) => items.map((item) => item.basename)),
+          ),
+
+    readFile: (path) => readBytes("readFile", path),
+
+    readFileString: (path, encoding = "utf-8") =>
+      readBytes("readFileString", path).pipe(
+        Effect.flatMap((data) =>
+          Effect.try({
+            try: () => new TextDecoder(encoding).decode(data),
+            catch: SandboxError.fileSystem("readFileString", path),
+          }),
+        ),
+      ),
+
+    remove: (path) => request("remove", path, client.deleteFile(path)),
+
+    rename: (oldPath, newPath, options) =>
+      request("rename", oldPath, client.moveFile(oldPath, newPath, { ...options })),
+
+    sink: (path) =>
+      Sink.collect<Uint8Array>().pipe(
+        Sink.mapEffect((chunks) => put("sink", path, concatChunks(chunks))),
+      ),
+
+    stat: (path) => request("stat", path, client.stat(path)).pipe(Effect.map(toResourceInfo)),
+
+    stream: (path, options) => readStream("stream", path, options),
+
+    writeFile: (path, data, options) => put("writeFile", path, data, options),
+
+    writeFileString: (path, data, options) =>
+      put("writeFileString", path, new TextEncoder().encode(data), options),
+  });
+};
+
+/**
+ * A `FileSystem` backed by a WebDAV server.
+ *
+ * The client's `Auth` and `Transport` services are captured when the layer is
+ * built, so they have to be provided alongside it, for example with
+ * `WebDAV.ClientLayer`.
+ */
+export const layerWebDAV = (
+  options: WebDAVOptions,
+): Layer.Layer<FileSystem, never, WebDAV.OperationRequirements> =>
+  Layer.effect(
     FileSystem,
-    FileSystem.of({
-      access: (path) =>
-        options.client
-          .stat(path)
-          .pipe(Effect.mapError(SandboxError.fileSystem("access", path)), Effect.asVoid),
-
-      exists: (path) =>
-        options.client.exists(path).pipe(Effect.mapError(SandboxError.fileSystem("exists", path))),
-
-      stat: (path) =>
-        options.client
-          .stat(path)
-          .pipe(Effect.mapError(SandboxError.fileSystem("stat", path)), Effect.map(toResourceInfo)),
-
-      // TODO: implemented in subsequent batches.
-      copy: (_fromPath, _toPath) => notImplemented("copy"),
-      copyFile: (_fromPath, _toPath) => notImplemented("copyFile"),
-      glob: (_pattern) => notImplemented("glob"),
-      makeDirectory: (_path) => notImplemented("makeDirectory"),
-      makeTempDirectory: () => notImplemented("makeTempDirectory"),
-      makeTempDirectoryScoped: () => notImplemented("makeTempDirectoryScoped"),
-      makeTempFile: () => notImplemented("makeTempFile"),
-      makeTempFileScoped: () => notImplemented("makeTempFileScoped"),
-      readDirectory: (_path) => notImplemented("readDirectory"),
-      readFile: (_path) => notImplemented("readFile"),
-      readFileString: (_path) => notImplemented("readFileString"),
-      remove: (_path) => notImplemented("remove"),
-      rename: (_oldPath, _newPath) => notImplemented("rename"),
-      sink: (_path, _options) => Sink.unwrap(notImplemented("sink")),
-      stream: (_path, _options) => Stream.unwrap(notImplemented("stream")),
-      truncate: (_path) => notImplemented("truncate"),
-      upload: (_path, _data) => notImplemented("upload"),
-      uploadStream: <E, R>(_path: string, _stream: Stream.Stream<Uint8Array, E, R>) =>
-        notImplemented("uploadStream"),
-      writeFile: (_path, _data) => notImplemented("writeFile"),
-      writeFileString: (_path, _data) => notImplemented("writeFileString"),
-    }),
+    Effect.map(Effect.context<WebDAV.OperationRequirements>(), (context) =>
+      make(options.client, context),
+    ),
   );
