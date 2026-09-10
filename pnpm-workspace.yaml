@@ -109,6 +109,45 @@ catalog:
 overrides:
   vite: "catalog:"
   vitest: "catalog:"
+  # Force every Effect package (and `effect`) to resolve to the local
+  # `packages/effect` monorepo instead of the published registry versions.
+  effect: workspace:*
+  "@effect/ai-anthropic": workspace:*
+  "@effect/ai-codegen": workspace:*
+  "@effect/ai-docgen": workspace:*
+  "@effect/ai-openai": workspace:*
+  "@effect/ai-openai-compat": workspace:*
+  "@effect/ai-openrouter": workspace:*
+  "@effect/api-diff": workspace:*
+  "@effect/atom-react": workspace:*
+  "@effect/atom-solid": workspace:*
+  "@effect/atom-vue": workspace:*
+  "@effect/bundle": workspace:*
+  "@effect/docgen": workspace:*
+  "@effect/doctest": workspace:*
+  "@effect/jsdocs": workspace:*
+  "@effect/openapi-generator": workspace:*
+  "@effect/opentelemetry": workspace:*
+  "@effect/oxc": workspace:*
+  "@effect/platform-browser": workspace:*
+  "@effect/platform-bun": workspace:*
+  "@effect/platform-deno": workspace:*
+  "@effect/platform-node": workspace:*
+  "@effect/platform-node-shared": workspace:*
+  "@effect/sql-clickhouse": workspace:*
+  "@effect/sql-d1": workspace:*
+  "@effect/sql-libsql": workspace:*
+  "@effect/sql-mssql": workspace:*
+  "@effect/sql-mysql2": workspace:*
+  "@effect/sql-pg": workspace:*
+  "@effect/sql-pglite": workspace:*
+  "@effect/sql-sqlite-bun": workspace:*
+  "@effect/sql-sqlite-do": workspace:*
+  "@effect/sql-sqlite-node": workspace:*
+  "@effect/sql-sqlite-react-native": workspace:*
+  "@effect/sql-sqlite-wasm": workspace:*
+  "@effect/utils": workspace:*
+  "@effect/vitest": workspace:*
 peerDependencyRules:
   allowAny:
     - vite
@@ -123,6 +162,7 @@ allowBuilds:
   cpu-features: true
   dprint: true
   esbuild: true
+  husky: set this to true or false
   msgpackr-extract: true
   node-liblzma: true
   protobufjs: true
