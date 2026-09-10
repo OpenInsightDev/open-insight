@@ -1,8 +1,6 @@
 packages:
   - apps/*
   - packages/*
-  - packages/effect/packages/*
-  - packages/effect/packages/**/*
   - tools/**
 
 catalogMode: strict
@@ -15,17 +13,17 @@ registries:
 
 catalog:
   "@types/node": ^26.1.1
-  effect: 4.0.0-rc.110
+  effect: 4.0.0-rc.113
   "@effect/language-service": ^0.87.2
   "@effect/tsgo": 0.36.5
   typescript: ^7.0.2
   vite: npm:@voidzero-dev/vite-plus-core@^0.2.6
   vitest: 4.1.10
   vite-plus: ^0.2.9
-  "@effect/platform-node": 4.0.0-rc.110
-  "@effect/vitest": 4.0.0-rc.110
-  "@effect/ai-openai": 4.0.0-rc.110
-  "@effect/opentelemetry": 4.0.0-rc.110
+  "@effect/platform-node": 4.0.0-rc.113
+  "@effect/vitest": 4.0.0-rc.113
+  "@effect/ai-openai": 4.0.0-rc.113
+  "@effect/opentelemetry": 4.0.0-rc.113
   ai: ^7.0.37
   "@changesets/cli": ^3.0.0
   pathe: ^2.0.3
@@ -59,8 +57,8 @@ catalog:
   "@opentelemetry/api-logs": ^0.221.0
   "@opentelemetry/sdk-logs": ^0.221.0
   "@opentelemetry/sdk-trace-web": ^2.10.0
-  "@effect/ai-openai-compat": 4.0.0-beta.101
-  "@effect/ai-anthropic": 4.0.0-rc.110
+  "@effect/ai-openai-compat": 4.0.0-rc.113
+  "@effect/ai-anthropic": 4.0.0-rc.113
   "@babel/core": ^8.0.1
   "@rolldown/plugin-babel": ^0.2.3
   "@types/babel__core": ^7.20.5
@@ -95,12 +93,12 @@ catalog:
   computesdk: ^4.1.4
   "@computesdk/e2b": ^1.7.52
   "@computesdk/provider": ^2.1.4
-  "@effect/sql-sqlite-node": 4.0.0-rc.110
+  "@effect/sql-sqlite-node": 4.0.0-rc.113
   ajv: ^8.20.0
   ripgrep: ^0.3.1
   cloudflare: ^7.0.0
   chdb: ^3.3.0
-  "@effect/sql-clickhouse": 4.0.0-rc.112
+  "@effect/sql-clickhouse": 4.0.0-rc.113
   "@json-render/core": ^0.20.0
   "@json-render/shadcn": ^0.20.0
   ssh2: ^1.17.0
@@ -109,45 +107,6 @@ catalog:
 overrides:
   vite: "catalog:"
   vitest: "catalog:"
-  # Force every Effect package (and `effect`) to resolve to the local
-  # `packages/effect` monorepo instead of the published registry versions.
-  effect: workspace:*
-  "@effect/ai-anthropic": workspace:*
-  "@effect/ai-codegen": workspace:*
-  "@effect/ai-docgen": workspace:*
-  "@effect/ai-openai": workspace:*
-  "@effect/ai-openai-compat": workspace:*
-  "@effect/ai-openrouter": workspace:*
-  "@effect/api-diff": workspace:*
-  "@effect/atom-react": workspace:*
-  "@effect/atom-solid": workspace:*
-  "@effect/atom-vue": workspace:*
-  "@effect/bundle": workspace:*
-  "@effect/docgen": workspace:*
-  "@effect/doctest": workspace:*
-  "@effect/jsdocs": workspace:*
-  "@effect/openapi-generator": workspace:*
-  "@effect/opentelemetry": workspace:*
-  "@effect/oxc": workspace:*
-  "@effect/platform-browser": workspace:*
-  "@effect/platform-bun": workspace:*
-  "@effect/platform-deno": workspace:*
-  "@effect/platform-node": workspace:*
-  "@effect/platform-node-shared": workspace:*
-  "@effect/sql-clickhouse": workspace:*
-  "@effect/sql-d1": workspace:*
-  "@effect/sql-libsql": workspace:*
-  "@effect/sql-mssql": workspace:*
-  "@effect/sql-mysql2": workspace:*
-  "@effect/sql-pg": workspace:*
-  "@effect/sql-pglite": workspace:*
-  "@effect/sql-sqlite-bun": workspace:*
-  "@effect/sql-sqlite-do": workspace:*
-  "@effect/sql-sqlite-node": workspace:*
-  "@effect/sql-sqlite-react-native": workspace:*
-  "@effect/sql-sqlite-wasm": workspace:*
-  "@effect/utils": workspace:*
-  "@effect/vitest": workspace:*
 peerDependencyRules:
   allowAny:
     - vite
@@ -162,7 +121,7 @@ allowBuilds:
   cpu-features: true
   dprint: true
   esbuild: true
-  husky: set this to true or false
+  husky: true
   msgpackr-extract: true
   node-liblzma: true
   protobufjs: true
@@ -172,24 +131,34 @@ allowBuilds:
   tree-sitter-typescript: true
   workerd: true
 minimumReleaseAgeExclude:
-  - "@typescript/typescript-aix-ppc64@7.0.2"
-  - "@typescript/typescript-darwin-arm64@7.0.2"
-  - "@typescript/typescript-darwin-x64@7.0.2"
-  - "@typescript/typescript-freebsd-arm64@7.0.2"
-  - "@typescript/typescript-freebsd-x64@7.0.2"
-  - "@typescript/typescript-linux-arm64@7.0.2"
-  - "@typescript/typescript-linux-arm@7.0.2"
-  - "@typescript/typescript-linux-loong64@7.0.2"
-  - "@typescript/typescript-linux-mips64el@7.0.2"
-  - "@typescript/typescript-linux-ppc64@7.0.2"
-  - "@typescript/typescript-linux-riscv64@7.0.2"
-  - "@typescript/typescript-linux-s390x@7.0.2"
-  - "@typescript/typescript-linux-x64@7.0.2"
-  - "@typescript/typescript-netbsd-arm64@7.0.2"
-  - "@typescript/typescript-netbsd-x64@7.0.2"
-  - "@typescript/typescript-openbsd-arm64@7.0.2"
-  - "@typescript/typescript-openbsd-x64@7.0.2"
-  - "@typescript/typescript-sunos-x64@7.0.2"
-  - "@typescript/typescript-win32-arm64@7.0.2"
-  - "@typescript/typescript-win32-x64@7.0.2"
+  - '@typescript/typescript-aix-ppc64@7.0.2'
+  - '@typescript/typescript-darwin-arm64@7.0.2'
+  - '@typescript/typescript-darwin-x64@7.0.2'
+  - '@typescript/typescript-freebsd-arm64@7.0.2'
+  - '@typescript/typescript-freebsd-x64@7.0.2'
+  - '@typescript/typescript-linux-arm64@7.0.2'
+  - '@typescript/typescript-linux-arm@7.0.2'
+  - '@typescript/typescript-linux-loong64@7.0.2'
+  - '@typescript/typescript-linux-mips64el@7.0.2'
+  - '@typescript/typescript-linux-ppc64@7.0.2'
+  - '@typescript/typescript-linux-riscv64@7.0.2'
+  - '@typescript/typescript-linux-s390x@7.0.2'
+  - '@typescript/typescript-linux-x64@7.0.2'
+  - '@typescript/typescript-netbsd-arm64@7.0.2'
+  - '@typescript/typescript-netbsd-x64@7.0.2'
+  - '@typescript/typescript-openbsd-arm64@7.0.2'
+  - '@typescript/typescript-openbsd-x64@7.0.2'
+  - '@typescript/typescript-sunos-x64@7.0.2'
+  - '@typescript/typescript-win32-arm64@7.0.2'
+  - '@typescript/typescript-win32-x64@7.0.2'
   - typescript@7.0.2
+  - '@effect/ai-anthropic@4.0.0-rc.113'
+  - '@effect/ai-openai-compat@4.0.0-rc.113'
+  - '@effect/ai-openai@4.0.0-rc.113'
+  - '@effect/opentelemetry@4.0.0-rc.113'
+  - '@effect/platform-node-shared@4.0.0-rc.113'
+  - '@effect/platform-node@4.0.0-rc.113'
+  - '@effect/sql-clickhouse@4.0.0-rc.113'
+  - '@effect/sql-sqlite-node@4.0.0-rc.113'
+  - '@effect/vitest@4.0.0-rc.113'
+  - effect@4.0.0-rc.113

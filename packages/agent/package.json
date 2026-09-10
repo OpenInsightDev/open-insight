@@ -65,6 +65,6 @@
     "zod": "catalog:"
   },
   "peerDependencies": {
-    "effect": "workspace:*"
+    "effect": "catalog:"
   }
 }

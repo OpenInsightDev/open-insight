@@ -38,7 +38,7 @@
     "prepublishOnly": "vp run build"
   },
   "dependencies": {
-    "effect": "workspace:*"
+    "effect": "catalog:"
   },
   "devDependencies": {
     "@types/node": "catalog:",

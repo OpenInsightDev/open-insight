@@ -83,6 +83,6 @@
   },
   "peerDependencies": {
     "@effect/platform-node": "catalog:",
-    "effect": "workspace:*"
+    "effect": "catalog:"
   }
 }

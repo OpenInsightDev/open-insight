@@ -35,7 +35,7 @@
   },
   "dependencies": {
     "@daytona/sdk": "catalog:",
-    "effect": "workspace:*"
+    "effect": "catalog:"
   },
   "devDependencies": {
     "@types/node": "catalog:",
