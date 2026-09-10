@@ -45,8 +45,8 @@ export class Metric<ID extends string, S extends Schema.Constraint> extends Data
   metadata: Metadata;
 
   transform: (
-    sessions: Stream.Stream<Trajectory.Trajectory, MetricError>,
-  ) => Stream.Stream<Result<ID, S>, MetricError, Sandbox.Current>;
+    sessions: Stream.Stream<Trajectory.Any, MetricError>,
+  ) => Stream.Stream<Result<ID, S>, MetricError, Sandbox.Sandbox>;
 }> {}
 export type Any = Metric<any, any>;
 export type ResultOf<M extends Any> = Result<M["id"], M["schema"]>;
@@ -70,12 +70,12 @@ export const make = <Metrics extends ReadonlyArray<Any>>(
 export type ResultStream<Metrics extends Record<string, Any>> = Stream.Stream<
   ResultOf<Metrics[keyof Metrics]>,
   MetricError,
-  Sandbox.Current
+  Sandbox.Sandbox
 >;
 
 export const run = Effect.fn("Metric.run")(function* <Metrics extends Record<string, Any>>(
   registry: Registry<Metrics>,
-  sessions: Stream.Stream<Trajectory.Trajectory, MetricError>,
+  sessions: Stream.Stream<Trajectory.Any, MetricError>,
 ): Effect.fn.Return<ResultStream<Metrics>, never, Scope.Scope> {
   const broadcast = yield* sessions.pipe(Stream.broadcast({ capacity: "unbounded" }));
   const streams = Object.values(registry.metrics).map((metric) => metric.transform(broadcast));

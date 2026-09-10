@@ -67,7 +67,8 @@
     "picomatch": "catalog:",
     "semver": "catalog:",
     "uuid": "catalog:",
-    "validator": "catalog:"
+    "validator": "catalog:",
+    "webdav-client": "workspace:*"
   },
   "devDependencies": {
     "@effect/vitest": "catalog:",

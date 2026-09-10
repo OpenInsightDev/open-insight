@@ -4,3 +4,6 @@
 [submodule "tools/oxlint/anti-slop"]
 	path = tools/oxlint/anti-slop
 	url = https://github.com/dmmulroy/anti-slop.git
+[submodule "tools/webdav-client"]
+	path = tools/webdav-client
+	url = https://github.com/OpenInsightDev/webdav-client.git

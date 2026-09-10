@@ -220,6 +220,27 @@ export class FileSystem extends Context.Service<
     readonly truncate: (path: string, length?: SizeInput) => Effect.Effect<void, SandboxError>;
 
     /**
+     * Upload a host file directly to `path`.
+     *
+     * The implementation may use the provider's native file transfer mechanism.
+     *
+     * Returns the number of bytes uploaded.
+     */
+    readonly upload: (path: string, data: Uint8Array) => Effect.Effect<number, SandboxError>;
+
+    /**
+     * Upload a host file to `path` using a stream.
+     *
+     * Streaming avoids loading the complete host file into memory at once.
+     *
+     * Returns the number of bytes uploaded.
+     */
+    readonly uploadStream: <E, R>(
+      path: string,
+      stream: Stream.Stream<Uint8Array, E, R>,
+    ) => Effect.Effect<number, SandboxError | E, R>;
+
+    /**
      * Write data to a file at `path`.
      */
     readonly writeFile: (

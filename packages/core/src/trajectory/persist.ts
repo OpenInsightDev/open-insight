@@ -1,10 +1,10 @@
 import { Context, Effect, FileSystem, Layer, Schema, Stream } from "effect";
-import { Tool, Toolkit } from "effect/unstable/ai";
+import { Tool } from "effect/unstable/ai";
 import { decode, encode, type TrajectoryEncoded } from "./decode.ts";
 import { TrajectoryError } from "./error.ts";
 import { Metadata } from "./metadata.ts";
 import { toJsonSchema } from "./toolkit.ts";
-import type { Any, Trajectory } from "./trajectory.ts";
+import type { Trajectory } from "./trajectory.ts";
 
 export class Persist extends Context.Service<
   Persist,
@@ -13,10 +13,7 @@ export class Persist extends Context.Service<
       path: string,
       trajectory: Trajectory<Tools>,
     ) => Effect.Effect<void, TrajectoryError, Tool.ResultEncodingServices<Tools[keyof Tools]>>;
-    readonly load: (
-      path: string,
-      ...toolkits: ReadonlyArray<Toolkit.Any>
-    ) => Effect.Effect<Any, TrajectoryError>;
+    readonly load: (path: string) => Effect.Effect<Trajectory<{}>, TrajectoryError>;
   }
 >()("open-insight/TrajectoryPersist") {
   static readonly layer = Layer.effect(
@@ -46,7 +43,7 @@ export class Persist extends Context.Service<
           .pipe(Effect.mapError(TrajectoryError.storage));
       }) satisfies Persist["Service"]["save"];
 
-      const load = Effect.fn(function* (path: string, ...toolkits: ReadonlyArray<Toolkit.Any>) {
+      const load = Effect.fn(function* (path: string) {
         const content = yield* fs
           .readFileString(path.endsWith(".traj") ? path : `${path}.traj`)
           .pipe(Effect.mapError(TrajectoryError.storage));
@@ -68,7 +65,7 @@ export class Persist extends Context.Service<
             }),
           ),
         );
-        const trajectory = yield* decode(encoded, ...toolkits);
+        const trajectory = yield* decode(encoded);
         return Object.assign(trajectory, { metadata });
       }) satisfies Persist["Service"]["load"];
 

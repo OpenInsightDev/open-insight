@@ -5,6 +5,8 @@ Sandbox services use `SandboxError` as their typed error channel.
 ## Services
 
 - `Sandbox.FileSystem` wraps platform filesystem failures as `FileSystemOperationFailed` reasons.
+- `Sandbox.FileSystem.upload(hostPath, path)` directly transfers a host file to the sandbox path.
+- `Sandbox.FileSystem.uploadStream(hostPath, path)` transfers a host file to the sandbox path using streaming, avoiding loading the complete file into memory.
 - `Sandbox.Process` wraps child-process platform failures as `ProcessOperationFailed` reasons.
 - `Sandbox.Terminal` exposes terminal I/O with `SandboxError`; it reuses Effect's `UserInput` and `QuitError` models.
 
