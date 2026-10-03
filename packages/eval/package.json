@@ -1,0 +1,56 @@
+{
+  "name": "@open-insight/eval",
+  "version": "0.0.0",
+  "description": "undefined",
+  "homepage": "https://github.com/OpenInsightDev/open-insight",
+  "license": "MIT",
+  "author": "Bowei Wang <wozluohd@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/OpenInsightDev/open-insight.git"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "imports": {
+    "#/*": "./src/*"
+  },
+  "exports": {
+    ".": "./src/index.ts",
+    "./package.json": "./package.json",
+    "./*": "./src/*.ts",
+    "./internal/*": null,
+    "./*/index": null
+  },
+  "publishConfig": {
+    "exports": {
+      ".": "./dist/index.mjs",
+      "./package.json": "./package.json",
+      "./*": "./src/*.ts",
+      "./internal/*": null,
+      "./*/index": null
+    },
+    "access": "public"
+  },
+  "scripts": {
+    "build": "vp pack",
+    "dev": "vp pack --watch",
+    "test": "vp test",
+    "check": "vp check",
+    "prepublishOnly": "vp run build"
+  },
+  "dependencies": {
+    "@effect/opentelemetry": "catalog:",
+    "@open-insight/core": "workspace:*",
+    "chdb": "catalog:",
+    "effect": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.4",
+    "bumpp": "^12.3.0",
+    "typescript": "^7.0.2",
+    "vite": "catalog:",
+    "vite-plus": "catalog:"
+  }
+}

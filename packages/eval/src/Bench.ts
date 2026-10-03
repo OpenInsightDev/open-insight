@@ -1,0 +1,41 @@
+import * as Task from "#/Task.ts";
+import type { Types } from "@open-insight/core";
+import { Data, Schema } from "effect";
+
+export class Metadata extends Schema.Class<Metadata>("BenchMetadata")({
+  id: Schema.String,
+  name: Schema.OptionFromOptionalNullOr(Schema.String),
+  description: Schema.OptionFromOptionalNullOr(Schema.String),
+}) {}
+
+export type MetadataEncoded = Schema.Codec.Encoded<typeof Metadata>;
+
+export class Bench<ID extends string, Tasks extends Record<string, Task.Any>> extends Data.Class<{
+  id: ID;
+  metadata: Metadata;
+  tasks: Tasks;
+}> {}
+
+export type Any = Bench<any, any>;
+
+type Options = Omit<MetadataEncoded, "id">;
+
+export const fromArray = <ID extends string, Tasks extends ReadonlyArray<Task.Any>>(
+  id: ID,
+  tasks: Tasks,
+  options: Options,
+) => {
+  const metadata = Schema.decodeSync(Metadata)({ id, ...options });
+
+  return new Bench<ID, Types.IndexByKey<Tasks, "id">>({
+    id,
+    metadata,
+    tasks: Object.fromEntries(tasks.map((task) => [task.id, task])),
+  });
+};
+
+export const make = <ID extends string, Tasks extends ReadonlyArray<Task.Any>>(
+  id: ID,
+  options: Options,
+  ...tasks: Tasks
+) => fromArray<ID, Tasks>(id, tasks, options);
