@@ -1,0 +1,4 @@
+#!/bin/sh
+set -eu
+
+vp install --frozen-lockfile
