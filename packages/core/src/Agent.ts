@@ -1,8 +1,6 @@
-import * as Prompt from "#/Prompt.ts";
-import type * as Response from "#/Response.ts";
-import type * as Sandbox from "#/Sandbox.ts";
-import type * as Snapshot from "#/Snapshot.ts";
 import { Context, Effect, Layer, Option, Ref, Schema, type Scope, Semaphore, Stream } from "effect";
+import type { Sandbox, Snapshot } from "@open-insight/sandbox";
+import { Prompt, type Response } from "@open-insight/trajectory";
 
 export class AgentError extends Schema.TaggedError<AgentError>("open-insight/AgentError")(
   "AgentError",

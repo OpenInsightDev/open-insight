@@ -1,5 +1,5 @@
 import { Predicate, Stream } from "effect";
-import type * as Tool from "#/Tool.ts";
+import type * as Tool from "effect/ai/Tool";
 import * as Prompt from "#/Prompt.ts";
 import * as Response from "#/Response.ts";
 import type * as Trajectory from "#/Trajectory.ts";

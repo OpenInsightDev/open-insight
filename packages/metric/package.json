@@ -1,7 +1,7 @@
 {
-  "name": "@open-insight/trajectory",
+  "name": "@open-insight/metric",
   "version": "0.0.0",
-  "description": "Prompts, responses, and trajectories for recorded model interactions.",
+  "description": "Metrics and metric kits for evaluating trajectories.",
   "homepage": "https://github.com/OpenInsightDev/open-insight",
   "license": "MIT",
   "author": "Bowei Wang <wozluohd@gmail.com>",
@@ -42,15 +42,13 @@
   },
   "dependencies": {
     "@open-insight/sandbox": "workspace:*",
-    "effect": "catalog:",
-    "hyparquet-writer": "catalog:",
-    "uuid": "catalog:"
+    "@open-insight/trajectory": "workspace:*",
+    "effect": "catalog:"
   },
   "devDependencies": {
     "@effect/vitest": "^4.0.0",
     "@types/node": "^26.6.4",
     "bumpp": "^12.3.0",
-    "hyparquet": "catalog:",
     "typescript": "^7.0.2",
     "vite": "catalog:",
     "vite-plus": "catalog:",

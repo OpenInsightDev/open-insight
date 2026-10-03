@@ -43,6 +43,9 @@
   "dependencies": {
     "@effect/opentelemetry": "catalog:",
     "@open-insight/core": "workspace:*",
+    "@open-insight/metric": "workspace:*",
+    "@open-insight/sandbox": "workspace:*",
+    "@open-insight/trajectory": "workspace:*",
     "chdb": "catalog:",
     "effect": "catalog:"
   },

@@ -29,12 +29,9 @@ import {
   Stream,
 } from "effect";
 import { Base64 } from "effect/encoding";
+import { Sandbox, Shell as Bash, Snapshot } from "@open-insight/sandbox";
+import { Response, type Prompt } from "@open-insight/trajectory";
 import * as Agent from "#/Agent.ts";
-import * as Prompt from "#/Prompt.ts";
-import * as Response from "#/Response.ts";
-import * as Sandbox from "#/Sandbox.ts";
-import * as Snapshot from "#/Snapshot.ts";
-import * as Bash from "#/Shell.ts";
 import {
   type HttpStreamOptions,
   openStream,

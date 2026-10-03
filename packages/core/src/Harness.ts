@@ -1,10 +1,8 @@
 import { Data, Effect, Option, RcMap, type Ref, Schema, type Scope, Stream } from "effect";
+import { type Tool, Toolkit } from "effect/ai";
+import { Sandbox, type Snapshot } from "@open-insight/sandbox";
+import type { Prompt, Response } from "@open-insight/trajectory";
 import * as Agent from "#/Agent.ts";
-import * as Sandbox from "#/Sandbox.ts";
-import type * as Response from "#/Response.ts";
-import type * as Snapshot from "#/Snapshot.ts";
-import type * as Prompt from "#/Prompt.ts";
-import type { Tool, Toolkit } from "effect/ai";
 
 export type HarnessError = Schema.SchemaError | Agent.AgentError | Sandbox.SandboxProviderError;
 

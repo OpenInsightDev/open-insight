@@ -1,14 +1,7 @@
-import {
-  Prompt,
-  Trajectory,
-  type Harness,
-  type Sandbox,
-  Response,
-  Metrickit,
-  StreamReader,
-  StreamWriter,
-  Metric,
-} from "@open-insight/core";
+import type { Harness } from "@open-insight/core";
+import { Metric, Metrickit } from "@open-insight/metric";
+import type { Sandbox } from "@open-insight/sandbox";
+import { Prompt, Response, StreamReader, StreamWriter, Trajectory } from "@open-insight/trajectory";
 import {
   Cause,
   Effect,

@@ -1,6 +1,6 @@
 import { assert, it } from "vite-plus/test";
 import { Effect, Stream } from "effect";
-import { Prompt, Response, Trajectory } from "@open-insight/core";
+import { Prompt, Response, Trajectory } from "@open-insight/trajectory";
 import * as Event from "#/Event.ts";
 import * as Result from "#/Result.ts";
 

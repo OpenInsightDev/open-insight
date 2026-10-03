@@ -1,5 +1,7 @@
 import { Schema, Stream } from "effect";
-import { Prompt, Metric, Response, Harness, Trajectory } from "@open-insight/core";
+import { Harness } from "@open-insight/core";
+import { Metric } from "@open-insight/metric";
+import { Prompt, Response, Trajectory } from "@open-insight/trajectory";
 import * as Bench from "#/Bench.ts";
 import * as Task from "#/Task.ts";
 import { Toolkit } from "effect/ai";

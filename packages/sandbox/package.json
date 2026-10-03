@@ -1,7 +1,7 @@
 {
-  "name": "@open-insight/trajectory",
+  "name": "@open-insight/sandbox",
   "version": "0.0.0",
-  "description": "Prompts, responses, and trajectories for recorded model interactions.",
+  "description": "Isolated sandboxes for running commands and managing files.",
   "homepage": "https://github.com/OpenInsightDev/open-insight",
   "license": "MIT",
   "author": "Bowei Wang <wozluohd@gmail.com>",
@@ -41,16 +41,14 @@
     "prepublishOnly": "vp run build"
   },
   "dependencies": {
-    "@open-insight/sandbox": "workspace:*",
     "effect": "catalog:",
-    "hyparquet-writer": "catalog:",
-    "uuid": "catalog:"
+    "validator": "catalog:"
   },
   "devDependencies": {
     "@effect/vitest": "^4.0.0",
     "@types/node": "^26.6.4",
+    "@types/validator": "catalog:",
     "bumpp": "^12.3.0",
-    "hyparquet": "catalog:",
     "typescript": "^7.0.2",
     "vite": "catalog:",
     "vite-plus": "catalog:",

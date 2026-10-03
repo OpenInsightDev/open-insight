@@ -1,6 +1,7 @@
-import { Metric, Prompt, Sandbox, Snapshot } from "@open-insight/core";
-import * as Grade from "#/Grade.ts";
 import { Data, Schema } from "effect";
+import { Sandbox, Snapshot } from "@open-insight/sandbox";
+import type { Prompt } from "@open-insight/trajectory";
+import * as Grade from "#/Grade.ts";
 
 export class TaskError extends Data.TaggedError("TaskError")<{
   readonly cause: unknown;

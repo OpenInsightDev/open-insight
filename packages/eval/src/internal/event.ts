@@ -1,5 +1,5 @@
 import type * as Event from "#/Event.ts";
-import type { Trajectory } from "@open-insight/core";
+import type { Trajectory } from "@open-insight/trajectory";
 import { Match, Result } from "effect";
 
 export const sessionPart = (

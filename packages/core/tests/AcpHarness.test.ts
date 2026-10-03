@@ -1,8 +1,8 @@
 import type { SessionUpdate } from "@agentclientprotocol/sdk";
 import { assert, it } from "@effect/vitest";
 import { Cause, Effect, Option, Stream } from "effect";
+import { Response } from "@open-insight/trajectory";
 import { transform } from "#/Acp.ts";
-import * as Response from "#/Response.ts";
 
 const collect = (
   updates: ReadonlyArray<SessionUpdate>,

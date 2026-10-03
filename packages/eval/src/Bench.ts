@@ -1,5 +1,5 @@
 import * as Task from "#/Task.ts";
-import type { Types } from "@open-insight/core";
+import type { Types } from "@open-insight/trajectory";
 import { Data, Schema } from "effect";
 
 export class Metadata extends Schema.Class<Metadata>("BenchMetadata")({

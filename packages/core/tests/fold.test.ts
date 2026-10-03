@@ -1,6 +1,6 @@
 import { assert, it } from "@effect/vitest";
 import { Effect, Stream } from "effect";
-import * as Response from "#/Response.ts";
+import { Response } from "@open-insight/trajectory";
 import { fold } from "#/internal/fold.ts";
 
 const collect = (

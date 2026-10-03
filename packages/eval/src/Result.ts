@@ -1,4 +1,4 @@
-import { Trajectory } from "@open-insight/core";
+import { Trajectory } from "@open-insight/trajectory";
 import { Data, Effect, Schema, Stream } from "effect";
 import * as Task from "#/Task.ts";
 

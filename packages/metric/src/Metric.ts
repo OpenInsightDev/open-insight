@@ -1,11 +1,11 @@
 import { Data, DateTime, Effect, Formatter, Schedule, Schema, Stream } from "effect";
-import * as Trajectory from "#/Trajectory.ts";
-import * as Sandbox from "#/Sandbox.ts";
-import { fromSchedule } from "./internal/metric.ts";
+import type { Sandbox } from "@open-insight/sandbox";
+import type { Trajectory } from "@open-insight/trajectory";
+import { fromSchedule } from "#/internal/metric.ts";
 
 /** A response part does not match the schema declared by its tool. */
 export class ToolSchemaMismatch extends Schema.TaggedError<ToolSchemaMismatch>(
-  "open-insight/core/MetricError/ToolSchemaMismatch",
+  "open-insight/metric/MetricError/ToolSchemaMismatch",
 )("ToolSchemaMismatch", {
   name: Schema.String,
   cause: Schema.Defect(),
@@ -17,7 +17,7 @@ export class ToolSchemaMismatch extends Schema.TaggedError<ToolSchemaMismatch>(
 }
 
 export class TransformFailed extends Schema.TaggedError<TransformFailed>(
-  "open-insight/core/MetricError/TransformFailed",
+  "open-insight/metric/MetricError/TransformFailed",
 )("TransformFailed", {
   cause: Schema.Defect(),
 }) {
@@ -27,10 +27,11 @@ export class TransformFailed extends Schema.TaggedError<TransformFailed>(
 }
 
 export const ErrorReason = Schema.Union([ToolSchemaMismatch, TransformFailed]);
+
 export type ErrorReason = Schema.Schema.Type<typeof ErrorReason>;
 
 /** Errors raised while evaluating a metric. */
-export class MetricError extends Schema.TaggedError<MetricError>("open-insight/core/MetricError")(
+export class MetricError extends Schema.TaggedError<MetricError>("open-insight/metric/MetricError")(
   "MetricError",
   {
     reason: ErrorReason,
@@ -59,6 +60,7 @@ export class Metadata extends Schema.Class<Metadata>("Metadata")({
   name: Schema.OptionFromOptionalNullOr(Schema.String),
   description: Schema.OptionFromOptionalNullOr(Schema.String),
 }) {}
+
 export type MetadataEncoded = Schema.Codec.Encoded<typeof Metadata>;
 
 export const Result = <S extends Schema.Constraint>(schema: S) =>
@@ -100,17 +102,22 @@ export class Metric<ID extends string, S extends Schema.Constraint> extends Data
     sandbox: Sandbox.Sandbox,
   ) => Stream.Stream<Result<ID, S>, MetricError>;
 }> {}
+
 export type Any = Metric<any, any>;
+
 export type ResultOf<Metric extends Any> = Result<Metric["id"], Metric["schema"]>;
+
 export type ResultsOf<Metrics extends Record<string, Any>> = Readonly<{
   [K in keyof Metrics]: ResultOf<Metrics[K]>[];
 }>;
 
 type TrajectoryOptions = MetadataEncoded & Readonly<{}>;
+
 type Observation<S extends Schema.Constraint> = Readonly<{
   result: S["Type"];
-  part: Trajectory.ResponsePart<any>;
+  part: Trajectory.AnyResponsePart;
 }>;
+
 export const trajectoryMetric = <ID extends string, S extends Schema.Constraint>(
   id: ID,
   schema: S,
@@ -147,6 +154,7 @@ type SchedOptions = MetadataEncoded &
   Readonly<{
     schedule?: Schedule.Schedule<unknown>;
   }>;
+
 export const schedMetric = <ID extends string, S extends Schema.Constraint, E>(
   id: ID,
   schema: S,

@@ -1,18 +1,19 @@
 import { Data, Effect, Scope, Stream } from "effect";
-import * as Sandbox from "#/Sandbox.ts";
-import * as Trajectory from "#/Trajectory.ts";
+import type { Sandbox } from "@open-insight/sandbox";
+import type { Trajectory, Types } from "@open-insight/trajectory";
 import * as Metric from "#/Metric.ts";
-import type { IndexByKey, Override } from "./Types.ts";
 
 export class Metrickit<Metrics extends Record<string, Metric.Any>> extends Data.Class<{
   metrics: Metrics;
 }> {}
+
 export type MetricsOf<T> = T extends Metrickit<infer Metrics> ? Metrics : never;
+
 export type Any = Metrickit<Record<string, Metric.Any>>;
 
 export const make = <Metrics extends ReadonlyArray<Metric.Any>>(
   ...metrics: Metrics
-): Metrickit<IndexByKey<Metrics, "id">> => {
+): Metrickit<Types.IndexByKey<Metrics, "id">> => {
   return new Metrickit({
     metrics: Object.fromEntries(metrics.map((metric) => [metric.id, metric])),
   });
@@ -25,7 +26,7 @@ export const register = <CurrMetrics extends ReadonlyArray<Metric.Any>>(
 ) => {
   return <PrevMetrics extends Record<string, Metric.Any>>(
     metrickit: Metrickit<PrevMetrics>,
-  ): Metrickit<Override<PrevMetrics, IndexByKey<CurrMetrics, "id">>> =>
+  ): Metrickit<Types.Override<PrevMetrics, Types.IndexByKey<CurrMetrics, "id">>> =>
     new Metrickit({
       metrics: {
         ...metrickit.metrics,
@@ -39,7 +40,9 @@ export type ResultStream<Metrics extends Record<string, Metric.Any>> = Stream.St
   Metric.MetricError
 >;
 
-export const run = Effect.fn("Metric.run")(function* <Metrics extends Record<string, Metric.Any>>(
+export const run = Effect.fn("Metrickit.run")(function* <
+  Metrics extends Record<string, Metric.Any>,
+>(
   metrickit: Metrickit<Metrics>,
   {
     trajectories,
@@ -57,5 +60,6 @@ export const run = Effect.fn("Metric.run")(function* <Metrics extends Record<str
   const transformed = Object.values(metrickit.metrics).map((metric) =>
     metric.transform(shared, sandbox),
   );
+
   return Stream.mergeAll(transformed, { concurrency: "unbounded" });
 });

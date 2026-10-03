@@ -7,13 +7,13 @@
  */
 import { Effect, Function, Match, Option, Result, Schema, Sink, Stream } from "effect";
 import { type Tool, Toolkit } from "effect/ai";
-import { foldSession } from "#/internal/trajectory.ts";
 import * as Prompt from "#/Prompt.ts";
 import * as Response from "#/Response.ts";
+import { Timestamp, Uuid } from "#/Schema.ts";
 import * as StreamReader from "#/StreamReader.ts";
 import * as StreamWriter from "#/StreamWriter.ts";
-import { Timestamp, Uuid } from "#/Schema.ts";
 import * as ToolkitData from "#/Toolkit.ts";
+import { foldSession } from "#/internal/trajectory.ts";
 
 /**
  * Error indicating that a trajectory part could not be encoded.
@@ -204,7 +204,7 @@ export type PromptPartEncoded = Schema.Codec.Encoded<typeof PromptPart>;
  * **Example** (Recording a prompt)
  *
  * ```ts import.meta.vitest
- * import { Prompt, Trajectory } from "@open-insight/core"
+ * import { Prompt, Trajectory } from "@open-insight/trajectory"
  *
  * const part = Trajectory.promptPart(Prompt.make("What is 2 + 2?"))
  * part._tag // => "Prompt"
@@ -259,7 +259,7 @@ export type AnyResponsePart = Schema.Schema.Type<typeof AnyResponsePart>;
  * **Example** (Recording a response part)
  *
  * ```ts import.meta.vitest
- * import { Response, Trajectory } from "@open-insight/core"
+ * import { Response, Trajectory } from "@open-insight/trajectory"
  *
  * const part = Trajectory.responsePart(Response.makePart("text", { text: "Hello" }))
  * part._tag // => "Response"
@@ -341,7 +341,7 @@ export type TrajectoryEncoded = Stream.Stream<PartEncoded, TrajectoryError>;
  * **Example** (Creating a trajectory)
  *
  * ```ts import.meta.vitest
- * import { Prompt, Trajectory } from "@open-insight/core"
+ * import { Prompt, Trajectory } from "@open-insight/trajectory"
  * import { Stream } from "effect"
  * import { Toolkit } from "effect/ai"
  *

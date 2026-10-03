@@ -1,5 +1,6 @@
-import { Prompt, Sandbox, Snapshot } from "@open-insight/core";
 import { Data, Effect, Equal, flow, Match, Schema, Scope } from "effect";
+import { Sandbox, Snapshot } from "@open-insight/sandbox";
+import { Prompt } from "@open-insight/trajectory";
 
 export const GradeErrorReason = Schema.Union([Sandbox.SandboxError, Sandbox.SandboxProviderError]);
 

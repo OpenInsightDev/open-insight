@@ -42,20 +42,17 @@
   },
   "dependencies": {
     "@agentclientprotocol/sdk": "catalog:",
+    "@open-insight/sandbox": "workspace:*",
+    "@open-insight/trajectory": "workspace:*",
     "avro-js": "catalog:",
     "chdb": "^3.4.0",
     "effect": "catalog:",
-    "hyparquet": "catalog:",
-    "hyparquet-writer": "catalog:",
-    "picomatch": "catalog:",
-    "uuid": "catalog:",
-    "validator": "catalog:"
+    "picomatch": "catalog:"
   },
   "devDependencies": {
     "@effect/vitest": "^4.0.0",
     "@types/node": "^26.6.4",
     "@types/picomatch": "catalog:",
-    "@types/validator": "catalog:",
     "bumpp": "^12.3.0",
     "typescript": "^7.0.2",
     "vite": "catalog:",

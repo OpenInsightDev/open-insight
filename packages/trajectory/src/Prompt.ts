@@ -1,6 +1,12 @@
-import { Prompt } from "effect/ai";
+/**
+ * Prompts sent to a model, re-exported from `effect/ai`.
+ *
+ * A session drives a conversation one prompt at a time, advancing the prompt
+ * with a step that may inspect the sandbox.
+ */
 import { Effect, Option } from "effect";
-import * as Sandbox from "#/Sandbox.ts";
+import { Prompt } from "effect/ai";
+import type { Sandbox } from "@open-insight/sandbox";
 
 export type Session<E = never> = Readonly<{
   init: Prompt.Prompt;

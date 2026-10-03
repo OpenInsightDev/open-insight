@@ -1,6 +1,6 @@
 import { Predicate, Stream } from "effect";
 import { type Tool } from "effect/ai";
-import * as Response from "#/Response.ts";
+import { Response } from "@open-insight/trajectory";
 
 type AccumulatedContent = {
   text: string;
