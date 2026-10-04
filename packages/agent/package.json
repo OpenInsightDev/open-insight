@@ -1,0 +1,57 @@
+{
+  "name": "@open-insight/agent",
+  "version": "0.0.0",
+  "description": "Agents that run model sessions inside sandboxes and record trajectories.",
+  "homepage": "https://github.com/OpenInsightDev/open-insight",
+  "license": "MIT",
+  "author": "Bowei Wang <wozluohd@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/OpenInsightDev/open-insight.git"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "imports": {
+    "#/*": "./src/*"
+  },
+  "exports": {
+    ".": "./src/index.ts",
+    "./package.json": "./package.json",
+    "./*": "./src/*.ts",
+    "./internal/*": null,
+    "./*/index": null
+  },
+  "publishConfig": {
+    "exports": {
+      ".": "./dist/index.mjs",
+      "./package.json": "./package.json",
+      "./*": "./src/*.ts",
+      "./internal/*": null,
+      "./*/index": null
+    },
+    "access": "public"
+  },
+  "scripts": {
+    "build": "vp pack",
+    "dev": "vp pack --watch",
+    "test": "vp test",
+    "check": "vp check",
+    "prepublishOnly": "vp run build"
+  },
+  "dependencies": {
+    "@open-insight/sandbox": "workspace:*",
+    "@open-insight/trajectory": "workspace:*",
+    "effect": "catalog:"
+  },
+  "devDependencies": {
+    "@effect/vitest": "^4.0.0",
+    "@types/node": "catalog:",
+    "bumpp": "^12.3.0",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vite-plus": "catalog:",
+    "vitest": "catalog:"
+  }
+}
