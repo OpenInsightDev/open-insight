@@ -2,7 +2,7 @@ import { ByteSize, Context, Effect, FileSystem, Formatter, Layer, Schema, Stream
 import { Ndjson } from "effect/encoding";
 
 export class ReadFailed extends Schema.TaggedError<ReadFailed>(
-  "open-insight/trajectory/StreamReaderError/ReadFailed",
+  "open-insight/utils/StreamReaderError/ReadFailed",
 )("ReadFailed", {
   cause: Schema.Defect(),
 }) {
@@ -18,7 +18,7 @@ export interface Service {
 }
 
 export class StreamReader extends Context.Service<StreamReader, Service>()(
-  "open-insight/trajectory/StreamReader",
+  "open-insight/utils/StreamReader",
 ) {
   /** Reads records stored as newline-delimited JSON, one record per line. */
   static readonly layerFromOption = (

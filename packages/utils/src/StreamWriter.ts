@@ -4,7 +4,7 @@ import { parquetWriter } from "#/internal/parquet.ts";
 import type { OpenFlag } from "effect/FileSystem";
 
 export class WriteFailed extends Schema.TaggedError<WriteFailed>(
-  "open-insight/trajectory/StreamWriterError/WriteFailed",
+  "open-insight/utils/StreamWriterError/WriteFailed",
 )("WriteFailed", {
   cause: Schema.Defect(),
 }) {
@@ -23,7 +23,7 @@ export interface Service {
 }
 
 export class StreamWriter extends Context.Service<StreamWriter, Service>()(
-  "open-insight/trajectory/StreamWriter",
+  "open-insight/utils/StreamWriter",
 ) {
   /** Writes records as newline-delimited JSON, one record per line. */
   static readonly layerFromOptions = (

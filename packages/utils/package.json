@@ -1,7 +1,7 @@
 {
-  "name": "@open-insight/eval",
+  "name": "@open-insight/utils",
   "version": "0.0.0",
-  "description": "undefined",
+  "description": "Shared utilities for Open Insight packages.",
   "homepage": "https://github.com/OpenInsightDev/open-insight",
   "license": "MIT",
   "author": "Bowei Wang <wozluohd@gmail.com>",
@@ -21,7 +21,7 @@
     "./package.json": "./package.json",
     "./*": "./src/*.ts",
     "./internal/*": null,
-    "./*/index": null
+    ".*/index": null
   },
   "publishConfig": {
     "exports": {
@@ -29,7 +29,7 @@
       "./package.json": "./package.json",
       "./*": "./src/*.ts",
       "./internal/*": null,
-      "./*/index": null
+      ".*/index": null
     },
     "access": "public"
   },
@@ -41,20 +41,17 @@
     "prepublishOnly": "vp run build"
   },
   "dependencies": {
-    "@effect/opentelemetry": "catalog:",
-    "@open-insight/core": "workspace:*",
-    "@open-insight/metric": "workspace:*",
-    "@open-insight/sandbox": "workspace:*",
-    "@open-insight/trajectory": "workspace:*",
-    "@open-insight/utils": "workspace:*",
-    "chdb": "catalog:",
-    "effect": "catalog:"
+    "effect": "catalog:",
+    "hyparquet-writer": "catalog:"
   },
   "devDependencies": {
+    "@effect/vitest": "^4.0.0",
     "@types/node": "catalog:",
     "bumpp": "^12.3.0",
+    "hyparquet": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",
-    "vite-plus": "catalog:"
+    "vite-plus": "catalog:",
+    "vitest": "catalog:"
   }
 }

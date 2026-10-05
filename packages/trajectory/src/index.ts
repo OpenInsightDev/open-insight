@@ -8,8 +8,4 @@ export * as Types from "./Types.ts";
 
 export * as Schema from "./Schema.ts";
 
-export * as StreamReader from "./StreamReader.ts";
-
-export * as StreamWriter from "./StreamWriter.ts";
-
 export * as Toolkit from "./Toolkit.ts";

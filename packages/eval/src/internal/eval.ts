@@ -1,5 +1,6 @@
 import { Effect, FileSystem, Path } from "effect";
-import { Cache, Git } from "@open-insight/core";
+import { Cache } from "@open-insight/core";
+import { Git } from "@open-insight/utils";
 import type { TrailID } from "#/Event.ts";
 
 const NAMESPACE = "eval" as const;

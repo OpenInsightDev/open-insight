@@ -1,4 +1,5 @@
 import { assert, it } from "@effect/vitest";
+import { StreamReader, StreamWriter } from "@open-insight/utils";
 import {
   Effect,
   FileSystem,
@@ -13,8 +14,6 @@ import {
 import { Tool, Toolkit } from "effect/ai";
 import * as Prompt from "#/Prompt.ts";
 import * as Response from "#/Response.ts";
-import * as StreamReader from "#/StreamReader.ts";
-import * as StreamWriter from "#/StreamWriter.ts";
 import * as ToolkitData from "#/Toolkit.ts";
 import * as Trajectory from "#/Trajectory.ts";
 

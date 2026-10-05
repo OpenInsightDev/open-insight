@@ -115,7 +115,7 @@ export class Process extends Context.Service<
       options?: OutputOptions,
     ): Effect.Effect<ReadonlyArray<string>, ProcessError>;
   }
->()("packages/core/utils/Process") {
+>()("open-insight/utils/Process") {
   static readonly layer: Layer.Layer<Process, never, ChildProcessSpawner> = Layer.effect(
     Process,
     Effect.gen(function* () {

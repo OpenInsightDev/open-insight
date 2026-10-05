@@ -1,7 +1,7 @@
 import { Context, Data, Effect, Layer, Option } from "effect";
 import { ChildProcess } from "effect/process";
 import type { ChildProcessSpawner } from "effect/process";
-import * as Process from "./Process.ts";
+import * as Process from "#/Process.ts";
 
 export class GitError extends Data.TaggedError("GitError")<{
   readonly cause: Process.ProcessError;
@@ -75,7 +75,7 @@ export class Git extends Context.Service<
     readonly tagCommitHash: (tag: string) => Effect.Effect<string, GitError>;
     readonly tagMessage: (tag: string) => Effect.Effect<string, GitError>;
   }
->()("packages/core/git/GitService") {
+>()("open-insight/utils/Git") {
   static readonly layer: Layer.Layer<Git, GitError, ChildProcessSpawner.ChildProcessSpawner> =
     Layer.effect(
       Git,

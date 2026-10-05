@@ -5,13 +5,12 @@
  * model, response parts record the parts produced in return, and the trajectory
  * carries the toolkit used to interpret tool parts and metadata describing it.
  */
+import { StreamReader, StreamWriter } from "@open-insight/utils";
 import { Effect, Function, Match, Option, Result, Schema, Sink, Stream } from "effect";
 import { type Tool, Toolkit } from "effect/ai";
 import * as Prompt from "#/Prompt.ts";
 import * as Response from "#/Response.ts";
 import { Timestamp, Uuid } from "#/Schema.ts";
-import * as StreamReader from "#/StreamReader.ts";
-import * as StreamWriter from "#/StreamWriter.ts";
 import * as ToolkitData from "#/Toolkit.ts";
 import { foldSession } from "#/internal/trajectory.ts";
 

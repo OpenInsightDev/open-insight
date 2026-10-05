@@ -42,15 +42,14 @@
   },
   "dependencies": {
     "@open-insight/sandbox": "workspace:*",
+    "@open-insight/utils": "workspace:*",
     "effect": "catalog:",
-    "hyparquet-writer": "catalog:",
     "uuid": "catalog:"
   },
   "devDependencies": {
     "@effect/vitest": "^4.0.0",
     "@types/node": "catalog:",
     "bumpp": "^12.3.0",
-    "hyparquet": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",
     "vite-plus": "catalog:",
